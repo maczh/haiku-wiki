@@ -10,6 +10,8 @@
 //   - .drawio → 「绘图」文档，正文即 .drawio 的 XML 原文，由内嵌 draw.io 组件直接编辑保存；
 //   - .xlsx / .xls / .csv / .et → 转为「表格」：每个有内容的工作表落为一个「表格」文档，
 //     多表时以文件名建父「表格」，各工作表作为其子文档；单表时直接落为单文档；
+//   - .smm / .km / .xmind / .mm → 思维导图：交给后端 /api/mindmap/parse 统一解析成
+//     内置 .smm 正文（.xmind 是 zip 包，解压与新旧结构兼容都放服务端）；
 //   - 其余文本类格式（md/txt/html）解析为对应类型的正文。
 
 import TurndownService from 'turndown'
@@ -17,6 +19,7 @@ import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
 import { stringifySheet, type SheetJSON } from '../sheet'
+import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
 
 /** 子文档（多文档导入产物，如 xlsx 的多工作表） */
 export interface ImportChild {
@@ -74,6 +77,26 @@ function wrapText(raw: string, fallbackTitle: string, docType: DocType): ParseRe
 const parseMd: Parser = async (file) => {
   const raw = await file.text()
   return wrapText(raw, baseName(file.name), 'markdown')
+}
+
+// ---------- 思维导图（.smm / .km / .xmind / .mm → 内置 smm） ----------
+
+/** 可由后端解析的思维导图扩展名 */
+export const MINDMAP_IMPORT_EXTS = ['smm', 'km', 'xmind', 'mm']
+
+const parseMindmapFile: Parser = async (file) => {
+  const title = baseName(file.name)
+  try {
+    const res = await parseMindmapFileApi(file)
+    if (!res.content || !res.content.trim()) {
+      return { ok: false, title, docType: 'mindmap', content: '', reason: '文件中没有解析出思维导图节点' }
+    }
+    return { ok: true, title: (res.title || title).slice(0, 256), docType: 'mindmap', content: res.content }
+  } catch (e) {
+    // 后端会把具体原因（例如「未找到 content.json」）放在错误消息里，直接透出更有用
+    const msg = (e as { message?: string })?.message || '思维导图解析失败'
+    return { ok: false, title, docType: 'mindmap', content: '', reason: msg }
+  }
 }
 
 // ---------- 附件型（原样保存，不解析正文） ----------
@@ -223,6 +246,10 @@ export const parserRegistry: Record<string, Parser> = {
   dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
   dxf: parseAttachment,
   drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存
+  smm: parseMindmapFile, // 思维导图：四种外部格式统一转成内置 smm
+  km: parseMindmapFile,
+  xmind: parseMindmapFile,
+  mm: parseMindmapFile,
   xlsx: parseXlsx,
   xls: parseXlsx,
   csv: parseXlsx,

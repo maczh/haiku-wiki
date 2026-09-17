@@ -18,6 +18,8 @@ import {
   HolderOutlined,
   ImportOutlined,
   PaperClipOutlined,
+  CalendarOutlined,
+  CheckSquareOutlined,
   DeploymentUnitOutlined,
   PartitionOutlined,
   PushpinFilled,
@@ -50,6 +52,8 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   mindmap: '未命名思维导图',
   flowchart: '未命名流程图',
   drawing: '未命名绘图',
+  todo: '未命名待办清单',
+  calendar: '未命名工作日历',
   file: '未命名附件',
 }
 
@@ -65,6 +69,10 @@ function nodeIcon(node: DocNode, hasChildren: boolean) {
       return <PartitionOutlined style={{ color: '#fa8c16' }} />
     case 'drawing':
       return <DeploymentUnitOutlined style={{ color: '#eb2f96' }} />
+    case 'todo':
+      return <CheckSquareOutlined style={{ color: '#52c41a' }} />
+    case 'calendar':
+      return <CalendarOutlined style={{ color: '#1677ff' }} />
     case 'file':
       return <PaperClipOutlined style={{ color: '#2f54eb' }} />
     default:
@@ -80,6 +88,7 @@ const IMPORT_FORMATS: { key: string; label: string; accept: string }[] = [
   { key: 'pdf', label: 'PDF（.pdf）', accept: '.pdf' },
   { key: 'docx', label: 'Word（.docx）', accept: '.docx' },
   { key: 'xlsx', label: 'Excel（.xlsx）', accept: '.xlsx,.xls,.csv' },
+  { key: 'mindmap', label: '思维导图（.smm/.km/.xmind/.mm）', accept: '.smm,.km,.xmind,.mm' },
   { key: 'pptx', label: 'PPT（.pptx）', accept: '.pptx' },
   { key: 'dwg', label: 'AutoCAD（.dwg/.dxf）', accept: '.dwg,.dxf' },
   { key: 'drawio', label: 'draw.io 绘图（.drawio）', accept: '.drawio' },

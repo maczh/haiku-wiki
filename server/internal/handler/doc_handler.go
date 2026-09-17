@@ -27,9 +27,11 @@ type createDocReq struct {
 // validDocTypes 新建文档允许的类型枚举（datatable 已下线，存量由 MigrateData 迁移为 sheet）。
 // file：导入的 .docx/.pdf/.pptx/.dwg 原样保存的附件型文档，正文不可编辑，仅阅读与下载。
 // drawing：内嵌 draw.io 的绘图文档，正文为 mxGraph XML，可编辑。
+// todo：待办清单，正文 {version,items:[…]}，可导出 xlsx/md。
+// calendar：工作日历，正文 {version,tasks:[…]}，可导出 xlsx/ics。
 var validDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
-	"file": true, "drawing": true,
+	"file": true, "drawing": true, "todo": true, "calendar": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。

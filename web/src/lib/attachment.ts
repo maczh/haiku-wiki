@@ -30,6 +30,7 @@ export function parseAttachment(content: string): FileAttachment | null {
       derived,
       degraded: o.degraded === true,
       note: typeof o.note === 'string' ? o.note : undefined,
+      pptx_scanned: o.pptx_scanned === true,
     }
   } catch {
     return null

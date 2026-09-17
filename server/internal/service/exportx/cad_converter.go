@@ -111,9 +111,36 @@ func DWGConverterAvailable() bool {
 func DWGConverterStatus() string {
 	p, k := findDWGConverter()
 	if p == "" {
-		return "未找到 DWG 转换器（将使用内嵌预览位图降级方案）"
+		return "未找到 DWG 转换器（将使用内嵌预览位图降级方案）" + converterBuildHint()
 	}
 	return fmt.Sprintf("已启用 %s（%s）", k, p)
+}
+
+// converterBuildHint 读取构建期留下的转换器状态文件，给出「为什么没有转换器」的线索。
+//
+// 背景：镜像里转换器的有无取决于镜像构建阶段能否编译出 libredwg。该阶段失败时
+// 出于「不让镜像构建整体失败」的考虑不会中断，于是运行期只会看到「未安装转换器」——
+// 使用者无从判断是漏装依赖、网络拉不到源码，还是别的原因。Dockerfile 会把失败日志
+// 写进 converter-status.txt 一起带进镜像，这里把它读出来附在状态里。
+func converterBuildHint() string {
+	path := strings.TrimSpace(os.Getenv("EXPORT_DWG_BUILD_STATUS"))
+	if path == "" {
+		path = "/usr/local/bin/converter-status.txt"
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	msg := strings.TrimSpace(string(data))
+	if msg == "" || strings.HasPrefix(msg, "ok ") {
+		return ""
+	}
+	// 只取前几行，避免把整段编译日志塞进接口响应。
+	lines := strings.Split(msg, "\n")
+	if len(lines) > 3 {
+		lines = append(lines[:3], "…")
+	}
+	return "；镜像构建期信息：" + strings.Join(lines, " / ")
 }
 
 // ResetDWGConverterCache 清除转换器发现缓存（测试用）。
@@ -157,18 +184,36 @@ func DWGToDXF(dwg []byte) ([]byte, error) {
 	cmd.Dir = dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	runErr := cmd.Run()
+
+	// 产物优先于退出码：libredwg 在遇到它自己能跳过的告警（Unstable / Unhandled Class
+	// 之类）时仍可能返回非 0，而 DXF 是完整可用的。若只看退出码就丢弃产物，
+	// 大批真实图纸会白白退化成低分辨率位图预览。只在「产物确实是 DXF」时才采信。
+	data, readErr := os.ReadFile(out)
+	if readErr == nil && looksLikeDXF(data) {
+		return data, nil
+	}
+	if runErr != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
-			msg = err.Error()
+			msg = runErr.Error()
 		}
 		return nil, fmt.Errorf("%s 转换失败：%s", kind, truncate(msg, 300))
 	}
-	data, err := os.ReadFile(out)
-	if err != nil || len(data) == 0 {
-		return nil, fmt.Errorf("%s 未产出 DXF（可能是该 DWG 版本不受支持）", kind)
+	return nil, fmt.Errorf("%s 未产出 DXF（可能是该 DWG 版本不受支持）", kind)
+}
+
+// looksLikeDXF 粗判字节流是否像一份 DXF（用于「退出码非 0 但产物可用」的采信闸门）。
+// 真正的结构校验交给 ParseDXF，这里只要排除掉空文件与明显的垃圾输出。
+func looksLikeDXF(data []byte) bool {
+	if len(data) < 32 {
+		return false
 	}
-	return data, nil
+	head := data
+	if len(head) > 4096 {
+		head = head[:4096]
+	}
+	return bytes.Contains(head, []byte("SECTION"))
 }
 
 // runODAConverter ODA File Converter 是目录进目录出的批处理工具。
@@ -268,7 +313,7 @@ func ConvertDWG(dwg []byte) (*CadConversion, error) {
 	c, err := embeddedPreviewConversion(dwg)
 	if err != nil {
 		return nil, fmt.Errorf("未安装 DWG 转换器，且文件内不含预览图。" +
-			"请安装 libredwg（提供 dwg2dxf）或通过 EXPORT_DWG_CONVERTER 指定转换器")
+			"请安装 libredwg（提供 dwg2dxf）或通过 EXPORT_DWG_CONVERTER 指定转换器" + converterBuildHint())
 	}
 	return c, nil
 }

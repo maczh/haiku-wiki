@@ -260,6 +260,7 @@ var exportMIMEByExt = map[string]string{
 	".bmp":  "image/bmp",
 	".webp": "image/webp",
 	".svg":  "image/svg+xml",
+	".ico":  "image/x-icon",
 	".zip":  "application/zip",
 }
 

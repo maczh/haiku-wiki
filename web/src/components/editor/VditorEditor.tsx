@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Vditor from 'vditor'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
-import { Button, Space, Tooltip } from 'antd'
-import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
+import { Button, Form, Input, Modal, Space, Tooltip, Upload, message } from 'antd'
+import { HistoryOutlined, InboxOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
+import NotionEditing, { type NotionEditingProps } from './notion/NotionEditing'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
+import { uploadFile } from '../../api/uploads'
 
 // Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
 import 'vditor/dist/index.css'
@@ -47,6 +49,44 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  // ---------- Notion 风格行菜单：宿主侧需要实现的三个动作 ----------
+  const pickerRef = useRef<HTMLInputElement | null>(null)
+  /** 等待文件选择完成的插入请求 */
+  const pendingPickRef = useRef<{
+    kind: 'image' | 'attachment'
+    line: number
+    stripped: string
+    replace: (replacement: string[], caretBlock: number) => void
+  } | null>(null)
+  /** 链接插入：需要用户先填 URL 与文字 */
+  const [linkCtx, setLinkCtx] = useState<{
+    line: number
+    stripped: string
+    replace: (replacement: string[], caretBlock: number) => void
+  } | null>(null)
+  const [linkForm] = Form.useForm<{ url: string; text: string }>()
+
+  /** 读取 Markdown 全文（经 ref，引用稳定） */
+  const getValue = useCallback((): string => vdRef.current?.getValue() ?? latestRef.current, [])
+
+  /** 把光标放到第 block 个块的末尾（配合整篇写回后继续输入） */
+  const focusBlock = useCallback((block: number) => {
+    const host = elRef.current
+    const vd = vdRef.current
+    if (!host || !vd) return
+    const el = host.querySelector<HTMLElement>(`[data-block="${block}"]`)
+    if (!el) return
+    vd.focus()
+    const sel = window.getSelection()
+    if (!sel) return
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }, [])
 
   // docId 变化时重建编辑器
   useEffect(() => {
@@ -101,7 +141,10 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
         timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
       },
       after: () => {
-        if (!disposed) vdRef.current = vd
+        if (!disposed) {
+          vdRef.current = vd
+          setReady(true)
+        }
       },
     })
 
@@ -176,6 +219,7 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
 
     return () => {
       disposed = true
+      setReady(false)
       elRef.current?.removeEventListener('paste', onPaste)
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
@@ -192,6 +236,66 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
+
+  /** 整篇写回 Markdown，并（可选）把光标落到第 caretBlock 个块 */
+  const writeValue = useCallback(
+    (md: string, caretBlock?: number) => {
+      const vd = vdRef.current
+      if (!vd) return
+      vd.setValue(md)
+      latestRef.current = md
+      dirtyRef.current = true
+      setStatus('editing')
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+      if (typeof caretBlock === 'number') {
+        window.setTimeout(() => focusBlock(caretBlock), 0)
+      }
+    },
+    [focusBlock, doSave],
+  )
+
+  // ---------- Notion 风格：图片 / 附件 / 链接 三个需要宿主处理的插入 ----------
+  const onHostInsert = useCallback<NotionEditingProps['onHostInsert']>(
+    (key, ctx) => {
+      if (key === 'link') {
+        linkForm.setFieldsValue({ url: '', text: ctx.stripped || '' })
+        setLinkCtx({ line: ctx.line, stripped: ctx.stripped, replace: ctx.replace })
+        return
+      }
+      // image / attachment：触发隐藏文件选择框
+      pendingPickRef.current = { kind: key, line: ctx.line, stripped: ctx.stripped, replace: ctx.replace }
+      pickerRef.current?.click()
+    },
+    [linkForm],
+  )
+
+  const onPickFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许重复选同一文件
+    const ctx = pendingPickRef.current
+    pendingPickRef.current = null
+    if (!file || !ctx) return
+    try {
+      const res = await uploadFile(file)
+      const url = (res as { url?: string }).url ?? ''
+      if (!url) throw new Error('no url')
+      const label = ctx.stripped.trim() || file.name
+      const replacement = ctx.kind === 'image' ? `![${label}](${url})` : `[${label}](${url})`
+      ctx.replace([replacement], ctx.line)
+    } catch {
+      message.error('上传失败，请重试')
+    }
+  }, [])
+
+  const onLinkOk = useCallback(async () => {
+    const v = await linkForm.validateFields()
+    const ctx = linkCtx
+    if (!ctx) return
+    const text = (v.text || '').trim() || v.url
+    ctx.replace([`[${text}](${v.url})`], ctx.line)
+    setLinkCtx(null)
+  }, [linkForm, linkCtx])
 
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -238,7 +342,50 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
         </Space>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', background: '#fff' }} ref={elRef} />
+      {/* 编辑区：相对定位容器（不滚动），让 Notion 手柄/菜单叠加层覆盖可见区域而不随内容滚动 */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#fff' }}>
+        <div style={{ height: '100%', overflow: 'auto' }} ref={elRef} />
+        <NotionEditing
+          hostRef={elRef}
+          getValue={getValue}
+          writeValue={writeValue}
+          onHostInsert={onHostInsert}
+          ready={ready}
+        />
+      </div>
+
+      {/* 隐藏文件选择框：图片 / 附件插入 */}
+      <input
+        ref={pickerRef}
+        type="file"
+        style={{ display: 'none' }}
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt"
+        onChange={onPickFile}
+      />
+
+      {/* 链接插入弹窗 */}
+      <Modal
+        open={!!linkCtx}
+        title="插入链接"
+        okText="插入"
+        cancelText="取消"
+        onOk={onLinkOk}
+        onCancel={() => setLinkCtx(null)}
+        destroyOnClose
+      >
+        <Form form={linkForm} layout="vertical" initialValues={{ url: '', text: '' }}>
+          <Form.Item
+            name="url"
+            label="链接地址"
+            rules={[{ required: true, message: '请输入链接地址' }, { type: 'url', message: '链接格式不正确' }]}
+          >
+            <Input placeholder="https://" />
+          </Form.Item>
+          <Form.Item name="text" label="显示文字（留空则用地址）">
+            <Input placeholder="显示文字" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <VersionDrawer
         open={versionOpen}

@@ -31,7 +31,23 @@ var formatsByDocType = map[string][]FormatSpec{
 		{Value: "smm", Label: "Simple Mind Map（.smm）", Ext: "smm", MIME: "application/json; charset=utf-8"},
 		{Value: "xmind", Label: "XMind（.xmind）", Ext: "xmind", MIME: "application/vnd.xmind.workbook"},
 		{Value: "mm", Label: "FreeMind（.mm）", Ext: "mm", MIME: "text/xml; charset=utf-8"},
+		{Value: "md", Label: "Markdown 大纲（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
+		{Value: "json", Label: "大纲数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
 		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
+	},
+	// todo：待办清单。正文为 {version:1, items:[{text,done,due,priority,note}]}，
+	// 导出到 xlsx 时映射成「序号/待办事项/状态/截止日期/优先级/备注」六列。
+	"todo": {
+		{Value: "xlsx", Label: "Excel 工作簿（.xlsx）", Ext: "xlsx", MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{Value: "md", Label: "Markdown 清单（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
+		{Value: "json", Label: "清单数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+	},
+	// calendar：工作日历。正文为 {version:1, tasks:[{title,start,end,done,cancelled,note}]}，
+	// 导出 xlsx 得到日程表，导出 ics 可被系统日历（含手机日历）直接订阅导入。
+	"calendar": {
+		{Value: "xlsx", Label: "Excel 工作簿（.xlsx）", Ext: "xlsx", MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{Value: "ics", Label: "日历文件（.ics）", Ext: "ics", MIME: "text/calendar; charset=utf-8"},
+		{Value: "json", Label: "日历数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
 	},
 	"flowchart": {
 		{Value: "md", Label: "Markdown + Mermaid（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
@@ -90,6 +106,10 @@ func NormalizeDocType(docType string) string {
 		return "flowchart"
 	case "drawing", "drawio":
 		return "drawing"
+	case "todo", "todolist":
+		return "todo"
+	case "calendar", "workcalendar":
+		return "calendar"
 	case "file":
 		return "file"
 	default:
@@ -183,6 +203,12 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 		case "mm":
 			data, err := BuildFreeMind(content)
 			return data, spec, err
+		case "md":
+			data, err := BuildMindmapMD(content)
+			return data, spec, err
+		case "json":
+			data, err := BuildMindmapJSON(content)
+			return data, spec, err
 		case "png":
 			data, err := BuildMindmapPNG(content)
 			return data, spec, err
@@ -212,6 +238,28 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 			return []byte(content), spec, nil
 		}
 		return nil, spec, fmt.Errorf("%s 需要在绘图编辑器中导出（mxGraph 渲染器仅存在于浏览器侧）", spec.Value)
+	case "todo":
+		switch spec.Value {
+		case "xlsx":
+			data, err := BuildTodoXLSX(content, title)
+			return data, spec, err
+		case "md":
+			data, err := BuildTodoMD(content, title)
+			return data, spec, err
+		case "json":
+			return []byte(content), spec, nil
+		}
+	case "calendar":
+		switch spec.Value {
+		case "xlsx":
+			data, err := BuildCalendarXLSX(content, title)
+			return data, spec, err
+		case "ics":
+			data, err := BuildCalendarICS(content, title)
+			return data, spec, err
+		case "json":
+			return []byte(content), spec, nil
+		}
 	}
 	return nil, spec, fmt.Errorf("暂不支持导出为 %s", spec.Value)
 }
@@ -238,6 +286,11 @@ type FileRef struct {
 	Degraded bool `json:"degraded,omitempty"`
 	// Note 派生过程的说明，用于前端提示与排障。
 	Note string `json:"note,omitempty"`
+	// PptxScanned 表示这份 pptx 已经做过「外链图片本地化」扫描。
+	//
+	// 单独一个布尔量而不是复用 Derived/Note：扫描过但一张外链图片都没有也是正常结果，
+	// 前端需要据此区分"处理过、无需再处理"和"历史导入、尚未处理"。
+	PptxScanned bool `json:"pptx_scanned,omitempty"`
 }
 
 // ParseFileRef 解析附件型文档内容；失败返回 nil。

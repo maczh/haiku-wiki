@@ -10,6 +10,8 @@ const MindmapView = lazy(() => import('./MindmapView'))
 const FlowchartView = lazy(() => import('./FlowchartView'))
 const FileView = lazy(() => import('./FileView'))
 const DrawioView = lazy(() => import('./DrawioView'))
+const TodoView = lazy(() => import('./TodoView'))
+const CalendarView = lazy(() => import('./CalendarView'))
 
 interface Props {
   docType: DocType
@@ -28,6 +30,8 @@ const TIP: Record<string, string> = {
   mindmap: '正在加载思维导图画布…',
   flowchart: '正在加载流程图渲染器…',
   drawing: '正在加载绘图组件…',
+  todo: '正在加载待办清单…',
+  calendar: '正在加载工作日历…',
   file: '正在加载附件预览器…',
 }
 
@@ -70,6 +74,20 @@ export default function DocContent({ docType, content, onRendered, bookId, onDoc
     return (
       <LazyBoundary tip={TIP.drawing}>
         <DrawioView content={content} />
+      </LazyBoundary>
+    )
+  }
+  if (docType === 'todo') {
+    return (
+      <LazyBoundary tip={TIP.todo}>
+        <TodoView content={content} />
+      </LazyBoundary>
+    )
+  }
+  if (docType === 'calendar') {
+    return (
+      <LazyBoundary tip={TIP.calendar}>
+        <CalendarView content={content} />
       </LazyBoundary>
     )
   }

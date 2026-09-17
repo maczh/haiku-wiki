@@ -88,7 +88,7 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
       {kind === 'docx' && <DocxViewer url={ref.url} />}
       {kind === 'pptx' && (
         <Suspense fallback={<Loading tip="正在加载演示文稿预览器…" />}>
-          <PptxView url={ref.url} filename={ref.filename} />
+          <PptxView url={ref.url} filename={ref.filename} pptxScanned={ref.pptx_scanned} />
         </Suspense>
       )}
       {kind === 'drawio' && (

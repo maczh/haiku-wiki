@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/middleware"
@@ -42,5 +44,35 @@ func CadConverterStatus(c *gin.Context) {
 	resp.OK(c, gin.H{
 		"available": exportx.DWGConverterAvailable(),
 		"detail":    exportx.DWGConverterStatus(),
+	})
+}
+
+// LocalizePptx POST /api/attachments/pptx-localize
+//
+// 把已入库 .pptx 里的外链（网络）图片下载后嵌入原文件。
+// 新导入的 pptx 在 Prepare 阶段已经处理过；本接口用于**历史文件补做**——
+// 打开一份旧演示文稿时若发现内容里没有 pptx_scanned 标记，前端调一次即可。
+//
+// 幂等：没有外链图片时直接返回，不改写文件。
+func LocalizePptx(c *gin.Context) {
+	var in struct {
+		URL string `json:"url"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil || strings.TrimSpace(in.URL) == "" {
+		resp.Error(c, paramMsg("请求体需要包含 url 字段"))
+		return
+	}
+	res, err := attachmentService.LocalizePptx(middleware.UID(c), in.URL)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{
+		"external": res.External,
+		"embedded": res.Embedded,
+		"changed":  res.Changed,
+		"assets":   res.Assets,
+		"failures": res.Failures,
+		"note":     res.Note(),
 	})
 }

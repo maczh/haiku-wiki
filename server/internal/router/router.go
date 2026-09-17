@@ -85,7 +85,11 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.POST("/uploads", handler.Upload)
 		// 附件预处理（CAD 图纸在后端完成 svg/png 转换）与转换器能力查询
 		jwt.POST("/attachments/prepare", handler.PrepareAttachment)
+		// PPTX 外链图片本地化（历史文件补做；幂等）
+		jwt.POST("/attachments/pptx-localize", handler.LocalizePptx)
 		jwt.GET("/cad/converter", handler.CadConverterStatus)
+		// 思维导图导入：.smm/.km/.xmind/.mm → 内置 .smm 正文（.xmind 是 zip，放服务端解析）
+		jwt.POST("/mindmap/parse", handler.ParseMindmap)
 		jwt.GET("/trash", handler.ListTrash)
 		jwt.GET("/export/docs/:id", handler.ExportDoc)
 		jwt.GET("/export/docs/:id/formats", handler.ExportDocFormats)

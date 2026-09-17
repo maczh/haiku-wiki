@@ -128,11 +128,11 @@ export const COVER_COLORS = [
 
 // ---------- 增量：多文档类型 ----------
 
-export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'file'
+export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'todo' | 'calendar' | 'file'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。 */
-export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing']
+export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar']
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
@@ -140,6 +140,8 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   mindmap: '思维导图',
   flowchart: '流程图',
   drawing: '绘图',
+  todo: '待办清单',
+  calendar: '工作日历',
   file: '附件',
 }
 
@@ -158,6 +160,11 @@ export interface FileAttachment {
   degraded?: boolean
   /** 降级或失败的原因说明，用于界面提示 */
   note?: string
+  /**
+   * .pptx 已做过「外链图片本地化」扫描。
+   * 新导入的 pptx 恒为 true；历史文件中该字段缺失，阅读页会补做一次（接口幂等）。
+   */
+  pptx_scanned?: boolean
 }
 
 /** 一种可导出的格式（GET /api/export/docs/:id/formats） */

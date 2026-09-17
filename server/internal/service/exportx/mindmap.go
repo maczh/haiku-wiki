@@ -293,4 +293,54 @@ func BuildXMind(content string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// ---------- .md / .json（通用大纲） ----------
+
+// BuildMindmapMD 导出 Markdown 大纲：根节点作一级标题，其余层级转为嵌套无序列表。
+// 便于贴进笔记、文档或 Issue，也可被多数 Markdown 软件直接渲染成层级结构。
+func BuildMindmapMD(content string) ([]byte, error) {
+	root := ParseMindmap(content)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "# %s\n\n", root.Text)
+	for _, c := range root.Children {
+		writeMindmapMDNode(&sb, c, 0)
+	}
+	return []byte(sb.String()), nil
+}
+
+func writeMindmapMDNode(sb *strings.Builder, n *MindNode, depth int) {
+	indent := strings.Repeat("  ", depth)
+	fmt.Fprintf(sb, "%s- %s\n", indent, n.Text)
+	for _, c := range n.Children {
+		writeMindmapMDNode(sb, c, depth+1)
+	}
+}
+
+// mindmapOutlineNode .json 大纲的节点形态（与 .md 大纲一一对应，便于程序消费）。
+type mindmapOutlineNode struct {
+	Title    string               `json:"title"`
+	Children []mindmapOutlineNode `json:"children,omitempty"`
+}
+
+// BuildMindmapJSON 导出通用大纲 JSON（{title, children:[…]}）。
+//
+// 与 .smm 的区别：.smm 是本项目的存储契约（含 expand 等编辑器状态，可再导入回来），
+// .json 则是不带编辑器状态的最小大纲，给外部程序/脚本消费用。
+func BuildMindmapJSON(content string) ([]byte, error) {
+	root := ParseMindmap(content)
+	out := toOutlineNode(root)
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("生成大纲 JSON 失败：%v", err)
+	}
+	return data, nil
+}
+
+func toOutlineNode(n *MindNode) mindmapOutlineNode {
+	out := mindmapOutlineNode{Title: n.Text}
+	for _, c := range n.Children {
+		out.Children = append(out.Children, toOutlineNode(c))
+	}
+	return out
+}
+
 func ifaceInt64(v int64) interface{} { return v }

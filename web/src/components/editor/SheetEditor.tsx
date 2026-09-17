@@ -7,7 +7,7 @@ import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import { patchDoc } from '../../api/docs'
 import { sheetToXData, xDataToSheet, parseSheetJSON, stringifySheet } from '../../lib/sheet'
-import type { SheetJSON } from '../../lib/sheet'
+import type { SheetJSON, XSheetRaw } from '../../lib/sheet'
 
 interface Props {
   docId: number
@@ -57,8 +57,8 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
       },
     })
     xs.loadData(sheetToXData(data))
-    xs.change((json: { rows?: Record<number, { cells: Record<string, { text?: string }> }> }) => {
-      latestRef.current = xDataToSheet(json as never)
+    xs.change((json: XSheetRaw | XSheetRaw[]) => {
+      latestRef.current = xDataToSheet(json)
       dirtyRef.current = true
       setStatus('editing')
       if (timerRef.current) clearTimeout(timerRef.current)

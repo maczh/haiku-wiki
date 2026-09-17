@@ -46,6 +46,13 @@ const sampleSheet = `{"version":1,"cells":{"0-0":{"text":"姓名"},"0-1":{"text"
 
 const sampleMindmap = `{"version":2,"root":{"data":{"text":"寄海文库","expand":true},"children":[{"data":{"text":"文档管理","expand":true},"children":[{"data":{"text":"导入导出","expand":true},"children":[]},{"data":{"text":"版本快照","expand":true},"children":[]}]},{"data":{"text":"表格与脑图","expand":true},"children":[{"data":{"text":"Excel 导入","expand":true},"children":[]}]}]}}`
 
+// sampleTodo 待办清单样本：覆盖「已完成 / 未完成 + 截止时间 + 优先级 + 备注」各分支。
+const sampleTodo = `{"version":1,"items":[{"text":"补齐 DWG 矢量预览","done":true,"due":"2026-09-18 12:00","priority":"high","note":"libredwg 已就位"},{"text":"思维导图导入四格式","done":false,"due":"2026-09-19","priority":"medium","note":""},{"text":"整理发布说明","done":false,"due":"","priority":"low","note":"给运营同事"}]}`
+
+// sampleCalendar 工作日历样本：一条已完成、一条待办、一条已取消，
+// 时间写法刻意用不同格式（空格分隔 / RFC3339 / 只有日期）以覆盖解析回退。
+const sampleCalendar = `{"version":1,"tasks":[{"title":"周会","start":"2026-09-18 10:00","end":"2026-09-18 11:00","done":false,"cancelled":false,"note":"讨论排期"},{"title":"发布 v1.2","start":"2026-09-18T20:00:00+08:00","end":"2026-09-18T21:00:00+08:00","done":true,"cancelled":false,"note":""},{"title":"客户拜访（已取消）","start":"2026-09-22","end":"","done":false,"cancelled":true,"note":"对方改期"}]}`
+
 const sampleFlowchart = `flowchart TD
   A[开始导入] --> B{文件类型判断}
   B -->|docx/pdf| C[原样保存为附件]
@@ -78,7 +85,15 @@ func TestGenerateSamples(t *testing.T) {
 		{"mindmap", "km", sampleMindmap, "脑图", "map.km"},
 		{"mindmap", "xmind", sampleMindmap, "脑图", "map.xmind"},
 		{"mindmap", "mm", sampleMindmap, "脑图", "map.mm"},
+		{"mindmap", "md", sampleMindmap, "脑图", "map.md"},
+		{"mindmap", "json", sampleMindmap, "脑图", "map.json"},
 		{"mindmap", "png", sampleMindmap, "脑图", "map.png"},
+		{"todo", "xlsx", sampleTodo, "本周待办", "todo.xlsx"},
+		{"todo", "md", sampleTodo, "本周待办", "todo.md"},
+		{"todo", "json", sampleTodo, "本周待办", "todo.json"},
+		{"calendar", "xlsx", sampleCalendar, "九月日程", "cal.xlsx"},
+		{"calendar", "ics", sampleCalendar, "九月日程", "cal.ics"},
+		{"calendar", "json", sampleCalendar, "九月日程", "cal.json"},
 		{"flowchart", "md", sampleFlowchart, "流程", "flow.md"},
 		{"flowchart", "svg", sampleFlowchart, "流程", "flow.svg"},
 		{"flowchart", "png", sampleFlowchart, "流程", "flow.png"},
@@ -105,8 +120,10 @@ func TestFormatsForDocType(t *testing.T) {
 	want := map[string][]string{
 		"markdown":  {"md", "docx", "pdf"},
 		"sheet":     {"xlsx", "csv", "json"},
-		"mindmap":   {"km", "smm", "xmind", "mm", "png"},
+		"mindmap":   {"km", "smm", "xmind", "mm", "md", "json", "png"},
 		"flowchart": {"md", "svg", "png"},
+		"todo":      {"xlsx", "md", "json"},
+		"calendar":  {"xlsx", "ics", "json"},
 	}
 	for docType, exts := range want {
 		got := FormatsForDocType(docType)
@@ -443,6 +460,9 @@ func TestNormalizeDocType(t *testing.T) {
 		"sheet":     "sheet",
 		"Mindmap":   "mindmap",
 		"flowchart": "flowchart",
+		"todo":      "todo",
+		"todolist":  "todo",
+		"calendar":  "calendar",
 		"file":      "file",
 		"unknown":   "markdown",
 	}

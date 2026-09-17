@@ -14,6 +14,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ReadOutlined,
+  ShareAltOutlined,
   TeamOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
@@ -22,6 +23,7 @@ import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
 import DocShareDrawer from '../components/share/DocShareDrawer'
+import WeChatShareModal from '../components/share/WeChatShareModal'
 import ExportDialog, { type ExportTarget } from '../components/export/ExportDialog'
 import { getBook, setBookVisibility, updateBook, deleteBook } from '../api/books'
 import { getDoc } from '../api/docs'
@@ -36,6 +38,8 @@ const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
+const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
+const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
 
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
 
@@ -96,6 +100,8 @@ export default function BookPage() {
   const [renameSaving, setRenameSaving] = useState(false)
   // 知识库右键"新建文档"→ DocTree（信号计数器）
   const [createSignal, setCreateSignal] = useState(0)
+  /** 「分享到微信」弹窗（所有文档通用入口） */
+  const [weChatOpen, setWeChatOpen] = useState(false)
   const contentKeyRef = useRef(0)
 
   // 左栏（文档库）：可折叠 + 可拖拽调宽（持久化）
@@ -218,6 +224,8 @@ export default function BookPage() {
   const isMarkdownDoc = docTypeNow === 'markdown'
   // 绘图文档（内嵌 draw.io）在编辑态由 iframe 撑满，不需要页面再给内边距
   const isDrawingDoc = docTypeNow === 'drawing'
+  // 需要更宽阅读栏的类型：绘图要横向空间，工作日历是 7 列网格，780 宽会挤成两行
+  const isWideDoc = isDrawingDoc || docTypeNow === 'calendar'
   // 大纲浮动层：仅 markdown 且确实提取到标题、用户未收起时显示
   const showTocFloat = isMarkdownDoc && tocOpen && tocCount > 0 && !docLoading
   const shareLink = book?.visibility === 'public' && book.share_slug ? `${window.location.origin}/share/${book.share_slug}` : null
@@ -421,6 +429,14 @@ export default function BookPage() {
             <div style={{ flex: 1, textAlign: 'center', color: '#5f6672', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {doc?.title ?? ''}
             </div>
+
+            {docIdParam && doc && !docLoading && (
+              <Tooltip title="分享到微信 / 生成免登录阅读链接">
+                <Button size="small" icon={<ShareAltOutlined />} onClick={() => setWeChatOpen(true)}>
+                  分享
+                </Button>
+              </Tooltip>
+            )}
           </div>
 
           {/* 内容区：滚动容器 + 大纲浮动层（浮动层在滚动容器之外，故不随正文滚动） */}
@@ -474,6 +490,12 @@ export default function BookPage() {
                         {doc.doc_type === 'drawing' && (
                           <DrawioEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
+                        {doc.doc_type === 'todo' && (
+                          <TodoEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'calendar' && (
+                          <CalendarEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
                       </LazyBoundary>
                     )}
                   </>
@@ -486,7 +508,7 @@ export default function BookPage() {
                     {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
                     <div
                       style={{
-                        maxWidth: isDrawingDoc ? 1100 : 780,
+                        maxWidth: isWideDoc ? 1100 : 780,
                         margin: '0 auto',
                         paddingTop: 28,
                         paddingLeft: 24,
@@ -548,6 +570,14 @@ export default function BookPage() {
         open={shareDrawerOpen}
         onClose={() => setShareDrawerOpen(false)}
         docId={shareNodeId ?? docIdParam}
+        docTitle={doc?.title ?? ''}
+      />
+
+      {/* 「分享到微信」弹窗（所有文档通用入口） */}
+      <WeChatShareModal
+        open={weChatOpen}
+        onClose={() => setWeChatOpen(false)}
+        docId={docIdParam}
         docTitle={doc?.title ?? ''}
       />
 

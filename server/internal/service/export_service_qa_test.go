@@ -58,6 +58,12 @@ func TestDocExportAllFormats(t *testing.T) {
 				"mm": func(b []byte) bool {
 					return strings.Contains(string(b), "<map") && strings.Contains(string(b), "文库")
 				},
+				"md": func(b []byte) bool {
+					return strings.Contains(string(b), "# 寄海文库") && strings.Contains(string(b), "- 产品")
+				},
+				"json": func(b []byte) bool {
+					return json.Valid(b) && strings.Contains(string(b), `"title"`) && strings.Contains(string(b), "研发")
+				},
 				"png": func(b []byte) bool { return hasPNGMagic(b) },
 			},
 		},
@@ -70,6 +76,34 @@ func TestDocExportAllFormats(t *testing.T) {
 					return strings.Contains(string(b), "<svg") && strings.Contains(string(b), "开始")
 				},
 				"png": func(b []byte) bool { return hasPNGMagic(b) },
+			},
+		},
+		{
+			docType: "todo",
+			content: `{"version":1,"items":[{"text":"补齐 DWG 预览","done":true,"due":"2026-09-18","priority":"high","note":"已修"},{"text":"写发布说明","done":false,"due":"","priority":"low","note":""}]}`,
+			formats: map[string]func([]byte) bool{
+				// todo→xlsx 复用表格写出器，故校验 zip 魔数 + 文本内容
+				"xlsx": func(b []byte) bool { return hasZipMagic(b) },
+				"md": func(b []byte) bool {
+					s := string(b)
+					return strings.Contains(s, "- [x] 补齐 DWG 预览") && strings.Contains(s, "- [ ] 写发布说明")
+				},
+				"json": func(b []byte) bool { return json.Valid(b) && strings.Contains(string(b), "写发布说明") },
+			},
+		},
+		{
+			docType: "calendar",
+			content: `{"version":1,"tasks":[{"title":"周会","start":"2026-09-18 10:00","end":"2026-09-18 11:00","done":false,"cancelled":false,"note":"排期"},{"title":"已取消的拜访","start":"2026-09-22","end":"","done":false,"cancelled":true,"note":""}]}`,
+			formats: map[string]func([]byte) bool{
+				"xlsx": func(b []byte) bool { return hasZipMagic(b) },
+				"ics": func(b []byte) bool {
+					s := string(b)
+					return strings.Contains(s, "BEGIN:VCALENDAR") &&
+						strings.Contains(s, "DTSTART:20260918T100000") &&
+						strings.Contains(s, "STATUS:CANCELLED") &&
+						strings.Contains(s, "END:VCALENDAR")
+				},
+				"json": func(b []byte) bool { return json.Valid(b) && strings.Contains(string(b), "周会") },
 			},
 		},
 	}
