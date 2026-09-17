@@ -23,19 +23,19 @@ func TestInitial(t *testing.T) {
 // TestBetweenTable 覆盖：空区间、中点插入、两端插入、相邻携带、病态区间。
 func TestBetweenTable(t *testing.T) {
 	cases := []struct {
-		name     string
-		prev     string
-		next     string
-		want     string
-		wantLT   bool // want 仅为参考；wantLT=true 时校验 prev < want < next
-		invalid  bool // 期望返回 ""（无解）
+		name    string
+		prev    string
+		next    string
+		want    string
+		wantLT  bool // want 仅为参考；wantLT=true 时校验 prev < want < next
+		invalid bool // 期望返回 ""（无解）
 	}{
 		{name: "empty_empty_returns_initial", prev: "", next: "", want: "a0"},
 		{name: "before_first", prev: "", next: "a0", want: "a", wantLT: true},
 		{name: "after_last", prev: "a0", next: "", want: "a1", wantLT: false},
 		{name: "midpoint_gap", prev: "a0", next: "a2", want: "a1", wantLT: true},
 		{name: "adjacent_carry", prev: "a0", next: "a1", want: "a00", wantLT: true},
-		{name: "prefix_next_shorter", prev: "ab", next: "b", wantLT: true},   // 只断言严格介于两者之间
+		{name: "prefix_next_shorter", prev: "ab", next: "b", wantLT: true}, // 只断言严格介于两者之间
 		{name: "no_gap_cross_carry", prev: "az", next: "b0", want: "az0", wantLT: true},
 		{name: "different_char_midpoint", prev: "a0", next: "c0", want: "b", wantLT: true},
 		{name: "append_after_max", prev: "zz", next: "", want: "zz0"},

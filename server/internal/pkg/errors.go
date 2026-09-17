@@ -27,8 +27,8 @@ func Param(msg string) *AppError {
 	return New(40001, 400, msg)
 }
 
-func Unauthorized() *AppError  { return New(40101, 401, "未登录或登录已失效") }
-func Forbidden() *AppError     { return New(40301, 403, "没有访问权限") }
+func Unauthorized() *AppError { return New(40101, 401, "未登录或登录已失效") }
+func Forbidden() *AppError    { return New(40301, 403, "没有访问权限") }
 func NotFound(msg string) *AppError {
 	if msg == "" {
 		msg = "资源不存在"
@@ -41,8 +41,16 @@ func Conflict(msg string) *AppError {
 	}
 	return New(40901, 409, msg)
 }
-func FileTooLarge() *AppError { return New(41301, 413, "文件超过 20MB 限制") }
+func FileTooLarge() *AppError       { return New(41301, 413, "文件超过 20MB 限制") }
 func FileTypeNotAllowed() *AppError { return New(41501, 415, "不支持的文件类型") }
+
+// TooManyRequests 请求过于频繁（限频），如分享密码校验 5 次/分钟。
+func TooManyRequests(msg string) *AppError {
+	if msg == "" {
+		msg = "请求过于频繁，请稍后再试"
+	}
+	return New(42901, 429, msg)
+}
 func Internal(msg string) *AppError {
 	if msg == "" {
 		msg = "服务器内部错误"

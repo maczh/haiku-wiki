@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import Vditor from 'vditor'
+import DOMPurify from 'dompurify'
+import TurndownService from 'turndown'
 import { Button, Space, Tooltip } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
-import { patchDoc } from '../../api/docs'
+import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
 
 interface Props {
@@ -14,6 +16,17 @@ interface Props {
 }
 
 const SAVE_DEBOUNCE_MS = 3000 // 3s 防抖自动保存（架构文档 §五.1）
+
+// Word HTML 特征（class="MsoNormal"、<o:p>、mso- 样式等）
+const WORD_HTML_RE = /class=["']?Mso|<o:p[ >]|urn:schemas-microsoft|mso-/i
+
+// 3s 前端超时兜底：拉标题失败降级为纯链接，不阻塞粘贴
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
 
 /**
  * Vditor IR 模式编辑器（Markdown + 富文本混合）：
@@ -87,8 +100,78 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       },
     })
 
+    // ---------- paste 增强（I08） ----------
+    // 1. 纯 URL 粘贴 → fetch-title 生成 [title](url)，失败降级纯链接
+    // 2. Word HTML 粘贴 → DOMPurify 清洗 + turndown 转 Markdown
+    // 3. 图片粘贴 → 交给 Vditor 内置 upload 钩子（upload.url 已配置）
+    // 4. 普通 Markdown/文本粘贴 → Vditor 原生处理
+    const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
+    const onPaste = (e: ClipboardEvent) => {
+      const cd = e.clipboardData
+      const vd = vdRef.current
+      if (!cd || !vd) return
+      if (cd.files && cd.files.length > 0) return // 图片/文件走 Vditor upload 钩子
+      const text = (cd.getData('text/plain') || '').trim()
+      const html = cd.getData('text/html') || ''
+
+      // 纯 URL 粘贴
+      if (/^https?:\/\/\S+$/.test(text)) {
+        e.preventDefault()
+        const placeholder = `[${text}](${text})`
+        vd.insertValue(placeholder)
+        // 同步本地保存状态（insertValue 不触发 input 回调）
+        latestRef.current = vd.getValue()
+        dirtyRef.current = true
+        setStatus('editing')
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+        // 拉取网页标题（3s 超时兜底），成功则替换占位链接
+        withTimeout(fetchTitle(text), 3000)
+          .then((title) => {
+            if (!title) return
+            const current = vd.getValue()
+            const rich = `[${title}](${text})`
+            if (current.includes(placeholder)) {
+              vd.setValue(current.replace(placeholder, rich))
+              latestRef.current = current.replace(placeholder, rich)
+            } else {
+              vd.insertValue(rich)
+              latestRef.current = vd.getValue()
+            }
+            dirtyRef.current = true
+            if (timerRef.current) clearTimeout(timerRef.current)
+            timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+          })
+          .catch(() => undefined) // 降级保持 [url](url)
+        return
+      }
+
+      // Word HTML 粘贴：清洗 → Markdown
+      if (html && WORD_HTML_RE.test(html)) {
+        e.preventDefault()
+        const clean = DOMPurify.sanitize(html, {
+          FORBID_TAGS: ['script', 'style', 'iframe', 'meta', 'link', 'object', 'embed'],
+          FORBID_ATTR: ['class', 'style', 'id'],
+        })
+        try {
+          const md = turndown.turndown(clean)
+          if (md.trim()) vd.insertValue(md)
+        } catch {
+          // 转换失败保持默认行为：插入原始文本
+          if (text) vd.insertValue(text)
+        }
+        latestRef.current = vd.getValue()
+        dirtyRef.current = true
+        setStatus('editing')
+        if (timerRef.current) clearTimeout(timerRef.current)
+        timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+      }
+    }
+    elRef.current?.addEventListener('paste', onPaste)
+
     return () => {
       disposed = true
+      elRef.current?.removeEventListener('paste', onPaste)
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
       if (dirtyRef.current && latestRef.current !== lastSavedRef.current) {

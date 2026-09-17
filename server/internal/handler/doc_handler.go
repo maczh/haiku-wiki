@@ -19,6 +19,12 @@ func docIDFromPath(c *gin.Context) (uint64, bool) {
 type createDocReq struct {
 	ParentID uint64 `json:"parent_id"`
 	Title    string `json:"title"`
+	DocType  string `json:"doc_type"`
+}
+
+// validDocTypes 新建文档允许的类型枚举。
+var validDocTypes = map[string]bool{
+	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true, "datatable": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。
@@ -38,7 +44,15 @@ func CreateDoc(c *gin.Context) {
 		resp.Error(c, paramErr(err))
 		return
 	}
-	doc, err := docService.CreateDoc(middleware.BookFromCtx(c), middleware.UID(c), req.ParentID, req.Title)
+	// 枚举校验：缺省/非法回退 markdown（后端 create 不感知类型内容，内容默认值由前端首次保存写入）
+	if req.DocType == "" {
+		req.DocType = "markdown"
+	}
+	if !validDocTypes[req.DocType] {
+		resp.Error(c, paramMsg("无效的文档类型"))
+		return
+	}
+	doc, err := docService.CreateDoc(middleware.BookFromCtx(c), middleware.UID(c), req.ParentID, req.Title, req.DocType)
 	if err != nil {
 		resp.Error(c, err)
 		return

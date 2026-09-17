@@ -2,19 +2,38 @@ import { useEffect, useMemo, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Dropdown, Empty, Input, Modal, Spin, message } from 'antd'
+import { Dropdown, Empty, Input, Modal, Select, Spin, message } from 'antd'
 import {
+  ApartmentOutlined,
   CaretDownOutlined,
   CaretRightOutlined,
   DeleteOutlined,
   FileTextOutlined,
   FolderOutlined,
   HolderOutlined,
+  PartitionOutlined,
   PlusOutlined,
+  TableOutlined,
 } from '@ant-design/icons'
 import { buildChildrenMap, useDocTreeStore } from '../../stores/docTreeStore'
 import { createDoc, deleteDoc, moveDoc, patchDoc } from '../../api/docs'
-import type { DocNode } from '../../types'
+import { DOC_TYPES, DOC_TYPE_LABEL, type DocNode, type DocType } from '../../types'
+
+/** 目录树节点图标按 doc_type 分发（目录仍是 Folder；markdown 文档用 File） */
+function nodeIcon(node: DocNode, hasChildren: boolean) {
+  if (hasChildren) return <FolderOutlined style={{ color: '#faad14' }} />
+  switch (node.doc_type) {
+    case 'sheet':
+    case 'datatable':
+      return <TableOutlined style={{ color: '#13c2c2' }} />
+    case 'mindmap':
+      return <ApartmentOutlined style={{ color: '#722ed1' }} />
+    case 'flowchart':
+      return <PartitionOutlined style={{ color: '#fa8c16' }} />
+    default:
+      return <FileTextOutlined style={{ color: '#8a919f' }} />
+  }
+}
 
 interface RowProps {
   node: DocNode
@@ -78,11 +97,7 @@ function TreeRow(p: RowProps) {
         onClick={() => p.onSelect(p.node.id)}
       >
         {caret}
-        {p.hasChildren ? (
-          <FolderOutlined style={{ color: '#faad14' }} />
-        ) : (
-          <FileTextOutlined style={{ color: '#8a919f' }} />
-        )}
+        {nodeIcon(p.node, p.hasChildren)}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.node.title}</span>
         <HolderOutlined style={{ opacity: 0.25 }} />
       </div>
@@ -110,6 +125,7 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
   const [renameValue, setRenameValue] = useState('')
   const [createParent, setCreateParent] = useState<DocNode | 'root' | null>(null)
   const [createValue, setCreateValue] = useState('')
+  const [createType, setCreateType] = useState<DocType>('markdown')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -205,9 +221,10 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
     if (!createParent) return
     const title = createValue.trim() || '无标题文档'
     const parentId = createParent === 'root' ? 0 : createParent.id
-    const doc = await createDoc(bookId, parentId, title)
+    const doc = await createDoc(bookId, parentId, title, createType)
     setCreateParent(null)
     setCreateValue('')
+    setCreateType('markdown')
     await loadTree(bookId)
     // 展开父节点并选中新文档
     if (parentId > 0) setExpanded((s) => new Set(s).add(parentId))
@@ -279,6 +296,8 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
                 onSelect={onSelect}
                 onCreateChild={(n) => {
                   setCreateValue('')
+                  // 选中父节点为非 markdown 时，默认跟随其类型（架构文档 §4.1）
+                  setCreateType(n.doc_type && n.doc_type !== 'markdown' ? n.doc_type : 'markdown')
                   setCreateParent(n)
                 }}
                 onRename={(n) => {
@@ -308,7 +327,17 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
           autoFocus
           onChange={(e) => setCreateValue(e.target.value)}
           onPressEnter={() => void submitCreate()}
+          style={{ marginBottom: 12 }}
         />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ color: '#5f6672' }}>文档类型：</span>
+          <Select
+            value={createType}
+            style={{ width: 180 }}
+            onChange={setCreateType}
+            options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
+          />
+        </div>
       </Modal>
 
       {/* 重命名弹窗 */}

@@ -2,8 +2,8 @@ package service
 
 import (
 	"haiku-wiki/server/internal/model"
-	"haiku-wiki/server/internal/repository"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/repository"
 )
 
 // ShareService 公开分享业务（免 JWT 只读）。

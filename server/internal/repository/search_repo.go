@@ -11,6 +11,7 @@ type SearchRow struct {
 	BookID    uint64    `gorm:"column:book_id"`
 	BookName  string    `gorm:"column:book_name"`
 	Title     string    `gorm:"column:title"`
+	DocType   string    `gorm:"column:doc_type"`
 	Content   string    `gorm:"column:content"`
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
@@ -21,17 +22,22 @@ func escapeLike(kw string) string {
 	return r.Replace(kw)
 }
 
-// SearchDocs 标题 + 正文 LIKE 搜索，按知识库可见性过滤：
+// SearchDocs 按类型搜索（markdown 搜 title+content；其余仅 title，JSON 内容进 LIKE 噪声过大），
+// 按知识库可见性过滤：
 //   - public：任何人（含匿名）
 //   - members：登录用户（userID > 0）
 //   - private：仅 owner
 func SearchDocs(userID uint64, keyword string, limit int) ([]SearchRow, error) {
 	kw := "%" + escapeLike(keyword) + "%"
 	q := db.Table("docs").
-		Select("docs.id, docs.book_id, docs.title, docs.content, docs.updated_at, books.name AS book_name").
+		Select("docs.id, docs.book_id, docs.title, docs.doc_type, docs.content, docs.updated_at, books.name AS book_name").
 		Joins("JOIN books ON books.id = docs.book_id").
 		Where("docs.deleted_at IS NULL").
-		Where("(docs.title LIKE ? ESCAPE '\\' OR docs.content LIKE ? ESCAPE '\\')", kw, kw)
+		Where(
+			"(docs.doc_type = 'markdown' AND (docs.title LIKE ? ESCAPE '\\' OR docs.content LIKE ? ESCAPE '\\')"+
+				" OR docs.doc_type <> 'markdown' AND docs.title LIKE ? ESCAPE '\\')",
+			kw, kw, kw,
+		)
 	if userID > 0 {
 		q = q.Where("books.visibility = ? OR books.visibility = ? OR books.owner_id = ?",
 			"public", "members", userID)

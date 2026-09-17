@@ -17,8 +17,8 @@ import (
 	"gorm.io/gorm"
 
 	"haiku-wiki/server/internal/model"
-	"haiku-wiki/server/internal/pkg/jwtutil"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
 )
 
@@ -85,7 +85,7 @@ func mkBook(t *testing.T, ownerID uint64, name, visibility string) *model.Book {
 
 func mkDoc(t *testing.T, book *model.Book, uid, parentID uint64, title string) *model.Doc {
 	t.Helper()
-	d, err := (&DocService{}).CreateDoc(book, uid, parentID, title)
+	d, err := (&DocService{}).CreateDoc(book, uid, parentID, title, "markdown")
 	if err != nil {
 		t.Fatalf("创建测试文档失败: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestPermissionMembersBook(t *testing.T) {
 	if _, _, err := ds.LoadForRead(0, doc.ID); codeOf(t, err) != 40301 {
 		t.Fatalf("匿名读 members 库文档应 40301, got %v", err)
 	}
-	if _, err := ds.CreateDoc(book, 0, 0, "匿名文档"); codeOf(t, err) != 40301 {
+	if _, err := ds.CreateDoc(book, 0, 0, "匿名文档", "markdown"); codeOf(t, err) != 40301 {
 		t.Fatalf("匿名建文档应 40301, got %v", err)
 	}
 	// 成员在书架 visible 中可见
@@ -775,7 +775,7 @@ func makeFileHeader(t *testing.T, filename string, content []byte) *multipart.Fi
 		t.Fatal(err)
 	}
 	r := multipart.NewReader(&buf, w.Boundary())
-	form, err := r.ReadForm(int64(len(content)) + 1 << 20)
+	form, err := r.ReadForm(int64(len(content)) + 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}

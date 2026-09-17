@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 
 	"haiku-wiki/server/internal/model"
-	"haiku-wiki/server/internal/repository"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/repository"
 )
 
 // UploadService 文件上传业务（白名单 + 20MB 限制 + 本地磁盘按年月存储）。

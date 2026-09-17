@@ -24,6 +24,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 	{
 		pub.GET("/share/:slug", handler.GetShare)
 		pub.GET("/share/:slug/docs/:docId", handler.GetShareDoc)
+		// 文档级分享（与书级并列，handler 分文件）
+		pub.GET("/doc-share/:slug", handler.GetDocShareMeta)
+		pub.POST("/doc-share/:slug/verify", handler.VerifyDocShare)
 	}
 
 	// 认证（注册/登录免 JWT）

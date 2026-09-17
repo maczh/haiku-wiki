@@ -7,14 +7,21 @@ import {
   EditOutlined,
   EyeOutlined,
   GlobalOutlined,
+  ImportOutlined,
   LockOutlined,
   ReadOutlined,
+  ShareAltOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
 import DocTree from '../components/tree/DocTree'
 import VditorEditor from '../components/editor/VditorEditor'
-import MarkdownView from '../components/reader/MarkdownView'
+import SheetEditor from '../components/editor/SheetEditor'
+import MindmapEditor from '../components/editor/MindmapEditor'
+import FlowchartEditor from '../components/editor/FlowchartEditor'
+import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
+import DocShareDrawer from '../components/share/DocShareDrawer'
+import ImportDialog from '../components/import/ImportDialog'
 import { getBook, setBookVisibility } from '../api/books'
 import { exportBook, getDoc } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
@@ -47,6 +54,8 @@ export default function BookPage() {
   const [visModalOpen, setVisModalOpen] = useState(false)
   const [visValue, setVisValue] = useState<string>('private')
   const [visSaving, setVisSaving] = useState(false)
+  const [shareDrawerOpen, setShareDrawerOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const contentKeyRef = useRef(0)
 
   const docIdParam = Number(searchParams.get('docId') || 0)
@@ -231,7 +240,20 @@ export default function BookPage() {
             )}
             {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
             {docIdParam && !docLoading && doc && tab === 'edit' && canWrite && (
-              <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+              <>
+                {(doc.doc_type ?? 'markdown') === 'markdown' && (
+                  <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                )}
+                {(doc.doc_type === 'sheet' || doc.doc_type === 'datatable') && (
+                  <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType={doc.doc_type} />
+                )}
+                {doc.doc_type === 'mindmap' && (
+                  <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                )}
+                {doc.doc_type === 'flowchart' && (
+                  <FlowchartEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                )}
+              </>
             )}
             {docIdParam && !docLoading && doc && tab === 'edit' && !canWrite && (
               <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
@@ -245,20 +267,40 @@ export default function BookPage() {
                       更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
                     </div>
                   </div>
-                  <MarkdownView
+                  {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
+                  <DocContent
+                    docType={doc.doc_type ?? 'markdown'}
                     content={doc.content}
-                    onRendered={(el) => setTocContainer(el)}
+                    onRendered={doc.doc_type === 'markdown' ? (el) => setTocContainer(el) : undefined}
                   />
                 </div>
-                {/* 右侧大纲锚点 */}
-                <aside style={{ width: 200, flexShrink: 0, borderLeft: '1px solid #f0f2f5', overflow: 'auto' }}>
-                  <TocAnchor container={tocContainer} />
-                </aside>
+                {/* 右侧大纲锚点（仅 markdown 类型显示；非 markdown 隐藏） */}
+                {(doc.doc_type ?? 'markdown') === 'markdown' && (
+                  <aside style={{ width: 200, flexShrink: 0, borderLeft: '1px solid #f0f2f5', overflow: 'auto' }}>
+                    <TocAnchor container={tocContainer} />
+                  </aside>
+                )}
               </div>
             )}
           </div>
         </div>
       </section>
+
+      {/* 文档级分享管理抽屉 */}
+      <DocShareDrawer
+        open={shareDrawerOpen}
+        onClose={() => setShareDrawerOpen(false)}
+        docId={docIdParam}
+        docTitle={doc?.title ?? ''}
+      />
+
+      {/* 导入对话框 */}
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        bookId={bookID}
+        onImported={() => void loadTree(bookID)}
+      />
 
       {/* 可见性 / 分享弹窗 */}
       <Modal

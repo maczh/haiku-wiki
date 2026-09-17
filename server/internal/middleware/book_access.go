@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/model"
-	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg"
+	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 )
 

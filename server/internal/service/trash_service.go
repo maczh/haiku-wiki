@@ -1,8 +1,8 @@
 package service
 
 import (
-	"haiku-wiki/server/internal/repository"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/repository"
 )
 
 // TrashService 回收站业务（P1）。

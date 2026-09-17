@@ -168,10 +168,13 @@ func (s *DocService) Tree(book *model.Book) ([]model.Doc, error) {
 	return repository.ListTreeByBook(book.ID)
 }
 
-// CreateDoc 新建文档：pos 追加到兄弟末尾。
-func (s *DocService) CreateDoc(book *model.Book, uid uint64, parentID uint64, title string) (*model.Doc, error) {
+// CreateDoc 新建文档：pos 追加到兄弟末尾；docType 由 handler 归一化（缺省 markdown）。
+func (s *DocService) CreateDoc(book *model.Book, uid uint64, parentID uint64, title string, docType string) (*model.Doc, error) {
 	if !canWriteDoc(book, uid) {
 		return nil, hkerr.Forbidden()
+	}
+	if docType == "" {
+		docType = "markdown"
 	}
 	if parentID != 0 {
 		// 父节点必须属于同一知识库
@@ -198,6 +201,7 @@ func (s *DocService) CreateDoc(book *model.Book, uid uint64, parentID uint64, ti
 		BookID:    book.ID,
 		ParentID:  parentID,
 		Title:     title,
+		DocType:   docType,
 		Pos:       pos,
 		Content:   "",
 		CreatedBy: uid,

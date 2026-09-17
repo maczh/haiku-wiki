@@ -3,9 +3,9 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 
+	"haiku-wiki/server/internal/pkg"
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg/jwtutil"
-	"haiku-wiki/server/internal/pkg"
 )
 
 // context key 常量。

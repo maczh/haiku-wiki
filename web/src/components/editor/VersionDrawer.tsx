@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Drawer, List, Tag, Typography, Button, Empty, Modal, message } from 'antd'
 import { RollbackOutlined } from '@ant-design/icons'
 import { listVersions, getVersion, rollbackVersion } from '../../api/docs'
-import type { VersionMeta } from '../../types'
+import type { VersionMeta, DocType } from '../../types'
 import MarkdownView from '../reader/MarkdownView'
 import dayjs from '../../lib/dayjs'
 
@@ -10,6 +10,8 @@ interface Props {
   open: boolean
   docId: number
   title: string
+  /** 快照内容类型：非 markdown 用 <pre> 展示原始 JSON/源码，不进 Markdown 渲染管线（XSS 边界） */
+  docType?: DocType
   onClose: () => void
   onRolledBack: () => void
 }
@@ -21,7 +23,7 @@ const sourceLabel: Record<string, string> = {
 }
 
 /** 历史版本抽屉：快照列表（最多 20 版）/ 预览 / 回滚 */
-export default function VersionDrawer({ open, docId, title, onClose, onRolledBack }: Props) {
+export default function VersionDrawer({ open, docId, title, docType = 'markdown', onClose, onRolledBack }: Props) {
   const [items, setItems] = useState<VersionMeta[]>([])
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState<{ meta: VersionMeta; content: string } | null>(null)
@@ -110,7 +112,13 @@ export default function VersionDrawer({ open, docId, title, onClose, onRolledBac
       >
         {preview && (
           <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
-            <MarkdownView content={preview.content} />
+            {docType === 'markdown' ? (
+              <MarkdownView content={preview.content} />
+            ) : (
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, lineHeight: 1.7 }}>
+                {preview.content || '（空内容）'}
+              </pre>
+            )}
           </div>
         )}
       </Modal>

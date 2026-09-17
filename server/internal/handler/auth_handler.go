@@ -71,7 +71,7 @@ func Me(c *gin.Context) {
 }
 
 type updateMeReq struct {
-	Nickname   string `json:"nickname"`
+	Nickname    string `json:"nickname"`
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
 }

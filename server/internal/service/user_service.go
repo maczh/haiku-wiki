@@ -3,8 +3,8 @@ package service
 import (
 	"golang.org/x/crypto/bcrypt"
 
-	"haiku-wiki/server/internal/repository"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/repository"
 )
 
 // UserService 当前用户资料管理。

@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 
-	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg"
+	hkerr "haiku-wiki/server/internal/pkg"
 )
 
 // RequireOwner 知识库管理操作（改名/删除/改可见性）仅 owner 可执行。

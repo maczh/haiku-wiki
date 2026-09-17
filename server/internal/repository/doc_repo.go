@@ -32,7 +32,7 @@ func FindDocUnscopedByID(id uint64) (*model.Doc, error) {
 // ListTreeByBook 知识库目录树平铺列表（不含正文，软删外，按 pos 字典序）。
 func ListTreeByBook(bookID uint64) ([]model.Doc, error) {
 	var out []model.Doc
-	err := db.Select("id", "book_id", "parent_id", "title", "pos", "updated_at").
+	err := db.Select("id", "book_id", "parent_id", "title", "doc_type", "pos", "updated_at").
 		Where("book_id = ?", bookID).
 		Order("pos ASC").
 		Find(&out).Error

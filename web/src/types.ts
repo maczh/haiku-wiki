@@ -37,6 +37,7 @@ export interface DocNode {
   book_id: number
   parent_id: number
   title: string
+  doc_type: DocType
   pos: string
   updated_at: string
 }
@@ -122,3 +123,49 @@ export const COVER_COLORS = [
   '#722ed1', '#eb2f96', '#f5222d', '#fa8c16',
   '#faad14', '#4b5959', '#001529', '#6b7f99',
 ]
+
+// ---------- 增量：多文档类型 ----------
+
+export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'datatable'
+
+/** 全部可新建类型（顺序即新建弹窗展示顺序） */
+export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'datatable']
+
+export const DOC_TYPE_LABEL: Record<DocType, string> = {
+  markdown: '文档',
+  sheet: '表格',
+  mindmap: '思维导图',
+  flowchart: '流程图',
+  datatable: '数据表',
+}
+
+/** 类型列表（P1 datatable 与 sheet 同实现，预留入口命名区分） */
+export const SHEET_TYPES: DocType[] = ['sheet', 'datatable']
+
+// ---------- 增量：文档级分享 ----------
+
+/** 分享管理视图（GET / PUT /api/docs/:id/share） */
+export interface DocShareView {
+  slug: string
+  has_password: boolean
+  expires_at: string | null
+  enabled: boolean
+  views: number
+  updated_at: string
+}
+
+/** 分享公开元信息（GET /api/public/doc-share/:slug） */
+export interface DocShareMeta {
+  title: string
+  doc_type: DocType
+  has_password: boolean
+  expired: boolean
+  views?: number
+}
+
+/** 密码校验成功返回（POST /api/public/doc-share/:slug/verify） */
+export interface DocShareContent {
+  title: string
+  doc_type: DocType
+  content: string
+}

@@ -79,6 +79,7 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.Doc{},
 		&model.DocVersion{},
 		&model.Attachment{},
+		&model.DocShare{},
 	)
 }
 

@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"haiku-wiki/server/internal/model"
-	"haiku-wiki/server/internal/repository"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/repository"
 )
 
 // VersionService 版本快照业务：内容变化即快照 + 手动快照，每文档保留最近 20 版。

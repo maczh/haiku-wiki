@@ -9,9 +9,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"haiku-wiki/server/internal/model"
+	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
-	hkerr "haiku-wiki/server/internal/pkg"
 )
 
 // AuthService 认证相关业务。

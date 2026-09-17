@@ -162,7 +162,14 @@ export default function SharePage() {
               <div style={{ maxWidth: 780, margin: '0 auto', padding: '28px 24px 0' }}>
                 <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
               </div>
-              <MarkdownView content={doc.content} />
+              {/* P1 对齐：非 markdown 类型书级公开预览暂以占位提示（doc_type 随文档返回） */}
+              {doc.doc_type && doc.doc_type !== 'markdown' ? (
+                <div style={{ maxWidth: 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
+                  该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
+                </div>
+              ) : (
+                <MarkdownView content={doc.content} />
+              )}
             </>
           )}
           {!loadingDoc && !doc && info.docs.length > 0 && <Spin style={{ display: 'block', margin: '80px auto' }} />}

@@ -40,12 +40,17 @@ func (s *SearchService) Search(userID uint64, keyword string) ([]Hit, error) {
 	kwRunes := len([]rune(keyword))
 	hits := make([]Hit, 0, len(rows))
 	for _, r := range rows {
+		snippet := ""
+		if r.DocType == "markdown" {
+			// 非 markdown 类型（sheet/mindmap/flowchart/datatable）不提供正文摘要
+			snippet = buildSnippet(r.Content, kwRunes, lowerKw)
+		}
 		hits = append(hits, Hit{
 			DocID:     r.ID,
 			BookID:    r.BookID,
 			BookName:  r.BookName,
 			Title:     r.Title,
-			Snippet:   buildSnippet(r.Content, kwRunes, lowerKw),
+			Snippet:   snippet,
 			UpdatedAt: r.UpdatedAt,
 		})
 	}

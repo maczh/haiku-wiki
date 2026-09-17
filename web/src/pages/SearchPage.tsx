@@ -70,7 +70,8 @@ export default function SearchPage() {
                     </Typography.Text>
                   </div>
                   <div style={{ color: '#5f6672', marginTop: 6, fontSize: 13, lineHeight: 1.7 }}>
-                    <Highlight text={h.snippet} keyword={q} />
+                    {/* 非 markdown 类型（sheet/mindmap 等）仅搜标题，snippet 为空 → 结构化文档提示 */}
+                    {h.snippet ? <Highlight text={h.snippet} keyword={q} /> : '结构化文档，无文本摘要'}
                   </div>
                 </List.Item>
               )}
