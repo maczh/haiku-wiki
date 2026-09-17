@@ -27,6 +27,10 @@ func main() {
 	if err := repository.AutoMigrate(g); err != nil {
 		log.Fatalf("[haiku] 自动迁移失败: %v", err)
 	}
+	// 一次性幂等数据修正：datatable 存量 → sheet
+	if err := repository.MigrateData(g); err != nil {
+		log.Fatalf("[haiku] 数据修正失败: %v", err)
+	}
 
 	// 上传根目录注入
 	service.DataDir = cfg.DataDir

@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Input, Modal, Popconfirm, Space, Tree, Tooltip, message } from 'antd'
-import type { TreeProps } from 'antd'
-import type { DataNode } from 'antd/es/tree'
+import { Button, Space, Tooltip, message } from 'antd'
 import {
-  ApartmentOutlined,
+  AimOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
   HistoryOutlined,
   PlusOutlined,
   SaveOutlined,
+  SisternodeOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
 } from '@ant-design/icons'
+import MindMap from 'simple-mind-map'
+import Drag from 'simple-mind-map/src/plugins/Drag.js'
+import Export from 'simple-mind-map/src/plugins/Export.js'
 import { patchDoc } from '../../api/docs'
-import {
-  parseMindmapJSON,
-  treeToMarkdown,
-  cloneTree,
-  stringifyMindmap,
-  type MindNode,
-} from '../../lib/mindmap'
-import MarkmapPreview from '../reader/MarkmapPreview'
+import { parseMindmapJSON, stringifyMindmap, type SmmNode } from '../../lib/mindmap'
 import VersionDrawer from './VersionDrawer'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
+
+// 插件静态注册（模块级一次即可，所有实例共享）
+MindMap.usePlugin(Drag)
+MindMap.usePlugin(Export)
 
 interface Props {
   docId: number
@@ -28,97 +31,87 @@ interface Props {
 
 const SAVE_DEBOUNCE_MS = 3000
 
-type DropInfo = Parameters<NonNullable<TreeProps['onDrop']>>[0]
-
-// ---------- 树编辑辅助 ----------
-
-function pathArr(key: string): number[] {
-  return key.split('-').map(Number)
-}
-
-function getNodeByPath(root: MindNode, path: number[]): MindNode | null {
-  let cur: MindNode | null = root
-  for (const i of path) {
-    cur = cur?.children[i] ?? null
-    if (!cur) return null
-  }
-  return cur
-}
-
-function findParent(root: MindNode, target: MindNode): MindNode | null {
-  if (root.children.includes(target)) return root
-  for (const c of root.children) {
-    const r = findParent(c, target)
-    if (r) return r
-  }
-  return null
-}
-
-function removeFromTree(root: MindNode, path: number[]): MindNode | null {
-  const parentPath = path.slice(0, -1)
-  const idx = path[path.length - 1]
-  const parent = getNodeByPath(root, parentPath)
-  if (!parent || idx < 0 || idx >= parent.children.length) return null
-  return parent.children.splice(idx, 1)[0]
-}
-
-/** 树 → antd Tree treeData（key 为路径 '0-1-2'，根节点 key='0' 不可拖拽） */
-function toTreeData(node: MindNode, path: number[]): DataNode {
-  const key = path.join('-') || '0'
-  return {
-    key,
-    title: node.text,
-    ...(path.length === 0 ? { icon: <ApartmentOutlined />, draggable: false } : {}),
-    children: node.children.map((c, i) => toTreeData(c, [...path, i])),
-  }
+/** 节点实例（simple-mind-map 未暴露类型，仅取用到的属性） */
+interface SmmNodeInstance {
+  isRoot?: boolean
+  getData?(): { text?: string }
 }
 
 /**
- * 思维导图编辑器（I06 自研轻量方案）：
- *  左树（antd Tree 原生 draggable + 增删改弹层）右 markmap 实时预览，双栏布局。
- *  3s 防抖自动保存 + 手动保存 + 历史版本。
+ * 思维导图编辑器（simple-mind-map 方案）：
+ *  全屏画布（支持节点拖拽调整层级、双击编辑文本）+ 顶部工具栏，
+ *  mindMap.getData() 取数据 3s 防抖自动保存（v2 契约）+ 手动保存 + 历史版本。
  */
 export default function MindmapEditor({ docId, initialContent, title }: Props) {
-  const [tree, setTree] = useState<MindNode>(() => cloneTree(parseMindmapJSON(initialContent).data.tree))
+  const elRef = useRef<HTMLDivElement>(null)
+  const mindMapRef = useRef<MindMap | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestRef = useRef<SmmNode | null>(null)
+  const dirtyRef = useRef(false)
+  const titleRef = useRef(title)
+
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
-  const [editModal, setEditModal] = useState<{ key: string; value: string } | null>(null)
+  /** 是否有激活节点（控制节点操作按钮可用性提示） */
+  const [hasActive, setHasActive] = useState(false)
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const latestRef = useRef<MindNode>(tree)
-  const dirtyRef = useRef(false)
-
-  // 内容格式异常提示（仅初挂载一次）
   useEffect(() => {
-    if (parseMindmapJSON(initialContent).reset) {
-      message.warning('内容格式异常，已重置默认思维导图')
-    }
+    const host = elRef.current
+    if (!host) return
+
+    const { data, reset } = parseMindmapJSON(initialContent)
+    if (reset) message.warning('内容格式异常，已重置默认思维导图')
+    latestRef.current = data.root
+    dirtyRef.current = false
+    setStatus('editing')
+    setSavedAt(null)
+
+    const mm = new MindMap({
+      el: host,
+      data: data.root,
+      layout: 'logicalStructure',
+      initRootNodePosition: ['center', 'center'],
+      enableAutoEnterTextEditWhenKeydown: true,
+      mousewheelAction: 'zoom',
+    })
+    mindMapRef.current = mm
+
+    mm.on('data_change', (d: SmmNode) => {
+      latestRef.current = d
+      dirtyRef.current = true
+      setStatus('editing')
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+    })
+    mm.on('node_active', (_node: unknown, activeNodeList: unknown[]) => {
+      setHasActive(activeNodeList.length > 0)
+    })
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
-      if (dirtyRef.current) {
+      if (dirtyRef.current && latestRef.current) {
         void patchDoc(docId, { content: stringifyMindmap(latestRef.current), source: 'auto' }).catch(() => undefined)
         dirtyRef.current = false
+      }
+      mindMapRef.current = null
+      try {
+        mm.destroy()
+      } catch {
+        /* 重复销毁等场景忽略 */
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
 
-  function applyTree(next: MindNode) {
-    setTree(next)
-    latestRef.current = next
-    dirtyRef.current = true
-    setStatus('editing')
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
-  }
-
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
+    const root = latestRef.current
+    if (!root) return
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyMindmap(latestRef.current), source })
+      await patchDoc(docId, { content: stringifyMindmap(root), source })
       dirtyRef.current = false
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
@@ -128,62 +121,81 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     }
   }
 
-  // ---------- 节点操作 ----------
+  // ---------- 工具栏操作 ----------
 
-  function addChild(parentKey: string) {
-    const next = cloneTree(latestRef.current)
-    const parent = getNodeByPath(next, pathArr(parentKey))
-    if (!parent) return
-    parent.children.push({ text: '新节点', children: [] })
-    applyTree(next)
+  function requireMindMap(): MindMap | null {
+    const mm = mindMapRef.current
+    if (!mm) message.warning('画布尚未就绪')
+    return mm
   }
 
-  function renameNode(key: string, text: string) {
-    const next = cloneTree(latestRef.current)
-    const node = getNodeByPath(next, pathArr(key))
+  /** 取当前激活节点实例（无激活节点时提示） */
+  function requireActiveNode(mm: MindMap): SmmNodeInstance | null {
+    const list = mm.renderer.activeNodeList as SmmNodeInstance[]
+    const node = list.length > 0 ? list[list.length - 1] : null
+    if (!node) message.info('请先单击选中一个节点')
+    return node
+  }
+
+  function addChild() {
+    const mm = requireMindMap()
+    if (!mm) return
+    if (!requireActiveNode(mm)) return
+    mm.execCommand('INSERT_CHILD_NODE')
+  }
+
+  function addSibling() {
+    const mm = requireMindMap()
+    if (!mm) return
+    const node = requireActiveNode(mm)
     if (!node) return
-    node.text = text
-    applyTree(next)
-  }
-
-  function removeNode(key: string) {
-    const next = cloneTree(latestRef.current)
-    removeFromTree(next, pathArr(key))
-    applyTree(next)
-  }
-
-  function handleDrop(info: DropInfo) {
-    const dragKey = String(info.dragNode.key)
-    const dropKey = String(info.node.key)
-    const dragPath = pathArr(dragKey)
-    const dropPath = pathArr(dropKey)
-    // 不能拖到自身或自己的子孙下面
-    if (dropKey.startsWith(`${dragKey}-`)) {
-      message.warning('不能移动到自身或其子孙节点下')
+    if (node.isRoot) {
+      message.info('根节点没有同级节点，请使用「添加子节点」')
       return
     }
-    const next = cloneTree(latestRef.current)
-    const dropRef = getNodeByPath(next, dropPath)
-    if (!getNodeByPath(next, dragPath) || !dropRef) return
-    const dragged = removeFromTree(next, dragPath)
-    if (!dragged) return
-    if (info.dropToGap) {
-      // 前后插入：dropPosition -1 = 目标前，1 = 目标后
-      const parent = findParent(next, dropRef) ?? next
-      const idx = parent.children.indexOf(dropRef)
-      const insertAt = (info.dropPosition ?? 1) < 0 ? Math.max(0, idx) : idx + 1
-      parent.children.splice(insertAt, 0, dragged)
-    } else {
-      dropRef.children.push(dragged)
-    }
-    applyTree(next)
+    mm.execCommand('INSERT_NODE')
   }
 
-  const treeData = [toTreeData(tree, [])]
+  function removeActiveNode() {
+    const mm = requireMindMap()
+    if (!mm) return
+    const node = requireActiveNode(mm)
+    if (!node) return
+    if (node.isRoot) {
+      message.info('根节点不可删除')
+      return
+    }
+    mm.execCommand('REMOVE_NODE')
+  }
+
+  function centerRoot() {
+    const mm = requireMindMap()
+    if (!mm) return
+    mm.renderer.setRootNodeCenter()
+    mm.view.reset()
+  }
+
+  function zoomIn() {
+    requireMindMap()?.view.enlarge()
+  }
+
+  function zoomOut() {
+    requireMindMap()?.view.narrow()
+  }
+
+  async function exportPng() {
+    const mm = requireMindMap()
+    if (!mm) return
+    try {
+      await mm.export('png', true, titleRef.current || '思维导图')
+    } catch {
+      message.error('导出失败，请重试')
+    }
+  }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* 顶部状态条 */}
+      {/* 顶部工具栏：保存状态 + 节点操作 + 视图操作 + 保存/历史 */}
       <div
         style={{
           height: 44,
@@ -198,11 +210,33 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       >
         <SaveIndicator status={status} savedAt={savedAt} />
         <div style={{ flex: 1 }} />
-        <Space size={8}>
-          <Tooltip title="在中心主题下添加一级分支">
-            <Button size="small" icon={<PlusOutlined />} onClick={() => addChild('0')}>
-              添加分支
+        <Space size={8} wrap={false}>
+          <Tooltip title="在选中节点下添加子节点（双击节点可直接编辑文本）">
+            <Button size="small" icon={<PlusOutlined />} disabled={!hasActive} onClick={addChild}>
+              子节点
             </Button>
+          </Tooltip>
+          <Tooltip title="为选中节点添加同级节点">
+            <Button size="small" icon={<SisternodeOutlined />} disabled={!hasActive} onClick={addSibling}>
+              同级节点
+            </Button>
+          </Tooltip>
+          <Tooltip title="删除选中节点及其子树">
+            <Button size="small" icon={<DeleteOutlined />} disabled={!hasActive} onClick={removeActiveNode} danger>
+              删除节点
+            </Button>
+          </Tooltip>
+          <Tooltip title="根节点居中">
+            <Button size="small" icon={<AimOutlined />} onClick={centerRoot} />
+          </Tooltip>
+          <Tooltip title="放大（Ctrl+=）">
+            <Button size="small" icon={<ZoomInOutlined />} onClick={zoomIn} />
+          </Tooltip>
+          <Tooltip title="缩小（Ctrl+-）">
+            <Button size="small" icon={<ZoomOutOutlined />} onClick={zoomOut} />
+          </Tooltip>
+          <Tooltip title="导出 PNG 图片">
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => void exportPng()} />
           </Tooltip>
           <Tooltip title="立即保存（生成手动版本快照）">
             <Button size="small" icon={<SaveOutlined />} onClick={() => void doSave('manual')}>
@@ -215,106 +249,8 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         </Space>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {/* 左：结构树编辑 */}
-        <div
-          style={{
-            width: 340,
-            flexShrink: 0,
-            borderRight: '1px solid #ebedf0',
-            overflow: 'auto',
-            padding: '12px 8px',
-          }}
-        >
-          <div style={{ color: '#8a919f', fontSize: 12, padding: '0 8px 8px' }}>
-            拖拽调整层级与顺序；悬停节点出现操作按钮
-          </div>
-          <Tree
-            blockNode
-            treeData={treeData}
-            defaultExpandAll
-            draggable={{ icon: false }}
-            onDrop={handleDrop}
-            titleRender={(n) => {
-              const key = String(n.key)
-              const isRoot = key === '0'
-              return (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: '100%' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {n.title as string}
-                  </span>
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, paddingRight: 8 }}>
-                    <a
-                      title="添加子节点"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        addChild(key)
-                      }}
-                    >
-                      <PlusOutlined />
-                    </a>
-                    <a
-                      title="重命名"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEditModal({ key, value: String(n.title) })
-                      }}
-                    >
-                      ✎
-                    </a>
-                    {!isRoot && (
-                      <Popconfirm
-                        title="删除该节点及其子节点？"
-                        okText="删除"
-                        okType="danger"
-                        cancelText="取消"
-                        onConfirm={(e) => {
-                          e?.stopPropagation()
-                          removeNode(key)
-                        }}
-                        onCancel={(e) => e?.stopPropagation()}
-                      >
-                        <a title="删除" style={{ color: '#ff4d4f' }} onClick={(e) => e.stopPropagation()}>
-                          ✕
-                        </a>
-                      </Popconfirm>
-                    )}
-                  </span>
-                </span>
-              )
-            }}
-          />
-        </div>
-
-        {/* 右：markmap 实时预览 */}
-        <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
-          <MarkmapPreview markdown={treeToMarkdown(tree)} />
-        </div>
-      </div>
-
-      {/* 重命名弹层 */}
-      <Modal
-        title="重命名节点"
-        open={!!editModal}
-        onOk={() => {
-          if (editModal) renameNode(editModal.key, editModal.value.trim() || '未命名节点')
-          setEditModal(null)
-        }}
-        onCancel={() => setEditModal(null)}
-        okText="保存"
-        cancelText="取消"
-        destroyOnClose
-      >
-        <Input
-          value={editModal?.value ?? ''}
-          autoFocus
-          onChange={(e) => setEditModal((m) => (m ? { ...m, value: e.target.value } : m))}
-          onPressEnter={() => {
-            if (editModal) renameNode(editModal.key, editModal.value.trim() || '未命名节点')
-            setEditModal(null)
-          }}
-        />
-      </Modal>
+      {/* 画布：simple-mind-map 自管理内部尺寸（拖拽画布平移 / 滚轮缩放） */}
+      <div ref={elRef} style={{ flex: 1, minHeight: 0 }} />
 
       <VersionDrawer
         open={versionOpen}

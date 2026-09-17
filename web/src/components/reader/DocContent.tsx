@@ -2,7 +2,7 @@ import MarkdownView from './MarkdownView'
 import SheetView from './SheetView'
 import MindmapView from './MindmapView'
 import FlowchartView from './FlowchartView'
-import { SHEET_TYPES, type DocType } from '../../types'
+import { type DocType } from '../../types'
 
 interface Props {
   docType: DocType
@@ -20,7 +20,7 @@ export default function DocContent({ docType, content, onRendered }: Props) {
   if (docType === 'markdown') {
     return <MarkdownView content={content} onRendered={onRendered} />
   }
-  if (SHEET_TYPES.includes(docType)) {
+  if (docType === 'sheet') {
     return <SheetView content={content} />
   }
   if (docType === 'mindmap') {

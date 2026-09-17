@@ -1,64 +1,92 @@
-// 思维导图内容契约（架构文档 §5.2）——JSON 树 ↔ Markdown 双向序列化（markmap 输入用）。
-// 存储格式：{"version":1,"tree":{"text":"中心主题","children":[…]}}
+// 思维导图内容契约 v2 —— simple-mind-map 节点树（{data:{text,expand,…},children:[…]}）。
+// 存储格式：{"version":2,"root":{"data":{"text":"中心主题","expand":true},"children":[…]}}
+// 兼容：v1 旧格式（{"version":1,"tree":{"text":…,"children":[…]}}）读取时递归升级为 v2，
+// 旧文档升级后下次保存自然落为 v2。
 
-export interface MindNode {
+export interface SmmNodeData {
   text: string
-  children: MindNode[]
+  /** 是否展开子节点（simple-mind-map 节点属性） */
+  expand: boolean
+  /** 其余 simple-mind-map 节点属性（uid 等）原样透传 */
+  [key: string]: unknown
+}
+
+export interface SmmNode {
+  data: SmmNodeData
+  children: SmmNode[]
 }
 
 export interface MindmapJSON {
-  version: number
-  tree: MindNode
+  version: 2
+  root: SmmNode
 }
 
-/** 空文档默认值 */
-export const DEFAULT_MINDMAP: MindmapJSON = {
-  version: 1,
-  tree: { text: '中心主题', children: [] },
+/** v1 旧格式节点（自研树） */
+interface V1Node {
+  text: string
+  children: V1Node[]
 }
 
-function normalizeNode(n: unknown): MindNode | null {
+/** 根节点默认文案（回退默认与空文档共用） */
+export const DEFAULT_ROOT_TEXT = '中心主题'
+
+/** 空文档默认根节点 */
+export function defaultRoot(): SmmNode {
+  return { data: { text: DEFAULT_ROOT_TEXT, expand: true }, children: [] }
+}
+
+/** v2 节点树归一化：缺 expand 补 true，children 递归；结构非法返回 null */
+function toSmm(n: unknown): SmmNode | null {
   if (!n || typeof n !== 'object') return null
-  const o = n as Partial<MindNode>
-  if (typeof o.text !== 'string') return null
-  const children = Array.isArray(o.children) ? o.children.map(normalizeNode).filter((x): x is MindNode => x !== null) : []
-  return { text: o.text, children }
+  const d = (n as { data?: unknown }).data
+  if (!d || typeof d !== 'object') return null
+  const text = (d as { text?: unknown }).text
+  if (typeof text !== 'string' || text === '') return null
+  const rest = d as Record<string, unknown>
+  const expand = typeof rest.expand === 'boolean' ? rest.expand : true
+  const rawChildren = (n as { children?: unknown }).children
+  const children = Array.isArray(rawChildren)
+    ? rawChildren.map(toSmm).filter((x): x is SmmNode => x !== null)
+    : []
+  return { data: { ...rest, text, expand }, children }
 }
 
-/** 解析 docs.content：失败或 version 不识别 → 回退默认值并标记 reset（组件负责提示） */
+/** v1 树 → v2 节点树（文本透传，expand 恒为 true） */
+function fromV1(n: unknown): SmmNode | null {
+  if (!n || typeof n !== 'object') return null
+  const o = n as Partial<V1Node>
+  if (typeof o.text !== 'string' || o.text === '') return null
+  const children = Array.isArray(o.children)
+    ? o.children.map(fromV1).filter((x): x is SmmNode => x !== null)
+    : []
+  return { data: { text: o.text, expand: true }, children }
+}
+
+/**
+ * 解析 docs.content：
+ *  - version===2 → 归一化后透传
+ *  - version===1（旧格式）→ 递归升级为 v2 节点树
+ *  - 解析失败 / 不识别 → 回退默认（"中心主题"单节点）并标记 reset（组件负责提示）
+ */
 export function parseMindmapJSON(content: string): { data: MindmapJSON; reset: boolean } {
   if (content && content.trim() !== '') {
     try {
-      const o = JSON.parse(content) as Partial<MindmapJSON>
-      const tree = o && o.version === 1 ? normalizeNode(o.tree) : null
-      if (tree) return { data: { version: 1, tree }, reset: false }
+      const o = JSON.parse(content) as { version?: unknown; root?: unknown; tree?: unknown }
+      if (o && o.version === 2) {
+        const root = toSmm(o.root)
+        if (root) return { data: { version: 2, root }, reset: false }
+      } else if (o && o.version === 1) {
+        const root = fromV1(o.tree)
+        if (root) return { data: { version: 2, root }, reset: false }
+      }
     } catch {
       /* fallthrough → 回退默认值 */
     }
   }
-  return { data: { version: 1, tree: { text: DEFAULT_MINDMAP.tree.text, children: [] } }, reset: !!content && content.trim() !== '' }
+  return { data: { version: 2, root: defaultRoot() }, reset: !!content && content.trim() !== '' }
 }
 
-/** 树 → Markdown（根 `# `，二级 `## `，更深无序列表缩进），喂给 markmap-lib 渲染 */
-export function treeToMarkdown(root: MindNode): string {
-  const lines: string[] = [`# ${root.text}`]
-  const walk = (children: MindNode[], depth: number) => {
-    for (const c of children) {
-      if (depth === 1) lines.push('', `## ${c.text}`)
-      else lines.push(`${'  '.repeat(depth - 2)}- ${c.text}`)
-      walk(c.children, depth + 1)
-    }
-  }
-  walk(root.children, 1)
-  return lines.join('\n')
-}
-
-/** 深拷贝树（编辑操作在克隆上进行） */
-export function cloneTree(n: MindNode): MindNode {
-  return { text: n.text, children: n.children.map(cloneTree) }
-}
-
-/** 序列化为存储字符串 */
-export function stringifyMindmap(tree: MindNode): string {
-  return JSON.stringify({ version: 1, tree } satisfies MindmapJSON)
+/** 序列化为存储字符串（v2 契约） */
+export function stringifyMindmap(root: SmmNode): string {
+  return JSON.stringify({ version: 2, root } satisfies MindmapJSON)
 }

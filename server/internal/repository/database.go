@@ -83,5 +83,15 @@ func AutoMigrate(g *gorm.DB) error {
 	)
 }
 
+// MigrateData 一次性幂等数据修正（在 AutoMigrate 之后调用）。
+// datatable 类型已下线：与 sheet 同实现、同 JSON 契约，存量记录直接改类型字段即可，内容无需转换。
+// 重复执行不产生任何副作用（无 datatable 记录时 UPDATE 影响 0 行）。
+func MigrateData(g *gorm.DB) error {
+	if err := g.Exec("UPDATE docs SET doc_type = 'sheet' WHERE doc_type = 'datatable'").Error; err != nil {
+		return fmt.Errorf("migrate datatable->sheet: %w", err)
+	}
+	return nil
+}
+
 // isNoRows 供上层判断"查无记录"（保留给未来扩展）。
 var _ = sql.ErrNoRows

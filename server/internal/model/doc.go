@@ -14,7 +14,7 @@ type Doc struct {
 	ParentID  uint64         `gorm:"index:idx_book_parent_pos,priority:2" json:"parent_id"`
 	Pos       string         `gorm:"index:idx_book_parent_pos,priority:3;size:64" json:"pos"`
 	Title     string         `gorm:"size:256" json:"title"`
-	DocType   string         `gorm:"size:16;default:markdown" json:"doc_type"` // markdown|sheet|mindmap|flowchart|datatable
+	DocType   string         `gorm:"size:16;default:markdown" json:"doc_type"` // markdown|sheet|mindmap|flowchart（datatable 已下线，存量迁移为 sheet）
 	Content   string         `gorm:"type:longtext" json:"content"`
 	CreatedBy uint64         `json:"created_by"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`

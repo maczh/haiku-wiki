@@ -24,7 +24,6 @@ function nodeIcon(node: DocNode, hasChildren: boolean) {
   if (hasChildren) return <FolderOutlined style={{ color: '#faad14' }} />
   switch (node.doc_type) {
     case 'sheet':
-    case 'datatable':
       return <TableOutlined style={{ color: '#13c2c2' }} />
     case 'mindmap':
       return <ApartmentOutlined style={{ color: '#722ed1' }} />

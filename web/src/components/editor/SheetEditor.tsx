@@ -13,7 +13,7 @@ interface Props {
   docId: number
   initialContent: string
   title: string
-  docType: 'sheet' | 'datatable'
+  docType: 'sheet'
 }
 
 const SAVE_DEBOUNCE_MS = 3000 // 3s 防抖自动保存（与 VditorEditor 一致）

@@ -1,12 +1,42 @@
-import { parseMindmapJSON, treeToMarkdown } from '../../lib/mindmap'
-import MarkmapPreview from './MarkmapPreview'
+import { useEffect, useRef } from 'react'
+import { message } from 'antd'
+import MindMap from 'simple-mind-map'
+import { parseMindmapJSON } from '../../lib/mindmap'
 
 interface Props {
   content: string
 }
 
-/** 思维导图只读渲染（markmap） */
+/** 思维导图只读渲染（simple-mind-map readonly，禁止编辑/拖拽，初始 fit 视图） */
 export default function MindmapView({ content }: Props) {
-  const { data } = parseMindmapJSON(content)
-  return <MarkmapPreview markdown={treeToMarkdown(data.tree)} />
+  const elRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const host = elRef.current
+    if (!host) return
+
+    const { data, reset } = parseMindmapJSON(content)
+    if (reset) message.warning('内容格式异常，已按默认思维导图展示')
+
+    const mm = new MindMap({
+      el: host,
+      data: data.root,
+      readonly: true,
+      layout: 'logicalStructure',
+      initRootNodePosition: ['center', 'center'],
+    })
+    const onRenderEnd = () => mm.view.fit()
+    mm.on('node_tree_render_end', onRenderEnd)
+
+    return () => {
+      mm.off('node_tree_render_end', onRenderEnd)
+      try {
+        mm.destroy()
+      } catch {
+        /* 忽略重复销毁 */
+      }
+    }
+  }, [content])
+
+  return <div ref={elRef} style={{ width: '100%', height: 560 }} />
 }

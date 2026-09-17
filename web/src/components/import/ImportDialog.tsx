@@ -116,7 +116,7 @@ export default function ImportDialog({ open, onClose, bookId, onImported }: Prop
         </p>
         <p className="ant-upload-text">点击或拖拽文件到此处</p>
         <p className="ant-upload-hint">
-          支持 .md / .txt / .docx / .xlsx / .xls / .csv / .pdf / .wps / .et / .dps，可多选批量导入
+          支持 .md / .txt / .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .wps / .et，可多选批量导入
         </p>
       </Upload.Dragger>
 

@@ -126,21 +126,17 @@ export const COVER_COLORS = [
 
 // ---------- 增量：多文档类型 ----------
 
-export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'datatable'
+export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart'
 
-/** 全部可新建类型（顺序即新建弹窗展示顺序） */
-export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'datatable']
+/** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet） */
+export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart']
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
   sheet: '表格',
   mindmap: '思维导图',
   flowchart: '流程图',
-  datatable: '数据表',
 }
-
-/** 类型列表（P1 datatable 与 sheet 同实现，预留入口命名区分） */
-export const SHEET_TYPES: DocType[] = ['sheet', 'datatable']
 
 // ---------- 增量：文档级分享 ----------
 

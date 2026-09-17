@@ -4,6 +4,8 @@
 import mammoth from 'mammoth'
 import TurndownService from 'turndown'
 import * as XLSX from 'xlsx'
+import DOMPurify from 'dompurify'
+import JSZip from 'jszip'
 import type { DocType } from '../../types'
 import { stringifySheet, type SheetJSON } from '../sheet'
 
@@ -127,6 +129,73 @@ const parsePdf: Parser = async (file) => {
   return wrapText(parts.join('\n\n'), baseName(file.name), 'markdown')
 }
 
+// ---------- html（P3：DOMParser → DOMPurify 清洗 → turndown） ----------
+
+const parseHtml: Parser = async (file) => {
+  const raw = await file.text()
+  const dom = new DOMParser().parseFromString(raw, 'text/html')
+  // 标题优先取 <title>，否则文件名去扩展名
+  const title = (dom.title || '').trim() || baseName(file.name)
+  const body = dom.body
+  if (!body || !body.innerHTML.trim()) {
+    return { ok: false, title, docType: 'markdown', content: '', reason: 'HTML 中没有可见内容' }
+  }
+  // 清洗：移除 script/style 等危险与无关节点（DOMPurify 默认即拦 script，显式声明以示边界）
+  const cleaned = DOMPurify.sanitize(body.innerHTML, {
+    FORBID_TAGS: ['style', 'script', 'noscript', 'iframe', 'object', 'embed'],
+    FORBID_ATTR: ['style'],
+  })
+  const text = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' }).turndown(cleaned)
+  if (!text.trim()) {
+    return { ok: false, title, docType: 'markdown', content: '', reason: 'HTML 转换结果为空' }
+  }
+  return wrapText(text, title, 'markdown')
+}
+
+// ---------- pptx（P3：JSZip 解压 → 按 slideN 数字序遍历 → 提取 <a:t> 文本） ----------
+
+const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+/** 提取单张幻灯片 XML 中的文本行（a:t 文本节点，空页返回空数组） */
+function extractSlideLines(xml: string): string[] {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  if (doc.getElementsByTagName('parsererror').length > 0) return [] // 单页损坏：跳过该页
+  const nodes = doc.getElementsByTagNameNS(A_NS, 't')
+  const list = nodes.length > 0 ? Array.from(nodes) : Array.from(doc.getElementsByTagName('a:t'))
+  const lines: string[] = []
+  for (const n of list) {
+    const t = (n.textContent ?? '').trim()
+    if (t) lines.push(t)
+  }
+  return lines
+}
+
+const parsePptx: Parser = async (file) => {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer())
+  const slideFiles = Object.keys(zip.files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+    .sort((a, b) => {
+      const na = Number(/slide(\d+)\.xml$/.exec(a)?.[1] ?? 0)
+      const nb = Number(/slide(\d+)\.xml$/.exec(b)?.[1] ?? 0)
+      return na - nb
+    })
+  if (slideFiles.length === 0) {
+    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: 'PPTX 中未找到幻灯片（可能不是标准 .pptx 文件）' }
+  }
+  const parts: string[] = []
+  for (let i = 0; i < slideFiles.length; i++) {
+    const entry = zip.file(slideFiles[i])
+    if (!entry) continue
+    const xml = await entry.async('string')
+    const lines = extractSlideLines(xml)
+    if (lines.length > 0) parts.push(`## 第 ${i + 1} 页\n\n${lines.join('\n')}`) // 空页跳过
+  }
+  if (parts.length === 0) {
+    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: 'PPTX 中未提取到文本（可能是纯图片演示）' }
+  }
+  return wrapText(parts.join('\n\n'), baseName(file.name), 'markdown')
+}
+
 // ---------- WPS 兼容格式（.wps/.et/.dps 按容错格式尝试，失败友好提示） ----------
 
 const parseWpsLike = (kind: 'wps' | 'et' | 'dps'): Parser => async (file) => {
@@ -159,6 +228,9 @@ export const parserRegistry: Record<string, Parser> = {
   xls: parseXlsx,
   csv: parseXlsx,
   pdf: parsePdf,
+  html: parseHtml,
+  htm: parseHtml,
+  pptx: parsePptx,
   wps: parseWpsLike('wps'),
   et: parseWpsLike('et'),
   dps: parseWpsLike('dps'),

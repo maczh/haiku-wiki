@@ -244,8 +244,8 @@ export default function BookPage() {
                 {(doc.doc_type ?? 'markdown') === 'markdown' && (
                   <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                 )}
-                {(doc.doc_type === 'sheet' || doc.doc_type === 'datatable') && (
-                  <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType={doc.doc_type} />
+                {doc.doc_type === 'sheet' && (
+                  <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />
                 )}
                 {doc.doc_type === 'mindmap' && (
                   <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />

@@ -42,7 +42,7 @@ func (s *SearchService) Search(userID uint64, keyword string) ([]Hit, error) {
 	for _, r := range rows {
 		snippet := ""
 		if r.DocType == "markdown" {
-			// 非 markdown 类型（sheet/mindmap/flowchart/datatable）不提供正文摘要
+			// 非 markdown 类型（sheet/mindmap/flowchart）不提供正文摘要
 			snippet = buildSnippet(r.Content, kwRunes, lowerKw)
 		}
 		hits = append(hits, Hit{

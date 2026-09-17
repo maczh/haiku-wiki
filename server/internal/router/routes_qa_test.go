@@ -215,13 +215,13 @@ func TestQAFetchTitleRouteRegistered(t *testing.T) {
 	}
 }
 
-// TestQADocTypeCreateViaAPI 五种合法类型经 HTTP 创建；非法类型回退 markdown（PRD P0-5：缺省/非法回退 markdown）。
+// TestQADocTypeCreateViaAPI 四种合法类型经 HTTP 创建；非法类型（含已下线的 datatable）回退 markdown（PRD P0-5：缺省/非法回退 markdown）。
 func TestQADocTypeCreateViaAPI(t *testing.T) {
 	r, uid, token := qaSetup(t)
 	bookID, _ := qaBookDoc(t, r, uid, token, "QA类型库")
 	base := "/api/books/" + uitoa(bookID) + "/docs"
 
-	for _, dt := range []string{"markdown", "sheet", "mindmap", "flowchart", "datatable"} {
+	for _, dt := range []string{"markdown", "sheet", "mindmap", "flowchart"} {
 		resp := qaDo(t, r, "POST", base, token, map[string]any{"parent_id": 0, "title": "T-" + dt, "doc_type": dt})
 		if resp.Code != 0 {
 			t.Fatalf("创建 %s 类型应成功: %+v", dt, resp)
@@ -237,10 +237,12 @@ func TestQADocTypeCreateViaAPI(t *testing.T) {
 		t.Fatalf("缺省 doc_type 应回退 markdown: %+v", resp)
 	}
 
-	// 非法 doc_type → 按 PRD/架构设计回退 markdown 落库
-	bad := qaDo(t, r, "POST", base, token, map[string]any{"parent_id": 0, "title": "T-bad", "doc_type": "comic"})
-	if bad.Code != 0 || !strings.Contains(string(bad.Data), `"doc_type":"markdown"`) {
-		t.Fatalf("非法 doc_type 应回退 markdown（PRD P0-5）, got code=%d data=%s", bad.Code, bad.Data)
+	// 非法 doc_type（含已下线的 datatable）→ 按 PRD/架构设计回退 markdown 落库
+	for _, badType := range []string{"comic", "datatable"} {
+		bad := qaDo(t, r, "POST", base, token, map[string]any{"parent_id": 0, "title": "T-bad-" + badType, "doc_type": badType})
+		if bad.Code != 0 || !strings.Contains(string(bad.Data), `"doc_type":"markdown"`) {
+			t.Fatalf("非法 doc_type %q 应回退 markdown（PRD P0-5）, got code=%d data=%s", badType, bad.Code, bad.Data)
+		}
 	}
 
 	// 目录树节点带 doc_type

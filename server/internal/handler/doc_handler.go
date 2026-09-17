@@ -22,9 +22,9 @@ type createDocReq struct {
 	DocType  string `json:"doc_type"`
 }
 
-// validDocTypes 新建文档允许的类型枚举。
+// validDocTypes 新建文档允许的类型枚举（datatable 已下线，存量由 MigrateData 迁移为 sheet）。
 var validDocTypes = map[string]bool{
-	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true, "datatable": true,
+	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。

@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    // simple-mind-map 依赖 @svgdotjs/svg.js（纯 ESM），显式预打包避免开发期 504
+    include: ['simple-mind-map', '@svgdotjs/svg.js'],
+  },
   server: {
     port: 5173,
     proxy: {

@@ -11,9 +11,9 @@ import (
 	"haiku-wiki/server/internal/repository"
 )
 
-var qaAllDocTypes = []string{"markdown", "sheet", "mindmap", "flowchart", "datatable"}
+var qaAllDocTypes = []string{"markdown", "sheet", "mindmap", "flowchart"}
 
-// TestQADocTypeCreateEachEnum 五种合法类型逐一创建并读回。
+// TestQADocTypeCreateEachEnum 四种合法类型逐一创建并读回（datatable 已下线）。
 func TestQADocTypeCreateEachEnum(t *testing.T) {
 	newEnv(t)
 	owner := mkUser(t, "qa-type@x.com", "pass123", "member")
@@ -145,8 +145,6 @@ func TestQADocTypeContractStorageAndRollback(t *testing.T) {
 		{"mindmap", `{"version":1,"tree":{"text":"中心主题","children":[{"text":"分支A","children":[]}]}}`,
 			`{"version":1,"tree":{"text":"新主题","children":[]}}`},
 		{"flowchart", "flowchart TD\n  A[开始] --> B[结束]", "flowchart TD\n  A --> B --> C"},
-		{"datatable", `{"version":1,"cells":{"0-0":{"text":"列1"}},"colLen":26,"rowLen":100}`,
-			`{"version":1,"cells":{"0-0":{"text":"列2"}},"colLen":26,"rowLen":100}`},
 	}
 	for _, c := range cases {
 		doc, err := ds.CreateDoc(book, owner.ID, 0, "契约-"+c.docType, c.docType)
@@ -214,5 +212,39 @@ func TestQADocTypeMigrationLegacyDefault(t *testing.T) {
 	}
 	if !strings.Contains(got.Content, "旧内容") {
 		t.Fatalf("存量内容应保留: %q", got.Content)
+	}
+}
+
+// TestQADocTypeMigrationDatatableToSheet datatable 已下线：存量 datatable 记录经
+// MigrateData 一次性修正为 sheet（同实现同 JSON 契约，内容无需转换），迁移幂等。
+func TestQADocTypeMigrationDatatableToSheet(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "qa-mig2@x.com", "pass123", "member")
+	book := mkBook(t, owner.ID, "QA迁移库2", "private")
+
+	// 绕过服务层直接插入 datatable 存量行（模拟旧版本数据）
+	sheetJSON := `{"version":1,"cells":{"0-0":{"text":"列1"}},"colLen":26,"rowLen":100}`
+	legacy := &model.Doc{BookID: book.ID, ParentID: 0, Title: "旧数据表", DocType: "datatable", Content: sheetJSON, Pos: "bbb"}
+	if err := repository.DB().Create(legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// 执行迁移（重复执行两次验证幂等）
+	if err := repository.MigrateData(repository.DB()); err != nil {
+		t.Fatalf("迁移失败: %v", err)
+	}
+	if err := repository.MigrateData(repository.DB()); err != nil {
+		t.Fatalf("重复迁移失败（应幂等）: %v", err)
+	}
+
+	got, _, err := (&DocService{}).LoadForRead(owner.ID, legacy.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DocType != "sheet" {
+		t.Fatalf("存量 datatable 应迁移为 sheet, got %q", got.DocType)
+	}
+	if got.Content != sheetJSON {
+		t.Fatalf("迁移不应改动内容:\n got  %q\n want %q", got.Content, sheetJSON)
 	}
 }
