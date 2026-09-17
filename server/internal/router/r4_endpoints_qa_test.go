@@ -3,6 +3,7 @@
 //   - POST /api/docs/:id/move-to-book 跨库移动（目标库写权限 40301、源树移除、目标库根末尾、置顶随移动保留）
 //   - PATCH /api/docs/:id/pin        置顶/取消（翻转、置顶排序、缺参 40001）
 //   - 写权限矩阵：members 库登录非 owner 三接口可达；public/private 仅 owner（40301）
+//
 // 工程师已有用例集中在 service 层，本文件验证路由装配 + JSON 契约 + 权限码全链路。
 package router
 
@@ -17,8 +18,8 @@ import (
 	"gorm.io/gorm"
 
 	"haiku-wiki/server/internal/config"
-	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/model"
+	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
 )
 
