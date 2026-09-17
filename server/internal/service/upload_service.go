@@ -22,7 +22,10 @@ type UploadService struct{}
 // DataDir 上传根目录（main 启动时注入）。
 var DataDir = "./data"
 
-const maxUploadSize = 20 << 20 // 20MB
+// maxUploadSize 单文件上限。
+// 定在 64MB 而非更小的值：AutoCAD .dwg 图纸与含大量图片的 .pptx 常见十几到几十 MB，
+// 20MB 会把正常的工程文件挡在门外。
+const maxUploadSize = 64 << 20 // 64MB
 
 // allowedExt 白名单扩展名（svg 前端展示时禁用脚本渲染，仅作文件下载/预览图）。
 var allowedExt = map[string]bool{
@@ -30,6 +33,10 @@ var allowedExt = map[string]bool{
 	".svg": true, ".bmp": true,
 	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
 	".ppt": true, ".pptx": true, ".md": true, ".txt": true, ".zip": true,
+	// CAD 图纸：导入后由后端转换为 svg/png 预览
+	".dwg": true, ".dxf": true,
+	// draw.io 绘图：.drawio 直接作正文；.vsd/.vsdx 由内嵌编辑器导入
+	".drawio": true, ".vsd": true, ".vsdx": true,
 }
 
 // UploadOutput 上传成功响应。

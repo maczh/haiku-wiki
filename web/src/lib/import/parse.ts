@@ -1,13 +1,29 @@
 // 导入解析器注册表（I09/I12）：按扩展名分派，P1 解析器即插即用。
-// 解析产物统一为 {ok, title, docType, content}，失败不产生损坏文档。
+// 解析产物统一为 {ok, title, docType, content, children?, attachment?}，失败不产生损坏文档。
+//
+// 导入约定（本轮）：
+//   - .docx / .doc / .pdf / .pptx / .vsd / .vsdx / .dwg / .dxf → 按原文件保存（docType=file，
+//     content 为上传后回填的附件引用 JSON），不可编辑，阅读时由 FileView 分派渲染：
+//       .docx → mammoth，.pdf → pdf.js，.pptx → pptx-preview（可播放），
+//       .dwg/.dxf → 后端派生的 SVG/PNG（可缩放拖动），.vsd/.vsdx → 内嵌 draw.io 转换预览；
+//     其中 .dwg/.dxf 上传后还需调 /api/attachments/prepare 触发后端转换并回填 derived；
+//   - .drawio → 「绘图」文档，正文即 .drawio 的 XML 原文，由内嵌 draw.io 组件直接编辑保存；
+//   - .xlsx / .xls / .csv / .et → 转为「表格」：每个有内容的工作表落为一个「表格」文档，
+//     多表时以文件名建父「表格」，各工作表作为其子文档；单表时直接落为单文档；
+//   - 其余文本类格式（md/txt/html）解析为对应类型的正文。
 
-import mammoth from 'mammoth'
 import TurndownService from 'turndown'
 import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
-import JSZip from 'jszip'
-import type { DocType } from '../../types'
+import type { DocType, FileAttachment } from '../../types'
 import { stringifySheet, type SheetJSON } from '../sheet'
+
+/** 子文档（多文档导入产物，如 xlsx 的多工作表） */
+export interface ImportChild {
+  title: string
+  docType: DocType
+  content: string
+}
 
 export interface ParseResult {
   ok: boolean
@@ -19,15 +35,29 @@ export interface ParseResult {
   reason?: string
   /** 内容较大提示（>2MB 文本，不阻断） */
   large?: boolean
+  /** 需在父文档创建后挂到其下的子文档 */
+  children?: ImportChild[]
+  /** 附件型导入：调用方需先上传原文件，再把返回的 url 回填进 content */
+  attachment?: Omit<FileAttachment, 'url'>
+  /** 附件型导入后是否还需调 /api/attachments/prepare 触发后端转换（CAD 类） */
+  needsPrepare?: boolean
 }
 
 type Parser = (file: File) => Promise<ParseResult>
 
 const LARGE_TEXT_BYTES = 2 * 1024 * 1024
 
+/** 单元格/行数上限（防超大表撑爆正文与渲染） */
+const MAX_SHEET_ROWS = 500
+const MAX_SHEET_COLS = 50
+
 function baseName(name: string): string {
   const i = name.lastIndexOf('.')
   return i > 0 ? name.slice(0, i) : name
+}
+
+function extOf(name: string): string {
+  return (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : '').toLowerCase()
 }
 
 /** 文本解析结果统一包装（H1 提取标题 + 大小提示） */
@@ -46,88 +76,96 @@ const parseMd: Parser = async (file) => {
   return wrapText(raw, baseName(file.name), 'markdown')
 }
 
-// ---------- docx（P1：mammoth → HTML（图片 base64 内联）→ turndown） ----------
+// ---------- 附件型（原样保存，不解析正文） ----------
 
-const parseDocx: Parser = async (file) => {
-  const arrayBuffer = await file.arrayBuffer()
-  const result = await mammoth.convertToHtml(
-    { arrayBuffer },
-    {
-      convertImage: mammoth.images.imgElement(async (image) => ({
-        src: `data:${image.contentType};base64,${await image.read('base64')}`,
-      })),
-    },
-  )
-  const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
-  const md = turndown.turndown(result.value)
-  return wrapText(md, baseName(file.name), 'markdown')
+/** 按原文件保存的附件型扩展名 */
+const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'vsd', 'vsdx', 'dwg', 'dxf']
+
+/** 需要后端转换派生产物的附件（DWG/DXF → SVG/PNG） */
+export const CAD_IMPORT_EXTS = ['dwg', 'dxf']
+
+const parseAttachment: Parser = async (file) => {
+  const ext = extOf(file.name)
+  return {
+    ok: true,
+    title: baseName(file.name),
+    docType: 'file',
+    content: '', // 真实 content 由导入流程上传原文件后写入
+    attachment: { filename: file.name, size: file.size, ext },
+    needsPrepare: CAD_IMPORT_EXTS.includes(ext),
+  }
 }
 
-// ---------- xlsx / et（P1：SheetJS → SheetJSON，读首个工作表的值） ----------
+// ---------- drawio（绘图文档：正文即 XML 原文） ----------
 
-const parseXlsx: Parser = async (file) => {
-  const arrayBuffer = await file.arrayBuffer()
-  const wb = XLSX.read(arrayBuffer, { type: 'array' })
-  const sheetName = wb.SheetNames[0]
-  if (!sheetName) {
-    return { ok: false, title: baseName(file.name), docType: 'sheet', content: '', reason: '工作簿中没有工作表' }
+const parseDrawio: Parser = async (file) => {
+  const raw = await file.text()
+  if (!raw.trim()) {
+    return { ok: false, title: baseName(file.name), docType: 'drawing', content: '', reason: '绘图文件为空' }
   }
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, blankrows: false, defval: '' })
+  // 轻量校验：drawio 文件应为 XML（可能是 <mxfile> 或 <mxGraphModel>）
+  if (!/<(mxfile|mxGraphModel|mxGraphModel\s)/i.test(raw) && !raw.trimStart().startsWith('<')) {
+    return {
+      ok: false,
+      title: baseName(file.name),
+      docType: 'drawing',
+      content: '',
+      reason: '不是有效的 .drawio 文件（应为 XML 格式）',
+    }
+  }
+  return { ok: true, title: baseName(file.name), docType: 'drawing', content: raw }
+}
+
+// ---------- xlsx / xls / csv / et：每个有内容的工作表 → 一个「表格」 ----------
+
+/** 单个工作表 → 表格内容字符串；无内容返回 null */
+function sheetToContent(ws: XLSX.WorkSheet): string | null {
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: '' })
   const cells: SheetJSON['cells'] = {}
   let r = 0
-  for (const row of rows.slice(0, 200)) {
+  for (const row of rows.slice(0, MAX_SHEET_ROWS)) {
     let c = 0
-    for (const v of row.slice(0, 30)) {
+    for (const v of row.slice(0, MAX_SHEET_COLS)) {
       const text = String(v ?? '').trim()
       if (text !== '') cells[`${r}-${c}`] = { text }
       c++
     }
     r++
   }
+  if (Object.keys(cells).length === 0) return null
   const data: SheetJSON = { version: 1, cells, colLen: 26, rowLen: 100 }
+  return stringifySheet(data)
+}
+
+const parseXlsx: Parser = async (file) => {
+  const arrayBuffer = await file.arrayBuffer()
+  const wb = XLSX.read(arrayBuffer, { type: 'array' })
+  const sheets: { name: string; content: string }[] = []
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name]
+    if (!ws) continue
+    const content = sheetToContent(ws)
+    if (content) sheets.push({ name, content })
+  }
+  const title = baseName(file.name)
+  if (sheets.length === 0) {
+    return { ok: false, title, docType: 'sheet', content: '', reason: '工作簿中没有有内容的工作表' }
+  }
+  // 单工作表：直接落为单个「表格」文档
+  if (sheets.length === 1) {
+    return { ok: true, title, docType: 'sheet', content: sheets[0].content }
+  }
+  // 多工作表：父「表格」代表整个工作簿，每个工作表 → 一个「表格」子文档
   return {
     ok: true,
-    title: baseName(file.name),
+    title,
     docType: 'sheet',
-    content: stringifySheet(data),
-    large: false,
+    content: '',
+    children: sheets.map((s) => ({ title: s.name, docType: 'sheet' as DocType, content: s.content })),
   }
 }
 
-// ---------- pdf（P1：pdf.js 文本层 → Markdown） ----------
-
-let pdfWorkerReady = false
-async function ensurePdfWorker() {
-  if (pdfWorkerReady) return
-  const pdfjs = await import('pdfjs-dist')
-  // Vite 下 worker 引入方式：?url 生成静态资源地址
-  const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
-  pdfWorkerReady = true
-}
-
-const parsePdf: Parser = async (file) => {
-  await ensurePdfWorker()
-  const pdfjs = await import('pdfjs-dist')
-  const buf = await file.arrayBuffer()
-  const doc = await pdfjs.getDocument({ data: buf }).promise
-  const parts: string[] = []
-  const maxPages = Math.min(doc.numPages, 100) // 超长 PDF 截断保护
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await doc.getPage(i)
-    const tc = await page.getTextContent()
-    const text = tc.items
-      .map((it) => ('str' in it ? it.str : ''))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    if (text) parts.push(`## 第 ${i} 页\n\n${text}`)
-  }
-  if (parts.length === 0) {
-    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: 'PDF 中未提取到文本（可能是扫描件）' }
-  }
-  return wrapText(parts.join('\n\n'), baseName(file.name), 'markdown')
-}
+// ---------- pdf（附件型，不再抽取文本层） ----------
 
 // ---------- html（P3：DOMParser → DOMPurify 清洗 → turndown） ----------
 
@@ -152,69 +190,22 @@ const parseHtml: Parser = async (file) => {
   return wrapText(text, title, 'markdown')
 }
 
-// ---------- pptx（P3：JSZip 解压 → 按 slideN 数字序遍历 → 提取 <a:t> 文本） ----------
+// ---------- pptx：按原文件保存（阅读时由 pptx-preview 渲染并支持播放） ----------
+// 说明：本轮起 .pptx 不再抽取纯文本转成 Markdown，而是保留源文件——
+// 需求要求「保留源文件 + 前端预览/播放 + 原文件下载」，只有原文件才谈得上版式还原与下载。
 
-const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+// ---------- WPS 兼容格式（.et 按 xlsx 解析；.wps/.dps 给出明确提示） ----------
 
-/** 提取单张幻灯片 XML 中的文本行（a:t 文本节点，空页返回空数组） */
-function extractSlideLines(xml: string): string[] {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  if (doc.getElementsByTagName('parsererror').length > 0) return [] // 单页损坏：跳过该页
-  const nodes = doc.getElementsByTagNameNS(A_NS, 't')
-  const list = nodes.length > 0 ? Array.from(nodes) : Array.from(doc.getElementsByTagName('a:t'))
-  const lines: string[] = []
-  for (const n of list) {
-    const t = (n.textContent ?? '').trim()
-    if (t) lines.push(t)
-  }
-  return lines
-}
-
-const parsePptx: Parser = async (file) => {
-  const zip = await JSZip.loadAsync(await file.arrayBuffer())
-  const slideFiles = Object.keys(zip.files)
-    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
-    .sort((a, b) => {
-      const na = Number(/slide(\d+)\.xml$/.exec(a)?.[1] ?? 0)
-      const nb = Number(/slide(\d+)\.xml$/.exec(b)?.[1] ?? 0)
-      return na - nb
-    })
-  if (slideFiles.length === 0) {
-    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: 'PPTX 中未找到幻灯片（可能不是标准 .pptx 文件）' }
-  }
-  const parts: string[] = []
-  for (let i = 0; i < slideFiles.length; i++) {
-    const entry = zip.file(slideFiles[i])
-    if (!entry) continue
-    const xml = await entry.async('string')
-    const lines = extractSlideLines(xml)
-    if (lines.length > 0) parts.push(`## 第 ${i + 1} 页\n\n${lines.join('\n')}`) // 空页跳过
-  }
-  if (parts.length === 0) {
-    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: 'PPTX 中未提取到文本（可能是纯图片演示）' }
-  }
-  return wrapText(parts.join('\n\n'), baseName(file.name), 'markdown')
-}
-
-// ---------- WPS 兼容格式（.wps/.et/.dps 按容错格式尝试，失败友好提示） ----------
-
-const parseWpsLike = (kind: 'wps' | 'et' | 'dps'): Parser => async (file) => {
-  if (kind === 'wps') {
-    try {
-      return await parseDocx(file) // .wps 新版为 docx 兼容格式
-    } catch {
-      return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: '格式暂不支持：仅支持新版 WPS 文字（docx 兼容格式）' }
-    }
-  }
-  if (kind === 'et') {
-    try {
-      return await parseXlsx(file) // .et 新版为 xlsx 兼容格式
-    } catch {
-      return { ok: false, title: baseName(file.name), docType: 'sheet', content: '', reason: '格式暂不支持：仅支持新版 WPS 表格（xlsx 兼容格式）' }
-    }
-  }
-  return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: '格式暂不支持：演示文稿（.dps）暂无法导入' }
-}
+const failUnsupported = (kind: 'wps' | 'dps'): Parser => async (file) => ({
+  ok: false,
+  title: baseName(file.name),
+  docType: 'markdown',
+  content: '',
+  reason:
+    kind === 'wps'
+      ? '暂不支持直接导入 .wps，请在 WPS 中另存为 .docx 后再导入'
+      : '格式暂不支持：演示文稿（.dps）暂无法导入',
+})
 
 // ---------- 注册表 ----------
 
@@ -223,26 +214,37 @@ export const parserRegistry: Record<string, Parser> = {
   md: parseMd,
   markdown: parseMd,
   txt: parseMd,
-  docx: parseDocx,
+  docx: parseAttachment,
+  doc: parseAttachment,
+  pdf: parseAttachment,
+  pptx: parseAttachment, // 保留源文件，前端 pptx-preview 预览/播放
+  vsd: parseAttachment, // Visio：保留源文件，阅读页由 draw.io 转换预览
+  vsdx: parseAttachment,
+  dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
+  dxf: parseAttachment,
+  drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存
   xlsx: parseXlsx,
   xls: parseXlsx,
   csv: parseXlsx,
-  pdf: parsePdf,
   html: parseHtml,
   htm: parseHtml,
-  pptx: parsePptx,
-  wps: parseWpsLike('wps'),
-  et: parseWpsLike('et'),
-  dps: parseWpsLike('dps'),
+  wps: failUnsupported('wps'),
+  et: parseXlsx,
+  dps: failUnsupported('dps'),
 }
 
 export const ACCEPT_EXTENSIONS = Object.keys(parserRegistry)
   .map((k) => `.${k}`)
   .join(',')
 
+/** 该扩展名是否按原文件保存（附件型） */
+export function isAttachmentExt(ext: string): boolean {
+  return ATTACHMENT_EXTS.includes(ext.toLowerCase())
+}
+
 /** 按扩展名分派解析器；未知扩展名返回失败结果 */
 export async function parseFile(file: File): Promise<ParseResult> {
-  const ext = (file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.') + 1) : '').toLowerCase()
+  const ext = extOf(file.name)
   const parser = parserRegistry[ext]
   if (!parser) {
     return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: `暂不支持 .${ext || '未知'} 格式` }

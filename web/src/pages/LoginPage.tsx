@@ -29,7 +29,7 @@ export default function LoginPage() {
     <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          登录海库
+          登录寄海文库
         </Typography.Title>
         <Typography.Text type="secondary">企业知识库 · 记录、组织与分享</Typography.Text>
       </div>

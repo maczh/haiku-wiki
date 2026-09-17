@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { Alert, Button, Drawer, List, Spin, Tag, Typography, Upload, message } from 'antd'
 import type { UploadFile } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InboxOutlined } from '@ant-design/icons'
-import { createDoc, patchDoc } from '../../api/docs'
+import { createDoc } from '../../api/docs'
+import { uploadFile } from '../../api/uploads'
+import { prepareAttachment } from '../../api/attachments'
 import { ACCEPT_EXTENSIONS, parseFile } from '../../lib/import/parse'
+import type { FileAttachment } from '../../types'
 
 interface Props {
   open: boolean
@@ -30,7 +33,9 @@ interface ImportItem {
 /**
  * 导入对话框（I09/I12 / 第四轮 R3）：
  *  - Upload.Dragger 多选 或 外部传入 initialFiles（格式下拉触发，accept 已在文件选择器限定）
- *  → parseFile 按扩展名分派 → createDoc + patchDoc 写入正文（导入目标=当前知识库根目录）；
+ *  → parseFile 按扩展名分派 → createDoc 写入（导入目标=当前知识库根目录）；
+ *  - .docx/.doc/.pdf：上传原文件后按原样保存为「附件」文档（不可编辑，阅读界面内直接预览）；
+ *  - .xlsx/.xls/.csv/.et：解析为「表格」；多工作表时建父「表格」+ 每个工作表一个「表格」子文档；
  *  逐文件成功/失败反馈，失败不产生损坏文档。
  */
 export default function ImportDialog({ open, onClose, bookId, onImported, initialFiles, onFilesConsumed }: Props) {
@@ -68,12 +73,55 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
       return
     }
     try {
-      // 按解析结果创建对应类型文档，随后写入正文（默认内容由前端首次保存写入）
-      const doc = await createDoc(bookId, 0, res.title, res.docType)
-      await patchDoc(doc.id, { content: res.content, source: 'manual' })
+      // 附件型（docx/pdf/pptx/vsd/dwg…）：先上传原文件，再按原样落库为 file 文档；
+      // CAD 还要多一步：由后端把 .dwg/.dxf 转成 .svg/.png，回填 derived 供前端预览。
+      if (res.attachment) {
+        const up = await uploadFile(file)
+        let ref: FileAttachment = {
+          url: up.url,
+          filename: up.filename || res.attachment.filename,
+          size: up.size || res.attachment.size,
+          ext: res.attachment.ext,
+        }
+        let note = ''
+        if (res.needsPrepare) {
+          updateItem(item.uid, { status: 'parsing', message: '正在生成预览…' })
+          const prep = await prepareAttachment({ url: ref.url, filename: ref.filename, size: ref.size })
+          ref = prep.ref
+          note = prep.warning || (ref.degraded ? ref.note || '图纸预览为降级结果' : '')
+        }
+        const doc = await createDoc(bookId, 0, res.title, 'file', JSON.stringify(ref))
+        // 转换降级/失败只做成 toast，不把长原因塞进列表标签
+        if (note) message.warning(note)
+        updateItem(item.uid, {
+          status: 'success',
+          message: note ? '导入成功（预览为降级结果）' : '导入成功（按原文件保存，不可编辑）',
+          docId: doc.id,
+        })
+        return
+      }
+
+      // 普通文档：一次请求写入正文
+      const doc = await createDoc(bookId, 0, res.title, res.docType, res.content)
+
+      // 多文档导入（xlsx 多工作表）：每个工作表挂为父文档下的「表格」子文档
+      const children = res.children ?? []
+      let childFailed = 0
+      for (const c of children) {
+        try {
+          await createDoc(bookId, doc.id, c.title, c.docType, c.content)
+        } catch {
+          childFailed++
+        }
+      }
       updateItem(item.uid, {
-        status: 'success',
-        message: res.large ? '导入成功（内容较大，打开可能较慢）' : '导入成功',
+        status: childFailed > 0 && childFailed === children.length ? 'error' : 'success',
+        message:
+          children.length > 0
+            ? `导入成功：${children.length - childFailed} 个表格子文档${childFailed > 0 ? `，${childFailed} 个失败` : ''}`
+            : res.large
+              ? '导入成功（内容较大，打开可能较慢）'
+              : '导入成功',
         docId: doc.id,
       })
     } catch (e) {
@@ -129,7 +177,7 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
         accept={ACCEPT_EXTENSIONS}
         showUploadList={false}
         disabled={running}
-        // 不自动上传：文件由前端解析（导入解析全部在前端做）
+        // 不自动上传：md/txt/xlsx 等由前端解析；docx/pdf 在解析后单独上传原文件
         beforeUpload={() => false}
         onChange={({ fileList }) => {
           if (!running && fileList.length > 0) {
@@ -144,9 +192,18 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
         </p>
         <p className="ant-upload-text">点击或拖拽文件到此处</p>
         <p className="ant-upload-hint">
-          支持 .md / .txt / .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .wps / .et，可多选批量导入
+          支持 .md / .txt / .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .drawio / .vsd / .vsdx /
+          .dwg / .dxf / .et，可多选批量导入
         </p>
       </Upload.Dragger>
+
+      <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
+        · <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
+        <br />· <b>.dwg / .dxf</b>：保留原图，后端自动转换为 .svg + .png，前端可缩放拖动并导出
+        <br />· <b>.drawio</b>：建为「绘图」文档，内嵌 draw.io 组件直接编辑
+        <br />· <b>.vsd / .vsdx</b>：保留源文件，阅读页由绘图组件转换预览，可另存为可编辑的绘图文档
+        <br />· <b>.xlsx</b>：转为「表格」，每个有内容的工作表存为一个「表格」子文档
+      </Typography.Paragraph>
 
       {items.length > 0 && (
         <div style={{ marginTop: 16 }}>
@@ -190,6 +247,3 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
     </Drawer>
   )
 }
-
-// message 引用保留（导入异常统一走列表反馈，未来全局提示可复用）
-void message

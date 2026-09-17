@@ -83,8 +83,12 @@ func Register(r *gin.Engine, cfg *config.Config) {
 
 		// 上传 / 回收站 / 导出
 		jwt.POST("/uploads", handler.Upload)
+		// 附件预处理（CAD 图纸在后端完成 svg/png 转换）与转换器能力查询
+		jwt.POST("/attachments/prepare", handler.PrepareAttachment)
+		jwt.GET("/cad/converter", handler.CadConverterStatus)
 		jwt.GET("/trash", handler.ListTrash)
 		jwt.GET("/export/docs/:id", handler.ExportDoc)
+		jwt.GET("/export/docs/:id/formats", handler.ExportDocFormats)
 		jwt.GET("/export/books/:id", handler.ExportBook)
 		// 网页标题代理（粘贴 URL 转链接用）
 		jwt.GET("/fetch-title", handler.FetchTitle)
@@ -98,11 +102,7 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		distFS, _ := static.Dist()
 		fileServer := http.FileServer(http.FS(distFS))
 		r.NoRoute(func(c *gin.Context) {
-			p := strings.TrimPrefix(c.Request.URL.Path, "/")
-			if p == "" {
-				p = "index.html"
-			}
-			if _, err := fs.Stat(distFS, p); err != nil {
+			if _, err := fs.Stat(distFS, staticProbePath(c.Request.URL.Path)); err != nil {
 				// SPA fallback：非静态资源路径统一回退到 index.html
 				c.Request.URL.Path = "/"
 			}
@@ -117,4 +117,20 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			c.String(http.StatusOK, "haiku-wiki 前端未构建：请在 web/ 目录执行 npm run build，或使用 Vite dev server 开发。")
 		})
 	}
+}
+
+// staticProbePath 把请求路径转换成 embed 文件系统里用于「是否存在」判断的路径。
+//
+// 目录型请求（以 "/" 结尾）必须补上 index.html，原因是 io/fs 的合法性约束：
+// fs.ValidPath 不接受尾随斜杠，fs.Stat(fsys, "drawio/") 会直接返回
+// `invalid argument`（而不是「不存在」）。若不处理，这类目录路径会被误判为
+// 「静态资源不存在」而落进 SPA 兜底，返回应用自身的 index.html ——
+// 生产形态下内嵌的 draw.io 组件（请求 /drawio/ 目录）会因此整个失效，
+// 而 Vite dev server 由自己的静态中间件服务，不会暴露这个问题。
+func staticProbePath(urlPath string) string {
+	p := strings.TrimPrefix(urlPath, "/")
+	if p == "" || strings.HasSuffix(p, "/") {
+		p += "index.html"
+	}
+	return p
 }

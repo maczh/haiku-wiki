@@ -1,14 +1,35 @@
 import request from './request'
 import { getToken } from './request'
-import type { DocDetail, DocNode, DocShareView, DocType, DocWithBook, VersionMeta, DocVersion } from '../types'
+import type {
+  DocDetail,
+  DocExportFormats,
+  DocNode,
+  DocShareView,
+  DocType,
+  DocWithBook,
+  VersionMeta,
+  DocVersion,
+} from '../types'
 
 /** 目录树平铺列表（按 pos 升序） */
 export async function getTree(bookId: number): Promise<DocNode[]> {
   return request.get(`/books/${bookId}/docs`) as Promise<DocNode[]>
 }
 
-export async function createDoc(bookId: number, parentId: number, title?: string, docType?: DocType): Promise<DocDetail> {
-  return request.post(`/books/${bookId}/docs`, { parent_id: parentId, title, doc_type: docType }) as Promise<DocDetail>
+/** 新建文档（content 可选：导入附件型文档时一次性写入附件引用） */
+export async function createDoc(
+  bookId: number,
+  parentId: number,
+  title?: string,
+  docType?: DocType,
+  content?: string,
+): Promise<DocDetail> {
+  return request.post(`/books/${bookId}/docs`, {
+    parent_id: parentId,
+    title,
+    doc_type: docType,
+    content,
+  }) as Promise<DocDetail>
 }
 
 export async function getDoc(docId: number): Promise<DocWithBook> {
@@ -144,9 +165,19 @@ export async function saveBlob(blob: Blob, filename: string): Promise<'picker' |
   return 'download'
 }
 
-/** 导出单篇 markdown 文档（.md，服务端生成） */
-export async function exportDocBlob(docId: number, title: string): Promise<{ blob: Blob; filename: string }> {
-  return fetchExportBlob(`/api/export/docs/${docId}`, `${title}.md`)
+/** 该文档可选的导出格式（服务端为单一事实来源：按 doc_type 返回，附件型 is_file=true） */
+export async function getExportFormats(docId: number): Promise<DocExportFormats> {
+  return request.get(`/export/docs/${docId}/formats`) as Promise<DocExportFormats>
+}
+
+/** 导出单篇文档（服务端完成全部格式转换；format 缺省用该类型默认格式） */
+export async function exportDocBlob(
+  docId: number,
+  title: string,
+  format?: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const qs = format ? `?format=${encodeURIComponent(format)}` : ''
+  return fetchExportBlob(`/api/export/docs/${docId}${qs}`, `${title}.md`)
 }
 
 /** 导出知识库（.md.zip，按目录结构） */

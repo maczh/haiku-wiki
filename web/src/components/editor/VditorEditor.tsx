@@ -9,6 +9,9 @@ import VersionDrawer from './VersionDrawer'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
 
+// Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
+import 'vditor/dist/index.css'
+
 interface Props {
   docId: number
   initialContent: string
@@ -56,6 +59,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     let disposed = false
     const vd = new Vditor(elRef.current!, {
       mode: 'ir',
+      // 自托管 Vditor 静态资源（见 web/scripts/copy-vditor-assets.mjs），避免依赖 unpkg.com
+      cdn: '/vditor',
       value: initialContent,
       cache: { enable: false },
       counter: { enable: true },

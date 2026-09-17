@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { me } from '../api/auth'
+import JihaiLogo from '../components/brand/JihaiLogo'
 
 /** 应用主布局：顶部导航（Logo/搜索框/头像）+ 内容区 */
 export default function AppLayout() {
@@ -48,22 +49,8 @@ export default function AppLayout() {
           onClick={() => navigate('/')}
           style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, fontSize: 18, color: '#001529' }}
         >
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              background: '#2f54eb',
-              color: '#fff',
-              fontSize: 14,
-            }}
-          >
-            海
-          </span>
-          海库
+          <JihaiLogo size={28} />
+          寄海文库
         </div>
 
         <Input

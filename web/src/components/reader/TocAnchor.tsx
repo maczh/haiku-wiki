@@ -7,14 +7,22 @@ interface TocItem {
   level: number
 }
 
-/** 右侧大纲锚点：从渲染容器提取 h1~h4，点击平滑滚动 */
-export default function TocAnchor({ container }: { container: HTMLElement | null }) {
+/** 右侧大纲锚点：从渲染容器提取 h1~h4，点击平滑滚动。
+ *  onItemsChange 向上报告条目数，供父组件决定是否展示浮动层。 */
+export default function TocAnchor({
+  container,
+  onItemsChange,
+}: {
+  container: HTMLElement | null
+  onItemsChange?: (count: number) => void
+}) {
   const [items, setItems] = useState<TocItem[]>([])
   const [active, setActive] = useState('')
 
   useEffect(() => {
     if (!container) {
       setItems([])
+      onItemsChange?.(0)
       return
     }
     const heads = Array.from(container.querySelectorAll<HTMLElement>('h1, h2, h3, h4'))
@@ -24,7 +32,8 @@ export default function TocAnchor({ container }: { container: HTMLElement | null
       return { id, text: h.textContent || '', level: Number(h.tagName[1]) }
     })
     setItems(list)
-  }, [container])
+    onItemsChange?.(list.length)
+  }, [container, onItemsChange])
 
   // 滚动高亮当前小节
   useEffect(() => {

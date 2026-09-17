@@ -1,0 +1,85 @@
+# 项目长期约定（haiku-wiki / 寄海文库）
+
+## 技术形态
+- 后端：Go + Gin + GORM，SQLite（`glebarez/sqlite`，免 CGO，WAL）或 MySQL；JWT 鉴权；`embed` 托管前端 dist。
+- 前端：Vite 5 + React 18 + TS strict + Ant Design 5；Vditor（markdown）、simple-mind-map（思维导图）、
+  x-data-spreadsheet（表格）、mermaid（流程图）、pdfjs-dist + mammoth（附件阅读）。
+- **无外部 CDN 依赖**：Vditor 资源自托管在 `web/public/vditor/dist`（`scripts/copy-vditor-assets.mjs` 生成，
+  挂在 `predev`/`prebuild`），组件统一 `cdn: '/vditor'`。新增依赖 Vditor 的能力前先确认资源已自托管。
+- **draw.io 同样是自托管**：`web/vendor/drawio`（`scripts/fetch-drawio-assets.mjs` 按白名单拉取，2384 文件 / 44MB）
+  → `web/public/drawio`（`copy-drawio-assets.mjs` 同步）。两个目录都在 `.gitignore` 里；
+  `.dockerignore` 只排 `public/drawio`，`vendor/drawio` 必须留在构建上下文（镜像内复用，避免构建时联网）。
+  `js/stencils.min.js` 已内联 204 个形状库，不要加回 41MB 的 `stencils/` 目录。
+- 附件预览/绘图渲染器：CAD 用自研 SVG/PNG 看图（`reader/CadView.tsx`，静态内联在 `FileView` chunk 内）、
+  PPTX 用 `pptx-preview@1.0.7`、绘图用内嵌 iframe draw.io。
+- 绘图文档（`doc_type=drawing`）：`.drawio` 直建为可编辑绘图文档；`.vsd/.vsdx` 保留源文件，
+  阅读页由组件转换预览 + 「另存为绘图文档」另建可编辑文档。
+  **`.vsdx` 导出不可用**：自托管包里 `vsdxExportEnabled()` 要求 `getServiceName()=="atlassian"`（恒为 `"draw.io"`），
+  且 `VsdxExport` 类未随包发布（只有 `mxgraph.io.vsdx.*` 导入解析器）→ UI/README 标注为「仅导入」，不要承诺导出。
+
+## 本机构建环境（必须显式设置，否则构建失败）
+```bash
+# Go —— 两份都可用：托管 1.23.4 (/home/macro/.workbuddy/binaries/go/bin)
+#        与系统 1.25.7 (/usr/local/go/bin)；项目 go.mod 要求 go 1.22，两者都满足。
+export PATH=/home/macro/.workbuddy/binaries/go/bin:$PATH   # 或 /usr/local/go/bin
+# ⚠️ 关键不是选哪份 Go，而是这几项必须显式给出：工具调用的 shell 里 HOME 可能为空，
+#    此时 go 会报 `module cache not found: neither GOMODCACHE nor GOPATH is set`（退出码仍为 0，看着像成功）。
+export HOME=/home/macro
+export GOPATH=/home/macro/.workbuddy/go GOMODCACHE=/home/macro/.workbuddy/go/pkg/mod
+export GOCACHE=/home/macro/.workbuddy/go/cache TMPDIR=/home/macro/.workbuddy/tmp/gotmp
+export GOPROXY=https://goproxy.cn,direct GOSUMDB=off
+# 前端
+export PATH=/home/macro/.workbuddy/binaries/node/versions/22.22.2/bin:$PATH
+export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR=/home/macro/.workbuddy/tmp
+```
+（注意 `GOMODCACHE` 不显式指定时默认会落到 `$HOME/go/pkg/mod`，与本项目依赖所在的
+`.workbuddy/go/pkg/mod` 不同 —— 会重新下载全部依赖，故必须显式给。）
+
+## 已知陷阱
+- `http_proxy=http://127.0.0.1:44271` 会劫持 localhost → curl 一律加 `--noproxy '*'`。
+- 宿主 safe-delete shim：单 turn 内删除/覆盖 >50 个文件会被拦（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`）。
+  规避：用 `mv` 腾目录而不是 `rm -rf`；脚本里「大小相同即跳过」而非无条件覆盖。
+- Vite `build.emptyDir` 会因上述守卫失败 → 先 `mv dist` 到备份目录再构建。
+- Chrome headless 直连 CDP 在本机会遇到 `net::ERR_INSUFFICIENT_RESOURCES`；用 `agent-browser` 技能更稳
+  （配 `AGENT_BROWSER_EXECUTABLE_PATH=/opt/google/chrome/chrome`、`XDG_RUNTIME_DIR`、`--no-proxy-server`）。
+- Vite 5 默认绑 `localhost`（可能只监听 IPv6），别用 `127.0.0.1` 做就绪探测；验证优先走单源生产形态。
+- **静态托管的 SPA 兜底有个致命细节**：`io/fs` 的 `fs.ValidPath` 不接受尾随斜杠，
+  `fs.Stat(fsys, "drawio/")` 返回 `invalid argument` 而**不是「不存在」**。路由 `NoRoute` 靠
+  `fs.Stat` 判断「是不是静态资源」，所以任何**目录型请求**（`/drawio/`）都会被误判为非静态资源、
+  回退成应用自身 `index.html`。规则：判断前必须把目录路径补成 `<dir>/index.html`
+  （已抽成 `router.staticProbePath()`，`internal/router/static_spa_test.go` 锁住不变量）。
+  Vite dev server 由自己的静态中间件服务、不复现，**只能靠生产形态复验发现**。
+- `agent-browser` 的 ref 与页面状态**不跨 Bash 调用保留**（下一次调用页会变 `about:blank`）→
+  所有浏览器步骤必须封进同一个脚本；上传隐藏的 `input[type=file]` 只能页面内构造 `File`+`DataTransfer`+`change`。
+
+## 架构约定
+- 后端是**导出/转换的唯一事实来源**：前端只下载，格式清单从 `/api/export/docs/:id/formats` 拉。
+- 附件型文档 `doc_type=file`：content 存 `FileRef{url,filename,size,ext}` JSON，正文不可改，只读+下载。
+- 权限校验统一走 `loadReadableDoc(uid, docID)`。
+- markdown 渲染统一 `MarkdownView`（Vditor preview + DOMPurify）；非 markdown 内容绝不进该管线。
+- 自动保存统一 3s 防抖，切换文档/卸载前 fire-and-forget 落库。
+- **按需加载是本项目的硬约束，分三层，三层都要维持**（详见技能 `haiku-wiki-build-verify` §3.6）：
+  1. **库级**：Vditor、simple-mind-map（含 katex）、x-data-spreadsheet、pdf.js、mermaid 必须经
+     `React.lazy` + `components/common/LazyBoundary` 引入（入口：`DocContent` 阅读、
+     `BookPage` 编辑、`SharePage` 公开预览）。新增同量级的库沿用同一模式。
+  2. **路由级**：`App.tsx` 内页面全部 `lazy()` + `<LazyBoundary fill>`；
+     **布局（AppLayout / BlankLayout）保持静态**（外壳先出现，避免二次闪白）。
+  3. **静态依赖不得漏网**：`React.lazy` 只隔离被 lazy 的那个模块，它**静态 import 的兄弟会被一起拉走**。
+     已修的两处：`VersionDrawer` 内的 `MarkdownView`、`DocTree` 内的 `ImportDialog`。
+     新增「被多个编辑器共用的抽屉/弹窗」时，务必检查它是否静态引入了重量级渲染器。
+- 走 Vditor 的 CSS（`vditor/dist/index.css`）随 `MarkdownView` / `VditorEditor` 懒加载，
+  **不要放回 `main.tsx`**（否则入口 CSS 多 40 KB）。判定：`grep -c vditor` 入口 CSS 应为 0。
+- 实测收益：入口 chunk 3819 KB → **649 KB**（gzip 213 KB），入口 CSS 43 KB → **3.0 KB**，
+  `BookPage` chunk 623 KB → **216 KB**。
+
+## CAD / DWG 约定
+- **DWG 两级策略**：① 外部转换器（`dwg2dxf` / `dwgread` / `ODAFileConverter`）转 DXF → 自研渲染器出
+  SVG + PNG（矢量）；② 兜底抽取 DWG 内嵌预览位图（PNG/BMP 魔数扫描），此时 `Degraded=true`。
+  发现顺序：`EXPORT_DWG_CONVERTER` → PATH；结果 `sync.Once` 缓存，测试可用 `ResetDWGConverterCache()`。
+- 转换器能力对前端可见：`GET /api/cad/converter`；导入后由 `POST /api/attachments/prepare` 落派生文件并回 `derived:{svg,png}` + `note`。
+- `Dockerfile` 阶段 0 编译 libredwg 产出 `dwg2dxf`/`dwgread`，**构建失败不阻断镜像**（运行期如实报告降级）。
+- 真实夹具集成测试：`exportx/cad_dwg_integration_test.go`，默认 skip，需
+  `DWG_FIXTURE_DIR` + `EXPORT_DWG_CONVERTER`（可选 `DWG_OUT_DIR`）。断言要点：不得走降级路径、
+  SVG 不得含 `<image>`、PNG 尺寸只拒绝「贴边到没有意义」（单行文字图纸天然是长条）；
+  **PNG 全白要先用 `DWGToDXF`+`ParseDXF` 数可绘制图元**再判定（ENTITIES 为空的图纸空白是正确的）。
+

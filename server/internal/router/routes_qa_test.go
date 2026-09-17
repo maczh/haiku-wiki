@@ -19,9 +19,9 @@ import (
 	"gorm.io/gorm"
 
 	"haiku-wiki/server/internal/config"
+	"haiku-wiki/server/internal/model"
 	hkresp "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg/jwtutil"
-	"haiku-wiki/server/internal/model"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service"
 )

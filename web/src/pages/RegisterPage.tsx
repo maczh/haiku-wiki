@@ -16,7 +16,7 @@ export default function RegisterPage() {
     try {
       const res = await register(values.email, values.password, values.nickname)
       setAuth(res.token, res.user)
-      message.success('注册成功，欢迎加入海库！')
+      message.success('注册成功，欢迎加入寄海文库！')
       navigate('/', { replace: true })
     } catch {
       /* 拦截器已提示 */
@@ -29,7 +29,7 @@ export default function RegisterPage() {
     <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          注册海库
+          注册寄海文库
         </Typography.Title>
         <Typography.Text type="secondary">首个注册用户将自动成为管理员</Typography.Text>
       </div>

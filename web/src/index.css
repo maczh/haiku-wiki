@@ -1,4 +1,4 @@
-/* 海库全局样式 —— 高仿语雀：白底、清爽、卡片化 */
+/* 寄海文库全局样式 —— 高仿语雀：白底、清爽、卡片化 */
 
 html,
 body,
@@ -68,4 +68,205 @@ mark.hk-hit {
   color: inherit;
   padding: 0 1px;
   border-radius: 2px;
+}
+
+/* ---------- 附件型文档（doc_type=file）只读阅读 ---------- */
+
+/* .docx 经 mammoth 转 HTML 后的排版（与原 Word 视觉接近的只读样式） */
+.docx-preview {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #262626;
+  word-break: break-word;
+}
+.docx-preview h1 {
+  font-size: 24px;
+  margin: 24px 0 12px;
+}
+.docx-preview h2 {
+  font-size: 20px;
+  margin: 20px 0 10px;
+}
+.docx-preview h3 {
+  font-size: 17px;
+  margin: 16px 0 8px;
+}
+.docx-preview h4,
+.docx-preview h5,
+.docx-preview h6 {
+  font-size: 15px;
+  margin: 14px 0 8px;
+}
+.docx-preview p {
+  margin: 10px 0;
+}
+.docx-preview img {
+  max-width: 100%;
+  height: auto;
+}
+.docx-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.docx-preview table td,
+.docx-preview table th {
+  border: 1px solid #d9d9d9;
+  padding: 6px 10px;
+  vertical-align: top;
+}
+.docx-preview ul,
+.docx-preview ol {
+  padding-left: 24px;
+  margin: 10px 0;
+}
+.docx-preview blockquote {
+  margin: 12px 0;
+  padding: 6px 14px;
+  border-left: 3px solid #d9d9d9;
+  background: #fafafa;
+  color: #5f6672;
+}
+.docx-preview a {
+  color: #2f54eb;
+}
+
+/* ---------- 左栏拖拽调宽把手 ---------- */
+.hk-side-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 6;
+}
+.hk-side-resizer:hover {
+  background: rgba(47, 84, 235, 0.35);
+}
+
+/* ---------- 阅读界面大纲浮动层（可折叠、不随正文滚动） ---------- */
+.hk-toc-float {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 232px;
+  max-height: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #ebedf0;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
+  overflow: hidden;
+  z-index: 3;
+}
+.hk-toc-float-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.hk-toc-float-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+}
+
+/* ---------- 思维导图浮动工具条（仿 Simple Mind Map 官方 Demo） ---------- */
+
+/* 通用浮动容器：白底卡片 + 柔和阴影，浮在画布之上 */
+.hk-mm-tb {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #fff;
+  border: 1px solid #ebedf0;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  z-index: 20;
+}
+
+/* 顶部左：编辑操作 */
+.hk-mm-tb-left {
+  top: 12px;
+  left: 12px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 420px);
+}
+
+/* 顶部右：保存状态与导出 */
+.hk-mm-tb-right {
+  top: 12px;
+  right: 12px;
+}
+
+/* 右侧竖排：面板入口 */
+.hk-mm-side {
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  flex-direction: column;
+  padding: 6px 4px;
+  gap: 4px;
+}
+.hk-mm-side-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  padding: 6px 2px;
+  border-radius: 8px;
+  color: #5f6672;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.hk-mm-side-btn:hover {
+  background: #eff2f5;
+  color: #2f54eb;
+}
+
+/* 右下：缩放与字体 */
+.hk-mm-zoom {
+  right: 12px;
+  bottom: 12px;
+}
+
+/* 面板抽屉：贴右边缘滑出，不遮挡画布交互 */
+.hk-mm-drawer .ant-drawer-content-wrapper {
+  box-shadow: -6px 0 20px rgba(0, 0, 0, 0.08);
+}
+.hk-mm-drawer .ant-drawer-body {
+  padding: 16px;
+}
+
+/* ---------- 附件预览：PPTX（pptx-preview） ---------- */
+
+/*
+ * pptx-preview 会在容器内生成 .pptx-preview-wrapper（黑底、固定宽高）与单页模式下的
+ * 自带「下一页」圆钮和右下角分页文字。播放控制由 PptxView 统一提供，
+ * 因此这里把库自带的控件隐藏，避免与我们的工具条重复。
+ */
+.hk-pptx-stage .pptx-preview-wrapper-next,
+.hk-pptx-stage .pptx-preview-wrapper-pagination {
+  display: none !important;
+}
+
+/* 舞台内的幻灯片已由外层按比例缩放，这里去掉库自身的额外外边距 */
+.hk-pptx-stage .pptx-preview-slide-wrapper {
+  margin: 0 !important;
+}
+
+/* ---------- 绘图文档（draw.io iframe） ---------- */
+
+.hk-drawio-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
 }

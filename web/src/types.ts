@@ -128,16 +128,59 @@ export const COVER_COLORS = [
 
 // ---------- 增量：多文档类型 ----------
 
-export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart'
+export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'file'
 
-/** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet） */
-export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart']
+/** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
+ *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。 */
+export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing']
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
   sheet: '表格',
   mindmap: '思维导图',
   flowchart: '流程图',
+  drawing: '绘图',
+  file: '附件',
+}
+
+/** 附件型文档（doc_type=file）content 结构，与后端 exportx.FileRef 对应 */
+export interface FileAttachment {
+  url: string
+  filename: string
+  size: number
+  ext: string
+  /**
+   * 后端自动派生的转换产物：键为格式（`svg` / `png`），值为可访问 URL。
+   * 目前仅 .dwg / .dxf 导入时回填（导入后由后端转换并落盘）。
+   */
+  derived?: Record<string, string>
+  /** 派生过程降级（例：DWG 无外部转换器时仅能取到文件内嵌预览位图） */
+  degraded?: boolean
+  /** 降级或失败的原因说明，用于界面提示 */
+  note?: string
+}
+
+/** 一种可导出的格式（GET /api/export/docs/:id/formats） */
+export interface ExportFormatSpec {
+  value: string
+  label: string
+  ext: string
+  mime: string
+}
+
+/** 导出对话所需格式元信息；附件型 is_file=true，导出项来自 formats */
+export interface DocExportFormats {
+  doc_type: DocType
+  is_file: boolean
+  formats: ExportFormatSpec[] | null
+  default: string
+  filename: string
+  /** 附件已由后端派生出的格式 → URL（键为格式名，如 svg/png） */
+  derived?: Record<string, string>
+  /** 派生降级标记（见 FileAttachment.degraded） */
+  degraded?: boolean
+  /** 派生说明 */
+  note?: string
 }
 
 // ---------- 增量：文档级分享 ----------

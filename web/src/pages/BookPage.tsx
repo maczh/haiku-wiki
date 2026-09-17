@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
 import {
+  CloseOutlined,
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -10,14 +11,14 @@ import {
   FileAddOutlined,
   GlobalOutlined,
   LockOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   ReadOutlined,
   TeamOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons'
 import DocTree from '../components/tree/DocTree'
-import VditorEditor from '../components/editor/VditorEditor'
-import SheetEditor from '../components/editor/SheetEditor'
-import MindmapEditor from '../components/editor/MindmapEditor'
-import FlowchartEditor from '../components/editor/FlowchartEditor'
+import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
 import DocShareDrawer from '../components/share/DocShareDrawer'
@@ -28,7 +29,38 @@ import { useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type DocDetail, type DocNode } from '../types'
 
+// 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ x-data-spreadsheet / mermaid 体积大，
+// 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
+const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
+const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
+const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
+const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
+const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
+
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
+
+// 左栏宽度 / 折叠态、大纲浮动层开关均持久化到 localStorage（本地偏好）
+const LS_SIDEBAR_W = 'hk.sidebar.width'
+const LS_SIDEBAR_COLLAPSED = 'hk.sidebar.collapsed'
+const LS_TOC_OPEN = 'hk.toc.open'
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 480
+
+function readLS(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeLS(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    /* 隐私模式下忽略 */
+  }
+}
 
 /**
  * 知识库页（三栏布局，高仿语雀）：
@@ -65,6 +97,51 @@ export default function BookPage() {
   // 知识库右键"新建文档"→ DocTree（信号计数器）
   const [createSignal, setCreateSignal] = useState(0)
   const contentKeyRef = useRef(0)
+
+  // 左栏（文档库）：可折叠 + 可拖拽调宽（持久化）
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readLS(LS_SIDEBAR_COLLAPSED) === '1')
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const v = Number(readLS(LS_SIDEBAR_W) ?? '')
+    return Number.isFinite(v) && v >= SIDEBAR_MIN && v <= SIDEBAR_MAX ? v : 260
+  })
+  // 右栏大纲：浮动层 + 可折叠（不随正文滚动）
+  const [tocOpen, setTocOpen] = useState(() => readLS(LS_TOC_OPEN) !== '0')
+  const [tocCount, setTocCount] = useState(0)
+
+  useEffect(() => {
+    writeLS(LS_SIDEBAR_W, String(sidebarWidth))
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    writeLS(LS_SIDEBAR_COLLAPSED, sidebarCollapsed ? '1' : '0')
+  }, [sidebarCollapsed])
+
+  useEffect(() => {
+    writeLS(LS_TOC_OPEN, tocOpen ? '1' : '0')
+  }, [tocOpen])
+
+  /** 拖拽左栏右边缘调整宽度（拖拽期间禁用文本选择） */
+  const startSidebarResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startW = sidebarWidth
+      const onMove = (ev: MouseEvent) => {
+        setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + ev.clientX - startX)))
+      }
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    },
+    [sidebarWidth],
+  )
 
   const docIdParam = Number(searchParams.get('docId') || 0)
   const tab = searchParams.get('tab') === 'edit' ? 'edit' : 'read'
@@ -105,10 +182,22 @@ export default function BookPage() {
         setDoc(res.doc)
         contentKeyRef.current += 1
         setTocContainer(null)
+        setTocCount(0) // 切换文档需重置大纲，避免上一文档的条目残留
       })
       .catch(() => setParams({ docId: 0 }))
       .finally(() => setDocLoading(false))
   }, [docIdParam, tab])
+
+  /**
+   * markdown 正文渲染完成回调：记录大纲提取容器，并统计标题数量。
+   *
+   * 注意：标题数量必须在这里统计，不能只依赖浮层内 TocAnchor 的 onItemsChange——
+   * 浮层本身以 tocCount > 0 为渲染条件，若只靠它上报会形成死锁（浮层不渲染 → 无人上报 → 浮层永不渲染）。
+   */
+  const handleMarkdownRendered = useCallback((el: HTMLElement) => {
+    setTocContainer(el)
+    setTocCount(el.querySelectorAll('h1, h2, h3, h4').length)
+  }, [])
 
   if (notFound) {
     return (
@@ -123,6 +212,14 @@ export default function BookPage() {
   const isOwner = !!user && book?.owner_id === user.id
   // 写权限：owner 恒可写；members 库所有登录用户可写；public 仅 owner
   const canWrite = !!user && (isOwner || book?.visibility === 'members')
+  // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
+  const docTypeNow = doc?.doc_type ?? 'markdown'
+  const isAttachmentDoc = docTypeNow === 'file'
+  const isMarkdownDoc = docTypeNow === 'markdown'
+  // 绘图文档（内嵌 draw.io）在编辑态由 iframe 撑满，不需要页面再给内边距
+  const isDrawingDoc = docTypeNow === 'drawing'
+  // 大纲浮动层：仅 markdown 且确实提取到标题、用户未收起时显示
+  const showTocFloat = isMarkdownDoc && tocOpen && tocCount > 0 && !docLoading
   const shareLink = book?.visibility === 'public' && book.share_slug ? `${window.location.origin}/share/${book.share_slug}` : null
 
   async function handleSetVisibility() {
@@ -210,45 +307,70 @@ export default function BookPage() {
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      {/* 左栏：目录树 */}
-      <aside
-        style={{
-          width: 260,
-          flexShrink: 0,
-          borderRight: '1px solid #ebedf0',
-          background: '#fff',
-          overflow: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* 书头：知识库节点（右键菜单 R4） */}
-        <Dropdown menu={bookMenu} trigger={['contextMenu']}>
-          <div style={{ padding: '14px 16px 8px', borderBottom: '1px solid #f0f2f5' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {book?.name ?? '加载中…'}
+      {/* 左栏：文档库目录树（可折叠 + 可拖拽调宽，偏好本地持久化） */}
+      {!sidebarCollapsed && (
+        <div style={{ position: 'relative', width: sidebarWidth, flexShrink: 0, display: 'flex' }}>
+          <aside
+            style={{
+              flex: 1,
+              minWidth: 0,
+              borderRight: '1px solid #ebedf0',
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* 书头：知识库节点（右键菜单 R4） */}
+            <Dropdown menu={bookMenu} trigger={['contextMenu']}>
+              <div style={{ padding: '12px 12px 8px 16px', borderBottom: '1px solid #f0f2f5' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 15,
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {book?.name ?? '加载中…'}
+                  </div>
+                  <Tooltip title="收起文档库">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<MenuFoldOutlined />}
+                      onClick={() => setSidebarCollapsed(true)}
+                    />
+                  </Tooltip>
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <Tag icon={visIcon[book?.visibility ?? 'private']} style={{ fontSize: 11 }}>
+                    {VISIBILITY_LABEL[book?.visibility ?? 'private']}
+                  </Tag>
+                  <span style={{ color: '#8a919f', fontSize: 12 }}>{docs.length} 篇</span>
+                </div>
+              </div>
+            </Dropdown>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <DocTree
+                bookId={bookID}
+                selectedId={docIdParam || null}
+                onSelect={(id) => setParams({ docId: id })}
+                onOpenInEdit={(id) => setParams({ docId: id, tab: 'edit' })}
+                onShare={openShare}
+                onExportDoc={openExportDoc}
+                canWrite={canWrite}
+                createSignal={createSignal}
+              />
             </div>
-            <div style={{ marginTop: 4 }}>
-              <Tag icon={visIcon[book?.visibility ?? 'private']} style={{ fontSize: 11 }}>
-                {VISIBILITY_LABEL[book?.visibility ?? 'private']}
-              </Tag>
-              <span style={{ color: '#8a919f', fontSize: 12 }}>{docs.length} 篇</span>
-            </div>
-          </div>
-        </Dropdown>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <DocTree
-            bookId={bookID}
-            selectedId={docIdParam || null}
-            onSelect={(id) => setParams({ docId: id })}
-            onOpenInEdit={(id) => setParams({ docId: id, tab: 'edit' })}
-            onShare={openShare}
-            onExportDoc={openExportDoc}
-            canWrite={canWrite}
-            createSignal={createSignal}
-          />
+          </aside>
+          {/* 右边缘拖拽把手：调整左栏宽度 */}
+          <div className="hk-side-resizer" onMouseDown={startSidebarResize} />
         </div>
-      </aside>
+      )}
 
       {/* 中栏 + 右栏 */}
       <section style={{ flex: 1, display: 'flex', minWidth: 0, background: '#fff' }}>
@@ -265,6 +387,15 @@ export default function BookPage() {
               borderBottom: '1px solid #ebedf0',
             }}
           >
+            <Tooltip title={sidebarCollapsed ? '展开文档库' : '收起文档库'}>
+              <Button
+                type="text"
+                size="small"
+                icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setSidebarCollapsed((v) => !v)}
+              />
+            </Tooltip>
+
             <Space.Compact>
               <Button
                 size="small"
@@ -274,15 +405,17 @@ export default function BookPage() {
               >
                 阅读
               </Button>
-              <Button
-                size="small"
-                type={tab === 'edit' ? 'primary' : 'default'}
-                icon={<EditOutlined />}
-                disabled={!canWrite}
-                onClick={() => setParams({ tab: 'edit' })}
-              >
-                编辑
-              </Button>
+              <Tooltip title={isAttachmentDoc ? '附件型文档按原文件保存，不可编辑' : ''}>
+                <Button
+                  size="small"
+                  type={tab === 'edit' ? 'primary' : 'default'}
+                  icon={<EditOutlined />}
+                  disabled={!canWrite || isAttachmentDoc}
+                  onClick={() => setParams({ tab: 'edit' })}
+                >
+                  编辑
+                </Button>
+              </Tooltip>
             </Space.Compact>
 
             <div style={{ flex: 1, textAlign: 'center', color: '#5f6672', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -290,68 +423,121 @@ export default function BookPage() {
             </div>
           </div>
 
-          {/* 内容区 */}
-          <div className="toc-scroll-root" style={{ flex: 1, overflow: 'auto' }}>
-            {!docIdParam && (
-              <Empty
-                style={{ marginTop: 120 }}
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <span>
-                    从左侧选择一篇文档
-                    {canWrite && (
-                      <>
-                        {' '}
-                        或 <a onClick={() => setCreateSignal((n) => n + 1)}>新建文档</a>
-                      </>
-                    )}
-                  </span>
-                }
-              />
-            )}
-            {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
-            {docIdParam && !docLoading && doc && tab === 'edit' && canWrite && (
-              <>
-                {(doc.doc_type ?? 'markdown') === 'markdown' && (
-                  <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
-                )}
-                {doc.doc_type === 'sheet' && (
-                  <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />
-                )}
-                {doc.doc_type === 'mindmap' && (
-                  <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
-                )}
-                {doc.doc_type === 'flowchart' && (
-                  <FlowchartEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
-                )}
-              </>
-            )}
-            {docIdParam && !docLoading && doc && tab === 'edit' && !canWrite && (
-              <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
-            )}
-            {docIdParam && !docLoading && doc && tab === 'read' && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ maxWidth: 780, margin: '0 auto', paddingTop: 28, paddingLeft: 24, paddingRight: 24 }}>
-                    <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
-                    <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
-                      更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
-                    </div>
-                  </div>
-                  {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
-                  <DocContent
-                    docType={doc.doc_type ?? 'markdown'}
-                    content={doc.content}
-                    onRendered={doc.doc_type === 'markdown' ? (el) => setTocContainer(el) : undefined}
+          {/* 内容区：滚动容器 + 大纲浮动层（浮动层在滚动容器之外，故不随正文滚动） */}
+          <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+            <div className="toc-scroll-root" style={{ height: '100%', overflow: 'auto' }}>
+              {/* height:100% 不可省：编辑器（如思维导图画布）依赖它拿到确定高度，否则画布高度塌陷为 0 */}
+              <div style={{ height: '100%', paddingRight: showTocFloat ? 264 : 0 }}>
+                {!docIdParam && (
+                  <Empty
+                    style={{ marginTop: 120 }}
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      <span>
+                        从左侧选择一篇文档
+                        {canWrite && (
+                          <>
+                            {' '}
+                            或 <a onClick={() => setCreateSignal((n) => n + 1)}>新建文档</a>
+                          </>
+                        )}
+                      </span>
+                    }
                   />
-                </div>
-                {/* 右侧大纲锚点（仅 markdown 类型显示；非 markdown 隐藏） */}
-                {(doc.doc_type ?? 'markdown') === 'markdown' && (
-                  <aside style={{ width: 200, flexShrink: 0, borderLeft: '1px solid #f0f2f5', overflow: 'auto' }}>
-                    <TocAnchor container={tocContainer} />
-                  </aside>
+                )}
+                {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
+                {docIdParam && !docLoading && doc && tab === 'edit' && canWrite && (
+                  <>
+                    {isAttachmentDoc ? (
+                      <Empty
+                        description="附件型文档按原文件保存、不可编辑，请切换到阅读模式查看"
+                        style={{ marginTop: 80 }}
+                      >
+                        <Button type="primary" onClick={() => setParams({ tab: 'read' })}>
+                          前往阅读
+                        </Button>
+                      </Empty>
+                    ) : (
+                      <LazyBoundary tip="正在加载编辑器…">
+                        {docTypeNow === 'markdown' && (
+                          <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'sheet' && (
+                          <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />
+                        )}
+                        {doc.doc_type === 'mindmap' && (
+                          <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'flowchart' && (
+                          <FlowchartEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'drawing' && (
+                          <DrawioEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                      </LazyBoundary>
+                    )}
+                  </>
+                )}
+                {docIdParam && !docLoading && doc && tab === 'edit' && !canWrite && (
+                  <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
+                )}
+                {docIdParam && !docLoading && doc && tab === 'read' && (
+                  <div>
+                    {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
+                    <div
+                      style={{
+                        maxWidth: isDrawingDoc ? 1100 : 780,
+                        margin: '0 auto',
+                        paddingTop: 28,
+                        paddingLeft: 24,
+                        paddingRight: 24,
+                      }}
+                    >
+                      <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                      <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
+                        更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                      </div>
+                    </div>
+                    {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
+                    <DocContent
+                      docType={docTypeNow}
+                      content={doc.content}
+                      onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
+                      bookId={bookID}
+                      onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
+                    />
+                  </div>
                 )}
               </div>
+            </div>
+
+            {/* 大纲浮动层（可折叠；不随正文滚动） */}
+            {docIdParam && !docLoading && doc && tab === 'read' && showTocFloat && (
+              <div className="hk-toc-float">
+                <Tooltip title="收起大纲">
+                  <Button
+                    className="hk-toc-float-close"
+                    type="text"
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={() => setTocOpen(false)}
+                  />
+                </Tooltip>
+                <div className="hk-toc-float-body">
+                  <TocAnchor container={tocContainer} onItemsChange={setTocCount} />
+                </div>
+              </div>
+            )}
+            {/* 收起后的入口按钮 */}
+            {docIdParam && !docLoading && doc && tab === 'read' && isMarkdownDoc && !showTocFloat && tocCount > 0 && (
+              <Tooltip title="显示大纲">
+                <Button
+                  size="small"
+                  icon={<UnorderedListOutlined />}
+                  onClick={() => setTocOpen(true)}
+                  style={{ position: 'absolute', top: 16, right: 16, zIndex: 3, boxShadow: '0 2px 8px rgba(0,0,0,.12)' }}
+                />
+              </Tooltip>
             )}
           </div>
         </div>

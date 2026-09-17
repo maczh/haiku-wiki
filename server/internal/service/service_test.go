@@ -791,15 +791,15 @@ func TestUpload(t *testing.T) {
 	owner := mkUser(t, "up@x.com", "pass123", "member")
 	us := &UploadService{}
 
-	// 超 20MB → 41301
-	big := makeFileHeader(t, "big.png", make([]byte, 20<<20+1))
+	// 超过单文件上限 → 41301（上限随常量调整，勿硬编码）
+	big := makeFileHeader(t, "big.png", make([]byte, maxUploadSize+1))
 	if _, err := us.Save(owner.ID, big); codeOf(t, err) != 41301 {
-		t.Fatalf("超 20MB 应 41301, got %v", err)
+		t.Fatalf("超 %d 字节应 41301, got %v", maxUploadSize, err)
 	}
-	// 恰好 20MB：不应触发大小限制（超限才是 41301）
-	limit := makeFileHeader(t, "limit.png", make([]byte, 20<<20))
+	// 恰好等于上限：不应触发大小限制（超限才是 41301）
+	limit := makeFileHeader(t, "limit.png", make([]byte, maxUploadSize))
 	if _, err := us.Save(owner.ID, limit); err != nil && codeOf(t, err) == 41301 {
-		t.Fatal("恰好 20MB 不应触发大小限制")
+		t.Fatal("恰好等于上限不应触发大小限制")
 	}
 	// 非法扩展 → 41501
 	for _, name := range []string{"evil.exe", "noext"} {

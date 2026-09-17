@@ -4,9 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "fetch:drawio": "node scripts/fetch-drawio-assets.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",
@@ -18,9 +21,11 @@
     "axios": "^1.7.7",
     "dompurify": "^3.1.6",
     "jszip": "^3.10.2",
+    "katex": "^0.16.47",
     "mammoth": "^1.12.3",
     "mermaid": "^11.17.2",
     "pdfjs-dist": "^4.10.38",
+    "pptx-preview": "^1.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",

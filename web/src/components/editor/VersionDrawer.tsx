@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy } from 'react'
 import { Drawer, List, Tag, Typography, Button, Empty, Modal, message } from 'antd'
 import { RollbackOutlined } from '@ant-design/icons'
 import { listVersions, getVersion, rollbackVersion } from '../../api/docs'
 import type { VersionMeta, DocType } from '../../types'
-import MarkdownView from '../reader/MarkdownView'
+import LazyBoundary from '../common/LazyBoundary'
 import dayjs from '../../lib/dayjs'
+
+// ⚠️ 必须懒加载：本组件被 4 个编辑器（Vditor/Sheet/Mindmap/Flowchart）静态引用，
+// 若此处静态 import MarkdownView，会把整个 Vditor（~304KB JS + ~40KB CSS）带进
+// 每一个编辑页，即使 docType 不是 markdown、即使从不打开版本历史。
+const MarkdownView = lazy(() => import('../reader/MarkdownView'))
 
 interface Props {
   open: boolean
@@ -113,7 +118,9 @@ export default function VersionDrawer({ open, docId, title, docType = 'markdown'
         {preview && (
           <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
             {docType === 'markdown' ? (
-              <MarkdownView content={preview.content} />
+              <LazyBoundary tip="正在加载版本预览…">
+                <MarkdownView content={preview.content} />
+              </LazyBoundary>
             ) : (
               <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, lineHeight: 1.7 }}>
                 {preview.content || '（空内容）'}

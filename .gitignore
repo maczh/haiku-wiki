@@ -1,7 +1,18 @@
 # 依赖与构建产物
 node_modules/
 web/dist/
-
+# Vditor 自托管静态资源（由 web/scripts/copy-vditor-assets.mjs 生成，勿手动提交）
+web/public/vditor/
+# draw.io 自托管绘图组件（约 44MB 第三方静态资源，勿提交）
+#   web/vendor/drawio    —— 由 web/scripts/fetch-drawio-assets.mjs 按白名单拉取的原始资源
+#   web/public/drawio    —— 由 web/scripts/copy-drawio-assets.mjs 同步的构建输入
+# 两者都可在 `npm run fetch:drawio`（或 npm run dev/build 的前置脚本）中自动重建。
+web/vendor/drawio/
+web/public/drawio/
+# 嵌入用的前端产物（由 web/dist 拷贝进来，见 Dockerfile；保留占位文件 .gitkeep）
+server/internal/static/dist/*
+!server/internal/static/dist/.gitkeep
+.Trash-0/
 
 # 运行数据
 data/

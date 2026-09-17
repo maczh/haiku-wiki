@@ -20,11 +20,16 @@ type createDocReq struct {
 	ParentID uint64 `json:"parent_id"`
 	Title    string `json:"title"`
 	DocType  string `json:"doc_type"`
+	// Content 可选：导入附件型文档（doc_type=file）时一次性写入 FileRef
+	Content string `json:"content"`
 }
 
 // validDocTypes 新建文档允许的类型枚举（datatable 已下线，存量由 MigrateData 迁移为 sheet）。
+// file：导入的 .docx/.pdf/.pptx/.dwg 原样保存的附件型文档，正文不可编辑，仅阅读与下载。
+// drawing：内嵌 draw.io 的绘图文档，正文为 mxGraph XML，可编辑。
 var validDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
+	"file": true, "drawing": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。
@@ -49,7 +54,7 @@ func CreateDoc(c *gin.Context) {
 	if !validDocTypes[req.DocType] {
 		req.DocType = "markdown"
 	}
-	doc, err := docService.CreateDoc(middleware.BookFromCtx(c), middleware.UID(c), req.ParentID, req.Title, req.DocType)
+	doc, err := docService.CreateDocWithContent(middleware.BookFromCtx(c), middleware.UID(c), req.ParentID, req.Title, req.DocType, req.Content)
 	if err != nil {
 		resp.Error(c, err)
 		return

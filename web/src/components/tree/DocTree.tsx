@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -17,6 +17,8 @@ import {
   FolderOpenOutlined,
   HolderOutlined,
   ImportOutlined,
+  PaperClipOutlined,
+  DeploymentUnitOutlined,
   PartitionOutlined,
   PushpinFilled,
   ShareAltOutlined,
@@ -34,14 +36,21 @@ import {
 } from '../../api/docs'
 import { listBooks } from '../../api/books'
 import { DOC_TYPES, DOC_TYPE_LABEL, type BookWithCount, type DocNode, type DocType } from '../../types'
-import ImportDialog from '../import/ImportDialog'
+import LazyBoundary from '../common/LazyBoundary'
 
-/** 新建文档按类型的默认名（R2） */
+// ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts，
+// 后者又拉入 SheetJS(xlsx) / turndown / jszip 等解析器。本组件是知识库页的常驻树，
+// 静态引入会让「打开知识库」就下载 ~400KB 的导入解析代码（即使用户从不导入）。
+const ImportDialog = lazy(() => import('../import/ImportDialog'))
+
+/** 新建文档按类型的默认名（R2）；file（导入的附件）不支持手工新建 */
 const DEFAULT_NAMES: Record<DocType, string> = {
   markdown: '未命名文档',
   sheet: '未命名表格',
   mindmap: '未命名思维导图',
   flowchart: '未命名流程图',
+  drawing: '未命名绘图',
+  file: '未命名附件',
 }
 
 /** 新建/编辑节点图标按 doc_type 分发（目录仍是 Folder） */
@@ -54,6 +63,10 @@ function nodeIcon(node: DocNode, hasChildren: boolean) {
       return <ApartmentOutlined style={{ color: '#722ed1' }} />
     case 'flowchart':
       return <PartitionOutlined style={{ color: '#fa8c16' }} />
+    case 'drawing':
+      return <DeploymentUnitOutlined style={{ color: '#eb2f96' }} />
+    case 'file':
+      return <PaperClipOutlined style={{ color: '#2f54eb' }} />
     default:
       return <FileTextOutlined style={{ color: '#8a919f' }} />
   }
@@ -68,7 +81,9 @@ const IMPORT_FORMATS: { key: string; label: string; accept: string }[] = [
   { key: 'docx', label: 'Word（.docx）', accept: '.docx' },
   { key: 'xlsx', label: 'Excel（.xlsx）', accept: '.xlsx,.xls,.csv' },
   { key: 'pptx', label: 'PPT（.pptx）', accept: '.pptx' },
-  { key: 'wps', label: 'WPS 文字（.wps）', accept: '.wps' },
+  { key: 'dwg', label: 'AutoCAD（.dwg/.dxf）', accept: '.dwg,.dxf' },
+  { key: 'drawio', label: 'draw.io 绘图（.drawio）', accept: '.drawio' },
+  { key: 'vsdx', label: 'Visio（.vsd/.vsdx）', accept: '.vsd,.vsdx' },
 ]
 
 interface RowProps {
@@ -114,7 +129,13 @@ function TreeRow(p: RowProps) {
   const menu = {
     items: [
       { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !p.canWrite },
-      { key: 'edit', icon: <FileTextOutlined />, label: '编辑文档', disabled: !p.canWrite },
+      {
+        key: 'edit',
+        icon: <FileTextOutlined />,
+        label: '编辑文档',
+        // 附件型文档（导入的 docx/pdf）按原文件保存，不可编辑
+        disabled: !p.canWrite || p.node.doc_type === 'file',
+      },
       { key: 'copy', icon: <CopyOutlined />, label: '复制', disabled: !p.canWrite },
       { key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !p.canWrite },
       { key: 'export', icon: <DownloadOutlined />, label: '导出' },
@@ -612,15 +633,21 @@ export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, on
         </div>
       </Modal>
 
-      {/* R3：导入对话框（复用解析与逐文件反馈逻辑；目标=当前知识库根目录） */}
-      <ImportDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        bookId={bookId}
-        onImported={() => void loadTree(bookId)}
-        initialFiles={importFiles}
-        onFilesConsumed={() => setImportFiles(null)}
-      />
+      {/* R3：导入对话框（复用解析与逐文件反馈逻辑；目标=当前知识库根目录）
+          仅在打开时挂载 + 懒加载：ImportDialog 自带 destroyOnClose，且 effect 均以 open 为条件，
+          延迟挂载不改变行为（初始文件在同一次 setState 批中一并传入）。 */}
+      {importOpen && (
+        <LazyBoundary tip="正在加载导入组件…">
+          <ImportDialog
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            bookId={bookId}
+            onImported={() => void loadTree(bookId)}
+            initialFiles={importFiles}
+            onFilesConsumed={() => setImportFiles(null)}
+          />
+        </LazyBoundary>
+      )}
     </div>
   )
 }

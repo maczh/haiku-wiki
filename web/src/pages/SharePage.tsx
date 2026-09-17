@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Empty, Result, Spin, Tag } from 'antd'
 import { CaretDownOutlined, CaretRightOutlined, FileTextOutlined, FolderOutlined } from '@ant-design/icons'
 import { getShare, getShareDoc } from '../api/share'
-import MarkdownView from '../components/reader/MarkdownView'
+import LazyBoundary from '../components/common/LazyBoundary'
 import type { DocDetail, DocNode, ShareInfo } from '../types'
+
+// 公开预览页同样按需加载重型渲染器（Vditor / pdf.js / draw.io / pptx），避免首屏一并拉取
+const MarkdownView = lazy(() => import('../components/reader/MarkdownView'))
+const FileView = lazy(() => import('../components/reader/FileView'))
+const DrawioView = lazy(() => import('../components/reader/DrawioView'))
 
 /**
  * 公开分享页（/share/:slug）：免登录只读。
@@ -144,7 +149,7 @@ export default function SharePage() {
         <Tag color="green">公开分享 · 只读</Tag>
         <div style={{ flex: 1 }} />
         <span style={{ color: '#8a919f', fontSize: 12 }}>
-          {info.book.owner_name ? `由 ${info.book.owner_name} 创建` : ''} · 来自海库
+          {info.book.owner_name ? `由 ${info.book.owner_name} 创建` : ''} · 来自寄海文库
         </span>
       </header>
 
@@ -162,14 +167,20 @@ export default function SharePage() {
               <div style={{ maxWidth: 780, margin: '0 auto', padding: '28px 24px 0' }}>
                 <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
               </div>
-              {/* P1 对齐：非 markdown 类型书级公开预览暂以占位提示（doc_type 随文档返回） */}
-              {doc.doc_type && doc.doc_type !== 'markdown' ? (
-                <div style={{ maxWidth: 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
-                  该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
-                </div>
-              ) : (
-                <MarkdownView content={doc.content} />
-              )}
+              {/* 附件型按原文件只读预览；绘图文档用内嵌绘图组件只读预览；其余非 markdown 类型暂以占位提示 */}
+              <LazyBoundary tip="正在加载预览器…">
+                {doc.doc_type === 'file' ? (
+                  <FileView content={doc.content} />
+                ) : doc.doc_type === 'drawing' ? (
+                  <DrawioView content={doc.content} />
+                ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
+                  <div style={{ maxWidth: 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
+                    该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
+                  </div>
+                ) : (
+                  <MarkdownView content={doc.content} />
+                )}
+              </LazyBoundary>
             </>
           )}
           {!loadingDoc && !doc && info.docs.length > 0 && <Spin style={{ display: 'block', margin: '80px auto' }} />}

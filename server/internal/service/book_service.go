@@ -11,6 +11,7 @@ import (
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/pkg/fracidx"
 	"haiku-wiki/server/internal/repository"
+	"haiku-wiki/server/internal/service/exportx"
 )
 
 // BookService 知识库业务。
@@ -171,6 +172,12 @@ func (s *DocService) Tree(book *model.Book) ([]model.Doc, error) {
 
 // CreateDoc 新建文档：pos 追加到兄弟末尾；docType 由 handler 归一化（缺省 markdown）。
 func (s *DocService) CreateDoc(book *model.Book, uid uint64, parentID uint64, title string, docType string) (*model.Doc, error) {
+	return s.CreateDocWithContent(book, uid, parentID, title, docType, "")
+}
+
+// CreateDocWithContent 新建文档并写入初始正文。
+// 附件型（doc_type=file）文档导入时借助它一次性落库 FileRef，此后正文不可再编辑。
+func (s *DocService) CreateDocWithContent(book *model.Book, uid uint64, parentID uint64, title, docType, content string) (*model.Doc, error) {
 	if !canWriteDoc(book, uid) {
 		return nil, hkerr.Forbidden()
 	}
@@ -204,7 +211,7 @@ func (s *DocService) CreateDoc(book *model.Book, uid uint64, parentID uint64, ti
 		Title:     title,
 		DocType:   docType,
 		Pos:       pos,
-		Content:   "",
+		Content:   content,
 		CreatedBy: uid,
 	}
 	if err := repository.CreateDoc(doc); err != nil {
@@ -232,9 +239,15 @@ func (s *DocService) UpdateDoc(uid uint64, docID uint64, title *string, content 
 		doc.Title = t
 		changed = true
 	}
-	if content != nil && *content != doc.Content {
-		doc.Content = *content
-		changed = true
+	if content != nil {
+		// 附件型文档（导入的 docx/pdf）正文不可编辑：仅允许创建时一次性写入 FileRef
+		if exportx.NormalizeDocType(doc.DocType) == "file" && doc.Content != "" && *content != doc.Content {
+			return nil, false, hkerr.Param("附件型文档不支持编辑正文")
+		}
+		if *content != doc.Content {
+			doc.Content = *content
+			changed = true
+		}
 	}
 	if !changed {
 		return doc, false, nil

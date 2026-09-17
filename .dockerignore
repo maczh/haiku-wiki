@@ -1,6 +1,17 @@
 node_modules
 web/dist
 web/node_modules
+# 由 web/scripts/copy-vditor-assets.mjs 在构建阶段生成，无需进构建上下文
+web/public/vditor
+# 同理：draw.io 组件由 copy-drawio-assets.mjs 从 web/vendor/drawio 同步而来，
+# 不进上下文可省掉 44MB 重复传输。注意 web/vendor/drawio 本身**要**留在上下文里
+# （镜像内直接复用，避免构建时联网拉 2384 个文件）；本地没有 vendor 时，
+# 构建阶段会自动联网拉取，失败只告警不阻断。
+web/public/drawio
+# 本地 embed 产物：它是 `web/dist` 的拷贝（见 web/scripts 与 Dockerfile 第 46 行的
+# `COPY --from=web-builder /app/web/dist ./internal/static/dist`，镜像内会用新构建的产物覆盖）。
+# 不进构建上下文可省掉 62MB 重复传输，且让构建结果不受本地残留状态影响。
+server/internal/static/dist
 server/data
 data
 *.db

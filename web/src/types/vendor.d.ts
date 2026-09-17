@@ -52,7 +52,18 @@ declare module 'simple-mind-map' {
     off(event: string, handler: (...args: any[]) => void): void
     /* eslint-enable @typescript-eslint/no-explicit-any */
     destroy(): void
-    view: { enlarge(): void; narrow(): void; fit(): void; reset(): void }
+    /** 容器尺寸变化后重新计算画布（左栏折叠/调宽、全屏切换时调用） */
+    resize(): void
+    /** 主题（含连线、节点各层级样式）与布局读写 */
+    getTheme(): Record<string, unknown>
+    setTheme(theme: Record<string, unknown>, notRender?: boolean): void
+    getLayout(): string
+    setLayout(layout: string, notRender?: boolean): void
+    /** 只读 / 编辑模式 */
+    setMode(mode: 'edit' | 'readonly'): void
+    /** 运行时更新配置（滚轮行为、自由拖拽等） */
+    updateConfig(opt: Record<string, unknown>): void
+    view: { enlarge(): void; narrow(): void; fit(): void; reset(): void; setScale(scale: number): void; scale: number }
     renderer: { activeNodeList: unknown[]; setRootNodeCenter(): void }
     export(type: string, isDownload?: boolean, name?: string, ...args: unknown[]): Promise<string | Blob | boolean>
   }
@@ -66,4 +77,24 @@ declare module 'simple-mind-map/src/plugins/Drag.js' {
 declare module 'simple-mind-map/src/plugins/Export.js' {
   const ExportPlugin: unknown
   export default ExportPlugin
+}
+
+declare module 'simple-mind-map/src/plugins/Painter.js' {
+  const PainterPlugin: unknown
+  export default PainterPlugin
+}
+
+declare module 'simple-mind-map/src/plugins/AssociativeLine.js' {
+  const AssociativeLinePlugin: unknown
+  export default AssociativeLinePlugin
+}
+
+declare module 'simple-mind-map/src/plugins/OuterFrame.js' {
+  const OuterFramePlugin: unknown
+  export default OuterFramePlugin
+}
+
+declare module 'simple-mind-map/src/plugins/Formula.js' {
+  const FormulaPlugin: unknown
+  export default FormulaPlugin
 }

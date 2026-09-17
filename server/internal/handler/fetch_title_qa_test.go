@@ -60,9 +60,9 @@ func TestQAFetchTitleSSRFBlacklist(t *testing.T) {
 		"gopher://example.com:70/x",
 		"javascript:alert(1)",
 		"data:text/html,<h1>x</h1>",
-		"http://",        // 无 host
+		"http://", // 无 host
 		"not a url at all",
-		"",               // 空
+		"", // 空
 	}
 	for _, raw := range rejected {
 		if err := validateFetchTarget(raw); err == nil {
@@ -96,12 +96,12 @@ func TestQAFetchTitleHandlerBehavior(t *testing.T) {
 // TestQAIsForbiddenIPExtra 补充黑名单用例（IPv4-mapped IPv6、组播）。
 func TestQAIsForbiddenIPExtra(t *testing.T) {
 	forbidden := []string{
-		"::ffff:127.0.0.1",  // IPv4-mapped 环回
-		"::ffff:10.0.0.1",   // IPv4-mapped 私网
+		"::ffff:127.0.0.1", // IPv4-mapped 环回
+		"::ffff:10.0.0.1",  // IPv4-mapped 私网
 		"::ffff:192.168.1.1",
-		"224.0.0.1",         // 组播
-		"ff02::1",           // IPv6 组播
-		"::",                // 未指定地址
+		"224.0.0.1", // 组播
+		"ff02::1",   // IPv6 组播
+		"::",        // 未指定地址
 	}
 	for _, s := range forbidden {
 		if !isForbiddenIP(parseIP(s)) {
@@ -115,7 +115,7 @@ func TestQAExtractTitleEdge(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"<title>第一行\n第二行</title>", "第一行 第二行"},
 		{"<title   >纯空白属性</title>", "纯空白属性"},
-		{"<title>a</title><title>b</title>", "a"}, // 非贪婪取第一个
+		{"<title>a</title><title>b</title>", "a"},                           // 非贪婪取第一个
 		{"<html><head><title>X &amp; Y</title></head></html>", "X &amp; Y"}, // 实体不解码（前端降级可接受）
 	}
 	for _, c := range cases {

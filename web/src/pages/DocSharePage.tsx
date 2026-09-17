@@ -113,7 +113,7 @@ export default function DocSharePage() {
           文档分享 · 只读
         </Typography.Text>
         <div style={{ flex: 1 }} />
-        <span style={{ color: '#8a919f', fontSize: 12 }}>来自海库</span>
+        <span style={{ color: '#8a919f', fontSize: 12 }}>来自寄海文库</span>
       </header>
 
       <div className="toc-scroll-root" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'auto' }}>
