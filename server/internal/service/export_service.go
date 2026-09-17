@@ -35,9 +35,16 @@ func ContentDisposition(filename string) string {
 	return fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(filename))
 }
 
-// canReadBook 读权限：private 仅 owner；members 登录用户；public 任何人。
+// canReadBook 读权限：private 仅 owner；members 登录用户（uid>0）；public 任何人。
 func canReadBook(book *model.Book, uid uint64) bool {
-	return book.Visibility != "private" || book.OwnerID == uid
+	switch book.Visibility {
+	case "public":
+		return true
+	case "members":
+		return uid > 0
+	default: // private
+		return book.OwnerID == uid
+	}
 }
 
 // DocMarkdown 导出单篇文档：返回 (文件名, markdown 字节)。

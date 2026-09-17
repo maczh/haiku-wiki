@@ -31,18 +31,29 @@ func BookAccess(read bool) gin.HandlerFunc {
 			return
 		}
 		uid := UID(c)
-		if read {
-			if book.Visibility == "private" && book.OwnerID != uid {
-				resp.Error(c, hkerr.Forbidden())
-				c.Abort()
-				return
+		switch {
+		case read:
+			// 读：private 仅 owner；members 登录用户；public 任何人
+			switch book.Visibility {
+			case "public":
+			case "members":
+				if uid == 0 {
+					resp.Error(c, hkerr.Forbidden())
+					c.Abort()
+					return
+				}
+			default: // private
+				if book.OwnerID != uid {
+					resp.Error(c, hkerr.Forbidden())
+					c.Abort()
+					return
+				}
 			}
-		} else {
-			if book.OwnerID != uid && book.Visibility != "members" {
-				resp.Error(c, hkerr.Forbidden())
-				c.Abort()
-				return
-			}
+		case book.OwnerID != uid && (book.Visibility != "members" || uid == 0):
+			// 写：owner 恒可写；members 库登录用户可写；public/private 仅 owner
+			resp.Error(c, hkerr.Forbidden())
+			c.Abort()
+			return
 		}
 		c.Set("book", book)
 		c.Next()

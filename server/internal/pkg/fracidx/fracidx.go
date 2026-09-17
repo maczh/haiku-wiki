@@ -96,11 +96,9 @@ func Between(prev, next string) string {
 			}
 			return string(out) + x
 		case db == -1:
-			// next 是 prev 的前缀：追加一个严格小于 prev[i:] 的后缀
-			x := decrement(prev[i:])
-			if x == "" {
-				return ""
-			}
+			// next 是 prev 的前缀：追加一个严格大于 prev[i:] 的后缀
+			// （increment 恒有解；result < next 由外层 prev < next 守卫保证）
+			x := increment(prev[i:])
 			return string(out) + x
 		default:
 			if db-da >= 2 {
