@@ -1,25 +1,50 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Dropdown, Empty, Input, Modal, Select, Spin, message } from 'antd'
+import { Button, Dropdown, Empty, Input, Modal, Select, Spin, message } from 'antd'
 import {
   ApartmentOutlined,
   CaretDownOutlined,
   CaretRightOutlined,
+  CopyOutlined,
   DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  FileAddOutlined,
   FileTextOutlined,
   FolderOutlined,
+  FolderOpenOutlined,
   HolderOutlined,
+  ImportOutlined,
   PartitionOutlined,
-  PlusOutlined,
+  PushpinFilled,
+  ShareAltOutlined,
   TableOutlined,
 } from '@ant-design/icons'
 import { buildChildrenMap, useDocTreeStore } from '../../stores/docTreeStore'
-import { createDoc, deleteDoc, moveDoc, patchDoc } from '../../api/docs'
-import { DOC_TYPES, DOC_TYPE_LABEL, type DocNode, type DocType } from '../../types'
+import {
+  createDoc,
+  deleteDoc,
+  duplicateDoc,
+  moveDoc,
+  moveDocToBook,
+  patchDoc,
+  pinDoc,
+} from '../../api/docs'
+import { listBooks } from '../../api/books'
+import { DOC_TYPES, DOC_TYPE_LABEL, type BookWithCount, type DocNode, type DocType } from '../../types'
+import ImportDialog from '../import/ImportDialog'
 
-/** 目录树节点图标按 doc_type 分发（目录仍是 Folder；markdown 文档用 File） */
+/** 新建文档按类型的默认名（R2） */
+const DEFAULT_NAMES: Record<DocType, string> = {
+  markdown: '未命名文档',
+  sheet: '未命名表格',
+  mindmap: '未命名思维导图',
+  flowchart: '未命名流程图',
+}
+
+/** 新建/编辑节点图标按 doc_type 分发（目录仍是 Folder） */
 function nodeIcon(node: DocNode, hasChildren: boolean) {
   if (hasChildren) return <FolderOutlined style={{ color: '#faad14' }} />
   switch (node.doc_type) {
@@ -34,6 +59,18 @@ function nodeIcon(node: DocNode, hasChildren: boolean) {
   }
 }
 
+// ---------- R3：导入格式下拉（取自 lib/import/parse.ts 注册表的常用格式） ----------
+
+const IMPORT_FORMATS: { key: string; label: string; accept: string }[] = [
+  { key: 'md', label: 'Markdown（.md）', accept: '.md,.markdown,.txt' },
+  { key: 'html', label: 'HTML（.html）', accept: '.html,.htm' },
+  { key: 'pdf', label: 'PDF（.pdf）', accept: '.pdf' },
+  { key: 'docx', label: 'Word（.docx）', accept: '.docx' },
+  { key: 'xlsx', label: 'Excel（.xlsx）', accept: '.xlsx,.xls,.csv' },
+  { key: 'pptx', label: 'PPT（.pptx）', accept: '.pptx' },
+  { key: 'wps', label: 'WPS 文字（.wps）', accept: '.wps' },
+]
+
 interface RowProps {
   node: DocNode
   depth: number
@@ -46,9 +83,15 @@ interface RowProps {
   onCreateChild: (parent: DocNode) => void
   onRename: (node: DocNode) => void
   onDelete: (node: DocNode) => void
+  onEdit: (node: DocNode) => void
+  onDuplicate: (node: DocNode) => void
+  onMove: (node: DocNode) => void
+  onExport: (node: DocNode) => void
+  onShare: (node: DocNode) => void
+  onPin: (node: DocNode) => void
 }
 
-/** 单行节点：dnd-kit useSortable + 右键菜单 */
+/** 单行节点：dnd-kit useSortable + 右键菜单（第四轮 R4 增强） */
 function TreeRow(p: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: p.node.id,
@@ -70,13 +113,31 @@ function TreeRow(p: RowProps) {
 
   const menu = {
     items: [
-      { key: 'create', icon: <PlusOutlined />, label: '新建子文档', disabled: !p.canWrite },
-      { key: 'rename', icon: <FileTextOutlined />, label: '重命名', disabled: !p.canWrite },
+      { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !p.canWrite },
+      { key: 'edit', icon: <FileTextOutlined />, label: '编辑文档', disabled: !p.canWrite },
+      { key: 'copy', icon: <CopyOutlined />, label: '复制', disabled: !p.canWrite },
+      { key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !p.canWrite },
+      { key: 'export', icon: <DownloadOutlined />, label: '导出' },
+      { key: 'share', icon: <ShareAltOutlined />, label: '分享' },
+      {
+        key: 'pin',
+        icon: <PushpinFilled style={{ color: p.node.pinned_at ? '#fa8c16' : undefined }} />,
+        label: p.node.pinned_at ? '取消置顶' : '置顶',
+        disabled: !p.canWrite,
+      },
+      { type: 'divider' as const },
+      { key: 'create', icon: <FileAddOutlined />, label: '新建子文档', disabled: !p.canWrite },
       { key: 'delete', icon: <DeleteOutlined />, label: '删除（进回收站）', danger: true, disabled: !p.canWrite },
     ],
     onClick: ({ key }: { key: string }) => {
       if (key === 'create') p.onCreateChild(p.node)
       if (key === 'rename') p.onRename(p.node)
+      if (key === 'edit') p.onEdit(p.node)
+      if (key === 'copy') p.onDuplicate(p.node)
+      if (key === 'move') p.onMove(p.node)
+      if (key === 'export') p.onExport(p.node)
+      if (key === 'share') p.onShare(p.node)
+      if (key === 'pin') p.onPin(p.node)
       if (key === 'delete') p.onDelete(p.node)
     },
   }
@@ -98,6 +159,8 @@ function TreeRow(p: RowProps) {
         {caret}
         {nodeIcon(p.node, p.hasChildren)}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.node.title}</span>
+        {/* 置顶标识（R4） */}
+        {p.node.pinned_at && <PushpinFilled style={{ color: '#fa8c16', fontSize: 12, marginRight: 2 }} />}
         <HolderOutlined style={{ opacity: 0.25 }} />
       </div>
     </Dropdown>
@@ -108,16 +171,24 @@ interface Props {
   bookId: number
   selectedId: number | null
   onSelect: (id: number) => void
+  /** 右键"编辑文档"：定位并打开该文档编辑模式（BookPage edit 分支） */
+  onOpenInEdit: (id: number) => void
+  /** 右键"分享"：由父组件打开 DocShareDrawer */
+  onShare: (node: DocNode) => void
+  /** 右键"导出"：由父组件打开 ExportDialog（doc 模式） */
+  onExportDoc: (node: DocNode) => void
   canWrite: boolean
+  /** 知识库右键"新建文档"触发信号（每次自增打开新建弹窗） */
+  createSignal: number
 }
 
 /**
- * 目录树（dnd-kit 拖拽）：
- *  - 拖拽到目标行左/右半区 = 调整为同级前后顺序
- *  - 拖拽明显右移（>28px）= 变为目标节点的子节点
- *  - 右键菜单：新建子文档 / 重命名 / 删除
+ * 目录树（dnd-kit 拖拽 / 第四轮 R2-R4 增强）：
+ *  - 拖拽到目标行左/右半区 = 调整为同级前后顺序；明显右移 = 变为子节点
+ *  - 顶部：新建文档 Dropdown.Button（主按钮=markdown，下拉 4 类型→命名弹窗）+ 导入格式下拉
+ *  - 文档右键菜单：重命名/编辑文档/复制/移动/导出/分享/置顶（取消置顶）/新建子文档/删除
  */
-export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Props) {
+export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, onShare, onExportDoc, canWrite, createSignal }: Props) {
   const { docs, loading, loadTree } = useDocTreeStore()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [renameNode, setRenameNode] = useState<DocNode | null>(null)
@@ -126,10 +197,32 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
   const [createValue, setCreateValue] = useState('')
   const [createType, setCreateType] = useState<DocType>('markdown')
 
+  // R3：导入下拉 → 隐藏文件选择器 → ImportDialog（外部传文件）
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const importAcceptRef = useRef<string>(IMPORT_FORMATS[0].accept)
+  const [importFiles, setImportFiles] = useState<File[] | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+
+  // R4：移动到其他知识库
+  const [moveNode, setMoveNode] = useState<DocNode | null>(null)
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null)
+  const [moveBooks, setMoveBooks] = useState<BookWithCount[] | null>(null)
+  const [moveLoading, setMoveLoading] = useState(false)
+  const [moveSaving, setMoveSaving] = useState(false)
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const childrenMap = useMemo(() => buildChildrenMap(docs), [docs])
   const roots = childrenMap.get(0) || []
+
+  // 知识库右键"新建文档"：createSignal 自增时打开新建弹窗
+  useEffect(() => {
+    if (createSignal > 0) {
+      setCreateValue(DEFAULT_NAMES.markdown)
+      setCreateType('markdown')
+      setCreateParent('root')
+    }
+  }, [createSignal])
 
   // 默认全部展开（首次加载后）
   useEffect(() => {
@@ -157,7 +250,7 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
     }
     walk(roots, 0)
     return out
-  }, [docs, expanded, childrenMap])
+  }, [docs, expanded, childrenMap, roots])
 
   const isDescendant = (target: number, ancestor: number): boolean => {
     let cur = target
@@ -216,26 +309,47 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
     }
   }
 
+  // ---------- R2：新建文档 ----------
+
+  /** 打开新建弹窗（按类型给默认名） */
+  function openCreate(docType: DocType, parent: DocNode | 'root' = 'root') {
+    // 选中父节点为非 markdown 时，默认跟随其类型（架构文档 §4.1）；显式选类型时以所选为准
+    const t = parent !== 'root' && docType === 'markdown' && parent.doc_type && parent.doc_type !== 'markdown'
+      ? parent.doc_type
+      : docType
+    setCreateType(t)
+    setCreateValue(DEFAULT_NAMES[t])
+    setCreateParent(parent)
+  }
+
   async function submitCreate() {
     if (!createParent) return
-    const title = createValue.trim() || '无标题文档'
+    const title = createValue.trim() || DEFAULT_NAMES[createType]
     const parentId = createParent === 'root' ? 0 : createParent.id
-    const doc = await createDoc(bookId, parentId, title, createType)
-    setCreateParent(null)
-    setCreateValue('')
-    setCreateType('markdown')
-    await loadTree(bookId)
-    // 展开父节点并选中新文档
-    if (parentId > 0) setExpanded((s) => new Set(s).add(parentId))
-    onSelect(doc.id)
+    try {
+      const doc = await createDoc(bookId, parentId, title, createType)
+      setCreateParent(null)
+      setCreateValue('')
+      setCreateType('markdown')
+      await loadTree(bookId)
+      // 展开父节点并选中新文档
+      if (parentId > 0) setExpanded((s) => new Set(s).add(parentId))
+      onSelect(doc.id)
+    } catch {
+      /* 拦截器已提示 */
+    }
   }
 
   async function submitRename() {
     if (!renameNode) return
-    const title = renameValue.trim() || '无标题文档'
-    await patchDoc(renameNode.id, { title })
-    setRenameNode(null)
-    await loadTree(bookId)
+    const title = renameValue.trim() || DEFAULT_NAMES[renameNode.doc_type ?? 'markdown']
+    try {
+      await patchDoc(renameNode.id, { title })
+      setRenameNode(null)
+      await loadTree(bookId)
+    } catch {
+      /* 拦截器已提示 */
+    }
   }
 
   function confirmDelete(node: DocNode) {
@@ -254,17 +368,127 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
     })
   }
 
+  // ---------- R4：复制 / 移动 / 置顶 ----------
+
+  async function handleDuplicate(node: DocNode) {
+    try {
+      const cp = await duplicateDoc(node.id)
+      message.success(`已复制为「${cp.title}」`)
+      await loadTree(bookId)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  /** 打开移动弹窗：拉取我有写权限的知识库（我的库 + 成员可见库，排除当前库） */
+  async function openMove(node: DocNode) {
+    setMoveNode(node)
+    setMoveTargetId(null)
+    setMoveBooks(null)
+    setMoveLoading(true)
+    try {
+      const shelf = await listBooks()
+      const writable = [...shelf.mine, ...shelf.visible.filter((b) => b.visibility === 'members')]
+      setMoveBooks(writable.filter((b) => b.id !== bookId))
+    } catch {
+      setMoveBooks([])
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
+  async function submitMove() {
+    if (!moveNode || !moveTargetId) return
+    setMoveSaving(true)
+    try {
+      await moveDocToBook(moveNode.id, moveTargetId)
+      const target = moveBooks?.find((b) => b.id === moveTargetId)
+      message.success(`已移动到「${target?.name ?? '目标知识库'}」根目录`)
+      setMoveNode(null)
+      await loadTree(bookId)
+      if (selectedId === moveNode.id) onSelect(0)
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setMoveSaving(false)
+    }
+  }
+
+  async function handlePin(node: DocNode) {
+    try {
+      await pinDoc(node.id, !node.pinned_at)
+      message.success(node.pinned_at ? '已取消置顶' : '已置顶')
+      await loadTree(bookId)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  // ---------- R3：导入 ----------
+
+  /** 选择导入格式：限定 accept 并打开文件选择器（允许多选） */
+  function pickImportFiles(accept: string) {
+    importAcceptRef.current = accept
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '' // 允许重复选择同一文件
+      fileInputRef.current.click()
+    }
+  }
+
+  function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+    setImportFiles(files)
+    setImportOpen(true)
+  }
+
   const createModalTitle = createParent === 'root' ? '新建文档' : `在「${(createParent as DocNode)?.title ?? ''}」下新建子文档`
 
   return (
     <div style={{ padding: 8 }}>
+      {/* R2/R3：新建文档 Dropdown.Button + 导入格式下拉 */}
       {canWrite && (
-        <div style={{ padding: '4px 4px 8px' }}>
-          <a onClick={() => setCreateParent('root')} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#2f54eb' }}>
-            <PlusOutlined /> 新建文档
-          </a>
+        <div style={{ padding: '4px 4px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Dropdown.Button
+            type="primary"
+            size="small"
+            onClick={() => openCreate('markdown')}
+            menu={{
+              items: DOC_TYPES.map((t) => ({
+                key: t,
+                icon: nodeIcon({ ...EMPTY_NODE, doc_type: t } as DocNode, false),
+                label: DOC_TYPE_LABEL[t],
+              })),
+              onClick: ({ key }) => openCreate(key as DocType),
+            }}
+          >
+            <FileAddOutlined /> 新建文档
+          </Dropdown.Button>
+          <Dropdown
+            menu={{
+              items: IMPORT_FORMATS.map((f) => ({ key: f.key, icon: <ImportOutlined />, label: f.label })),
+              onClick: ({ key }) => {
+                const f = IMPORT_FORMATS.find((x) => x.key === key)
+                if (f) pickImportFiles(f.accept)
+              },
+            }}
+          >
+            <Button size="small" icon={<ImportOutlined />}>
+              导入
+            </Button>
+          </Dropdown>
         </div>
       )}
+
+      {/* R3：隐藏文件选择器（accept 按所选格式限定，多选） */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        multiple
+        accept={importAcceptRef.current}
+        onChange={onFileInputChange}
+      />
 
       {loading && <Spin style={{ display: 'block', margin: '24px auto' }} />}
 
@@ -293,24 +517,25 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
                   })
                 }
                 onSelect={onSelect}
-                onCreateChild={(n) => {
-                  setCreateValue('')
-                  // 选中父节点为非 markdown 时，默认跟随其类型（架构文档 §4.1）
-                  setCreateType(n.doc_type && n.doc_type !== 'markdown' ? n.doc_type : 'markdown')
-                  setCreateParent(n)
-                }}
+                onCreateChild={(n) => openCreate('markdown', n)}
                 onRename={(n) => {
                   setRenameValue(n.title)
                   setRenameNode(n)
                 }}
                 onDelete={confirmDelete}
+                onEdit={(n) => onOpenInEdit(n.id)}
+                onDuplicate={handleDuplicate}
+                onMove={openMove}
+                onExport={onExportDoc}
+                onShare={onShare}
+                onPin={handlePin}
               />
             ))}
           </SortableContext>
         </DndContext>
       )}
 
-      {/* 新建文档弹窗 */}
+      {/* R2：新建文档弹窗（类型已由下拉选定，此处可微调类型与命名） */}
       <Modal
         title={createModalTitle}
         open={!!createParent}
@@ -356,6 +581,57 @@ export default function DocTree({ bookId, selectedId, onSelect, canWrite }: Prop
           onPressEnter={() => void submitRename()}
         />
       </Modal>
+
+      {/* R4：移动到其他知识库弹窗 */}
+      <Modal
+        title={`移动「${moveNode?.title ?? ''}」`}
+        open={!!moveNode}
+        onOk={() => void submitMove()}
+        onCancel={() => setMoveNode(null)}
+        okText="移动"
+        okButtonProps={{ disabled: !moveTargetId }}
+        confirmLoading={moveSaving}
+        cancelText="取消"
+        destroyOnClose
+      >
+        {moveLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}
+        {!moveLoading && moveBooks && moveBooks.length === 0 && (
+          <Empty description="没有可写入的其他知识库" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
+        {!moveLoading && moveBooks && moveBooks.length > 0 && (
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择目标知识库（我有编辑权限）"
+            value={moveTargetId}
+            onChange={setMoveTargetId}
+            options={moveBooks.map((b) => ({ value: b.id, label: b.name }))}
+          />
+        )}
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
+          移动后该文档及其子文档将整体迁移到目标知识库根目录末尾。
+        </div>
+      </Modal>
+
+      {/* R3：导入对话框（复用解析与逐文件反馈逻辑；目标=当前知识库根目录） */}
+      <ImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        bookId={bookId}
+        onImported={() => void loadTree(bookId)}
+        initialFiles={importFiles}
+        onFilesConsumed={() => setImportFiles(null)}
+      />
     </div>
   )
+}
+
+/** 仅用于取下拉图标的最小节点模板（nodeIcon 需要 DocNode 形状） */
+const EMPTY_NODE = {
+  id: 0,
+  book_id: 0,
+  parent_id: 0,
+  title: '',
+  pos: '',
+  pinned_at: null,
+  updated_at: '',
 }

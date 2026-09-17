@@ -57,6 +57,23 @@ export async function moveDoc(
   return request.put(`/docs/${docId}/move`, payload) as Promise<DocDetail>
 }
 
+// ---------- 增量（第四轮）：复制 / 跨库移动 / 置顶 ----------
+
+/** 复制文档（新标题=原标题+" 副本"，同父级末尾，content/doc_type 原样） */
+export async function duplicateDoc(docId: number): Promise<DocDetail> {
+  return request.post(`/docs/${docId}/duplicate`) as Promise<DocDetail>
+}
+
+/** 跨知识库移动（目标书根目录末尾，子树整体迁移） */
+export async function moveDocToBook(docId: number, bookId: number): Promise<DocDetail> {
+  return request.post(`/docs/${docId}/move-to-book`, { book_id: bookId }) as Promise<DocDetail>
+}
+
+/** 置顶/取消置顶 */
+export async function pinDoc(docId: number, pinned: boolean): Promise<DocDetail> {
+  return request.patch(`/docs/${docId}/pin`, { pinned }) as Promise<DocDetail>
+}
+
 export async function deleteDoc(docId: number): Promise<void> {
   return request.delete(`/docs/${docId}`) as Promise<void>
 }
@@ -81,9 +98,10 @@ export async function purgeDoc(docId: number): Promise<void> {
   return request.delete(`/docs/${docId}/purge`) as Promise<void>
 }
 
-// ---------- 导出（P1）：blob 下载走 fetch，避免 axios JSON 拦截器 ----------
+// ---------- 导出（P1 / 第四轮 R6）：blob 获取走 fetch，避免 axios JSON 拦截器 ----------
 
-async function downloadFile(url: string, fallbackName: string): Promise<void> {
+/** 从导出接口拉取二进制内容（带鉴权），返回 blob 与服务端建议文件名 */
+export async function fetchExportBlob(url: string, fallbackName: string): Promise<{ blob: Blob; filename: string }> {
   const token = getToken()
   const resp = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -92,20 +110,58 @@ async function downloadFile(url: string, fallbackName: string): Promise<void> {
   const blob = await resp.blob()
   const dispo = resp.headers.get('Content-Disposition') || ''
   const m = /filename\*=UTF-8''([^;]+)/.exec(dispo) || /filename="?([^";]+)"?/.exec(dispo)
-  const name = m ? decodeURIComponent(m[1]) : fallbackName
+  const filename = m ? decodeURIComponent(m[1]) : fallbackName
+  return { blob, filename }
+}
+
+/** 将 blob 保存到本地：优先 File System Access API（系统保存对话框），降级浏览器下载 */
+export async function saveBlob(blob: Blob, filename: string): Promise<'picker' | 'download'> {
+  const w = window as unknown as {
+    showSaveFilePicker?: (opts?: { suggestedName?: string }) => Promise<{
+      createWritable: () => Promise<{ write: (b: Blob) => Promise<void>; close: () => Promise<void> }>
+    }>
+  }
+  if (typeof w.showSaveFilePicker === 'function') {
+    try {
+      const handle = await w.showSaveFilePicker({ suggestedName: filename })
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      return 'picker'
+    } catch (e) {
+      // 用户取消保存对话框：静默返回，不降级重复下载
+      if ((e as DOMException)?.name === 'AbortError') return 'picker'
+      // 其他错误降级为浏览器下载
+    }
+  }
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = name
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   a.remove()
   URL.revokeObjectURL(a.href)
+  return 'download'
 }
 
+/** 导出单篇 markdown 文档（.md，服务端生成） */
+export async function exportDocBlob(docId: number, title: string): Promise<{ blob: Blob; filename: string }> {
+  return fetchExportBlob(`/api/export/docs/${docId}`, `${title}.md`)
+}
+
+/** 导出知识库（.md.zip，按目录结构） */
+export async function exportBookBlob(bookId: number, name: string): Promise<{ blob: Blob; filename: string }> {
+  return fetchExportBlob(`/api/export/books/${bookId}`, `${name}.md.zip`)
+}
+
+/** 兼容旧入口：直接浏览器下载单篇文档 */
 export async function exportDoc(docId: number, title: string): Promise<void> {
-  await downloadFile(`/api/export/docs/${docId}`, `${title}.md`)
+  const { blob, filename } = await exportDocBlob(docId, title)
+  await saveBlob(blob, filename)
 }
 
+/** 兼容旧入口：直接浏览器下载整库 zip */
 export async function exportBook(bookId: number, name: string): Promise<void> {
-  await downloadFile(`/api/export/books/${bookId}`, `${name}.md.zip`)
+  const { blob, filename } = await exportBookBlob(bookId, name)
+  await saveBlob(blob, filename)
 }

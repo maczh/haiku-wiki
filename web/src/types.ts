@@ -39,6 +39,8 @@ export interface DocNode {
   title: string
   doc_type: DocType
   pos: string
+  /** 置顶时间（null=未置顶；同级内置顶排最前） */
+  pinned_at: string | null
   updated_at: string
 }
 

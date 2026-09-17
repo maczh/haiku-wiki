@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Button, Drawer, List, Spin, Tag, Typography, Upload, message } from 'antd'
 import type { UploadFile } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InboxOutlined } from '@ant-design/icons'
@@ -11,6 +11,10 @@ interface Props {
   bookId: number
   /** 导入成功后刷新目录树 */
   onImported: () => void
+  /** 第四轮 R3：由外部（导入格式下拉 + 文件选择器）直接传入的文件，打开后立即开始解析导入 */
+  initialFiles?: File[] | null
+  /** 外部传入文件被消费后的回调（父组件清空 initialFiles，避免重复触发） */
+  onFilesConsumed?: () => void
 }
 
 type ItemStatus = 'waiting' | 'parsing' | 'success' | 'error'
@@ -24,12 +28,33 @@ interface ImportItem {
 }
 
 /**
- * 导入对话框（I09/I12）：Upload.Dragger 多选 → parseFile 按扩展名分派 →
- * createDoc + patchDoc 写入正文；逐文件成功/失败反馈，失败不产生损坏文档。
+ * 导入对话框（I09/I12 / 第四轮 R3）：
+ *  - Upload.Dragger 多选 或 外部传入 initialFiles（格式下拉触发，accept 已在文件选择器限定）
+ *  → parseFile 按扩展名分派 → createDoc + patchDoc 写入正文（导入目标=当前知识库根目录）；
+ *  逐文件成功/失败反馈，失败不产生损坏文档。
  */
-export default function ImportDialog({ open, onClose, bookId, onImported }: Props) {
+export default function ImportDialog({ open, onClose, bookId, onImported, initialFiles, onFilesConsumed }: Props) {
   const [items, setItems] = useState<ImportItem[]>([])
   const [running, setRunning] = useState(false)
+  const [pending, setPending] = useState<File[] | null>(null)
+
+  // 外部传入的文件：打开后进入待处理队列并通知父组件清空，避免依赖变化重复触发
+  useEffect(() => {
+    if (open && initialFiles && initialFiles.length > 0) {
+      setPending(initialFiles)
+      onFilesConsumed?.()
+    }
+  }, [open, initialFiles, onFilesConsumed])
+
+  // 待处理队列 → 顺序导入
+  useEffect(() => {
+    if (open && pending && !running) {
+      const files = pending
+      setPending(null)
+      void runImport(files)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pending, running])
 
   function updateItem(uid: string, patch: Partial<ImportItem>) {
     setItems((list) => list.map((it) => (it.uid === uid ? { ...it, ...patch } : it)))
@@ -56,26 +81,29 @@ export default function ImportDialog({ open, onClose, bookId, onImported }: Prop
     }
   }
 
-  async function handleFiles(fileList: UploadFile[]) {
-    const next: ImportItem[] = fileList.map((f) => ({
-      uid: f.uid,
+  /** 顺序导入一批文件（逐个反馈，清晰可控） */
+  async function runImport(files: File[]) {
+    const next: ImportItem[] = files.map((f, i) => ({
+      uid: `imp-${Date.now()}-${i}`,
       name: f.name,
       status: 'waiting',
       message: '等待导入',
     }))
     setItems(next)
     setRunning(true)
-    // 逐个顺序导入，反馈清晰
     for (let i = 0; i < next.length; i++) {
-      const f = fileList[i].originFileObj
-      if (!f) {
-        updateItem(next[i].uid, { status: 'error', message: '文件读取失败' })
-        continue
-      }
-      await importOne(next[i], f)
+      await importOne(next[i], files[i])
     }
     setRunning(false)
     onImported()
+  }
+
+  async function handleFiles(fileList: UploadFile[]) {
+    const files: File[] = []
+    for (const f of fileList) {
+      if (f.originFileObj) files.push(f.originFileObj)
+    }
+    if (files.length > 0) await runImport(files)
   }
 
   const okCount = items.filter((i) => i.status === 'success').length
