@@ -12,7 +12,7 @@ RUN npm run build
 FROM golang:1.23-alpine AS server-builder
 WORKDIR /app/server
 COPY server/go.mod server/go.sum* ./
-RUN go mod download
+RUN GOPROXY=https://goproxy.cn go mod download
 COPY server/ ./
 # 用真实的前端产物覆盖占位目录（embed 进二进制）
 COPY --from=web-builder /app/web/dist ./internal/static/dist

@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/rand"
 	"math/big"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -360,6 +361,110 @@ func (s *DocService) SoftDelete(uid uint64, docID uint64) error {
 		// 软删全部子孙 + 自身
 		return tx.Where("id IN ?", ids).Delete(&model.Doc{}).Error
 	})
+}
+
+// Duplicate 复制文档（第四轮增量 R4）：新标题=原标题+" 副本"，同父级末尾，
+// content/doc_type 原样复制，不复制版本快照。需编辑权限。
+func (s *DocService) Duplicate(uid uint64, docID uint64) (*model.Doc, error) {
+	doc, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	// 含自身的兄弟列表 → 追加到末尾
+	siblings, err := repository.ListSiblings(doc.BookID, doc.ParentID, 0)
+	if err != nil {
+		return nil, hkerr.Internal("查询失败")
+	}
+	pos := fracidx.Initial()
+	if len(siblings) > 0 {
+		pos = fracidx.Between(siblings[len(siblings)-1].Pos, "")
+	}
+	title := doc.Title + " 副本"
+	if len(title) > 256 {
+		title = title[:256]
+	}
+	cp := &model.Doc{
+		BookID:    doc.BookID,
+		ParentID:  doc.ParentID,
+		Title:     title,
+		DocType:   doc.DocType,
+		Pos:       pos,
+		Content:   doc.Content,
+		CreatedBy: uid,
+	}
+	if err := repository.CreateDoc(cp); err != nil {
+		return nil, hkerr.Internal("复制失败")
+	}
+	return cp, nil
+}
+
+// MoveToBookInput 跨知识库移动请求。
+type MoveToBookInput struct {
+	BookID uint64 `json:"book_id"`
+}
+
+// MoveToBook 移动文档到目标知识库根目录末尾（第四轮增量 R4）。
+// 源库需编辑权限，目标库需编辑权限（owner 恒可写 / members 库登录用户可写）；
+// 跨库移动时整棵子树（含软删子孙）book_id 一并迁移，保证树结构完整。
+func (s *DocService) MoveToBook(uid uint64, docID uint64, targetBookID uint64) (*model.Doc, error) {
+	doc, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	target, err := repository.FindBookByID(targetBookID)
+	if err != nil {
+		return nil, hkerr.NotFound("目标知识库不存在")
+	}
+	if !canWriteDoc(target, uid) {
+		return nil, hkerr.Forbidden()
+	}
+	// 先取目标库根级兄弟（不含自身）确定追加 pos，再收集子树 ID（在事务外查询）
+	siblings, err := repository.ListSiblings(target.ID, 0, doc.ID)
+	if err != nil {
+		return nil, hkerr.Internal("查询失败")
+	}
+	pos := fracidx.Initial()
+	if len(siblings) > 0 {
+		pos = fracidx.Between(siblings[len(siblings)-1].Pos, "")
+	}
+	subtreeIDs, err := repository.ListDescendantIDs(doc.BookID, doc.ID)
+	if err != nil {
+		return nil, hkerr.Internal("查询失败")
+	}
+	err = repository.DB().Transaction(func(tx *gorm.DB) error {
+		// 子树整体迁移 book_id（同库移动时为幂等 no-op）
+		if err := tx.Model(&model.Doc{}).Where("id IN ?", subtreeIDs).
+			Update("book_id", target.ID).Error; err != nil {
+			return err
+		}
+		doc.BookID = target.ID
+		doc.ParentID = 0
+		doc.Pos = pos
+		return tx.Save(doc).Error
+	})
+	if err != nil {
+		return nil, hkerr.Internal("移动失败")
+	}
+	return doc, nil
+}
+
+// SetPinned 置顶/取消置顶（第四轮增量 R4）：pinned=true 写入当前时间，false 置 NULL。
+// 排序生效于同级（repository.ListTreeByBook ORDER BY CASE WHEN pinned_at IS NULL ...）。
+func (s *DocService) SetPinned(uid uint64, docID uint64, pinned bool) (*model.Doc, error) {
+	doc, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	if pinned {
+		now := time.Now()
+		doc.PinnedAt = &now
+	} else {
+		doc.PinnedAt = nil
+	}
+	if err := repository.UpdateDoc(doc); err != nil {
+		return nil, hkerr.Internal("保存失败")
+	}
+	return doc, nil
 }
 
 // renumberSiblings 兄弟重排兜底：按插入点重新分配 a0,a1,a2...。

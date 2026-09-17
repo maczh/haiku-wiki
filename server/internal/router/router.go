@@ -66,6 +66,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.PATCH("", handler.PatchDoc)
 			docs.PUT("/move", handler.MoveDoc)
 			docs.DELETE("", handler.DeleteDoc)
+			// 第四轮增量：复制 / 跨库移动 / 置顶（写权限在各 service 内校验）
+			docs.POST("/duplicate", handler.DuplicateDoc)
+			docs.POST("/move-to-book", handler.MoveDocToBook)
+			docs.PATCH("/pin", handler.PinDoc)
 			docs.GET("/versions", handler.ListVersions)
 			docs.GET("/versions/:vid", handler.GetVersion)
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)

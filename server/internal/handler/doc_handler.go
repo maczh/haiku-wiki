@@ -135,3 +135,74 @@ func DeleteDoc(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{"deleted": true})
 }
+
+// DuplicateDoc POST /api/docs/:id/duplicate —— 复制文档（同父级末尾，内容原样）。
+func DuplicateDoc(c *gin.Context) {
+	id, ok := docIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的文档 ID"))
+		return
+	}
+	doc, err := docService.Duplicate(middleware.UID(c), id)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, doc)
+}
+
+type moveToBookReq struct {
+	BookID uint64 `json:"book_id"`
+}
+
+// MoveDocToBook POST /api/docs/:id/move-to-book —— 跨知识库移动到目标书根目录末尾。
+func MoveDocToBook(c *gin.Context) {
+	id, ok := docIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的文档 ID"))
+		return
+	}
+	var req moveToBookReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	if req.BookID == 0 {
+		resp.Error(c, paramMsg("book_id 不能为空"))
+		return
+	}
+	doc, err := docService.MoveToBook(middleware.UID(c), id, req.BookID)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, doc)
+}
+
+type pinDocReq struct {
+	Pinned *bool `json:"pinned"`
+}
+
+// PinDoc PATCH /api/docs/:id/pin —— 置顶/取消置顶（body {pinned: bool}）。
+func PinDoc(c *gin.Context) {
+	id, ok := docIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的文档 ID"))
+		return
+	}
+	var req pinDocReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	if req.Pinned == nil {
+		resp.Error(c, paramMsg("pinned 不能为空"))
+		return
+	}
+	doc, err := docService.SetPinned(middleware.UID(c), id, *req.Pinned)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, doc)
+}

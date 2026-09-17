@@ -29,12 +29,14 @@ func FindDocUnscopedByID(id uint64) (*model.Doc, error) {
 	return &d, nil
 }
 
-// ListTreeByBook 知识库目录树平铺列表（不含正文，软删外，按 pos 字典序）。
+// ListTreeByBook 知识库目录树平铺列表（软删外）。
+// 排序：置顶文档优先（pinned_at 非空在前），同级内按 pos 字典序，前端组树。
+// CASE WHEN 写法在 SQLite / MySQL 双方言下语义一致（NULL 参与比较结果不可靠，故显式 CASE）。
 func ListTreeByBook(bookID uint64) ([]model.Doc, error) {
 	var out []model.Doc
-	err := db.Select("id", "book_id", "parent_id", "title", "doc_type", "pos", "updated_at").
+	err := db.Select("id", "book_id", "parent_id", "title", "doc_type", "pos", "pinned_at", "updated_at").
 		Where("book_id = ?", bookID).
-		Order("pos ASC").
+		Order("CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END ASC, pos ASC").
 		Find(&out).Error
 	return out, err
 }
