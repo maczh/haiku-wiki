@@ -1,0 +1,13 @@
+node_modules
+web/dist
+web/node_modules
+server/data
+data
+*.db
+*.db-shm
+*.db-wal
+.env
+.git
+.idea
+.vscode
+README.md

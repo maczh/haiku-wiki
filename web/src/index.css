@@ -1,0 +1,71 @@
+/* 海库全局样式 —— 高仿语雀：白底、清爽、卡片化 */
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #1f2329;
+  background: #f7f8fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  text-decoration: none;
+}
+
+/* 正文区域：居中最大宽度约 780px（语雀阅读版式） */
+.doc-content {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+  font-size: 15px;
+  line-height: 1.8;
+  overflow-wrap: break-word;
+}
+
+/* Vditor 渲染容器基础样式微调 */
+.doc-content img {
+  max-width: 100%;
+}
+
+/* 目录树行 */
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding-right: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  color: #33383d;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tree-row:hover {
+  background: #eff2f5;
+}
+.tree-row.selected {
+  background: #e0e7f5;
+  color: #2f54eb;
+  font-weight: 500;
+}
+.tree-row.dragging {
+  opacity: 0.4;
+}
+
+/* 搜索结果关键词高亮 */
+mark.hk-hit {
+  background: #fff1b8;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}

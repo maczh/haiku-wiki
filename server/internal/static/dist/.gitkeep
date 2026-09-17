@@ -1,0 +1,2 @@
+# 前端构建产物占位文件：保证 //go:embed all:dist 在本地构建时可通过。
+# Docker 构建时会被真实的 web/dist 覆盖（见根目录 Dockerfile）。
