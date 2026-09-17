@@ -71,6 +71,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)
 			docs.POST("/restore", handler.RestoreDoc)
 			docs.DELETE("/purge", handler.PurgeDoc)
+			// 文档级分享管理
+			docs.GET("/share", handler.GetDocShare)
+			docs.PUT("/share", handler.UpsertDocShare)
+			docs.DELETE("/share", handler.RevokeDocShare)
 		}
 
 		// 上传 / 回收站 / 导出
@@ -78,6 +82,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.GET("/trash", handler.ListTrash)
 		jwt.GET("/export/docs/:id", handler.ExportDoc)
 		jwt.GET("/export/books/:id", handler.ExportBook)
+		// 网页标题代理（粘贴 URL 转链接用）
+		jwt.GET("/fetch-title", handler.FetchTitle)
 	}
 
 	// 上传文件静态托管

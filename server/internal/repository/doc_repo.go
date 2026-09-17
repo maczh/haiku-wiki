@@ -42,7 +42,7 @@ func ListTreeByBook(bookID uint64) ([]model.Doc, error) {
 // ListSiblings 同一父节点下的兄弟（不含指定文档，可传 0 表示不过滤），按 pos 升序。
 func ListSiblings(bookID, parentID, excludeID uint64) ([]model.Doc, error) {
 	var out []model.Doc
-	q := db.Select("id", "book_id", "parent_id", "title", "pos").
+	q := db.Select("id", "book_id", "parent_id", "title", "doc_type", "pos").
 		Where("book_id = ? AND parent_id = ?", bookID, parentID)
 	if excludeID > 0 {
 		q = q.Where("id <> ?", excludeID)

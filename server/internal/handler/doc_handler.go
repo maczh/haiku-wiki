@@ -44,13 +44,10 @@ func CreateDoc(c *gin.Context) {
 		resp.Error(c, paramErr(err))
 		return
 	}
-	// 枚举校验：缺省/非法回退 markdown（后端 create 不感知类型内容，内容默认值由前端首次保存写入）
-	if req.DocType == "" {
-		req.DocType = "markdown"
-	}
+	// 枚举归一化：缺省/非法均回退 markdown 落库（PRD P0-5 / 架构 §3.3，
+	// 后端 create 不感知类型内容，内容默认值由前端首次保存写入）
 	if !validDocTypes[req.DocType] {
-		resp.Error(c, paramMsg("无效的文档类型"))
-		return
+		req.DocType = "markdown"
 	}
 	doc, err := docService.CreateDoc(middleware.BookFromCtx(c), middleware.UID(c), req.ParentID, req.Title, req.DocType)
 	if err != nil {

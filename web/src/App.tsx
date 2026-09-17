@@ -45,6 +45,8 @@ export default function App() {
 
       {/* 公开分享（免登录，独立布局） */}
       <Route path="/share/:slug" element={<SharePage />} />
+      {/* 文档级分享页（免登录） */}
+      <Route path="/doc-share/:slug" element={<DocSharePage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
