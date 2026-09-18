@@ -10,6 +10,8 @@ interface Props {
   onClose: () => void
   /** 默认目标知识库（当前所在库） */
   defaultBookId: number
+  /** 导入目标目录（文档 id）；0=根目录 */
+  parentId?: number
   /** 导入成功后刷新目录树 */
   onImported: () => void
 }
@@ -20,7 +22,7 @@ interface Props {
  * 抓取与 SSRF 防护全在服务端（POST /api/import/url），前端只负责收集
  * 「链接 + 目标库」两个参数——浏览器直连抓取会被 CORS 挡住，也拿不到稳定正文。
  */
-export default function UrlImportDialog({ open, onClose, defaultBookId, onImported }: Props) {
+export default function UrlImportDialog({ open, onClose, defaultBookId, parentId = 0, onImported }: Props) {
   const [url, setUrl] = useState('')
   const [bookId, setBookId] = useState<number | null>(defaultBookId)
   const [books, setBooks] = useState<{ id: number; name: string }[]>([])
@@ -58,7 +60,7 @@ export default function UrlImportDialog({ open, onClose, defaultBookId, onImport
     }
     setSaving(true)
     try {
-      const res: ImportUrlResult = await importUrl(raw, bookId)
+      const res: ImportUrlResult = await importUrl(raw, bookId, parentId)
       message.success(`已导入：${res.title}`)
       onClose()
       onImported()

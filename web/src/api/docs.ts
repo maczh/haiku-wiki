@@ -90,9 +90,9 @@ export async function removeCollaborator(docId: number, uid: number): Promise<{ 
   return request.delete(`/docs/${docId}/collaborators/${uid}`) as Promise<{ removed: boolean }>
 }
 
-/** 网页抓取导入：把 URL 页面转 Markdown 落入目标知识库（服务端做 SSRF 防护与图片本地化） */
-export async function importUrl(url: string, bookId: number): Promise<ImportUrlResult> {
-  return request.post('/import/url', { url, book_id: bookId }) as Promise<ImportUrlResult>
+/** 网页抓取导入：把 URL 页面转 Markdown 落入目标知识库的指定目录（服务端做 SSRF 防护与图片本地化） */
+export async function importUrl(url: string, bookId: number, parentId = 0): Promise<ImportUrlResult> {
+  return request.post('/import/url', { url, book_id: bookId, parent_id: parentId }) as Promise<ImportUrlResult>
 }
 
 export async function moveDoc(

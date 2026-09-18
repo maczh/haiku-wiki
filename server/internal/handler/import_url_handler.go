@@ -21,8 +21,9 @@ import (
 // 重定向每跳重校验、1MB 正文上限；图片下载同样做 IP 校验 + 超时 + 20MB 上限。
 func ImportURL(c *gin.Context) {
 	var in struct {
-		URL    string `json:"url" binding:"required"`
-		BookID uint64 `json:"book_id" binding:"required"`
+		URL      string `json:"url" binding:"required"`
+		BookID   uint64 `json:"book_id" binding:"required"`
+		ParentID uint64 `json:"parent_id"` // 可选：导入到指定目录（文档）下，默认 0=根目录
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		resp.Error(c, paramErr(err))
@@ -80,7 +81,7 @@ func ImportURL(c *gin.Context) {
 	if title == "" {
 		title = "网页导入"
 	}
-	doc, err := docService.CreateDocWithContent(book, uid, 0, title, "markdown", markdown)
+	doc, err := docService.CreateDocWithContent(book, uid, in.ParentID, title, "markdown", markdown)
 	if err != nil {
 		resp.Error(c, err)
 		return

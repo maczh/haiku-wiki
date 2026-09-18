@@ -13,6 +13,8 @@ interface Props {
   open: boolean
   onClose: () => void
   bookId: number
+  /** 导入目标目录（文档 id）；0=知识库根目录。由外部（书架目录树）选定目录后传入 */
+  parentId?: number
   /** 导入成功后刷新目录树 */
   onImported: () => void
   /** 第四轮 R3：由外部（导入格式下拉 + 文件选择器）直接传入的文件，打开后立即开始解析导入 */
@@ -51,7 +53,7 @@ function fileKey(f: File): string {
  *  - 导入过程用 runningRef 串行化：新来的文件进队列由同一个循环消费，
  *    不会并发跑起第二个导入循环（并发会让列表项状态互相覆盖）。
  */
-export default function ImportDialog({ open, onClose, bookId, onImported, initialFiles, onFilesConsumed }: Props) {
+export default function ImportDialog({ open, onClose, bookId, parentId = 0, onImported, initialFiles, onFilesConsumed }: Props) {
   const [items, setItems] = useState<ImportItem[]>([])
   const [running, setRunning] = useState(false)
 
@@ -128,7 +130,7 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
             note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
           }
         }
-        const doc = await createDoc(bookId, 0, res.title, 'file', JSON.stringify(ref))
+        const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
         // 转换降级/失败只做成 toast，不把长原因塞进列表标签
         if (note) message.warning(note)
         updateItem(item.uid, {
@@ -139,8 +141,8 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
         return
       }
 
-      // 普通文档：一次请求写入正文
-      const doc = await createDoc(bookId, 0, res.title, res.docType, res.content)
+      // 普通文档：一次请求写入正文（落到指定的目标目录）
+      const doc = await createDoc(bookId, parentId, res.title, res.docType, res.content)
 
       // 多文档导入（xlsx 多工作表）：每个工作表挂为父文档下的「表格」子文档
       const children = res.children ?? []
