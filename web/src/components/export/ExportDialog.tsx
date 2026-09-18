@@ -177,7 +177,9 @@ export default function ExportDialog({
         blob = r.blob
         const typed = filename.trim()
         // 用户改过文件名 → 以自己的命名为准；否则沿用服务端命名（扩展名与去重更可靠）
-        name = typed && typed !== target.title ? `${typed}.${ext}` : r.filename
+        // 已带目标扩展名时先剥离，避免二次拼接（"报告.docx" -> "报告.docx.docx"）
+        const base = typed ? typed.replace(new RegExp(`\\.${ext}$`, 'i'), '') : ''
+        name = base && base !== target.title ? `${base}.${ext}` : r.filename
       }
       const how = await saveBlob(blob, name)
       if (how === 'picker') message.success(`已导出：${name}`)

@@ -33,7 +33,7 @@ const TIP: Record<string, string> = {
   sheet: '正在加载表格渲染器…',
   mindmap: '正在加载思维导图画布…',
   flowchart: '正在加载流程图渲染器…',
-  drawing: '正在加载绘图组件…',
+  drawing: '正在加载绘图…',
   todo: '正在加载待办清单…',
   calendar: '正在加载工作日历…',
   file: '正在加载附件预览器…',

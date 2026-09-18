@@ -44,7 +44,8 @@ export const CLIENT_FORMAT_EXT: Record<ClientFormat, string> = {
 /** 文件名（去掉非法字符） */
 export function safeFilename(title: string, ext: string): string {
   const cleaned = (title || '未命名文档').replace(/[\\/:*?"<>|\n\r\t]/g, '_').trim()
-  return `${cleaned || '未命名文档'}.${ext}`
+  const base = (cleaned || '未命名文档').replace(new RegExp(`\\.${ext}$`, 'i'), '')
+  return `${base || '未命名文档'}.${ext}`
 }
 
 /**

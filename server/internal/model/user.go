@@ -13,9 +13,9 @@ type User struct {
 	Email        string    `gorm:"size:128;uniqueIndex" json:"email"`
 	PasswordHash string    `gorm:"size:80" json:"-"` // 绝不外泄
 	Nickname     string    `gorm:"size:64" json:"nickname"`
-	Name         string    `gorm:"size:64" json:"name"`       // 姓名
-	Department   string    `gorm:"size:128" json:"department"` // 部门
-	Phone        *string   `gorm:"size:32;uniqueIndex" json:"phone"` // 手机号（可空，唯一；空值存 NULL，不触发唯一冲突）
+	Name         string    `gorm:"size:64" json:"name"`                // 姓名
+	Department   string    `gorm:"size:128" json:"department"`         // 部门
+	Phone        *string   `gorm:"size:32;uniqueIndex" json:"phone"`   // 手机号（可空，唯一；空值存 NULL，不触发唯一冲突）
 	Role         string    `gorm:"size:16;default:member" json:"role"` // admin | member
 	Status       int       `gorm:"default:1" json:"status"`            // 1=启用 0=禁用
 	CreatedAt    time.Time `json:"created_at"`
