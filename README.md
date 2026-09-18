@@ -107,7 +107,7 @@ DB_DSN=user:password@tcp(127.0.0.1:3306)/haiku?charset=utf8mb4&parseTime=True&lo
 | `JWT_SECRET` | 开发默认值 | JWT 签名密钥，**生产必须修改** |
 | `DATA_DIR` | `./data` | 数据目录（SQLite + uploads/） |
 | `GIN_MODE` | `debug` | `debug` / `release` |
-| `EXPORT_FONT_PATH` | 自动探测 | 中文字体文件路径（`.ttf` / `.ttc`），PDF 与 PNG 导出用；缺字体时中文会渲染为空 |
+| `EXPORT_FONT_PATH` | 自动探测 | 中文字体文件路径（`.ttf` / `.ttc`），PDF 与 PNG 导出用；不可用时会告警并自动改用其他候选 |
 | `EXPORT_DWG_CONVERTER` | 自动探测 | DWG → DXF 转换器可执行文件路径（见下方「DWG 矢量预览」） |
 
 ### 导出所需的中文字体
@@ -115,7 +115,7 @@ DB_DSN=user:password@tcp(127.0.0.1:3306)/haiku?charset=utf8mb4&parseTime=True&lo
 `.pdf` 与 `.png` 导出需要在服务器上找到一份覆盖中文的字体。解析顺序：
 
 1. 环境变量 `EXPORT_FONT_PATH` 指定的字体文件；
-2. 常见系统字体路径（Linux `wqy-microhei` / `noto-cjk` / `arphic`，macOS `PingFang`，Windows `msyh`）；
+2. 常见系统字体路径（Linux `wqy-microhei` / `wqy-zenhei` / `arphic`，macOS `Arial Unicode` / `PingFang` / `Songti`，Windows `msyh`）；
 3. 字体目录扫描兜底（`.ttf` / `.ttc`，自动识别是否含中文字形）。
 
 `.ttc`（TrueType Collection）会自动提取首个字体重建为独立 `.ttf` 供 PDF 嵌入。安装示例：
@@ -123,18 +123,28 @@ DB_DSN=user:password@tcp(127.0.0.1:3306)/haiku?charset=utf8mb4&parseTime=True&lo
 ```bash
 # Debian/Ubuntu
 apt-get install -y fonts-wqy-microhei
-# Alpine（Dockerfile 已内置）
-apk add --no-cache font-wqy-microhei
+# Alpine（Dockerfile 已内置；注意该包在 community 仓，未在 main 仓）
+apk add --no-cache font-wqy-zenhei
 ```
 
-若导出报「未找到可用的中文字体」，指定字体后重启即可：
+> **每个候选都必须通过「最终渲染器」复验才会被采用**：只有含中文字形还不够，还要能真正被
+> PDF 渲染器（gopdf）加载，否则换下一个候选。原因是 freetype 与 gopdf 对 cmap 的容忍度不同，
+> 出现过「字体有中文却被选中、导出时全线报 No Unicode encoding found」的情况（曾长期被误判为
+> 「环境缺中文字体」）。参见代码注释里的跨平台实测矩阵：macOS `STHeiti Light.ttc`、
+> `Hiragino Sans GB.ttc`、Linux `NotoSansCJK*.ttc` 都不可用；macOS `Arial Unicode.ttf`
+> / `Songti.ttc`、Linux `wqy-microhei` / `wqy-zenhei` 可用。
+>
+> 因此**不建议改用 `font-noto-cjk`**：其 TTC 内部是 CFF 轮廓，当前管线（freetype truetype +
+> TTC 抽首字体）无法消费，换过去反而彻底无字体可用。
+
+若想显式指定，指定字体后重启即可：
 
 ```bash
 EXPORT_FONT_PATH=/usr/share/fonts/truetype/wqy/wqy-microhei.ttc ./haiku-wiki
 ```
 
-> `EXPORT_FONT_PATH` 指向的字体若不存在，程序会打印警告并回退到自动探测，
-> 不会让所有导出功能一起失效。
+> `EXPORT_FONT_PATH` 指向的字体若**读不到**、或**读得到但渲染器加载不了**，程序都会打印警告
+> 并回退到自动探测，不会让所有导出功能一起失效。
 
 ### DWG 矢量预览所需的转换器
 
@@ -181,6 +191,38 @@ DWG_FIXTURE_DIR=/path/to/libredwg/test/test-data \
 EXPORT_DWG_CONVERTER=/path/to/dwg2dxf \
 go test ./internal/service/exportx -run TestConvertDWGRealFixtures -v
 ```
+
+### 回归基线
+
+后端全量测试必须在**默认环境**（不设置 `EXPORT_FONT_PATH` 等任何绕过开关）下全绿：
+
+```bash
+cd server && go test ./... -count=1 -p 1
+```
+
+- **`-p 1` 不可省**：各包测试共用同一份 SQLite 测试库的连接习惯，并发跑会相互踩库。
+- **当前基线：155 PASS / 0 FAIL / 2 SKIP**。两条 SKIP 是设计如此、非缺陷：
+  `TestConvertDWGRealFixtures`（缺真实图纸夹具，见上一节）与 `TestGenerateSamples`（生成样例用）。
+
+**判定规则（重要）**：
+
+- `internal/service::TestDocExportAllFormats` **不再以「环境缺中文字体」豁免**。该豁免历史上掩盖了
+  一个真实缺陷：字体筛选用 freetype、消费用 gopdf，两者容忍度不同，导致本机明明有可用中文字体，
+  PDF/PNG 导出却全线失败。现已改为「gopdf 复验」筛选（见上一节），该用例在正常环境下必须通过。
+- 因此：**任何一条 `--- FAIL` 都视为真实缺陷**，不要先去找环境借口，请先确认是不是 «用 A 校验、
+  用 B 消费» 这类语义漂移，或权限在中间件与 service 两层不一致（历史上出过同类问题）。
+
+前端自检脚本同样计入回归：
+
+```bash
+cd web && npm run build          # tsc --noEmit + vite build
+npm run verify:import            # HTML 导入清洗（20 项断言，直接转译产品源码）
+npm run verify:drawio            # draw.io 静态资源体检（16 项）
+npm run verify:sheet             # 表格存储契约 + 导出扩展名映射（42 项）
+```
+
+这三个脚本用 esbuild 现场把产品源码（`src/lib/import/htmlClean.ts`、`src/lib/sheet.ts` 等）
+转译成 ESM 后 import 再断言，**改了产品逻辑这里会立刻失败**，不是复刻品，可放心作为回归依据。
 
 ## 功能清单
 
