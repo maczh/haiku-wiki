@@ -17,6 +17,7 @@ import {
   ShareAltOutlined,
   TeamOutlined,
   UnorderedListOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons'
 import DocTree from '../components/tree/DocTree'
 import LazyBoundary from '../components/common/LazyBoundary'
@@ -25,6 +26,7 @@ import TocAnchor from '../components/reader/TocAnchor'
 import DocShareDrawer from '../components/share/DocShareDrawer'
 import WeChatShareModal from '../components/share/WeChatShareModal'
 import ExportDialog, { type ExportTarget } from '../components/export/ExportDialog'
+import CollaboratorModal from '../components/collab/CollaboratorModal'
 import { getBook, setBookVisibility, updateBook, deleteBook } from '../api/books'
 import { getDoc } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
@@ -95,6 +97,9 @@ export default function BookPage() {
   const [shareDrawerOpen, setShareDrawerOpen] = useState(false)
   // R4/R6：右键导出 → ExportDialog（doc / book 两种目标）
   const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null)
+  // R5：文档协作邀请（右键菜单 / 顶栏按钮 → 协作者管理弹窗）
+  const [collabOpen, setCollabOpen] = useState(false)
+  const [collabNode, setCollabNode] = useState<DocNode | null>(null)
   const [renameModalOpen, setRenameModalOpen] = useState(false)
   const [renameBookValue, setRenameBookValue] = useState('')
   const [renameSaving, setRenameSaving] = useState(false)
@@ -313,6 +318,12 @@ export default function BookPage() {
     setExportTarget({ kind: 'doc', docId: node.id, title: node.title, docType: node.doc_type })
   }
 
+  /** 文档右键 / 顶栏"邀请协作"：打开协作者管理（R5） */
+  function openCollaborators(node: DocNode) {
+    setCollabNode(node)
+    setCollabOpen(true)
+  }
+
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       {/* 左栏：文档库目录树（可折叠 + 可拖拽调宽，偏好本地持久化） */}
@@ -370,6 +381,7 @@ export default function BookPage() {
                 onOpenInEdit={(id) => setParams({ docId: id, tab: 'edit' })}
                 onShare={openShare}
                 onExportDoc={openExportDoc}
+                onCollaborators={openCollaborators}
                 canWrite={canWrite}
                 createSignal={createSignal}
               />
@@ -430,6 +442,13 @@ export default function BookPage() {
               {doc?.title ?? ''}
             </div>
 
+            {docIdParam && doc && !docLoading && canWrite && (
+              <Tooltip title="邀请其他用户共同编辑这篇文档">
+                <Button size="small" icon={<UserAddOutlined />} onClick={() => openCollaborators(doc)}>
+                  协作
+                </Button>
+              </Tooltip>
+            )}
             {docIdParam && doc && !docLoading && (
               <Tooltip title="分享到微信 / 生成免登录阅读链接">
                 <Button size="small" icon={<ShareAltOutlined />} onClick={() => setWeChatOpen(true)}>
@@ -571,6 +590,14 @@ export default function BookPage() {
         onClose={() => setShareDrawerOpen(false)}
         docId={shareNodeId ?? docIdParam}
         docTitle={doc?.title ?? ''}
+      />
+
+      {/* 文档协作者管理（R5：右键「邀请协作」/ 顶栏「协作」按钮） */}
+      <CollaboratorModal
+        open={collabOpen}
+        onClose={() => setCollabOpen(false)}
+        docId={collabNode?.id ?? (docIdParam || null)}
+        docTitle={collabNode?.title ?? doc?.title ?? ''}
       />
 
       {/* 「分享到微信」弹窗（所有文档通用入口） */}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"haiku-wiki/server/internal/model"
@@ -34,6 +35,34 @@ func (s *TeamService) Create(ownerID uint64, name, description string) (*model.T
 	return t, nil
 }
 
+// ListLibraries 列出团队文库（需团队成员，任意角色可见）。
+func (s *TeamService) ListLibraries(userID, teamID uint64) ([]model.Book, error) {
+	if _, _, err := s.Get(userID, teamID); err != nil {
+		return nil, err
+	}
+	return repository.ListBooksByTeam(teamID)
+}
+
+// CreateLibrary 团队管理员为团队新建文库（团队名缺省时用团队名 + "文库"）。
+// 复用 Create 里的 CreateTeamLibrary：team_id 非空、默认私有，团队成员任意角色可读写。
+func (s *TeamService) CreateLibrary(userID, teamID uint64, name string) (*model.Book, error) {
+	t, role, err := s.Get(userID, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if role != "admin" {
+		return nil, hkerr.Forbidden()
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = t.Name + "文库"
+	}
+	if len(name) > 128 {
+		return nil, hkerr.Param("文库名称过长")
+	}
+	return (&BookService{}).CreateTeamLibrary(teamID, userID, name)
+}
+
 // List 列出用户参与的团队（自己创建或已是成员），含文库数。
 func (s *TeamService) List(userID uint64) ([]model.TeamWithCount, error) {
 	return repository.ListTeamsForUser(userID)
@@ -56,11 +85,11 @@ type TeamMemberView struct {
 // toMemberView 拼装成员视图：成员 + 用户展示信息 + 是否创建者。
 func (s *TeamService) toMemberView(t *model.Team, m model.TeamMember) TeamMemberView {
 	v := TeamMemberView{
-		TeamID:  m.TeamID,
-		UserID:  m.UserID,
-		Role:    m.Role,
+		TeamID:    m.TeamID,
+		UserID:    m.UserID,
+		Role:      m.Role,
 		CreatedAt: m.CreatedAt,
-		IsOwner: t.OwnerID == m.UserID,
+		IsOwner:   t.OwnerID == m.UserID,
 	}
 	if u, err := repository.FindUserByID(m.UserID); err == nil && u != nil {
 		v.Username = u.Username

@@ -298,6 +298,8 @@ export interface DocCollaborator {
   name: string
   email: string
   nickname: string
+  /** 手机号（可空，后端 COALESCE 成空串） */
+  phone?: string
 }
 
 /** 网页导入返回 */

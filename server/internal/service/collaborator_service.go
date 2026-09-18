@@ -33,12 +33,12 @@ func (s *CollaboratorService) Add(uid, docID uint64, identifier string) (*model.
 	return dc, nil
 }
 
-// List 列出文档协作者（需文档编辑权限）。
-func (s *CollaboratorService) List(uid, docID uint64) ([]model.DocCollaborator, error) {
+// List 列出文档协作者（需文档编辑权限），返回带用户展示信息的视图。
+func (s *CollaboratorService) List(uid, docID uint64) ([]model.DocCollaboratorView, error) {
 	if _, _, err := (&DocService{}).loadDocForAccess(docID, uid, true); err != nil {
 		return nil, err
 	}
-	return repository.ListDocCollaborators(docID)
+	return repository.ListDocCollaboratorViews(docID)
 }
 
 // Remove 移除协作者（需文档编辑权限）。

@@ -18,6 +18,7 @@ import TurndownService from 'turndown'
 import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
+import { IMPORT_EXTENSIONS, extOfName, unsupportedImportReason } from './formats'
 import { stringifySheet, type SheetJSON } from '../sheet'
 import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
 
@@ -59,8 +60,9 @@ function baseName(name: string): string {
   return i > 0 ? name.slice(0, i) : name
 }
 
+/** 取文件扩展名（委托 formats.ts，保证与 accept 过滤同一套规则） */
 function extOf(name: string): string {
-  return (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : '').toLowerCase()
+  return extOfName(name)
 }
 
 /** 文本解析结果统一包装（H1 提取标题 + 大小提示） */
@@ -260,21 +262,24 @@ export const parserRegistry: Record<string, Parser> = {
   dps: failUnsupported('dps'),
 }
 
-export const ACCEPT_EXTENSIONS = Object.keys(parserRegistry)
-  .map((k) => `.${k}`)
-  .join(',')
+/**
+ * 文件选择框的 accept：由 formats.ts 的映射表生成（而非注册表键），
+ * 保证「下拉选中的格式」与「对话框能选到的扩展名」严格一一对应。
+ */
+export const ACCEPT_EXTENSIONS = IMPORT_EXTENSIONS.map((k) => `.${k}`).join(',')
 
 /** 该扩展名是否按原文件保存（附件型） */
 export function isAttachmentExt(ext: string): boolean {
   return ATTACHMENT_EXTS.includes(ext.toLowerCase())
 }
 
-/** 按扩展名分派解析器；未知扩展名返回失败结果 */
+/** 按扩展名分派解析器；未知扩展名返回失败结果（不产生任何文档） */
 export async function parseFile(file: File): Promise<ParseResult> {
   const ext = extOf(file.name)
   const parser = parserRegistry[ext]
   if (!parser) {
-    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: `暂不支持 .${ext || '未知'} 格式` }
+    // 统一拒绝文案：导入列表与 toast 共用 formats.ts 的措辞，避免各处不一致
+    return { ok: false, title: baseName(file.name), docType: 'markdown', content: '', reason: unsupportedImportReason(file.name) }
   }
   try {
     return await parser(file)

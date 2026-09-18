@@ -5,8 +5,10 @@ import {
   BookOutlined,
   DeleteOutlined,
   LogoutOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { me } from '../api/auth'
@@ -72,6 +74,9 @@ export default function AppLayout() {
         <Tooltip title="我的知识库">
           <BookOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/')} />
         </Tooltip>
+        <Tooltip title="团队（团队文库与成员管理）">
+          <TeamOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/teams')} />
+        </Tooltip>
         <Tooltip title="回收站">
           <DeleteOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/trash')} />
         </Tooltip>
@@ -85,6 +90,17 @@ export default function AppLayout() {
                 label: '账号设置',
                 onClick: () => navigate('/settings'),
               },
+              // 仅管理员可见：用户管理（启用/禁用、重置密码）
+              ...(user?.role === 'admin'
+                ? [
+                    {
+                      key: 'admin-users',
+                      icon: <SafetyCertificateOutlined />,
+                      label: '用户管理',
+                      onClick: () => navigate('/admin/users'),
+                    },
+                  ]
+                : []),
               {
                 key: 'logout',
                 icon: <LogoutOutlined />,

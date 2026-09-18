@@ -1,12 +1,14 @@
 import request from './request'
 import { getToken } from './request'
 import type {
+  DocCollaborator,
   DocDetail,
   DocExportFormats,
   DocNode,
   DocShareView,
   DocType,
   DocWithBook,
+  ImportUrlResult,
   VersionMeta,
   DocVersion,
 } from '../types'
@@ -69,6 +71,28 @@ export async function revokeDocShare(docId: number): Promise<{ revoked: boolean 
 export async function fetchTitle(url: string): Promise<string> {
   const res = await request.get('/fetch-title', { params: { url } }) as { title: string }
   return res.title
+}
+
+// ---------- 增量 R5：文档协作邀请 ----------
+
+/** 邀请协作者：identifier 可为用户名 / 手机号 / 姓名 / 邮箱（需文档编辑权限） */
+export async function addCollaborator(docId: number, identifier: string): Promise<DocCollaborator> {
+  return request.post(`/docs/${docId}/collaborators`, { identifier }) as Promise<DocCollaborator>
+}
+
+/** 协作者列表（含用户名/姓名/邮箱，供界面直接渲染） */
+export async function listCollaborators(docId: number): Promise<DocCollaborator[]> {
+  return request.get(`/docs/${docId}/collaborators`) as Promise<DocCollaborator[]>
+}
+
+/** 移除协作者 */
+export async function removeCollaborator(docId: number, uid: number): Promise<{ removed: boolean }> {
+  return request.delete(`/docs/${docId}/collaborators/${uid}`) as Promise<{ removed: boolean }>
+}
+
+/** 网页抓取导入：把 URL 页面转 Markdown 落入目标知识库（服务端做 SSRF 防护与图片本地化） */
+export async function importUrl(url: string, bookId: number): Promise<ImportUrlResult> {
+  return request.post('/import/url', { url, book_id: bookId }) as Promise<ImportUrlResult>
 }
 
 export async function moveDoc(

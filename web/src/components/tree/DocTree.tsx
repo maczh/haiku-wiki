@@ -17,6 +17,7 @@ import {
   FolderOpenOutlined,
   HolderOutlined,
   ImportOutlined,
+  LinkOutlined,
   PaperClipOutlined,
   CalendarOutlined,
   CheckSquareOutlined,
@@ -25,6 +26,7 @@ import {
   PushpinFilled,
   ShareAltOutlined,
   TableOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons'
 import { buildChildrenMap, useDocTreeStore } from '../../stores/docTreeStore'
 import {
@@ -39,6 +41,8 @@ import {
 import { listBooks } from '../../api/books'
 import { DOC_TYPES, DOC_TYPE_LABEL, type BookWithCount, type DocNode, type DocType } from '../../types'
 import LazyBoundary from '../common/LazyBoundary'
+import { IMPORT_FORMATS, IMPORT_URL_KEY } from '../../lib/import/formats'
+import UrlImportDialog from '../import/UrlImportDialog'
 
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts，
 // 后者又拉入 SheetJS(xlsx) / turndown / jszip 等解析器。本组件是知识库页的常驻树，
@@ -80,20 +84,11 @@ function nodeIcon(node: DocNode, hasChildren: boolean) {
   }
 }
 
-// ---------- R3：导入格式下拉（取自 lib/import/parse.ts 注册表的常用格式） ----------
-
-const IMPORT_FORMATS: { key: string; label: string; accept: string }[] = [
-  { key: 'md', label: 'Markdown（.md）', accept: '.md,.markdown,.txt' },
-  { key: 'html', label: 'HTML（.html）', accept: '.html,.htm' },
-  { key: 'pdf', label: 'PDF（.pdf）', accept: '.pdf' },
-  { key: 'docx', label: 'Word（.docx）', accept: '.docx' },
-  { key: 'xlsx', label: 'Excel（.xlsx）', accept: '.xlsx,.xls,.csv' },
-  { key: 'mindmap', label: '思维导图（.smm/.km/.xmind/.mm）', accept: '.smm,.km,.xmind,.mm' },
-  { key: 'pptx', label: 'PPT（.pptx）', accept: '.pptx' },
-  { key: 'dwg', label: 'AutoCAD（.dwg/.dxf）', accept: '.dwg,.dxf' },
-  { key: 'drawio', label: 'draw.io 绘图（.drawio）', accept: '.drawio' },
-  { key: 'vsdx', label: 'Visio（.vsd/.vsdx）', accept: '.vsd,.vsdx' },
-]
+// ---------- R3：导入格式下拉 ----------
+//
+// 映射表来自 lib/import/formats.ts（轻量模块，不拉解析器）：
+// 扩展名集合与 lib/import/parse.ts 的解析器注册表保持一致，
+// 这样「选中 Word」时文件对话框就只会筛出 .docx/.doc，不会出现格式与扩展名错配。
 
 interface RowProps {
   node: DocNode
@@ -149,6 +144,13 @@ function TreeRow(p: RowProps) {
       { key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !p.canWrite },
       { key: 'export', icon: <DownloadOutlined />, label: '导出' },
       { key: 'share', icon: <ShareAltOutlined />, label: '分享' },
+      {
+        key: 'collab',
+        icon: <UserAddOutlined />,
+        label: '邀请协作',
+        // 协作者管理需要文档编辑权限（后端二次校验，此处只做界面前置置灰）
+        disabled: !p.canWrite,
+      },
       {
         key: 'pin',
         icon: <PushpinFilled style={{ color: p.node.pinned_at ? '#fa8c16' : undefined }} />,
@@ -207,6 +209,8 @@ interface Props {
   onShare: (node: DocNode) => void
   /** 右键"导出"：由父组件打开 ExportDialog（doc 模式） */
   onExportDoc: (node: DocNode) => void
+  /** 右键"邀请协作"：由父组件打开协作者管理弹窗 */
+  onCollaborators: (node: DocNode) => void
   canWrite: boolean
   /** 知识库右键"新建文档"触发信号（每次自增打开新建弹窗） */
   createSignal: number
@@ -218,7 +222,17 @@ interface Props {
  *  - 顶部：新建文档 Dropdown.Button（主按钮=markdown，下拉 4 类型→命名弹窗）+ 导入格式下拉
  *  - 文档右键菜单：重命名/编辑文档/复制/移动/导出/分享/置顶（取消置顶）/新建子文档/删除
  */
-export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, onShare, onExportDoc, canWrite, createSignal }: Props) {
+export default function DocTree({
+  bookId,
+  selectedId,
+  onSelect,
+  onOpenInEdit,
+  onShare,
+  onExportDoc,
+  onCollaborators,
+  canWrite,
+  createSignal,
+}: Props) {
   const { docs, loading, loadTree } = useDocTreeStore()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [renameNode, setRenameNode] = useState<DocNode | null>(null)
@@ -232,6 +246,8 @@ export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, on
   const importAcceptRef = useRef<string>(IMPORT_FORMATS[0].accept)
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  // R5：URL 导入（下拉里的「网页链接」项，不经过文件选择器）
+  const [urlImportOpen, setUrlImportOpen] = useState(false)
 
   // R4：移动到其他知识库
   const [moveNode, setMoveNode] = useState<DocNode | null>(null)
@@ -496,8 +512,17 @@ export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, on
           </Dropdown.Button>
           <Dropdown
             menu={{
-              items: IMPORT_FORMATS.map((f) => ({ key: f.key, icon: <ImportOutlined />, label: f.label })),
+              items: [
+                // URL 导入置顶：它走弹窗而非文件选择器
+                { key: IMPORT_URL_KEY, icon: <LinkOutlined />, label: '网页链接（URL）' },
+                { type: 'divider' as const },
+                ...IMPORT_FORMATS.map((f) => ({ key: f.key, icon: <ImportOutlined />, label: f.label })),
+              ],
               onClick: ({ key }) => {
+                if (key === IMPORT_URL_KEY) {
+                  setUrlImportOpen(true)
+                  return
+                }
                 const f = IMPORT_FORMATS.find((x) => x.key === key)
                 if (f) pickImportFiles(f.accept)
               },
@@ -657,6 +682,14 @@ export default function DocTree({ bookId, selectedId, onSelect, onOpenInEdit, on
           />
         </LazyBoundary>
       )}
+
+      {/* R5：URL 导入弹窗（抓取网页转 Markdown 落入本库） */}
+      <UrlImportDialog
+        open={urlImportOpen}
+        onClose={() => setUrlImportOpen(false)}
+        defaultBookId={bookId}
+        onImported={() => void loadTree(bookId)}
+      />
     </div>
   )
 }

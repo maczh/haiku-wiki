@@ -115,6 +115,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			teams.GET("", handler.GetTeam)
 			teams.PUT("", handler.UpdateTeam)
 			teams.DELETE("", handler.DeleteTeam)
+			// 团队文库（团队 admin 可新建；成员任意角色可见）
+			teams.GET("/books", handler.ListTeamLibraries)
+			teams.POST("/books", handler.CreateTeamLibrary)
 			teams.GET("/members", handler.ListTeamMembers)
 			teams.POST("/members", handler.AddTeamMember)
 			teams.DELETE("/members/:uid", handler.RemoveTeamMember)

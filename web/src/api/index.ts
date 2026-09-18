@@ -6,3 +6,6 @@ export * as searchApi from './search'
 export * as uploadsApi from './uploads'
 export * as shareApi from './share'
 export * as trashApi from './trash'
+// R5：后台管理 / 团队 / 文档协作
+export * as adminApi from './admin'
+export * as teamsApi from './teams'

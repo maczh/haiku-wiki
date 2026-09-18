@@ -93,7 +93,13 @@ export default function CadView({ content }: Props) {
       )}
 
       {imageUrl ? (
-        <PanZoomImage url={imageUrl} filename={ref.filename} vector={isVector} />
+        <PanZoomImage
+          url={imageUrl}
+          filename={ref.filename}
+          vector={isVector}
+          // SVG 加载不到时退到 PNG（若存在）
+          fallbackUrl={svgUrl && pngUrl ? pngUrl : undefined}
+        />
       ) : (
         <Alert
           type="info"
@@ -142,12 +148,30 @@ function ExportLinks({ ref0 }: { ref0: NonNullable<ReturnType<typeof parseAttach
   )
 }
 
-/** 可缩放/平移的图片视口（CAD 图纸预览核心交互） */
-function PanZoomImage({ url, filename, vector }: { url: string; filename: string; vector: boolean }) {
+/**
+ * 可缩放/平移的图片视口（CAD 图纸预览核心交互）。
+ *
+ * fallbackUrl：首选地址加载失败时的退化地址（SVG → PNG）。
+ * 后端转换产物可能因转换器缺失/清理而不可读，此时不应把「无法读取后端生成的预览文件」
+ * 这类内部措辞直接抛给用户，而是先尝试退化地址，仍失败则给出可操作提示（下载原文件）。
+ */
+function PanZoomImage({
+  url,
+  filename,
+  vector,
+  fallbackUrl,
+}: {
+  url: string
+  filename: string
+  vector: boolean
+  fallbackUrl?: string
+}) {
   const boxRef = useRef<HTMLDivElement>(null)
   const view = useRef({ scale: 1, tx: 0, ty: 0 })
   const nat = useRef({ w: 0, h: 0 })
   const drag = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null)
+  const [src, setSrc] = useState(url)
+  const [triedFallback, setTriedFallback] = useState(false)
 
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -219,6 +243,8 @@ function PanZoomImage({ url, filename, vector }: { url: string; filename: string
   useEffect(() => {
     setLoaded(false)
     setFailed('')
+    setSrc(url)
+    setTriedFallback(false)
     nat.current = { w: 0, h: 0 }
   }, [url])
 
@@ -378,16 +404,16 @@ function PanZoomImage({ url, filename, vector }: { url: string; filename: string
       >
         {failed && (
           <Alert
-            type="error"
+            type="warning"
             showIcon
             style={{ margin: 16 }}
-            message="图纸渲染文件加载失败"
-            description={`${failed}（文件：${filename}）`}
+            message="该图纸暂无法在线预览"
+            description={`${failed}（文件：${filename}）原文件已保留，可点击上方按钮下载后用 AutoCAD 等专业软件打开。`}
           />
         )}
         {!failed && (
           <img
-            src={url}
+            src={src}
             alt={filename}
             draggable={false}
             onLoad={(e) => {
@@ -399,7 +425,15 @@ function PanZoomImage({ url, filename, vector }: { url: string; filename: string
               setSize({ w, h })
               setLoaded(true)
             }}
-            onError={() => setFailed('无法读取后端生成的预览文件')}
+            onError={() => {
+              // 先退化到备选产物（SVG → PNG）；仍失败才提示，避免直接抛出内部措辞
+              if (fallbackUrl && !triedFallback && fallbackUrl !== src) {
+                setTriedFallback(true)
+                setSrc(fallbackUrl)
+                return
+              }
+              setFailed('预览文件不可读或已被清理')
+            }}
             style={{
               position: 'absolute',
               left: 0,

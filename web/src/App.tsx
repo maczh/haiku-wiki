@@ -24,11 +24,22 @@ const TrashPage = lazy(() => import('./pages/TrashPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
+// R5：团队（列表 / 详情）与管理员用户管理
+const TeamsPage = lazy(() => import('./pages/TeamsPage'))
+const TeamDetailPage = lazy(() => import('./pages/TeamDetailPage'))
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'))
 
 /** 路由守卫：未登录跳 /login */
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = useAuthStore((s) => s.token)
   if (!token) return <Navigate to="/login" replace />
+  return children
+}
+
+/** 管理员守卫：已登录但非 admin 时回书架（界面入口同样按角色隐藏，这里是兜底） */
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  const user = useAuthStore((s) => s.user)
+  if (user && user.role !== 'admin') return <Navigate to="/" replace />
   return children
 }
 
@@ -101,6 +112,32 @@ export default function App() {
             <LazyBoundary fill tip="正在加载设置…">
               <SettingsPage />
             </LazyBoundary>
+          }
+        />
+        <Route
+          path="/teams"
+          element={
+            <LazyBoundary fill tip="正在加载团队…">
+              <TeamsPage />
+            </LazyBoundary>
+          }
+        />
+        <Route
+          path="/teams/:teamId"
+          element={
+            <LazyBoundary fill tip="正在加载团队详情…">
+              <TeamDetailPage />
+            </LazyBoundary>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <RequireAdmin>
+              <LazyBoundary fill tip="正在加载用户管理…">
+                <AdminUsersPage />
+              </LazyBoundary>
+            </RequireAdmin>
           }
         />
       </Route>

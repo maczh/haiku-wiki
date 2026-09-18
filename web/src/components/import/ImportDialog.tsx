@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Drawer, List, Spin, Tag, Typography, Upload, message } from 'antd'
 import type { UploadFile } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InboxOutlined } from '@ant-design/icons'
@@ -6,6 +6,7 @@ import { createDoc } from '../../api/docs'
 import { uploadFile } from '../../api/uploads'
 import { prepareAttachment } from '../../api/attachments'
 import { ACCEPT_EXTENSIONS, parseFile } from '../../lib/import/parse'
+import { extOfName, isSupportedImportExt, unsupportedImportReason } from '../../lib/import/formats'
 import type { FileAttachment } from '../../types'
 
 interface Props {
@@ -30,6 +31,11 @@ interface ImportItem {
   docId?: number
 }
 
+/** 文件去重键：名称 + 大小（同一批拖入的重复文件两者皆同） */
+function fileKey(f: File): string {
+  return `${f.name}::${f.size}`
+}
+
 /**
  * 导入对话框（I09/I12 / 第四轮 R3）：
  *  - Upload.Dragger 多选 或 外部传入 initialFiles（格式下拉触发，accept 已在文件选择器限定）
@@ -37,29 +43,44 @@ interface ImportItem {
  *  - .docx/.doc/.pdf：上传原文件后按原样保存为「附件」文档（不可编辑，阅读界面内直接预览）；
  *  - .xlsx/.xls/.csv/.et：解析为「表格」；多工作表时建父「表格」+ 每个工作表一个「表格」子文档；
  *  逐文件成功/失败反馈，失败不产生损坏文档。
+ *
+ * 去重与单次执行（本轮修复）：
+ *  - antd Upload 每加入一个文件都会触发一次 onChange，且每次回传的是**完整 fileList**；
+ *    早期实现把整份 fileList 直接拿去导入，于是 N 个文件会产生 N²/N 次重复导入；
+ *  - 现在以「名称 + 大小」登记已受理文件（handledRef），重复回调被直接过滤；
+ *  - 导入过程用 runningRef 串行化：新来的文件进队列由同一个循环消费，
+ *    不会并发跑起第二个导入循环（并发会让列表项状态互相覆盖）。
  */
 export default function ImportDialog({ open, onClose, bookId, onImported, initialFiles, onFilesConsumed }: Props) {
   const [items, setItems] = useState<ImportItem[]>([])
   const [running, setRunning] = useState(false)
-  const [pending, setPending] = useState<File[] | null>(null)
+
+  /** 已受理文件的指纹集合（跨次 onChange 去重） */
+  const handledRef = useRef<Set<string>>(new Set())
+  /** 待导入队列（导入进行中新增的文件排队，由同一循环消费） */
+  const queueRef = useRef<File[]>([])
+  /** 串行化标记：同一时刻只跑一个导入循环 */
+  const runningRef = useRef(false)
+  /** 列表项序号（保证 uid 唯一，不依赖 Date.now 的同毫秒碰撞） */
+  const seqRef = useRef(0)
+
+  // 打开时清空去重指纹与队列：同一文件在重新打开对话框后允许再次导入
+  useEffect(() => {
+    if (!open) return
+    handledRef.current.clear()
+    queueRef.current = []
+    seqRef.current = 0
+    setItems([])
+  }, [open])
 
   // 外部传入的文件：打开后进入待处理队列并通知父组件清空，避免依赖变化重复触发
   useEffect(() => {
     if (open && initialFiles && initialFiles.length > 0) {
-      setPending(initialFiles)
+      void enqueue(initialFiles)
       onFilesConsumed?.()
     }
-  }, [open, initialFiles, onFilesConsumed])
-
-  // 待处理队列 → 顺序导入
-  useEffect(() => {
-    if (open && pending && !running) {
-      const files = pending
-      setPending(null)
-      void runImport(files)
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, pending, running])
+  }, [open, initialFiles, onFilesConsumed])
 
   function updateItem(uid: string, patch: Partial<ImportItem>) {
     setItems((list) => list.map((it) => (it.uid === uid ? { ...it, ...patch } : it)))
@@ -67,9 +88,17 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
 
   async function importOne(item: ImportItem, file: File) {
     updateItem(item.uid, { status: 'parsing', message: '解析中…' })
+
+    // 前置格式校验：不支持的扩展名直接友好拒绝，不解析、不上传、不创建文档
+    const ext = extOfName(file.name)
+    if (!isSupportedImportExt(ext)) {
+      updateItem(item.uid, { status: 'error', message: unsupportedImportReason(file.name) })
+      return
+    }
+
     const res = await parseFile(file)
     if (!res.ok) {
-      updateItem(item.uid, { status: 'error', message: res.reason || '解析失败' })
+      updateItem(item.uid, { status: 'error', message: res.reason || unsupportedImportReason(file.name) })
       return
     }
     try {
@@ -86,16 +115,25 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
         let note = ''
         if (res.needsPrepare) {
           updateItem(item.uid, { status: 'parsing', message: '正在生成预览…' })
-          const prep = await prepareAttachment({ url: ref.url, filename: ref.filename, size: ref.size })
-          ref = prep.ref
-          note = prep.warning || (ref.degraded ? ref.note || '图纸预览为降级结果' : '')
+          try {
+            const prep = await prepareAttachment({ url: ref.url, filename: ref.filename, size: ref.size })
+            ref = prep.ref
+            note = prep.warning || (ref.degraded ? ref.note || '图纸预览为降级结果' : '')
+            // 转换不出任何预览产物（例如未安装 DWG 转换器且文件内无预览图）：
+            // 仍保留原文件，只提示不可在线预览，绝不落一个「预览地址指向空文件」的损坏文档。
+            if (!ref.derived?.svg && !ref.derived?.png) {
+              note = '暂不支持该格式在线预览，已按原文件保存（可下载后用专业软件打开）'
+            }
+          } catch {
+            note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
+          }
         }
         const doc = await createDoc(bookId, 0, res.title, 'file', JSON.stringify(ref))
         // 转换降级/失败只做成 toast，不把长原因塞进列表标签
         if (note) message.warning(note)
         updateItem(item.uid, {
           status: 'success',
-          message: note ? '导入成功（预览为降级结果）' : '导入成功（按原文件保存，不可编辑）',
+          message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存，不可编辑）',
           docId: doc.id,
         })
         return
@@ -129,21 +167,35 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
     }
   }
 
-  /** 顺序导入一批文件（逐个反馈，清晰可控） */
-  async function runImport(files: File[]) {
-    const next: ImportItem[] = files.map((f, i) => ({
-      uid: `imp-${Date.now()}-${i}`,
-      name: f.name,
-      status: 'waiting',
-      message: '等待导入',
-    }))
-    setItems(next)
+  /** 入列一批文件（去重后由单一循环顺序导入，逐个反馈） */
+  async function enqueue(files: File[]) {
+    const fresh = files.filter((f) => !handledRef.current.has(fileKey(f)))
+    if (fresh.length === 0) return
+    for (const f of fresh) handledRef.current.add(fileKey(f))
+    queueRef.current.push(...fresh)
+
+    // 已有循环在跑：交给它继续消费队列（避免并发导致列表状态互相覆盖）
+    if (runningRef.current) return
+    runningRef.current = true
     setRunning(true)
-    for (let i = 0; i < next.length; i++) {
-      await importOne(next[i], files[i])
+    try {
+      while (queueRef.current.length > 0) {
+        const file = queueRef.current.shift()
+        if (!file) break
+        const item: ImportItem = {
+          uid: `imp-${Date.now()}-${seqRef.current++}`,
+          name: file.name,
+          status: 'waiting',
+          message: '等待导入',
+        }
+        setItems((list) => [...list, item])
+        await importOne(item, file)
+      }
+    } finally {
+      runningRef.current = false
+      setRunning(false)
+      onImported()
     }
-    setRunning(false)
-    onImported()
   }
 
   async function handleFiles(fileList: UploadFile[]) {
@@ -151,7 +203,7 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
     for (const f of fileList) {
       if (f.originFileObj) files.push(f.originFileObj)
     }
-    if (files.length > 0) await runImport(files)
+    if (files.length > 0) await enqueue(files)
   }
 
   const okCount = items.filter((i) => i.status === 'success').length
@@ -180,10 +232,7 @@ export default function ImportDialog({ open, onClose, bookId, onImported, initia
         // 不自动上传：md/txt/xlsx 等由前端解析；docx/pdf 在解析后单独上传原文件
         beforeUpload={() => false}
         onChange={({ fileList }) => {
-          if (!running && fileList.length > 0) {
-            const files = fileList.filter((f) => f.originFileObj)
-            if (files.length > 0) void handleFiles(files)
-          }
+          if (fileList.length > 0) void handleFiles(fileList)
         }}
         style={{ background: '#fafafa' }}
       >

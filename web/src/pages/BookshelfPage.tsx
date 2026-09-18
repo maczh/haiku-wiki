@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Spin, message } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import { listBooks, createBook, deleteBook, updateBook } from '../api/books'
 import BookCard from '../components/book/BookCard'
 import type { BookWithCount, Visibility } from '../types'
@@ -13,7 +14,12 @@ interface EditState {
 
 /** 书架页：高仿语雀卡片网格（我的 + 可见的公开/成员库） */
 export default function BookshelfPage() {
-  const [data, setData] = useState<{ mine: BookWithCount[]; visible: BookWithCount[] } | null>(null)
+  const navigate = useNavigate()
+  const [data, setData] = useState<{
+    mine: BookWithCount[]
+    visible: BookWithCount[]
+    teams: BookWithCount[]
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [form] = Form.useForm()
@@ -24,7 +30,7 @@ export default function BookshelfPage() {
     setLoading(true)
     try {
       const res = await listBooks()
-      setData({ mine: res.mine || [], visible: res.visible || [] })
+      setData({ mine: res.mine || [], visible: res.visible || [], teams: res.teams || [] })
     } finally {
       setLoading(false)
     }

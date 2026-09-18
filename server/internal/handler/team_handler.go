@@ -102,6 +102,45 @@ func DeleteTeam(c *gin.Context) {
 	resp.OK(c, gin.H{"deleted": true})
 }
 
+// ListTeamLibraries GET /api/teams/:id/books —— 团队文库列表（需成员，任意角色）。
+func ListTeamLibraries(c *gin.Context) {
+	id, ok := teamIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的团队 ID"))
+		return
+	}
+	books, err := teamService.ListLibraries(middleware.UID(c), id)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, books)
+}
+
+type createTeamLibraryReq struct {
+	Name string `json:"name"`
+}
+
+// CreateTeamLibrary POST /api/teams/:id/books —— 团队管理员新建团队文库。
+func CreateTeamLibrary(c *gin.Context) {
+	id, ok := teamIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的团队 ID"))
+		return
+	}
+	var req createTeamLibraryReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	b, err := teamService.CreateLibrary(middleware.UID(c), id, req.Name)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, b)
+}
+
 // ListTeamMembers GET /api/teams/:id/members —— 成员列表（需成员）。
 func ListTeamMembers(c *gin.Context) {
 	id, ok := teamIDFromPath(c)
