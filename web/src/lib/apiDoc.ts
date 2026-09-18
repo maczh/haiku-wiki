@@ -49,6 +49,8 @@ export interface ApiGroup {
   id: string
   name: string
   items: ApiEndpoint[]
+  /** 导入来源标识（用于重复导入时按源去重）：Swagger/OpenAPI 取 base_host 或 info.title，Postman 取集合名 */
+  import_source?: string
 }
 
 export interface ApiDoc {
@@ -100,6 +102,7 @@ export function normalizeApiDoc(content: string): ApiDoc {
       ? o.groups.map((g) => ({
           id: g.id || genId('g'),
           name: g.name || '未命名分组',
+          import_source: g.import_source ?? '',
           items: Array.isArray(g.items) ? g.items.map(normalizeEndpoint).filter(Boolean) : [],
         }))
       : []
@@ -142,9 +145,12 @@ function coerceKV(kv: Partial<ApiKeyValue>): ApiKeyValue {
   }
 }
 
-/** 从 Swagger/OAS 参数对象提取类型字符串（用于阅读模式悬停提示「类型」） */
-function paramType(p: Record<string, unknown>): string {
-  const t = p.type ?? (p.schema as Record<string, unknown> | undefined)?.type
+/** 从 Swagger/OAS 参数对象提取类型字符串（用于阅读模式悬停提示「类型」）；
+ *  若 schema 为 $ref 引用，则解析到目标定义再取 type。 */
+function paramType(p: Record<string, unknown>, root: Record<string, unknown>): string {
+  let s = (p.schema as Record<string, unknown> | undefined) ?? p
+  if (typeof s.$ref === 'string') s = resolveRef(root, s.$ref) ?? s
+  const t = s.type ?? p.type
   return t ? String(t) : ''
 }
 
@@ -218,17 +224,17 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
       for (const p of params) {
         const inWhere = String(p.in || '')
         if (inWhere === 'header') {
-          headers.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
+          headers.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p, o) })
         } else if (inWhere === 'query' || inWhere === 'path') {
-          query.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
+          query.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p, o) })
         } else if (inWhere === 'body') {
-          body = schemaToSample(p.schema)
+          body = schemaToSample(p.schema, o)
           bodyType = 'json'
         }
       }
       const consumes = Array.isArray(op.consumes) ? (op.consumes as string[]) : (Array.isArray(o.consumes) ? (o.consumes as string[]) : [])
       const contentType = consumes[0] || 'application/json'
-      const resp = extractResponse(op.responses)
+      const resp = extractResponse(op.responses, o)
       const ep: ApiEndpoint = {
         id: genId('e'),
         name: String(op.summary || op.operationId || `${method} ${path}`),
@@ -246,8 +252,9 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
       bucketByTag(buckets, op.tags, fallback, ep)
     }
   }
+  const src = swaggerBaseHost(o) || infoTitle
   const groups: ApiGroup[] = []
-  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items })
+  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items, import_source: src })
   return { version: 1, base_host: swaggerBaseHost(o), groups }
 }
 
@@ -277,8 +284,8 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
       const query: ApiKeyValue[] = []
       for (const p of params) {
         const inWhere = String(p.in || '')
-        if (inWhere === 'header') headers.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
-        else if (inWhere === 'query' || inWhere === 'path') query.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
+        if (inWhere === 'header') headers.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p, o) })
+        else if (inWhere === 'query' || inWhere === 'path') query.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p, o) })
       }
       let body = ''
       let bodyType: ApiEndpoint['body_type'] = 'none'
@@ -290,11 +297,11 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
         if (ct) {
           contentType = ct
           const schema = content[ct]?.schema
-          body = schemaToSample(schema)
+          body = schemaToSample(schema, o)
           bodyType = 'json'
         }
       }
-      const resp = extractResponse(op.responses)
+      const resp = extractResponse(op.responses, o)
       const ep: ApiEndpoint = {
         id: genId('e'),
         name: String(op.summary || (op.operationId as string) || `${method} ${path}`),
@@ -312,19 +319,22 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
       bucketByTag(buckets, op.tags, fallback, ep)
     }
   }
+  const src = base || infoTitle
   const groups: ApiGroup[] = []
-  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items })
+  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items, import_source: src })
   return { version: 1, base_host: base, groups }
 }
 
 function parsePostman(o: Record<string, unknown>): ApiDoc {
+  // 集合名作为「同一文档」去重标识；无名字时不设置（不参与去重）。
+  const src = typeof o.info === 'object' && o.info ? String((o.info as Record<string, unknown>).name || '') : ''
   const groups: ApiGroup[] = []
   const walk = (items: unknown[], parentName: string) => {
     for (const it of items as Record<string, unknown>[]) {
       if (Array.isArray(it.item)) {
         const name = String(it.name || parentName || '分组')
         const sub = collectPostmanItems(it.item as unknown[])
-        if (sub.length) groups.push({ id: genId('g'), name, items: sub })
+        if (sub.length) groups.push({ id: genId('g'), name, items: sub, import_source: src })
         else walk(it.item, name)
       }
     }
@@ -332,7 +342,7 @@ function parsePostman(o: Record<string, unknown>): ApiDoc {
   walk((o.item as unknown[]) ?? [], 'Postman 导入')
   if (groups.length === 0) {
     const sub = collectPostmanItems(o.item as unknown[])
-    if (sub.length) groups.push({ id: genId('g'), name: 'Postman 导入', items: sub })
+    if (sub.length) groups.push({ id: genId('g'), name: 'Postman 导入', items: sub, import_source: src })
   }
   return { version: 1, base_host: '', groups }
 }
@@ -411,35 +421,68 @@ function postmanHeaderValue(headers: ApiKeyValue[], key: string): string {
   return h ? h.value : ''
 }
 
-/** 把 JSON Schema 转换为可读示例（仅做浅层采样，复杂结构直接回退为 {}）。 */
-function schemaToSample(schema: unknown): string {
+/** 解析 Swagger/OpenAPI 的本地 $ref（如 #/definitions/X 或 #/components/schemas/X）。
+ *  仅支持 #/ 开头的本地引用，返回目标 schema 对象或 null。 */
+function resolveRef(root: Record<string, unknown>, ref: string): Record<string, unknown> | null {
+  if (typeof ref !== 'string' || !ref.startsWith('#/')) return null
+  const parts = ref.slice(2).split('/')
+  let cur: unknown = root
+  for (const p of parts) {
+    if (cur && typeof cur === 'object') cur = (cur as Record<string, unknown>)[p]
+    else return null
+  }
+  return cur && typeof cur === 'object' ? (cur as Record<string, unknown>) : null
+}
+
+/** 递归展开 schema 中所有 key 为 $ref 的节点（替换为对应定义）。
+ *  支持嵌套 $ref（数组元素、对象属性里的 $ref）与循环引用（seen 保护）。 */
+function derefSchema(schema: unknown, root: Record<string, unknown>, seen = new Set<string>()): unknown {
+  if (Array.isArray(schema)) return schema.map((s) => derefSchema(s, root, seen))
+  if (!schema || typeof schema !== 'object') return schema
+  const s = schema as Record<string, unknown>
+  if (typeof s.$ref === 'string') {
+    if (seen.has(s.$ref)) return {}
+    seen.add(s.$ref)
+    const d = derefSchema(resolveRef(root, s.$ref), root, seen)
+    seen.delete(s.$ref)
+    return d
+  }
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(s)) out[k] = derefSchema(v, root, seen)
+  return out
+}
+
+/** 把 JSON Schema 转换为可读示例（深度采样；含 $ref 时先解析到目标定义）。 */
+function schemaToSample(schema: unknown, root: Record<string, unknown>): string {
   if (!schema || typeof schema !== 'object') return ''
   try {
-    return JSON.stringify(sampleFromSchema(schema as Record<string, unknown>), null, 2)
+    const derefed = derefSchema(schema, root)
+    return JSON.stringify(sampleFromSchema(derefed as Record<string, unknown>, root), null, 2)
   } catch {
     return ''
   }
 }
 
-function sampleFromSchema(s: Record<string, unknown>): unknown {
-  switch (s.type) {
+function sampleFromSchema(s: Record<string, unknown>, root: Record<string, unknown>): unknown {
+  const node = derefSchema(s, root) as Record<string, unknown>
+  switch (node.type) {
     case 'object': {
       const out: Record<string, unknown> = {}
-      const props = (s.properties as Record<string, Record<string, unknown>>) || {}
-      for (const [k, v] of Object.entries(props)) out[k] = sampleFromSchema(v)
+      const props = (node.properties as Record<string, Record<string, unknown>>) || {}
+      for (const [k, v] of Object.entries(props)) out[k] = sampleFromSchema(v as Record<string, unknown>, root)
       return out
     }
     case 'array':
-      return [sampleFromSchema((s.items as Record<string, unknown>) || {})]
+      return [sampleFromSchema((node.items as Record<string, unknown>) || {}, root)]
     case 'string':
-      return (s.example as string) ?? (s.default as string) ?? 'string'
+      return (node.example as string) ?? (node.default as string) ?? 'string'
     case 'integer':
     case 'number':
-      return (s.example as number) ?? (s.default as number) ?? 0
+      return (node.example as number) ?? (node.default as number) ?? 0
     case 'boolean':
-      return (s.example as boolean) ?? false
+      return (node.example as boolean) ?? false
     default:
-      return (s.example as unknown) ?? null
+      return (node.example as unknown) ?? null
   }
 }
 
@@ -480,30 +523,38 @@ export function jsonToFields(body: string): ApiField[] {
 /**
  * 从 JSON Schema 推导字段说明表（含中文说明与必填标记）。
  * 优先用于「返回结果」——OpenAPI/Swagger 响应 schema 自带 description / required。
+ * schema 中的 $ref 会先解析到目标定义（root 提供 definitions / components.schemas）。
  */
-export function schemaToFields(schema: unknown, prefix = '', topRequired: string[] = []): ApiField[] {
-  if (!schema || typeof schema !== 'object') return []
-  const s = schema as Record<string, unknown>
-  const type = s.type as string | undefined
+export function schemaToFields(
+  schema: unknown,
+  prefix = '',
+  topRequired: string[] = [],
+  root: Record<string, unknown> = {},
+): ApiField[] {
+  const s = derefSchema(schema, root)
+  if (!s || typeof s !== 'object') return []
+  const ss = s as Record<string, unknown>
+  const type = ss.type as string | undefined
   if (type === 'array') {
-    return schemaToFields(s.items, prefix ? `${prefix}[]` : 'items', [])
+    return schemaToFields(ss.items, prefix ? `${prefix}[]` : 'items', [], root)
   }
-  if (type === 'object' || s.properties) {
-    const props = (s.properties as Record<string, Record<string, unknown>>) || {}
-    const req = Array.isArray(s.required) ? (s.required as string[]) : topRequired
+  if (type === 'object' || ss.properties) {
+    const props = (ss.properties as Record<string, Record<string, unknown>>) || {}
+    const req = Array.isArray(ss.required) ? (ss.required as string[]) : topRequired
     const out: ApiField[] = []
     for (const [k, v] of Object.entries(props)) {
+      const vv = derefSchema(v, root) as Record<string, unknown>
       const name = prefix ? `${prefix}.${k}` : k
-      const t = (v.type as string) || (v.$ref ? 'object' : 'any')
-      const vReq = Array.isArray(v.required) ? (v.required as string[]) : req
+      const t = (vv.type as string) || (vv.$ref ? 'object' : 'any')
+      const vReq = Array.isArray(vv.required) ? (vv.required as string[]) : req
       out.push({
         name,
         type: t,
-        description: String(v.description || v.title || ''),
+        description: String(vv.description || vv.title || ''),
         required: vReq.includes(k),
       })
-      if (t === 'object' || t === 'array' || v.properties || v.items) {
-        out.push(...schemaToFields(v, name, vReq))
+      if (t === 'object' || t === 'array' || vv.properties || vv.items) {
+        out.push(...schemaToFields(vv, name, vReq, root))
       }
     }
     return out
@@ -511,8 +562,8 @@ export function schemaToFields(schema: unknown, prefix = '', topRequired: string
   return []
 }
 
-/** 从 responses 中抽取返回结果示例与字段表（OpenAPI3 / Swagger2 通用）。 */
-function extractResponse(responses: unknown): { example: string; fields: ApiField[] } {
+/** 从 responses 中抽取返回结果示例与字段表（OpenAPI3 / Swagger2 通用，含 $ref 解析）。 */
+function extractResponse(responses: unknown, root: Record<string, unknown>): { example: string; fields: ApiField[] } {
   const rs = (responses as Record<string, Record<string, unknown>>) || {}
   const entry = rs['200'] || rs['201'] || rs['2XX'] || Object.values(rs)[0]
   if (!entry) return { example: '', fields: [] }
@@ -525,5 +576,5 @@ function extractResponse(responses: unknown): { example: string; fields: ApiFiel
     schema = entry.schema // Swagger2
   }
   if (!schema) return { example: '', fields: [] }
-  return { example: schemaToSample(schema), fields: schemaToFields(schema) }
+  return { example: schemaToSample(schema, root), fields: schemaToFields(schema, '', [], root) }
 }

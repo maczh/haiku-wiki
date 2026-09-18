@@ -21,6 +21,7 @@ import {
 } from 'antd'
 import {
   ApiOutlined,
+  CheckSquareOutlined,
   CopyOutlined,
   DeleteOutlined,
   DownOutlined,
@@ -260,6 +261,10 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
   const [moveEp, setMoveEp] = useState<{ groupId: string; epId: string } | null>(null)
   const [moveTarget, setMoveTarget] = useState<string>('')
 
+  // 批量删除（编辑模式）：勾选接口后一次性删除
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedEps, setSelectedEps] = useState<Set<string>>(new Set())
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirtyRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -413,6 +418,56 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
     },
     [mutate],
   )
+
+  /** 批量模式：切换单个接口选中 */
+  const toggleEpSelect = useCallback((id: string) => {
+    setSelectedEps((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }, [])
+
+  /** 批量模式：整组全选 / 取消全选 */
+  const toggleGroupSelect = useCallback(
+    (groupId: string) => {
+      const g = doc.groups.find((x) => x.id === groupId)
+      if (!g || g.items.length === 0) return
+      const ids = g.items.map((i) => i.id)
+      setSelectedEps((prev) => {
+        const n = new Set(prev)
+        const allSel = ids.every((id) => n.has(id))
+        if (allSel) ids.forEach((id) => n.delete(id))
+        else ids.forEach((id) => n.add(id))
+        return n
+      })
+    },
+    [doc.groups],
+  )
+
+  /** 批量删除选中的接口（带二次确认） */
+  const deleteSelected = useCallback(() => {
+    const ids = selectedEps
+    if (ids.size === 0) return
+    Modal.confirm({
+      title: `删除选中的 ${ids.size} 个接口？`,
+      content: '这些接口将被删除，此操作不可撤销。',
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        mutate((d) => ({
+          ...d,
+          groups: d.groups.map((g) => ({ ...g, items: g.items.filter((e) => !ids.has(e.id)) })),
+        }))
+        setSelectedEps(new Set())
+        setBatchMode(false)
+      },
+    })
+  }, [selectedEps, mutate])
+
+  const clearSelection = useCallback(() => setSelectedEps(new Set()), [])
 
   const patchEndpoint = useCallback(
     (patch: Partial<ApiEndpoint>) => {
@@ -568,15 +623,22 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
 
   const mergeImported = useCallback(
     (parsed: ApiDoc) => {
-      mutate((d) => ({
-        version: 1,
-        base_host: d.base_host || parsed.base_host || '',
-        groups:
-          d.groups.length === 1 && d.groups[0].items.length === 0 && d.groups[0].name === '默认分组'
-            ? parsed.groups
-            : [...d.groups, ...parsed.groups],
-      }))
-      message.success(`已导入 ${parsed.groups.reduce((n, g) => n + g.items.length, 0)} 个接口`)
+      // 重复导入同一外部文档：先按 import_source 删除旧分组，再全部重新导入
+      const newSources = new Set(parsed.groups.map((g) => g.import_source || '').filter(Boolean))
+      mutate((d) => {
+        const kept = d.groups.filter((g) => !g.import_source || !newSources.has(g.import_source))
+        const isEmptyDefault =
+          d.groups.length === 1 && d.groups[0].name === '默认分组' && d.groups[0].items.length === 0
+        return {
+          version: 1,
+          base_host: d.base_host || parsed.base_host || '',
+          groups: isEmptyDefault ? parsed.groups : [...kept, ...parsed.groups],
+        }
+      })
+      const added = parsed.groups.reduce((n, g) => n + g.items.length, 0)
+      message.success(
+        `已导入 ${added} 个接口` + (newSources.size ? '（已替换同一来源旧接口）' : ''),
+      )
     },
     [mutate],
   )
@@ -693,6 +755,32 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
             padding: '8px 0',
           }}
         >
+          {!readOnly && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 8px' }}>
+              {batchMode ? (
+                <>
+                  <Button size="small" onClick={() => { setBatchMode(false); clearSelection() }}>
+                    取消
+                  </Button>
+                  <Button
+                    size="small"
+                    type="primary"
+                    danger
+                    disabled={selectedEps.size === 0}
+                    icon={<DeleteOutlined />}
+                    onClick={deleteSelected}
+                  >
+                    删除选中 ({selectedEps.size})
+                  </Button>
+                  <span style={{ fontSize: 12, color: '#8a919f' }}>已选 {selectedEps.size}</span>
+                </>
+              ) : (
+                <Button size="small" icon={<CheckSquareOutlined />} onClick={() => setBatchMode(true)}>
+                  批量删除
+                </Button>
+              )}
+            </div>
+          )}
           {doc.groups.map((g) => (
             <div key={g.id} style={{ marginBottom: 4 }}>
               <div
@@ -704,16 +792,26 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                   background: g.id === selGroup ? '#f0f5ff' : undefined,
                 }}
               >
+                {!readOnly && batchMode && (
+                  <Checkbox
+                    checked={g.items.length > 0 && g.items.every((e) => selectedEps.has(e.id))}
+                    indeterminate={
+                      g.items.some((e) => selectedEps.has(e.id)) &&
+                      !g.items.every((e) => selectedEps.has(e.id))
+                    }
+                    onChange={() => toggleGroupSelect(g.id)}
+                  />
+                )}
                 <FileAddOutlined style={{ color: '#faad14' }} />
                 <Input
                   size="small"
                   variant="borderless"
                   value={g.name}
-                  disabled={readOnly}
+                  disabled={readOnly || batchMode}
                   onChange={(e) => renameGroup(g.id, e.target.value)}
                   style={{ flex: 1, minWidth: 0, fontWeight: 600 }}
                 />
-                {!readOnly && (
+                {!readOnly && !batchMode && (
                   <Tooltip title="新建接口">
                     <Button
                       size="small"
@@ -723,7 +821,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     />
                   </Tooltip>
                 )}
-                {!readOnly && (
+                {!readOnly && !batchMode && (
                   <Tooltip title="删除分组">
                     <Button
                       size="small"
@@ -736,21 +834,33 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                 )}
               </div>
               {g.items.map((e) => {
+                const selected = selectedEps.has(e.id)
                 const epNode = (
                   <div
-                    onClick={() => {
-                      setSelGroup(g.id)
-                      setSelEp(e.id)
-                    }}
+                    onClick={() =>
+                      batchMode ? toggleEpSelect(e.id) : (setSelGroup(g.id), setSelEp(e.id))
+                    }
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      padding: '4px 10px 4px 28px',
+                      padding: `4px 10px 4px ${batchMode ? 10 : 28}px`,
                       cursor: 'pointer',
-                      background: e.id === selEp ? '#e6f4ff' : undefined,
+                      background: selected
+                        ? '#bae0ff'
+                        : e.id === selEp && !batchMode
+                          ? '#e6f4ff'
+                          : undefined,
+                      borderLeft: selected ? '3px solid #1677ff' : batchMode ? '3px solid transparent' : undefined,
                     }}
                   >
+                    {!readOnly && batchMode && (
+                      <Checkbox
+                        checked={selected}
+                        onChange={() => toggleEpSelect(e.id)}
+                        onClick={(ev) => ev.stopPropagation()}
+                      />
+                    )}
                     <Tag color={METHOD_COLOR[e.method]} style={{ marginRight: 0, minWidth: 52, textAlign: 'center' }}>
                       {e.method}
                     </Tag>
@@ -766,7 +876,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     >
                       {e.name}
                     </span>
-                    {!readOnly && (
+                    {!readOnly && !batchMode && (
                       <Button
                         size="small"
                         type="text"
@@ -780,7 +890,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     )}
                   </div>
                 )
-                if (readOnly) return <div key={e.id}>{epNode}</div>
+                if (readOnly || batchMode) return <div key={e.id}>{epNode}</div>
                 return (
                   <Dropdown
                     key={e.id}
@@ -817,7 +927,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
               })}
             </div>
           ))}
-          {!readOnly && (
+          {!readOnly && !batchMode && (
             <div style={{ padding: '4px 10px' }}>
               <Button size="small" icon={<PlusOutlined />} onClick={addGroup} block>
                 新建分组
