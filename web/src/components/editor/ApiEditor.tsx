@@ -10,6 +10,7 @@ import {
   Select,
   Space,
   Spin,
+  Table,
   Tabs,
   Tag,
   Tooltip,
@@ -18,6 +19,7 @@ import {
 } from 'antd'
 import {
   ApiOutlined,
+  CopyOutlined,
   DeleteOutlined,
   DownOutlined,
   FileAddOutlined,
@@ -34,10 +36,12 @@ import { proxyRequest } from '../../api/proxy'
 import {
   defaultEndpoint,
   importApiSpec,
+  jsonToFields,
   normalizeApiDoc,
   serializeApiDoc,
   type ApiDoc,
   type ApiEndpoint,
+  type ApiField,
   type ApiGroup,
   type ApiKeyValue,
   type HttpMethod,
@@ -56,8 +60,8 @@ interface Props {
 const SAVE_DEBOUNCE_MS = 2500
 
 const METHOD_COLOR: Record<string, string> = {
-  GET: '#52c41a',
-  POST: '#1677ff',
+  GET: '#1677ff',
+  POST: '#52c41a',
   PUT: '#fa8c16',
   DELETE: '#ff4d4f',
   PATCH: '#722ed1',
@@ -79,60 +83,134 @@ const BODY_TYPE_OPTIONS = [
 
 const rid = (p: string) => `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
-/** 可编辑的 key/value 列表（请求头 / 请求参数共用） */
+/** 可编辑的 key/value 列表（请求头 / 请求参数共用）。
+ *  - shortKey：字段名框收窄（请求头 / 请求参数用）
+ *  - showDesc：是否显示「说明」列（请求参数可隐藏，改由 hover 提示）
+ *  - hoverCn：悬停字段名时显示「中文名称 + 类型」提示（GET 请求参数用）
+ */
 function KVEditor({
   value,
   onChange,
   disabled,
+  shortKey,
+  showDesc = true,
+  hoverCn = false,
 }: {
   value: ApiKeyValue[]
   onChange: (v: ApiKeyValue[]) => void
   disabled?: boolean
+  shortKey?: boolean
+  showDesc?: boolean
+  hoverCn?: boolean
 }) {
   const update = (i: number, patch: Partial<ApiKeyValue>) =>
     onChange(value.map((kv, idx) => (idx === i ? { ...kv, ...patch } : kv)))
-  const add = () => onChange([...value, { key: '', value: '', enabled: true, description: '' }])
+  const add = () => onChange([...value, { key: '', value: '', enabled: true, description: '', type: '' }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
   return (
     <div>
       {value.length === 0 && (
         <div style={{ color: '#8a919f', fontSize: 13, padding: '8px 0' }}>暂无条目</div>
       )}
-      {value.map((kv, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-          <Checkbox checked={kv.enabled} disabled={disabled} onChange={(e) => update(i, { enabled: e.target.checked })} />
+      {value.map((kv, i) => {
+        const keyInput = (
           <Input
-            placeholder="Key"
+            placeholder="字段名"
             value={kv.key}
             disabled={disabled}
             onChange={(e) => update(i, { key: e.target.value })}
-            style={{ width: 200 }}
+            style={{ width: shortKey ? 130 : 200 }}
           />
-          <Input
-            placeholder="Value"
-            value={kv.value}
-            disabled={disabled}
-            onChange={(e) => update(i, { value: e.target.value })}
-            style={{ flex: 1, minWidth: 0 }}
-          />
-          <Input
-            placeholder="说明"
-            value={kv.description}
-            disabled={disabled}
-            onChange={(e) => update(i, { description: e.target.value })}
-            style={{ width: 150 }}
-          />
-          {!disabled && (
-            <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => remove(i)} />
-          )}
-        </div>
-      ))}
+        )
+        return (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <Checkbox
+              checked={kv.enabled}
+              disabled={disabled}
+              onChange={(e) => update(i, { enabled: e.target.checked })}
+            />
+            {hoverCn && (kv.description || kv.type) ? (
+              <Tooltip title={`中文名称：${kv.description || '—'}　类型：${kv.type || '—'}`}>
+                {keyInput}
+              </Tooltip>
+            ) : (
+              keyInput
+            )}
+            <Input
+              placeholder="Value"
+              value={kv.value}
+              disabled={disabled}
+              onChange={(e) => update(i, { value: e.target.value })}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            {showDesc && (
+              <Input
+                placeholder="说明"
+                value={kv.description}
+                disabled={disabled}
+                onChange={(e) => update(i, { description: e.target.value })}
+                style={{ width: 150 }}
+              />
+            )}
+            {!disabled && (
+              <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => remove(i)} />
+            )}
+          </div>
+        )
+      })}
       {!disabled && (
         <Button size="small" icon={<PlusOutlined />} onClick={add}>
           添加
         </Button>
       )}
     </div>
+  )
+}
+
+/** 字段参数说明表（请求体 / 返回结果通用）。 */
+function FieldTable({ fields }: { fields: ApiField[] }) {
+  if (!fields || fields.length === 0) {
+    return (
+      <div style={{ color: '#8a919f', fontSize: 13, padding: '6px 0' }}>（暂无字段说明）</div>
+    )
+  }
+  return (
+    <Table<ApiField>
+      size="small"
+      style={{ marginTop: 8 }}
+      pagination={false}
+      columns={[
+        {
+          title: '字段名',
+          dataIndex: 'name',
+          key: 'name',
+          width: 220,
+          ellipsis: true,
+          render: (t: string) => <code style={{ fontSize: 12 }}>{t}</code>,
+        },
+        {
+          title: '类型',
+          dataIndex: 'type',
+          key: 'type',
+          width: 90,
+          render: (t: string) => <Tag>{t || '—'}</Tag>,
+        },
+        {
+          title: '说明',
+          dataIndex: 'description',
+          key: 'description',
+          render: (t?: string) => t || '—',
+        },
+        {
+          title: '必填',
+          dataIndex: 'required',
+          key: 'required',
+          width: 70,
+          render: (r?: boolean) => (r ? <Tag color="red">是</Tag> : '否'),
+        },
+      ]}
+      dataSource={fields.map((f, i) => ({ ...f, key: `${f.name}_${i}` }))}
+    />
   )
 }
 
@@ -181,6 +259,31 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
     if (!ep) return null
     return { group, ep }
   }, [doc, selGroup, selEp])
+
+  /** 阅读模式展示用：除 Host 外的完整 URI（GET 时拼接已启用的 query 参数） */
+  const displayUri = useMemo(() => {
+    if (!current) return '/'
+    let uri = current.ep.uri || '/'
+    if (current.ep.method === 'GET') {
+      const q = current.ep.params
+        .filter((p) => p.enabled && p.key)
+        .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+        .join('&')
+      if (q) uri += (uri.includes('?') ? '&' : '?') + q
+    }
+    return uri
+  }, [current])
+
+  /** 文档自带返回示例的格式化（JSON 美化，非 JSON 原样） */
+  const respPretty = useMemo(() => {
+    const ex = current?.ep.response_example
+    if (!ex) return ''
+    try {
+      return JSON.stringify(JSON.parse(ex), null, 2)
+    } catch {
+      return ex
+    }
+  }, [current])
 
   const mutate = useCallback(
     (fn: (d: ApiDoc) => ApiDoc) => {
@@ -320,9 +423,28 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
     const headers: Record<string, string> = {}
     for (const h of ep.headers) if (h.enabled && h.key) headers[h.key] = h.value
     let body: string | undefined
-    if (ep.body_type !== 'none' && ep.body) body = ep.body
-    if (body && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
-      headers['Content-Type'] = ep.content_type || (ep.body_type === 'json' ? 'application/json' : 'text/plain')
+    const isForm = ep.body_type === 'form'
+    if (isForm) {
+      // 表单参数在「请求参数」区填写，作为 application/x-www-form-urlencoded 发送
+      const flds = ep.params
+        .filter((p) => p.enabled && p.key)
+        .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+        .join('&')
+      body = flds
+      if (body && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded'
+      }
+    } else {
+      // 非表单：query 参数拼到 URL；body 按类型发送
+      const q = ep.params
+        .filter((p) => p.enabled && p.key)
+        .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+        .join('&')
+      if (q) url += (url.includes('?') ? '&' : '?') + q
+      if (ep.body_type !== 'none' && ep.body) body = ep.body
+      if (body && !Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')) {
+        headers['Content-Type'] = ep.content_type || (ep.body_type === 'json' ? 'application/json' : 'text/plain')
+      }
     }
     setDebugLoading(true)
     setDebug(null)
@@ -587,14 +709,46 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     placeholder="接口名称"
                     style={{ width: 240 }}
                   />
-                  <Input
-                    value={current.ep.uri}
-                    disabled={readOnly}
-                    onChange={(e) => patchEndpoint({ uri: e.target.value })}
-                    placeholder="/path/to/api"
-                    style={{ flex: 1, minWidth: 0 }}
-                    addonBefore="URI"
-                  />
+                  {readOnly ? (
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <code
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          background: '#f7f8fa',
+                          border: '1px solid #ebedf0',
+                          borderRadius: 6,
+                          padding: '6px 10px',
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          overflow: 'auto',
+                          whiteSpace: 'nowrap',
+                          userSelect: 'text',
+                        }}
+                      >
+                        {displayUri}
+                      </code>
+                      <Tooltip title="复制 URI（不含 Host）">
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(displayUri)
+                            message.success('已复制 URI')
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                  ) : (
+                    <Input
+                      value={current.ep.uri}
+                      disabled={readOnly}
+                      onChange={(e) => patchEndpoint({ uri: e.target.value })}
+                      placeholder="/path/to/api"
+                      style={{ flex: 1, minWidth: 0 }}
+                      addonBefore="URI"
+                    />
+                  )}
                   <Tooltip title="在线调试（经服务端代理转发）">
                     <Button type="primary" icon={<ThunderboltOutlined />} loading={debugLoading} onClick={() => void runDebug()}>
                       调试
@@ -656,6 +810,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                         <KVEditor
                           value={current.ep.headers}
                           disabled={readOnly}
+                          shortKey
                           onChange={(v) => patchEndpoint({ headers: v })}
                         />
                       ),
@@ -667,6 +822,9 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                         <KVEditor
                           value={current.ep.params}
                           disabled={readOnly}
+                          shortKey
+                          showDesc={false}
+                          hoverCn
                           onChange={(v) => patchEndpoint({ params: v })}
                         />
                       ),
@@ -683,21 +841,49 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                             options={BODY_TYPE_OPTIONS}
                             style={{ width: 240, marginBottom: 10 }}
                           />
-                          {current.ep.body_type !== 'none' && (
-                            <Input.TextArea
-                              value={current.ep.body}
-                              disabled={readOnly}
-                              onChange={(e) => patchEndpoint({ body: e.target.value })}
-                              placeholder={
-                                current.ep.body_type === 'json'
-                                  ? '{\n  "key": "value"\n}'
-                                  : current.ep.body_type === 'form'
-                                    ? 'key1=value1&key2=value2'
+                          {current.ep.body_type === 'none' && (
+                            <div style={{ color: '#8a919f', fontSize: 13 }}>该接口无请求体</div>
+                          )}
+                          {current.ep.body_type === 'form' && (
+                            <div>
+                              <div style={{ color: '#8a919f', fontSize: 13, marginBottom: 8 }}>
+                                表单字段请在上方「请求参数」中填写，将作为{' '}
+                                <code>application/x-www-form-urlencoded</code> 发送。
+                              </div>
+                              <Input.TextArea
+                                readOnly
+                                value={current.ep.params
+                                  .filter((p) => p.enabled && p.key)
+                                  .map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+                                  .join('&')}
+                                autoSize={{ minRows: 3, maxRows: 10 }}
+                                style={{ fontFamily: 'monospace', fontSize: 13, color: '#8a919f' }}
+                              />
+                            </div>
+                          )}
+                          {(current.ep.body_type === 'json' || current.ep.body_type === 'raw') && (
+                            <div>
+                              <Input.TextArea
+                                value={current.ep.body}
+                                disabled={readOnly}
+                                onChange={(e) => patchEndpoint({ body: e.target.value })}
+                                placeholder={
+                                  current.ep.body_type === 'json'
+                                    ? '{\n  "key": "value"\n}'
                                     : '原始请求体'
-                              }
-                              autoSize={{ minRows: 8, maxRows: 20 }}
-                              style={{ fontFamily: 'monospace', fontSize: 13 }}
-                            />
+                                }
+                                autoSize={{ minRows: 8, maxRows: 20 }}
+                                style={{ fontFamily: 'monospace', fontSize: 13 }}
+                              />
+                              {current.ep.body_type === 'json' && (
+                                <>
+                                  <Divider orientation="left" plain style={{ margin: '12px 0 4px' }}>
+                                    字段参数说明
+                                  </Divider>
+                                  <FieldTable fields={jsonToFields(current.ep.body)} />
+                                </>
+                              )}
+                            </div>
                           )}
                         </div>
                       ),
@@ -705,60 +891,91 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     {
                       key: 'result',
                       label: '返回结果',
-                      children: debugLoading ? (
-                        <div style={{ textAlign: 'center', padding: 40 }}>
-                          <Spin /> <span style={{ marginLeft: 8, color: '#8a919f' }}>请求中…</span>
-                        </div>
-                      ) : !debug ? (
-                        <Empty description="点击「调试」发送请求以查看返回结果" style={{ marginTop: 40 }} />
-                      ) : (
+                      children: (
                         <div>
-                          <Space style={{ marginBottom: 10 }} wrap>
-                            <Tag color={statusColor(debug.status)} style={{ fontSize: 13 }}>
-                              {debug.status} {debug.status_text}
-                            </Tag>
-                            <span style={{ color: '#8a919f', fontSize: 13 }}>耗时 {debug.duration_ms} ms</span>
-                            <Button
-                              size="small"
-                              icon={<ReloadOutlined />}
-                              onClick={() => void runDebug()}
-                            >
-                              重新调试
-                            </Button>
-                          </Space>
-                          <Divider orientation="left" plain style={{ margin: '8px 0' }}>
-                            响应头
-                          </Divider>
-                          <pre
-                            style={{
-                              background: '#f7f8fa',
-                              padding: 12,
-                              borderRadius: 6,
-                              fontSize: 12,
-                              maxHeight: 160,
-                              overflow: 'auto',
-                            }}
-                          >
-                            {Object.entries(debug.headers)
-                              .map(([k, v]) => `${k}: ${v}`)
-                              .join('\n')}
-                          </pre>
-                          <Divider orientation="left" plain style={{ margin: '8px 0' }}>
-                            响应体
-                          </Divider>
-                          <pre
-                            style={{
-                              background: '#f7f8fa',
-                              padding: 12,
-                              borderRadius: 6,
-                              fontSize: 13,
-                              overflow: 'auto',
-                              maxHeight: 360,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            {prettyBody}
-                          </pre>
+                          {respPretty && (
+                            <div style={{ marginBottom: 16 }}>
+                              <Divider orientation="left" plain style={{ margin: '4px 0 8px' }}>
+                                返回结果示例（文档说明）
+                              </Divider>
+                              <pre
+                                style={{
+                                  background: '#f7f8fa',
+                                  padding: 12,
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  overflow: 'auto',
+                                  maxHeight: 360,
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {respPretty}
+                              </pre>
+                              <FieldTable
+                                fields={
+                                  current.ep.response_fields && current.ep.response_fields.length
+                                    ? current.ep.response_fields
+                                    : jsonToFields(current.ep.response_example || '')
+                                }
+                              />
+                            </div>
+                          )}
+                          {debugLoading ? (
+                            <div style={{ textAlign: 'center', padding: 40 }}>
+                              <Spin /> <span style={{ marginLeft: 8, color: '#8a919f' }}>请求中…</span>
+                            </div>
+                          ) : !debug ? (
+                            <Empty description="点击「调试」发送请求以查看返回结果" style={{ marginTop: 40 }} />
+                          ) : (
+                            <div>
+                              <Space style={{ marginBottom: 10 }} wrap>
+                                <Tag color={statusColor(debug.status)} style={{ fontSize: 13 }}>
+                                  {debug.status} {debug.status_text}
+                                </Tag>
+                                <span style={{ color: '#8a919f', fontSize: 13 }}>耗时 {debug.duration_ms} ms</span>
+                                <Button
+                                  size="small"
+                                  icon={<ReloadOutlined />}
+                                  onClick={() => void runDebug()}
+                                >
+                                  重新调试
+                                </Button>
+                              </Space>
+                              <Divider orientation="left" plain style={{ margin: '8px 0' }}>
+                                响应头
+                              </Divider>
+                              <pre
+                                style={{
+                                  background: '#f7f8fa',
+                                  padding: 12,
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  maxHeight: 160,
+                                  overflow: 'auto',
+                                }}
+                              >
+                                {Object.entries(debug.headers)
+                                  .map(([k, v]) => `${k}: ${v}`)
+                                  .join('\n')}
+                              </pre>
+                              <Divider orientation="left" plain style={{ margin: '8px 0' }}>
+                                响应体
+                              </Divider>
+                              <pre
+                                style={{
+                                  background: '#f7f8fa',
+                                  padding: 12,
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  overflow: 'auto',
+                                  maxHeight: 360,
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {prettyBody}
+                              </pre>
+                            </div>
+                          )}
                         </div>
                       ),
                     },

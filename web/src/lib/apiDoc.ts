@@ -9,7 +9,22 @@ export interface ApiKeyValue {
   key: string
   value: string
   enabled: boolean
+  /** 中文名称（hover 提示用，GET 参数可省略列） */
   description?: string
+  /** 字段类型（hover 提示用，如 string / int64 / array 等） */
+  type?: string
+}
+
+/** 字段说明表的一行（请求体 / 返回结果通用） */
+export interface ApiField {
+  /** 字段名（支持 a.b / a[] 这样的嵌套路径） */
+  name: string
+  /** 类型 */
+  type: string
+  /** 中文名称 / 说明 */
+  description?: string
+  /** 是否必填 */
+  required?: boolean
 }
 
 export interface ApiEndpoint {
@@ -24,6 +39,10 @@ export interface ApiEndpoint {
   body_type: 'none' | 'json' | 'form' | 'raw'
   body: string
   description?: string
+  /** 返回结果 JSON 示例（文档自带，用于提前展示） */
+  response_example?: string
+  /** 返回结果字段说明表 */
+  response_fields?: ApiField[]
 }
 
 export interface ApiGroup {
@@ -108,11 +127,28 @@ function normalizeEndpoint(e: Partial<ApiEndpoint>): ApiEndpoint {
     body_type: (e.body_type as ApiEndpoint['body_type']) || 'none',
     body: e.body ?? '',
     description: e.description ?? '',
+    response_example: e.response_example ?? '',
+    response_fields: Array.isArray(e.response_fields) ? e.response_fields.map(coerceField) : [],
   }
 }
 
 function coerceKV(kv: Partial<ApiKeyValue>): ApiKeyValue {
-  return { key: kv.key ?? '', value: kv.value ?? '', enabled: kv.enabled !== false, description: kv.description ?? '' }
+  return {
+    key: kv.key ?? '',
+    value: kv.value ?? '',
+    enabled: kv.enabled !== false,
+    description: kv.description ?? '',
+    type: kv.type ?? '',
+  }
+}
+
+function coerceField(f: Partial<ApiField>): ApiField {
+  return {
+    name: f.name ?? '',
+    type: f.type ?? '',
+    description: f.description ?? '',
+    required: f.required === true,
+  }
 }
 
 export function serializeApiDoc(doc: ApiDoc): string {
@@ -169,6 +205,7 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
       }
       const consumes = Array.isArray(op.consumes) ? (op.consumes as string[]) : (Array.isArray(o.consumes) ? (o.consumes as string[]) : [])
       const contentType = consumes[0] || 'application/json'
+      const resp = extractResponse(op.responses)
       items.push({
         id: genId('e'),
         name: String(op.summary || op.operationId || `${method} ${path}`),
@@ -180,6 +217,8 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
         body_type: bodyType,
         body,
         description: String(op.description || ''),
+        response_example: resp.example,
+        response_fields: resp.fields,
       })
     }
   }
@@ -228,6 +267,7 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
           bodyType = 'json'
         }
       }
+      const resp = extractResponse(op.responses)
       items.push({
         id: genId('e'),
         name: String(op.summary || (op.operationId as string) || `${method} ${path}`),
@@ -239,6 +279,8 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
         body_type: bodyType,
         body,
         description: String(op.description || ''),
+        response_example: resp.example,
+        response_fields: resp.fields,
       })
     }
   }
@@ -300,6 +342,15 @@ function collectPostmanItems(items: unknown[]): ApiEndpoint[] {
         body = flds.map((f) => `${encodeURIComponent(String(f.key || ''))}=${encodeURIComponent(String(f.value || ''))}`).join('&')
       }
     }
+    // Postman 响应示例（取第一个 2xx 的文本响应体）
+    let responseExample = ''
+    const responses = Array.isArray(it.response) ? (it.response as Record<string, unknown>[]) : []
+    const okResp = responses.find((r) => {
+      const code = Number(r.code ?? 0)
+      return code >= 200 && code < 300
+    })
+    if (okResp && typeof okResp.body === 'string') responseExample = okResp.body
+
     out.push({
       id: genId('e'),
       name: String(it.name || `${method} ${urlRaw}`),
@@ -310,6 +361,7 @@ function collectPostmanItems(items: unknown[]): ApiEndpoint[] {
       params: [],
       body_type: bodyType,
       body,
+      response_example: responseExample,
     })
   }
   return out
@@ -360,4 +412,89 @@ function sampleFromSchema(s: Record<string, unknown>): unknown {
     default:
       return (s.example as unknown) ?? null
   }
+}
+
+/**
+ * 从一段 JSON 正文字符串推导字段说明表（用于请求体/返回结果展示）。
+ * 解析失败返回空数组；支持嵌套对象（a.b）与数组（a[]）路径。
+ */
+export function jsonToFields(body: string): ApiField[] {
+  let obj: unknown
+  try {
+    obj = JSON.parse(body)
+  } catch {
+    return []
+  }
+  const out: ApiField[] = []
+  const walk = (node: unknown, prefix: string) => {
+    if (node === null) {
+      out.push({ name: prefix, type: 'null' })
+      return
+    }
+    if (Array.isArray(node)) {
+      out.push({ name: prefix, type: 'array' })
+      if (node.length) walk(node[0], `${prefix}[]`)
+      return
+    }
+    if (typeof node === 'object') {
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        walk(v, prefix ? `${prefix}.${k}` : k)
+      }
+      return
+    }
+    out.push({ name: prefix, type: typeof node })
+  }
+  walk(obj, '')
+  return out
+}
+
+/**
+ * 从 JSON Schema 推导字段说明表（含中文说明与必填标记）。
+ * 优先用于「返回结果」——OpenAPI/Swagger 响应 schema 自带 description / required。
+ */
+export function schemaToFields(schema: unknown, prefix = '', topRequired: string[] = []): ApiField[] {
+  if (!schema || typeof schema !== 'object') return []
+  const s = schema as Record<string, unknown>
+  const type = s.type as string | undefined
+  if (type === 'array') {
+    return schemaToFields(s.items, prefix ? `${prefix}[]` : 'items', [])
+  }
+  if (type === 'object' || s.properties) {
+    const props = (s.properties as Record<string, Record<string, unknown>>) || {}
+    const req = Array.isArray(s.required) ? (s.required as string[]) : topRequired
+    const out: ApiField[] = []
+    for (const [k, v] of Object.entries(props)) {
+      const name = prefix ? `${prefix}.${k}` : k
+      const t = (v.type as string) || (v.$ref ? 'object' : 'any')
+      const vReq = Array.isArray(v.required) ? (v.required as string[]) : req
+      out.push({
+        name,
+        type: t,
+        description: String(v.description || v.title || ''),
+        required: vReq.includes(k),
+      })
+      if (t === 'object' || t === 'array' || v.properties || v.items) {
+        out.push(...schemaToFields(v, name, vReq))
+      }
+    }
+    return out
+  }
+  return []
+}
+
+/** 从 responses 中抽取返回结果示例与字段表（OpenAPI3 / Swagger2 通用）。 */
+function extractResponse(responses: unknown): { example: string; fields: ApiField[] } {
+  const rs = (responses as Record<string, Record<string, unknown>>) || {}
+  const entry = rs['200'] || rs['201'] || rs['2XX'] || Object.values(rs)[0]
+  if (!entry) return { example: '', fields: [] }
+  const content = (entry.content as Record<string, Record<string, unknown>>) || {}
+  const ct = Object.keys(content)[0]
+  let schema: unknown
+  if (ct && content[ct]) {
+    schema = content[ct].schema // OpenAPI3
+  } else {
+    schema = entry.schema // Swagger2
+  }
+  if (!schema) return { example: '', fields: [] }
+  return { example: schemaToSample(schema), fields: schemaToFields(schema) }
 }
