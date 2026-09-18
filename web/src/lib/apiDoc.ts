@@ -179,13 +179,144 @@ export function importApiSpec(text: string): ApiDoc | null {
   }
   const o = obj as Record<string, unknown>
   if (typeof o !== 'object' || o === null) return null
+  // Apifox「项目」导出格式：顶层含 apifoxProject 标记，或 $schema.app === 'apifox'。
+  if (typeof o.apifoxProject === 'string') return parseApifox(o)
+  const schemaApp = (o['$schema'] as Record<string, unknown> | undefined)?.app
+  if (schemaApp === 'apifox') return parseApifox(o)
   if (typeof o.swagger === 'string' && o.swagger.startsWith('2')) return parseSwagger2(o)
   if (typeof o.openapi === 'string') return parseOpenAPI3(o)
   if (o.info && (o.paths || o.basePath)) return parseSwagger2(o)
   if (Array.isArray(o.item) && o.info && (o.info as Record<string, unknown>)?.schema) return parsePostman(o)
   if (Array.isArray(o.item)) return parsePostman(o)
-  // Apifox 导出的「接口文档」本质是 OpenAPI3，走同一解析。
   return null
+}
+
+/** 提取 Apifox「项目」导出中的 schema 定义表：{ "<id>": schema }。
+ *  Apifox 把 #/definitions/<id> 的真实定义放在 schemaCollection / responseCollection /
+ *  requestCollection / oasComponentCollection 的 items 里，且每个定义的 id 就是完整的
+ *  "#/definitions/<id>" 字符串。递归扫描这些集合（含嵌套目录），建立 id → jsonSchema 映射，
+ *  供 resolveRef（#/definitions/<id>）解析请求体 / 返回体引用时使用。 */
+function buildApifoxDefinitions(o: Record<string, unknown>): Record<string, unknown> {
+  const defs: Record<string, unknown> = {}
+  const scan = (node: unknown) => {
+    if (Array.isArray(node)) {
+      node.forEach(scan)
+      return
+    }
+    if (node && typeof node === 'object') {
+      const n = node as Record<string, unknown>
+      const id = n.id
+      if (typeof id === 'string' && id.startsWith('#/definitions/')) {
+        const key = id.slice('#/definitions/'.length)
+        const sch = (n.schema as Record<string, unknown> | undefined)?.jsonSchema ?? (n as Record<string, unknown>).jsonSchema ?? n.schema
+        if (sch) defs[key] = sch
+      }
+      for (const k of Object.keys(n)) scan(n[k])
+    }
+  }
+  for (const ckey of ['schemaCollection', 'responseCollection', 'requestCollection', 'oasComponentCollection']) {
+    scan(o[ckey])
+  }
+  return defs
+}
+
+/** 解析 Apifox「项目」导出（含 apiCollection 树、parameters、requestBody、responses、$ref 引用）。 */
+function parseApifox(o: Record<string, unknown>): ApiDoc {
+  const infoName = typeof o.info === 'object' && o.info ? String((o.info as Record<string, unknown>).name || '') : 'Apifox 导入'
+  // 构造合成 root：把 #/definitions/<id> 映射挂到 root.definitions，复用现有 resolveRef。
+  const root: Record<string, unknown> = Object.assign({}, o)
+  root.definitions = buildApifoxDefinitions(o)
+  const buckets = new Map<string, ApiEndpoint[]>()
+  const walk = (items: unknown[], folderName: string) => {
+    for (const it of items as Record<string, unknown>[]) {
+      if (it.api) {
+        const ep = parseApifoxApi(it, root)
+        bucketByTag(buckets, (it.api as Record<string, unknown>).tags, folderName || infoName, ep)
+      } else if (Array.isArray(it.items)) {
+        walk(it.items as unknown[], it.name ? String(it.name) : folderName)
+      }
+    }
+  }
+  walk((o.apiCollection as unknown[]) ?? [], '')
+  const src = infoName
+  const groups: ApiGroup[] = []
+  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items, import_source: src })
+  if (groups.length === 0) groups.push({ id: genId('g'), name: infoName, items: [], import_source: src })
+  return { version: 1, base_host: '', groups }
+}
+
+function parseApifoxApi(it: Record<string, unknown>, root: Record<string, unknown>): ApiEndpoint {
+  const api = (it.api as Record<string, unknown>) || {}
+  const method = String(api.method || 'GET').toUpperCase() as HttpMethod
+  const uri = String(api.path || '/')
+  const name = String(it.name || `${method} ${uri}`)
+  const description = String(api.description || '')
+  const params = (api.parameters as Record<string, unknown>) || {}
+  const headers: ApiKeyValue[] = Array.isArray(params.header) ? (params.header as Record<string, unknown>[]).map(apifoxParamKV) : []
+  const query: ApiKeyValue[] = [
+    ...(Array.isArray(params.query) ? (params.query as Record<string, unknown>[]) : []),
+    ...(Array.isArray(params.path) ? (params.path as Record<string, unknown>[]) : []),
+  ].map(apifoxParamKV)
+  // 请求体
+  const rb = (api.requestBody as Record<string, unknown>) || {}
+  const rbType = String(rb.type || 'none')
+  let body = ''
+  let bodyType: ApiEndpoint['body_type'] = 'none'
+  let contentType = rbType && rbType !== 'none' ? rbType : 'application/json'
+  if (rbType && rbType !== 'none') {
+    const schema = rb.jsonSchema as Record<string, unknown> | undefined
+    if (rbType.includes('json')) {
+      bodyType = 'json'
+      body = schema ? schemaToSample(schema, root) : ''
+    } else if (rbType.includes('form') || rbType.includes('x-www-form-urlencoded')) {
+      bodyType = 'form'
+      const fps = Array.isArray(rb.parameters) ? (rb.parameters as Record<string, unknown>[]) : []
+      body = fps.map((f) => `${encodeURIComponent(String(f.name || ''))}=${encodeURIComponent(String(f.value ?? ''))}`).join('&')
+    } else {
+      bodyType = 'raw'
+    }
+  }
+  // 返回结果（取 200/201 或第一个）
+  const responses = Array.isArray(api.responses) ? (api.responses as Record<string, unknown>[]) : []
+  const okResp =
+    responses.find((r) => {
+      const code = Number(r.code ?? 0)
+      return code === 200 || code === 201
+    }) || responses[0]
+  let responseExample = ''
+  let responseFields: ApiField[] = []
+  if (okResp) {
+    const schema = okResp.jsonSchema as Record<string, unknown> | undefined
+    if (schema) {
+      responseExample = schemaToSample(schema, root)
+      responseFields = schemaToFields(schema, '', [], root)
+    }
+  }
+  return {
+    id: genId('e'),
+    name,
+    method,
+    uri,
+    content_type: contentType,
+    headers,
+    params: query,
+    body_type: bodyType,
+    body,
+    description,
+    response_example: responseExample,
+    response_fields: responseFields,
+  }
+}
+
+function apifoxParamKV(p: Record<string, unknown>): ApiKeyValue {
+  const sch = (p.schema as Record<string, unknown> | undefined) ?? p
+  return {
+    key: String(p.name ?? ''),
+    value: String(p.example ?? p.default ?? ''),
+    enabled: p.enable !== false,
+    description: String(p.description ?? ''),
+    type: String(p.type ?? sch.type ?? ''),
+  }
 }
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
@@ -465,7 +596,14 @@ function schemaToSample(schema: unknown, root: Record<string, unknown>): string 
 
 function sampleFromSchema(s: Record<string, unknown>, root: Record<string, unknown>): unknown {
   const node = derefSchema(s, root) as Record<string, unknown>
-  switch (node.type) {
+  // 有 properties 即视为对象（Apifox 部分 schema 省略 type:object），优先按对象采样。
+  if (node && typeof node === 'object' && !Array.isArray(node) && node.properties) {
+    const out: Record<string, unknown> = {}
+    const props = (node.properties as Record<string, Record<string, unknown>>) || {}
+    for (const [k, v] of Object.entries(props)) out[k] = sampleFromSchema(v as Record<string, unknown>, root)
+    return out
+  }
+  switch (node?.type) {
     case 'object': {
       const out: Record<string, unknown> = {}
       const props = (node.properties as Record<string, Record<string, unknown>>) || {}
@@ -482,7 +620,7 @@ function sampleFromSchema(s: Record<string, unknown>, root: Record<string, unkno
     case 'boolean':
       return (node.example as boolean) ?? false
     default:
-      return (node.example as unknown) ?? null
+      return (node?.example as unknown) ?? null
   }
 }
 
@@ -545,7 +683,7 @@ export function schemaToFields(
     for (const [k, v] of Object.entries(props)) {
       const vv = derefSchema(v, root) as Record<string, unknown>
       const name = prefix ? `${prefix}.${k}` : k
-      const t = (vv.type as string) || (vv.$ref ? 'object' : 'any')
+      const t = (vv.type as string) || (vv.$ref ? 'object' : vv.properties ? 'object' : vv.items ? 'array' : 'any')
       const vReq = Array.isArray(vv.required) ? (vv.required as string[]) : req
       out.push({
         name,
