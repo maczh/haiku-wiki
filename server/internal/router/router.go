@@ -75,11 +75,15 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)
 			docs.POST("/restore", handler.RestoreDoc)
 			docs.DELETE("/purge", handler.PurgeDoc)
-			// 文档级分享管理
-			docs.GET("/share", handler.GetDocShare)
-			docs.PUT("/share", handler.UpsertDocShare)
-			docs.DELETE("/share", handler.RevokeDocShare)
-		}
+		// 文档级分享管理
+		docs.GET("/share", handler.GetDocShare)
+		docs.PUT("/share", handler.UpsertDocShare)
+		docs.DELETE("/share", handler.RevokeDocShare)
+		// 接口文档调试历史（按文档 + endpoint + 用户隔离，最近 10 条）
+		docs.GET("/api-debug-history", handler.ListApiDebugHistory)
+		docs.POST("/api-debug-history", handler.SaveApiDebugHistory)
+		docs.DELETE("/api-debug-history", handler.DeleteApiDebugHistory)
+	}
 
 		// 上传 / 回收站 / 导出
 		jwt.POST("/uploads", handler.Upload)

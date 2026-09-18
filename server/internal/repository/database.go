@@ -87,6 +87,8 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.DocCollaborator{},
 		// 公司知识库写授权表
 		&model.BookWriter{},
+		// 接口文档调试历史
+		&model.ApiDebugHistory{},
 	)
 }
 

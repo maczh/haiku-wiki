@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Checkbox,
+  Collapse,
   Divider,
   Drawer,
   Dropdown,
@@ -68,6 +69,15 @@ interface Props {
   /** 只读（阅读模式）：文档结构字段禁用、隐藏保存/导入；
    *  但「请求头 / 请求参数 / 请求体」这些调试输入仍可编辑（读者需填入自己的测试值来调试）。 */
   readOnly?: boolean
+}
+
+/** 浏览器直接发起调试的返回结构（与原 proxyRequest 输出兼容）。 */
+interface DebugResponse {
+  status: number
+  status_text: string
+  duration_ms: number
+  headers: Record<string, string>
+  body: string
 }
 
 const SAVE_DEBOUNCE_MS = 2500
@@ -230,11 +240,11 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
 /**
  * 接口文档编辑器（仿 Apifox）：
  *  - 左栏：分组 / 接口树（可新建分组、新建/删除接口）
- *  - 右栏：选中接口的配置（方法/名称/baseHost/uri/Content-Type/请求头/请求参数/请求体）
- *  - 「调试」经服务端 /api/proxy 转发（绕开 CORS + SSRF 防护），返回结果在「返回结果」页
+ *  - 右栏：选中接口的配置（方法/名称/描述/baseHost/uri/Content-Type/请求头/请求参数/请求体）
+ *  - 「调试」由浏览器直接发起 fetch（不走服务端代理），返回结果保存到后端调试历史
  *  - 「导入」支持 Swagger2 / OpenAPI3 / Apifox / Postman 文件，或从 URL 在线导入
  *  - 内容 2.5s 防抖自动保存（patchDoc）；只读模式下文档结构字段禁用、隐藏保存/导入，
- *    但请求头 / 请求参数 / 请求体仍可编辑（读者可填入测试值经代理调试）。
+ *    但 Host / 请求头 / 请求参数 / 请求体仍可编辑（读者可填入测试值直接调试）。
  */
 export default function ApiEditor({ docId, initialContent, title, readOnly }: Props) {
   const [doc, setDoc] = useState<ApiDoc>(() => normalizeApiDoc(initialContent))
@@ -244,7 +254,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
   const [selEp, setSelEp] = useState<string | null>(null)
   const [tab, setTab] = useState('headers')
   const [status, setStatus] = useState<SaveStatus>('saved')
-  const [debug, setDebug] = useState<null | Awaited<ReturnType<typeof proxyRequest>>>(null)
+  const [debug, setDebug] = useState<null | DebugResponse>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [urlOpen, setUrlOpen] = useState(false)
@@ -254,6 +264,9 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
   // 调试历史抽屉
   const [historyOpen, setHistoryOpen] = useState(false)
   const [history, setHistory] = useState<DebugHistoryRecord[]>([])
+
+  // 返回结果示例/字段表折叠：有调试结果返回时自动折叠
+  const [exampleOpen, setExampleOpen] = useState(true)
 
   // 接口右键：重命名 / 移动分组
   const [renameEp, setRenameEp] = useState<{ groupId: string; epId: string; name: string } | null>(null)
@@ -279,6 +292,11 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
     setSelGroup(firstG?.id ?? null)
     setSelEp(firstEp?.id ?? null)
   }, [doc, selGroup, selEp])
+
+  /** 调试结果返回时自动折叠「返回结果示例/字段表」 */
+  useEffect(() => {
+    if (debug) setExampleOpen(false)
+  }, [debug])
 
   const current = useMemo(() => {
     const group = doc.groups.find((g) => g.id === selGroup)
@@ -510,8 +528,9 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
   )
 
   /** 刷新当前接口的调试历史列表（打开抽屉时调用） */
-  const refreshHistory = useCallback(() => {
-    if (current) setHistory(loadHistory(docId, current.ep.id))
+  const refreshHistory = useCallback(async () => {
+    if (!current) return
+    setHistory(await loadHistory(docId, current.ep.id))
   }, [current, docId])
 
   /** 从历史记录回填请求头 / 参数 / 请求体到当前接口 */
@@ -531,9 +550,9 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
 
   /** 按索引删除一条历史记录 */
   const removeHistory = useCallback(
-    (index: number) => {
+    async (index: number) => {
       if (!current) return
-      setHistory(deleteHistoryByIndex(docId, current.ep.id, index))
+      setHistory(await deleteHistoryByIndex(docId, current.ep.id, index))
     },
     [current, docId],
   )
@@ -555,6 +574,42 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
 
   // ---------- 在线调试 ----------
 
+  /** 浏览器直接发起调试请求（不再经服务端代理）。 */
+  async function browserFetchDebug(input: {
+    method: string
+    url: string
+    headers: Record<string, string>
+    body?: string
+  }): Promise<DebugResponse> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20000)
+    const start = Date.now()
+    try {
+      const res = await fetch(input.url, {
+        method: input.method,
+        headers: input.headers,
+        body: input.body,
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      const headers: Record<string, string> = {}
+      res.headers.forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
+      const body = await res.text()
+      return {
+        status: res.status,
+        status_text: res.statusText,
+        duration_ms: Date.now() - start,
+        headers,
+        body,
+      }
+    } catch (e) {
+      clearTimeout(timer)
+      throw e
+    }
+  }
+
   async function runDebug() {
     if (!current) return
     const ep = current.ep
@@ -564,7 +619,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
       url = base.replace(/\/$/, '') + (url.startsWith('/') ? url : `/${url}`)
     }
     if (!/^https?:\/\//i.test(url)) {
-      message.warning('请先填写有效的 baseHost 或完整 URI（含 http(s)://）')
+      message.warning('请先填写有效的 Host 或完整 URI（含 http(s)://）')
       return
     }
     const headers: Record<string, string> = {}
@@ -593,30 +648,45 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
         headers['Content-Type'] = ep.content_type || (ep.body_type === 'json' ? 'application/json' : 'text/plain')
       }
     }
-    // 记录调试历史（时间 / 接口 / 请求头 / 请求参数 / 请求体），同一接口保留最近 10 条
-    setHistory(
-      saveHistory(docId, ep.id, {
-        time: Date.now(),
-        method: ep.method,
-        uri: ep.uri,
-        base_host: ep.base_host,
-        headers: ep.headers,
-        params: ep.params,
-        body_type: ep.body_type,
-        body: ep.body,
-      }),
-    )
     setDebugLoading(true)
     setDebug(null)
     setTab('result')
+    let response: DebugResponse | undefined
     try {
-      const res = await proxyRequest({ method: ep.method, url, headers, body })
-      setDebug(res)
+      response = await browserFetchDebug({ method: ep.method, url, headers, body })
+      setDebug(response)
     } catch (e) {
-      message.error((e as Error)?.message || '调试请求失败')
-    } finally {
+      const msg = (e as Error)?.message || '调试请求失败'
+      message.error(msg)
       setDebugLoading(false)
+      return
     }
+    // 返回结果后把请求历史保存到后端（同一接口保留最近 10 条）
+    const rec: DebugHistoryRecord = {
+      time: Date.now(),
+      method: ep.method,
+      uri: ep.uri,
+      base_host: ep.base_host,
+      headers: ep.headers,
+      params: ep.params,
+      body_type: ep.body_type,
+      body: ep.body,
+    }
+    if (response) {
+      rec.response = {
+        status: response.status,
+        status_text: response.status_text,
+        duration_ms: response.duration_ms,
+        headers: response.headers,
+        body: response.body.slice(0, 20000),
+      }
+    }
+    try {
+      setHistory(await saveHistory(docId, ep.id, rec))
+    } catch {
+      /* 历史保存失败不阻断调试结果展示 */
+    }
+    setDebugLoading(false)
   }
 
   // ---------- 导入 ----------
@@ -952,13 +1022,6 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     options={METHOD_OPTIONS}
                     style={{ width: 110 }}
                   />
-                  <Input
-                    value={current.ep.name}
-                    disabled={readOnly}
-                    onChange={(e) => patchEndpoint({ name: e.target.value })}
-                    placeholder="接口名称"
-                    style={{ width: 240 }}
-                  />
                   {readOnly ? (
                     <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <code
@@ -992,14 +1055,13 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                   ) : (
                     <Input
                       value={current.ep.uri}
-                      disabled={readOnly}
                       onChange={(e) => patchEndpoint({ uri: e.target.value })}
                       placeholder="/path/to/api"
                       style={{ flex: 1, minWidth: 0 }}
                       addonBefore="URI"
                     />
                   )}
-                  <Tooltip title="在线调试（经服务端代理转发）">
+                  <Tooltip title="在线调试（浏览器直接发起）">
                     <Button type="primary" icon={<ThunderboltOutlined />} loading={debugLoading} onClick={() => void runDebug()}>
                       调试
                     </Button>
@@ -1009,7 +1071,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                       icon={<HistoryOutlined />}
                       onClick={() => {
                         setHistoryOpen(true)
-                        refreshHistory()
+                        void refreshHistory()
                       }}
                     >
                       历史
@@ -1032,13 +1094,12 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     />
                   </Tooltip>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <Input
                     value={current.ep.base_host}
-                    disabled={readOnly}
                     onChange={(e) => patchEndpoint({ base_host: e.target.value })}
-                    placeholder="本接口 Base Host（留空则用全局）"
-                    style={{ width: 320 }}
+                    placeholder="本接口 Host（留空使用全局）"
+                    style={{ flex: 1, minWidth: 0 }}
                     addonBefore="Host"
                   />
                   <Select
@@ -1055,6 +1116,36 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                     style={{ width: 260 }}
                     showSearch
                   />
+                </div>
+                <div>
+                  {readOnly ? (
+                    <>
+                      <Typography.Title level={2} style={{ margin: 0, fontSize: 20 }}>
+                        {current.ep.name}
+                      </Typography.Title>
+                      {current.ep.description && (
+                        <Typography.Paragraph type="secondary" style={{ margin: '4px 0 0' }}>
+                          {current.ep.description}
+                        </Typography.Paragraph>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <Input
+                        value={current.ep.name}
+                        onChange={(e) => patchEndpoint({ name: e.target.value })}
+                        placeholder="接口名称"
+                        style={{ width: 260, fontSize: 18, fontWeight: 600 }}
+                      />
+                      <Input.TextArea
+                        value={current.ep.description}
+                        onChange={(e) => patchEndpoint({ description: e.target.value })}
+                        placeholder="接口描述"
+                        autoSize={{ minRows: 1, maxRows: 3 }}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1158,33 +1249,6 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                       label: '返回结果',
                       children: (
                         <div>
-                          {respPretty && (
-                            <div style={{ marginBottom: 16 }}>
-                              <Divider orientation="left" plain style={{ margin: '4px 0 8px' }}>
-                                返回结果示例（文档说明）
-                              </Divider>
-                              <pre
-                                style={{
-                                  background: '#f7f8fa',
-                                  padding: 12,
-                                  borderRadius: 6,
-                                  fontSize: 13,
-                                  overflow: 'auto',
-                                  maxHeight: 360,
-                                  fontFamily: 'monospace',
-                                }}
-                              >
-                                {respPretty}
-                              </pre>
-                              <FieldTable
-                                fields={
-                                  current.ep.response_fields && current.ep.response_fields.length
-                                    ? current.ep.response_fields
-                                    : jsonToFields(current.ep.response_example || '')
-                                }
-                              />
-                            </div>
-                          )}
                           {debugLoading ? (
                             <div style={{ textAlign: 'center', padding: 40 }}>
                               <Spin /> <span style={{ marginLeft: 8, color: '#8a919f' }}>请求中…</span>
@@ -1192,7 +1256,7 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                           ) : !debug ? (
                             <Empty description="点击「调试」发送请求以查看返回结果" style={{ marginTop: 40 }} />
                           ) : (
-                            <div>
+                            <div style={{ marginBottom: 16 }}>
                               <Space style={{ marginBottom: 10 }} wrap>
                                 <Tag color={statusColor(debug.status)} style={{ fontSize: 13 }}>
                                   {debug.status} {debug.status_text}
@@ -1240,6 +1304,35 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                                 {prettyBody}
                               </pre>
                             </div>
+                          )}
+                          {respPretty && (
+                            <Collapse
+                              activeKey={exampleOpen ? ['example'] : []}
+                              onChange={(keys) => setExampleOpen((keys as string[]).includes('example'))}
+                            >
+                              <Collapse.Panel header="返回结果示例（文档说明）" key="example">
+                                <pre
+                                  style={{
+                                    background: '#f7f8fa',
+                                    padding: 12,
+                                    borderRadius: 6,
+                                    fontSize: 13,
+                                    overflow: 'auto',
+                                    maxHeight: 360,
+                                    fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {respPretty}
+                                </pre>
+                                <FieldTable
+                                  fields={
+                                    current.ep.response_fields && current.ep.response_fields.length
+                                      ? current.ep.response_fields
+                                      : jsonToFields(current.ep.response_example || '')
+                                  }
+                                />
+                              </Collapse.Panel>
+                            </Collapse>
                           )}
                         </div>
                       ),
