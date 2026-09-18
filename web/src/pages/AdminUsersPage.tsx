@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Card, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd'
-import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { ReloadOutlined, SafetyCertificateOutlined, SafetyOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { listUsers, resetUserPassword, setUserStatus } from '../api/admin'
+import { listBooks } from '../api/books'
+import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
 import { useAuthStore } from '../stores/authStore'
 import type { AdminUser } from '../types'
 
@@ -27,6 +29,25 @@ export default function AdminUsersPage() {
   const [resetUser, setResetUser] = useState<AdminUser | null>(null)
   const [resetPwd, setResetPwd] = useState('')
   const [resetting, setResetting] = useState(false)
+
+  // 公司知识库写权限管理弹窗
+  const [kbBookId, setKbBookId] = useState<number | null>(null)
+  const [kbOpen, setKbOpen] = useState(false)
+
+  async function openKbWriters() {
+    try {
+      const shelf = await listBooks()
+      const kb = [...shelf.mine, ...shelf.visible, ...shelf.teams].find((b) => b.is_company_kb)
+      if (!kb) {
+        message.info('尚未创建公司知识库')
+        return
+      }
+      setKbBookId(kb.id)
+      setKbOpen(true)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -174,6 +195,9 @@ export default function AdminUsersPage() {
           style={{ width: 280 }}
           onChange={(e) => setKeyword(e.target.value)}
         />
+        <Button icon={<SafetyOutlined />} onClick={() => void openKbWriters()}>
+          公司知识库写权限
+        </Button>
         <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>
           刷新
         </Button>
@@ -223,6 +247,13 @@ export default function AdminUsersPage() {
           onChange={(e) => setResetPwd(e.target.value)}
         />
       </Modal>
+
+      <CompanyKBWritersModal
+        open={kbOpen}
+        onClose={() => setKbOpen(false)}
+        bookId={kbBookId ?? 0}
+        bookName="公司知识库"
+      />
     </div>
   )
 }

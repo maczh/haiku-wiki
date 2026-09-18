@@ -98,6 +98,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.GET("/fetch-title", handler.FetchTitle)
 		// URL 抓取导入（SSRF 防护，转为 Markdown 文档）
 		jwt.POST("/import/url", handler.ImportURL)
+		// 接口文档「在线调试」服务端代理转发（SSRF 防护，CORS 绕行）
+		jwt.POST("/proxy", handler.ProxyRequest)
 
 		// 管理员用户管理（仅 admin）
 		admin := jwt.Group("/admin", middleware.RequireAdmin())
@@ -105,6 +107,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.GET("/users", handler.ListUsers)
 			admin.PATCH("/users/:id/status", handler.SetUserStatus)
 			admin.PATCH("/users/:id/reset-password", handler.ResetUserPassword)
+			// 公司知识库写权限授权（仅管理员）：列出 / 授予 / 撤销
+			admin.GET("/books/:id/writers", handler.ListBookWriters)
+			admin.POST("/books/:id/writers", handler.AddBookWriter)
+			admin.DELETE("/books/:id/writers/:uid", handler.RemoveBookWriter)
 		}
 
 		// 团队管理

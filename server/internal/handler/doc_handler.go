@@ -31,7 +31,7 @@ type createDocReq struct {
 // calendar：工作日历，正文 {version,tasks:[…]}，可导出 xlsx/ics。
 var validDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
-	"file": true, "drawing": true, "todo": true, "calendar": true,
+	"file": true, "drawing": true, "todo": true, "calendar": true, "api": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。

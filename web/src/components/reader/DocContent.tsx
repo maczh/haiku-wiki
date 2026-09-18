@@ -14,6 +14,7 @@ const FileView = lazy(() => import('./FileView'))
 const DrawioView = lazy(() => import('./DrawioView'))
 const TodoView = lazy(() => import('./TodoView'))
 const CalendarView = lazy(() => import('./CalendarView'))
+const ApiView = lazy(() => import('./ApiView'))
 
 interface Props {
   docType: DocType
@@ -36,6 +37,7 @@ const TIP: Record<string, string> = {
   drawing: '正在加载绘图…',
   todo: '正在加载待办清单…',
   calendar: '正在加载工作日历…',
+  api: '正在加载接口文档…',
   file: '正在加载附件预览器…',
 }
 
@@ -104,6 +106,12 @@ export default function DocContent({
     body = (
       <LazyBoundary tip={TIP.file}>
         <FileView content={content} bookId={bookId} onDocCreated={onDocCreated} />
+      </LazyBoundary>
+    )
+  } else if (docType === 'api') {
+    body = (
+      <LazyBoundary tip={TIP.api}>
+        <ApiView content={content} />
       </LazyBoundary>
     )
   } else {

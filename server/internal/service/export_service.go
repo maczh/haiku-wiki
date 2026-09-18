@@ -40,7 +40,11 @@ func ContentDisposition(filename string) string {
 
 // canReadBook 读权限：public 任何人；members 登录用户；private 仅 owner；
 // 团队文库（team_id 非空）团队任意成员可读（与写一致，团队内完全协作）。
+// 公司知识库（is_company_kb）对所有登录用户只读。
 func canReadBook(book *model.Book, uid uint64) bool {
+	if book.IsCompanyKB {
+		return uid > 0
+	}
 	switch book.Visibility {
 	case "public":
 		return true

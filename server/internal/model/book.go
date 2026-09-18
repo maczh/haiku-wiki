@@ -15,6 +15,11 @@ type Book struct {
 	Visibility  string    `gorm:"size:16;default:private" json:"visibility"` // private|members|public
 	ShareSlug   *string   `gorm:"size:32;uniqueIndex" json:"share_slug"`     // 仅 public 时有值
 	TeamID      *uint64   `gorm:"index" json:"team_id"`                      // 团队文库归属（nil=个人库）
+	// IsCompanyKB 标记「公司知识库」：系统启动种子自动创建且唯一。
+	// 所有登录用户自动获得只读权限；写权限仅管理员与经授权的用户（book_writers）可拥有。
+	IsCompanyKB bool `gorm:"index;default:false" json:"is_company_kb"`
+	// CanWrite 由后端按当前用户实时计算（含公司知识库写授权），不落库。
+	CanWrite bool `gorm:"-" json:"can_write,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

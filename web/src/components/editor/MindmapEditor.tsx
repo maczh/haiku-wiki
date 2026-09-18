@@ -61,6 +61,8 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const dirtyRef = useRef(false)
   const titleRef = useRef(title)
   const baseThemeRef = useRef<Record<string, unknown>>({})
+  /** 当前生效主题快照（simple-mind-map 的 opt.theme），随节点树一起持久化 */
+  const themeRef = useRef<Record<string, unknown> | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   const [status, setStatus] = useState<SaveStatus>('editing')
@@ -146,6 +148,19 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       } catch {
         baseThemeRef.current = {}
       }
+      // 还原持久化的主题（v2.1+）：把存储的 theme 快照整体应用回画布实例，
+      // 使主题/全局样式（布局、连线、字体、背景…）在重载后保持用户修改后的样子，
+      // 而不是每次都被默认主题覆盖（#31 修复点）。
+      if (data.theme && typeof data.theme === 'object') {
+        try {
+          mm.setTheme(data.theme as never)
+          themeRef.current = data.theme as Record<string, unknown>
+        } catch {
+          themeRef.current = null
+        }
+      } else {
+        themeRef.current = null
+      }
       setReady(true)
 
       mm.on('data_change', (d: SmmNode) => {
@@ -161,6 +176,11 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       mm.on('scale', (s: number) => setScale(s))
       mm.on('painter_start', () => setBrushing(true))
       mm.on('painter_end', () => setBrushing(false))
+      // 主题/全局样式变更（侧栏「主题」面板 setTheme 触发）：快照最新主题并防抖保存
+      mm.on('view_theme_change', (t: unknown) => {
+        themeRef.current = t && typeof t === 'object' ? (t as Record<string, unknown>) : themeRef.current
+        scheduleSave()
+      })
     }
     create()
 
@@ -170,7 +190,9 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
       if (dirtyRef.current && latestRef.current) {
-        void patchDoc(docId, { content: stringifyMindmap(latestRef.current), source: 'auto' }).catch(() => undefined)
+        void patchDoc(docId, { content: stringifyMindmap(latestRef.current, themeRef.current ?? undefined), source: 'auto' }).catch(
+          () => undefined,
+        )
         dirtyRef.current = false
       }
       mindMapRef.current = null
@@ -248,13 +270,19 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     return () => clearTimeout(t)
   }, [fullscreen])
 
+  /** 防抖自动保存（节点编辑 / 主题变更共用） */
+  function scheduleSave() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+  }
+
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
     const root = latestRef.current
     if (!root) return
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyMindmap(root), source })
+      await patchDoc(docId, { content: stringifyMindmap(root, themeRef.current ?? undefined), source })
       dirtyRef.current = false
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)

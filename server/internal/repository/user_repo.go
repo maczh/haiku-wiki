@@ -94,3 +94,15 @@ func CountAdmins() (int64, error) {
 	err := db.Model(&model.User{}).Where("role = 'admin'").Count(&n).Error
 	return n, err
 }
+
+// IsAdmin 判断用户是否为管理员（供公司知识库写权限等场景复用）。
+func IsAdmin(uid uint64) bool {
+	if uid == 0 {
+		return false
+	}
+	var n int64
+	if err := db.Model(&model.User{}).Where("id = ? AND role = 'admin'", uid).Count(&n).Error; err != nil {
+		return false
+	}
+	return n > 0
+}

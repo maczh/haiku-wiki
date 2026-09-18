@@ -14,6 +14,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ReadOutlined,
+  SafetyOutlined,
   ShareAltOutlined,
   TeamOutlined,
   UnorderedListOutlined,
@@ -27,6 +28,7 @@ import DocShareDrawer from '../components/share/DocShareDrawer'
 import WeChatShareModal from '../components/share/WeChatShareModal'
 import ExportDialog, { type ExportTarget } from '../components/export/ExportDialog'
 import CollaboratorModal from '../components/collab/CollaboratorModal'
+import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
 import { getBook, setBookVisibility, updateBook, deleteBook } from '../api/books'
 import { getDoc } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
@@ -43,6 +45,7 @@ const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
 const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
 const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
+const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
 
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
 
@@ -111,6 +114,9 @@ export default function BookPage() {
   /** 「分享到微信」弹窗（所有文档通用入口） */
   const [weChatOpen, setWeChatOpen] = useState(false)
   const contentKeyRef = useRef(0)
+  // 公司知识库写权限管理（仅管理员可见）
+  const isAdmin = user?.role === 'admin'
+  const [writersOpen, setWritersOpen] = useState(false)
 
   // 左栏（文档库）：可折叠 + 可拖拽调宽（持久化）
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readLS(LS_SIDEBAR_COLLAPSED) === '1')
@@ -224,8 +230,10 @@ export default function BookPage() {
   }
 
   const isOwner = !!user && book?.owner_id === user.id
-  // 写权限：owner 恒可写；members 库所有登录用户可写；public 仅 owner
-  const canWrite = !!user && (isOwner || book?.visibility === 'members')
+  // 写权限：owner 恒可写；members 库所有登录用户可写；公司知识库以后端实时计算的
+  // can_write 为准（管理员 + 被授权用户可写，其余全员只读）；普通库 can_write 同样可信，
+  // 此处以 OR 兜底，兼容旧服务端未下发该字段的情况。
+  const canWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
   // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
@@ -452,6 +460,13 @@ export default function BookPage() {
                 </Button>
               </Tooltip>
             )}
+            {book?.is_company_kb && isAdmin && (
+              <Tooltip title="管理公司知识库的写权限授权">
+                <Button size="small" icon={<SafetyOutlined />} onClick={() => setWritersOpen(true)}>
+                  管理写权限
+                </Button>
+              </Tooltip>
+            )}
             {docIdParam && doc && !docLoading && (
               <Tooltip title="分享到微信 / 生成免登录阅读链接">
                 <Button size="small" icon={<ShareAltOutlined />} onClick={() => setWeChatOpen(true)}>
@@ -517,6 +532,9 @@ export default function BookPage() {
                         )}
                         {doc.doc_type === 'calendar' && (
                           <CalendarEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'api' && (
+                          <ApiEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                       </LazyBoundary>
                     )}
@@ -687,6 +705,19 @@ export default function BookPage() {
           placeholder="知识库名称"
         />
       </Modal>
+
+      {/* 公司知识库写权限管理（仅管理员）：授权后刷新本库 can_write，使编辑按钮即时生效 */}
+      <CompanyKBWritersModal
+        open={writersOpen}
+        onClose={() => {
+          setWritersOpen(false)
+          void getBook(bookID)
+            .then(setBook)
+            .catch(() => undefined)
+        }}
+        bookId={bookID}
+        bookName={book?.name}
+      />
     </div>
   )
 }

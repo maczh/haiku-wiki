@@ -5,6 +5,7 @@ import (
 
 	"haiku-wiki/server/internal/middleware"
 	"haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/service"
 )
 
 type bookReq struct {
@@ -41,8 +42,11 @@ func CreateBook(c *gin.Context) {
 }
 
 // GetBook GET /api/books/:id（BookAccess 中间件已完成读取鉴权）。
+// 返回时附带当前用户的写权限（含公司知识库授权），供前端决定编辑入口。
 func GetBook(c *gin.Context) {
-	resp.OK(c, middleware.BookFromCtx(c))
+	book := middleware.BookFromCtx(c)
+	book.CanWrite = service.CanWriteBook(book, middleware.UID(c))
+	resp.OK(c, book)
 }
 
 // UpdateBook PUT /api/books/:id（仅 owner：BookAccess write 已拦截）。

@@ -7,6 +7,7 @@
 
 import {
   ApartmentOutlined,
+  ApiOutlined,
   AudioOutlined,
   BorderOuterOutlined,
   CalendarOutlined,
@@ -153,6 +154,8 @@ export function iconForDocType(docType: DocType, name?: string): IconSpec {
       return { icon: <CheckSquareOutlined />, color: '#52c41a' }
     case 'calendar':
       return { icon: <CalendarOutlined />, color: '#1677ff' }
+    case 'api':
+      return { icon: <ApiOutlined />, color: '#13c2c2' }
     case 'file':
       return iconForAttachment(name ?? '')
     default:

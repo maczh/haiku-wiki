@@ -30,6 +30,10 @@ export interface Book {
   share_slug: string | null
   /** 团队文库归属（nil=个人库） */
   team_id: number | null
+  /** 公司知识库标记：系统自动创建，全员只读，管理员可授权写权限 */
+  is_company_kb?: boolean
+  /** 当前用户是否可写（后端按权限实时计算，含公司知识库授权） */
+  can_write?: boolean
   created_at: string
   updated_at: string
 }
@@ -141,11 +145,11 @@ export const COVER_COLORS = [
 
 // ---------- 增量：多文档类型 ----------
 
-export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'todo' | 'calendar' | 'file'
+export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'todo' | 'calendar' | 'api' | 'file'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。 */
-export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar']
+export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar', 'api']
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
@@ -155,6 +159,7 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   drawing: '绘图',
   todo: '待办清单',
   calendar: '工作日历',
+  api: '接口',
   file: '附件',
 }
 
@@ -306,4 +311,17 @@ export interface DocCollaborator {
 export interface ImportUrlResult {
   doc_id: number
   title: string
+}
+
+// ---------- 公司知识库写权限授权 ----------
+
+/** 公司知识库写权限授权用户视图（GET /api/admin/books/:id/writers） */
+export interface BookWriterView {
+  book_id: number
+  user_id: number
+  created_at: string
+  username: string
+  name: string
+  email: string
+  nickname: string
 }

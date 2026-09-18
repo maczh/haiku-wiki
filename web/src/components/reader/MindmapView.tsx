@@ -25,6 +25,14 @@ export default function MindmapView({ content }: Props) {
       layout: 'logicalStructure',
       initRootNodePosition: ['center', 'center'],
     })
+    // 只读也还原持久化的主题（#31）：保持与编辑态一致的视觉样式
+    if (data.theme && typeof data.theme === 'object') {
+      try {
+        mm.setTheme(data.theme as never)
+      } catch {
+        /* 主题格式异常时忽略，按默认渲染 */
+      }
+    }
     const onRenderEnd = () => mm.view.fit()
     mm.on('node_tree_render_end', onRenderEnd)
 

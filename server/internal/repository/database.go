@@ -85,6 +85,8 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.Team{},
 		&model.TeamMember{},
 		&model.DocCollaborator{},
+		// 公司知识库写授权表
+		&model.BookWriter{},
 	)
 }
 
@@ -134,6 +136,11 @@ func SeedData(g *gorm.DB) error {
 	}
 	if err := g.Create(admin).Error; err != nil {
 		return fmt.Errorf("create admin: %w", err)
+	}
+
+	// 系统自动创建「公司知识库」（全员只读，管理员可授权协作编辑）
+	if err := EnsureCompanyKB(); err != nil {
+		return fmt.Errorf("auto create company kb: %w", err)
 	}
 	return nil
 }

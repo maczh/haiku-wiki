@@ -54,6 +54,11 @@ var formatsByDocType = map[string][]FormatSpec{
 		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
 		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
 	},
+	// api：接口文档（Apifox 风格）。正文为接口集合 JSON，可导出的纯数据（json）或可读文档（md）。
+	"api": {
+		{Value: "md", Label: "接口文档（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
+		{Value: "json", Label: "接口数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+	},
 	// drawing：内嵌 draw.io 编辑器，正文即 mxGraph XML。
 	// 注意：svg/png/vsdx 由前端内嵌的 draw.io 渲染导出（mxGraph 渲染器只在浏览器侧），
 	// 后端能独立完成的是 drawio(xml) 本身 —— 见 Convert 的分支说明。
@@ -110,6 +115,8 @@ func NormalizeDocType(docType string) string {
 		return "todo"
 	case "calendar", "workcalendar":
 		return "calendar"
+	case "api":
+		return "api"
 	case "file":
 		return "file"
 	default:
@@ -256,6 +263,14 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 			return data, spec, err
 		case "ics":
 			data, err := BuildCalendarICS(content, title)
+			return data, spec, err
+		case "json":
+			return []byte(content), spec, nil
+		}
+	case "api":
+		switch spec.Value {
+		case "md":
+			data, err := BuildApiDocMD(content, title)
 			return data, spec, err
 		case "json":
 			return []byte(content), spec, nil

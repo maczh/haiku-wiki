@@ -29,13 +29,13 @@ func BookAccess(read bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 		if err != nil || id == 0 {
-			resp.Error(c, hkerr.Param("无效的知识库 ID"))
+			resp.Error(c, resp.Param("无效的知识库 ID"))
 			c.Abort()
 			return
 		}
 		book, err := repository.FindBookByID(id)
 		if err != nil {
-			resp.Error(c, hkerr.NotFound("知识库不存在"))
+			resp.Error(c, resp.NotFound("知识库不存在"))
 			c.Abort()
 			return
 		}
@@ -46,7 +46,7 @@ func BookAccess(read bool) gin.HandlerFunc {
 			ok = service.CanWriteBook(book, uid)
 		}
 		if !ok {
-			resp.Error(c, hkerr.Forbidden())
+			resp.Error(c, resp.Forbidden())
 			c.Abort()
 			return
 		}

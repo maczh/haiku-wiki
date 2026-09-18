@@ -50,7 +50,18 @@ func (s *BookService) List(userID uint64) (*BookshelfOutput, error) {
 	if err != nil {
 		return nil, hkerr.Internal("查询失败")
 	}
+	// 实时计算当前用户对每本书的写权限（含公司知识库授权），随书架返回。
+	attachCanWriteBooks(mine, userID)
+	attachCanWriteBooks(visible, userID)
+	attachCanWriteBooks(teams, userID)
 	return &BookshelfOutput{Mine: mine, Visible: visible, Teams: teams}, nil
+}
+
+// attachCanWriteBooks 为书架列表项批量填充 CanWrite（book_writers 授权命中时）。
+func attachCanWriteBooks(books []model.BookWithCount, uid uint64) {
+	for i := range books {
+		books[i].CanWrite = CanWriteBook(&books[i].Book, uid)
+	}
 }
 
 // Create 创建知识库（默认封面色与私有可见性）。
@@ -103,6 +114,81 @@ func (s *BookService) CreateTeamLibrary(teamID, ownerID uint64, name string) (*m
 		return nil, hkerr.Internal("创建团队文库失败")
 	}
 	return b, nil
+}
+
+// AutoCreateCompanyKB 系统启动种子：若不存在公司知识库则自动创建一个。
+// 公司知识库 owner_id=0（系统持有，不对应真实用户），visibility=private 仅作占位，
+// 实际读写权限由 canReadBook / canWriteDoc 的特殊分支控制（全员只读、管理员与授权用户可写）。
+// 该函数幂等，可重复调用。
+func (s *BookService) AutoCreateCompanyKB() error {
+	n, err := repository.CountCompanyKBs()
+	if err != nil {
+		return hkerr.Internal("查询公司知识库失败")
+	}
+	if n > 0 {
+		return nil
+	}
+	b := &model.Book{
+		OwnerID:     0,
+		Name:        "公司知识库",
+		Description: "全员可读的公司公共知识库，管理员可授权成员协作编辑。",
+		CoverColor:  "#722ed1",
+		Visibility:  "private",
+		IsCompanyKB: true,
+	}
+	if err := repository.CreateBook(b); err != nil {
+		return hkerr.Internal("创建公司知识库失败")
+	}
+	return nil
+}
+
+// BookWriterService 公司知识库写权限授权业务（仅管理员操作）。
+type BookWriterService struct{}
+
+// Grant 授予用户某知识库的写权限（幂等）。
+func (s *BookWriterService) Grant(bookID, userID uint64) (*model.BookWriter, error) {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return nil, hkerr.NotFound("知识库不存在")
+	}
+	if !book.IsCompanyKB {
+		return nil, hkerr.Param("仅公司知识库支持写权限授权")
+	}
+	if _, err := repository.FindUserByID(userID); err != nil {
+		return nil, hkerr.NotFound("用户不存在")
+	}
+	bw := &model.BookWriter{BookID: bookID, UserID: userID}
+	if err := repository.CreateBookWriter(bw); err != nil {
+		return nil, hkerr.Internal("授权失败")
+	}
+	return bw, nil
+}
+
+// Revoke 撤销用户某知识库的写权限。
+func (s *BookWriterService) Revoke(bookID, userID uint64) error {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return hkerr.NotFound("知识库不存在")
+	}
+	if !book.IsCompanyKB {
+		return hkerr.Param("仅公司知识库支持写权限授权")
+	}
+	if err := repository.DeleteBookWriter(bookID, userID); err != nil {
+		return hkerr.Internal("撤销失败")
+	}
+	return nil
+}
+
+// ListWriters 列出某知识库的写授权用户（含用户展示信息）。
+func (s *BookWriterService) ListWriters(bookID uint64) ([]model.BookWriterView, error) {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return nil, hkerr.NotFound("知识库不存在")
+	}
+	if !book.IsCompanyKB {
+		return nil, hkerr.Param("仅公司知识库支持写权限授权")
+	}
+	return repository.ListBookWriters(bookID)
 }
 
 // Update 更新名称/简介/封面（仅 owner，路由层已拦截）。
@@ -198,8 +284,12 @@ func isDocCollaborator(docID, uid uint64) bool {
 
 // canWriteDoc 判定用户是否可写某文档（编辑/移动/删除）。
 // 规则：owner 恒可写；members 库所有登录用户可写；团队文库（team_id 非空）团队任意成员可写；
-// 文档协作者获得等价 owner 编辑权限。
+// 文档协作者获得等价 owner 编辑权限；公司知识库（is_company_kb）仅管理员与经授权的写用户可写。
 func canWriteDoc(book *model.Book, uid uint64) bool {
+	if book.IsCompanyKB {
+		// 公司知识库：所有登录用户只读，写权限限定为管理员与经授权的用户。
+		return uid > 0 && (repository.IsBookWriter(book.ID, uid) || repository.IsAdmin(uid))
+	}
 	return book.OwnerID == uid || (book.Visibility == "members" && uid > 0) || isTeamWriter(book, uid)
 }
 
