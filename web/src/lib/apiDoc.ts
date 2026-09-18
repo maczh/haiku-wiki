@@ -178,10 +178,27 @@ export function importApiSpec(text: string): ApiDoc | null {
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
 
+/** 按标签把接口归入对应分组：取第一个 tag 作为分组名，无 tag 时回退 fallback（info.title / 未分组）。 */
+function bucketByTag(
+  buckets: Map<string, ApiEndpoint[]>,
+  tags: unknown,
+  fallback: string,
+  ep: ApiEndpoint,
+) {
+  const arr = Array.isArray(tags) ? (tags as unknown[]) : []
+  const tag = arr.find((t) => typeof t === 'string' && String(t).trim()) as string | undefined
+  const name = tag ? String(tag).trim() : fallback
+  const list = buckets.get(name)
+  if (list) list.push(ep)
+  else buckets.set(name, [ep])
+}
+
 function parseSwagger2(o: Record<string, unknown>): ApiDoc {
   const paths = (o.paths as Record<string, Record<string, unknown>>) || {}
-  const groups: ApiGroup[] = []
-  const items: ApiEndpoint[] = []
+  const buckets = new Map<string, ApiEndpoint[]>()
+  const infoTitle =
+    typeof o.info === 'object' && o.info ? String((o.info as Record<string, unknown>).title || '') : ''
+  const fallback = infoTitle || '未分组'
   for (const [path, ops] of Object.entries(paths)) {
     for (const [m, opRaw] of Object.entries(ops)) {
       const method = m.toUpperCase() as HttpMethod
@@ -206,7 +223,7 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
       const consumes = Array.isArray(op.consumes) ? (op.consumes as string[]) : (Array.isArray(o.consumes) ? (o.consumes as string[]) : [])
       const contentType = consumes[0] || 'application/json'
       const resp = extractResponse(op.responses)
-      items.push({
+      const ep: ApiEndpoint = {
         id: genId('e'),
         name: String(op.summary || op.operationId || `${method} ${path}`),
         method,
@@ -219,10 +236,12 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
         description: String(op.description || ''),
         response_example: resp.example,
         response_fields: resp.fields,
-      })
+      }
+      bucketByTag(buckets, op.tags, fallback, ep)
     }
   }
-  if (items.length) groups.push({ id: genId('g'), name: 'Swagger 导入', items })
+  const groups: ApiGroup[] = []
+  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items })
   return { version: 1, base_host: swaggerBaseHost(o), groups }
 }
 
@@ -238,8 +257,10 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
   const paths = (o.paths as Record<string, Record<string, unknown>>) || {}
   const servers = Array.isArray(o.servers) ? (o.servers as Record<string, unknown>[]) : []
   const base = servers.length ? String(servers[0].url || '') : ''
-  const groups: ApiGroup[] = []
-  const items: ApiEndpoint[] = []
+  const buckets = new Map<string, ApiEndpoint[]>()
+  const infoTitle =
+    typeof o.info === 'object' && o.info ? String((o.info as Record<string, unknown>).title || '') : ''
+  const fallback = infoTitle || '未分组'
   for (const [path, ops] of Object.entries(paths)) {
     for (const [m, opRaw] of Object.entries(ops)) {
       const method = m.toUpperCase() as HttpMethod
@@ -268,7 +289,7 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
         }
       }
       const resp = extractResponse(op.responses)
-      items.push({
+      const ep: ApiEndpoint = {
         id: genId('e'),
         name: String(op.summary || (op.operationId as string) || `${method} ${path}`),
         method,
@@ -281,10 +302,12 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
         description: String(op.description || ''),
         response_example: resp.example,
         response_fields: resp.fields,
-      })
+      }
+      bucketByTag(buckets, op.tags, fallback, ep)
     }
   }
-  if (items.length) groups.push({ id: genId('g'), name: 'OpenAPI 导入', items })
+  const groups: ApiGroup[] = []
+  for (const [name, items] of buckets) groups.push({ id: genId('g'), name, items })
   return { version: 1, base_host: base, groups }
 }
 

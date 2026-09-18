@@ -3,9 +3,11 @@ import {
   Button,
   Checkbox,
   Divider,
+  Drawer,
   Dropdown,
   Empty,
   Input,
+  List,
   Modal,
   Select,
   Space,
@@ -22,13 +24,16 @@ import {
   CopyOutlined,
   DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   FileAddOutlined,
+  HistoryOutlined,
   ImportOutlined,
   LinkOutlined,
   PlusOutlined,
   ReloadOutlined,
   SaveOutlined,
   SendOutlined,
+  SwapOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
 import { patchDoc } from '../../api/docs'
@@ -46,6 +51,12 @@ import {
   type ApiKeyValue,
   type HttpMethod,
 } from '../../lib/apiDoc'
+import {
+  deleteHistoryByIndex,
+  loadHistory,
+  saveHistory,
+  type DebugHistoryRecord,
+} from '../../lib/apiHistory'
 import { type SaveStatus } from './SaveIndicator'
 
 interface Props {
@@ -237,6 +248,16 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
   const [urlValue, setUrlValue] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
 
+  // 调试历史抽屉
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [history, setHistory] = useState<DebugHistoryRecord[]>([])
+
+  // 接口右键：重命名 / 移动分组
+  const [renameEp, setRenameEp] = useState<{ groupId: string; epId: string; name: string } | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [moveEp, setMoveEp] = useState<{ groupId: string; epId: string } | null>(null)
+  const [moveTarget, setMoveTarget] = useState<string>('')
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirtyRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -406,6 +427,75 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
     [current, mutate],
   )
 
+  // ---------- 接口移动 / 历史 ----------
+
+  /** 把接口从原分组移动到目标分组 */
+  const moveEndpoint = useCallback(
+    (fromGroupId: string, epId: string, toGroupId: string) => {
+      if (fromGroupId === toGroupId) return
+      mutate((d) => {
+        let moving: ApiEndpoint | undefined
+        const without = d.groups.map((g) => {
+          if (g.id !== fromGroupId) return g
+          moving = g.items.find((e) => e.id === epId)
+          return { ...g, items: g.items.filter((e) => e.id !== epId) }
+        })
+        if (!moving) return d
+        return {
+          ...d,
+          groups: without.map((g) => (g.id !== toGroupId ? g : { ...g, items: [...g.items, moving!] })),
+        }
+      })
+      setSelGroup(toGroupId)
+      setSelEp(epId)
+    },
+    [mutate],
+  )
+
+  /** 刷新当前接口的调试历史列表（打开抽屉时调用） */
+  const refreshHistory = useCallback(() => {
+    if (current) setHistory(loadHistory(docId, current.ep.id))
+  }, [current, docId])
+
+  /** 从历史记录回填请求头 / 参数 / 请求体到当前接口 */
+  const applyHistory = useCallback(
+    (rec: DebugHistoryRecord) => {
+      patchEndpoint({
+        headers: rec.headers,
+        params: rec.params,
+        body_type: rec.body_type,
+        body: rec.body,
+      })
+      setHistoryOpen(false)
+      message.success('已填入该次调试的请求头 / 参数 / 请求体')
+    },
+    [patchEndpoint],
+  )
+
+  /** 按索引删除一条历史记录 */
+  const removeHistory = useCallback(
+    (index: number) => {
+      if (!current) return
+      setHistory(deleteHistoryByIndex(docId, current.ep.id, index))
+    },
+    [current, docId],
+  )
+
+  /** 确认重命名接口（无论是否选中该接口都生效） */
+  const doRename = useCallback(() => {
+    if (renameEp && renameValue.trim()) {
+      const newName = renameValue.trim()
+      mutate((d) => ({
+        ...d,
+        groups: d.groups.map((g) => ({
+          ...g,
+          items: g.items.map((it) => (it.id === renameEp.epId ? { ...it, name: newName } : it)),
+        })),
+      }))
+    }
+    setRenameEp(null)
+  }, [renameEp, renameValue, mutate])
+
   // ---------- 在线调试 ----------
 
   async function runDebug() {
@@ -446,6 +536,19 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
         headers['Content-Type'] = ep.content_type || (ep.body_type === 'json' ? 'application/json' : 'text/plain')
       }
     }
+    // 记录调试历史（时间 / 接口 / 请求头 / 请求参数 / 请求体），同一接口保留最近 10 条
+    setHistory(
+      saveHistory(docId, ep.id, {
+        time: Date.now(),
+        method: ep.method,
+        uri: ep.uri,
+        base_host: ep.base_host,
+        headers: ep.headers,
+        params: ep.params,
+        body_type: ep.body_type,
+        body: ep.body,
+      }),
+    )
     setDebugLoading(true)
     setDebug(null)
     setTab('result')
@@ -630,51 +733,86 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                   </Tooltip>
                 )}
               </div>
-              {g.items.map((e) => (
-                <div
-                  key={e.id}
-                  onClick={() => {
-                    setSelGroup(g.id)
-                    setSelEp(e.id)
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '4px 10px 4px 28px',
-                    cursor: 'pointer',
-                    background: e.id === selEp ? '#e6f4ff' : undefined,
-                  }}
-                >
-                  <Tag color={METHOD_COLOR[e.method]} style={{ marginRight: 0, minWidth: 52, textAlign: 'center' }}>
-                    {e.method}
-                  </Tag>
-                  <span
+              {g.items.map((e) => {
+                const epNode = (
+                  <div
+                    onClick={() => {
+                      setSelGroup(g.id)
+                      setSelEp(e.id)
+                    }}
                     style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '4px 10px 4px 28px',
+                      cursor: 'pointer',
+                      background: e.id === selEp ? '#e6f4ff' : undefined,
                     }}
                   >
-                    {e.name}
-                  </span>
-                  {!readOnly && (
-                    <Button
-                      size="small"
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={(ev) => {
-                        ev.stopPropagation()
-                        deleteEndpoint(g.id, e.id)
+                    <Tag color={METHOD_COLOR[e.method]} style={{ marginRight: 0, minWidth: 52, textAlign: 'center' }}>
+                      {e.method}
+                    </Tag>
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: 13,
                       }}
-                    />
-                  )}
-                </div>
-              ))}
+                    >
+                      {e.name}
+                    </span>
+                    {!readOnly && (
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          deleteEndpoint(g.id, e.id)
+                        }}
+                      />
+                    )}
+                  </div>
+                )
+                if (readOnly) return <div key={e.id}>{epNode}</div>
+                return (
+                  <Dropdown
+                    key={e.id}
+                    trigger={['contextMenu']}
+                    menu={{
+                      items: [
+                        { key: 'rename', icon: <EditOutlined />, label: '重命名' },
+                        { key: 'move', icon: <SwapOutlined />, label: '移动分组' },
+                        { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true },
+                      ],
+                      onClick: ({ key }) => {
+                        if (key === 'rename') {
+                          setRenameValue(e.name)
+                          setRenameEp({ groupId: g.id, epId: e.id, name: e.name })
+                        } else if (key === 'move') {
+                          setMoveTarget('')
+                          setMoveEp({ groupId: g.id, epId: e.id })
+                        } else if (key === 'delete') {
+                          Modal.confirm({
+                            title: `删除接口「${e.name}」？`,
+                            content: '该接口将被删除，此操作不可撤销。',
+                            okText: '删除',
+                            okType: 'danger',
+                            cancelText: '取消',
+                            onOk: () => deleteEndpoint(g.id, e.id),
+                          })
+                        }
+                      },
+                    }}
+                  >
+                    {epNode}
+                  </Dropdown>
+                )
+              })}
             </div>
           ))}
           {!readOnly && (
@@ -752,6 +890,17 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                   <Tooltip title="在线调试（经服务端代理转发）">
                     <Button type="primary" icon={<ThunderboltOutlined />} loading={debugLoading} onClick={() => void runDebug()}>
                       调试
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="调试历史记录（同一接口最近 10 次，可回填）">
+                    <Button
+                      icon={<HistoryOutlined />}
+                      onClick={() => {
+                        setHistoryOpen(true)
+                        refreshHistory()
+                      }}
+                    >
+                      历史
                     </Button>
                   </Tooltip>
                   <Tooltip title="复制到剪贴板（完整 URL）">
@@ -1015,6 +1164,95 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
           value={urlValue}
           onChange={(e) => setUrlValue(e.target.value)}
           onPressEnter={() => void importFromUrl()}
+        />
+      </Modal>
+
+      {/* 调试历史抽屉：列出同一接口最近 10 次调试，可一键回填 */}
+      <Drawer
+        title="调试历史记录"
+        width={460}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        destroyOnClose
+      >
+        {history.length === 0 ? (
+          <Empty description="暂无调试记录，点击「调试」发送请求后会自动记录" style={{ marginTop: 60 }} />
+        ) : (
+          <List
+            dataSource={history}
+            renderItem={(rec, idx) => (
+              <List.Item
+                actions={[
+                  <Button key="apply" size="small" onClick={() => applyHistory(rec)}>
+                    填入
+                  </Button>,
+                  <Button
+                    key="del"
+                    size="small"
+                    danger
+                    type="text"
+                    icon={<DeleteOutlined />}
+                    onClick={() => removeHistory(idx)}
+                  />,
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={<Tag color={METHOD_COLOR[rec.method]}>{rec.method}</Tag>}
+                  title={<span style={{ fontFamily: 'monospace', fontSize: 12 }}>{rec.uri || '/'}</span>}
+                  description={
+                    <span style={{ fontSize: 12, color: '#8a919f' }}>
+                      {new Date(rec.time).toLocaleString('zh-CN')}　·　请求头 {rec.headers.filter((h) => h.enabled).length}　·　参数{' '}
+                      {rec.params.filter((p) => p.enabled).length}　·　请求体 {rec.body_type}
+                    </span>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Drawer>
+
+      {/* 重命名接口 */}
+      <Modal
+        title="重命名接口"
+        open={!!renameEp}
+        onOk={doRename}
+        onCancel={() => setRenameEp(null)}
+        okText="确定"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onPressEnter={doRename}
+          placeholder="接口名称"
+          autoFocus
+        />
+      </Modal>
+
+      {/* 移动接口到其他分组 */}
+      <Modal
+        title="移动接口到其他分组"
+        open={!!moveEp}
+        onOk={() => {
+          if (moveEp && moveTarget) moveEndpoint(moveEp.groupId, moveEp.epId, moveTarget)
+          setMoveEp(null)
+        }}
+        onCancel={() => setMoveEp(null)}
+        okText="移动"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Select
+          value={moveTarget || undefined}
+          onChange={setMoveTarget}
+          placeholder="选择目标分组"
+          style={{ width: '100%' }}
+          showSearch
+          options={doc.groups
+            .filter((g) => g.id !== moveEp?.groupId)
+            .map((g) => ({ value: g.id, label: g.name }))}
         />
       </Modal>
     </div>
