@@ -204,6 +204,14 @@ func CanWriteBook(book *model.Book, uid uint64) bool {
 	return canWriteDoc(book, uid)
 }
 
+// CanReadBook 导出给 handler / middleware 等包外使用的读权限判定。
+//
+// 与 canReadBook 同源（public 任何人 / members 登录用户 / private 仅 owner，
+// 团队文库团队任意成员可读），包外一律走这对 Can* 函数，避免权限语义二次漂移。
+func CanReadBook(book *model.Book, uid uint64) bool {
+	return canReadBook(book, uid)
+}
+
 // loadDocForAccess 载入文档并做读/写权限校验。
 // 读：book 可见性（含团队文库成员可读）或文档协作者；写：canWriteDoc 或文档协作者。
 func (s *DocService) loadDocForAccess(docID, uid uint64, write bool) (*model.Doc, *model.Book, error) {
