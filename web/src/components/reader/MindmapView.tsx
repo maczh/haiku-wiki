@@ -22,7 +22,7 @@ export default function MindmapView({ content }: Props) {
       el: host,
       data: data.root,
       readonly: true,
-      layout: 'logicalStructure',
+      layout: data.layout || 'logicalStructure',
       initRootNodePosition: ['center', 'center'],
     })
     // 只读也还原持久化的主题（#31）：保持与编辑态一致的视觉样式

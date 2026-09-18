@@ -21,6 +21,14 @@ interface Props {
    * 跳过画布 resize，避免「resize → render → 再 resize」的抖动回路。
    */
   onPanelToggle?: () => void
+  /** 当前布局（结构） */
+  layout: string
+  /** 布局切换回调 */
+  onLayoutChange: (layout: string) => void
+  /** 当前高亮主题预设 key（null 表示自定义） */
+  activeThemeKey: string | null
+  /** 主题切换回调 */
+  onThemeKeyChange: (key: string | null) => void
 }
 
 type PanelKey = 'node' | 'base' | 'theme' | 'layout' | 'outline' | 'setting'
@@ -29,7 +37,15 @@ type PanelKey = 'node' | 'base' | 'theme' | 'layout' | 'outline' | 'setting'
  * 思维导图右侧浮动工具条（仿 Simple Mind Map 官方 Demo）：
  *  节点样式 / 基础样式 / 主题 / 结构 / 大纲 / 设置，点击后右侧滑出对应面板。
  */
-export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }: Props) {
+export default function MindmapSideToolbar({
+  handle,
+  getOutline,
+  onPanelToggle,
+  layout,
+  onLayoutChange,
+  activeThemeKey,
+  onThemeKeyChange,
+}: Props) {
   const [panel, setPanel] = useState<PanelKey | null>(null)
   // 节点样式面板需要"当前选中节点样式"作为回显，激活节点变化时刷新
   const [styleTick, setStyleTick] = useState(0)
@@ -59,11 +75,12 @@ export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }
     run()
   }
 
-  /** 主题/基础样式统一入口：以初始主题为基准做覆盖 */
+  /** 主题/基础样式统一入口：以当前主题为基准做覆盖 */
   function applyThemePatch(patch: Record<string, unknown>, tip: string) {
     const mm = handle.requireMm()
     if (!mm) return
     mm.setTheme(deepMerge(handle.baseTheme(), patch) as never)
+    onThemeKeyChange(null)
     setBaseTick((n) => n + 1)
     handle.toast(tip, 'success')
   }
@@ -350,12 +367,14 @@ export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }
             <ThemeCard
               key={preset.key}
               preset={preset}
+              active={activeThemeKey === preset.key}
               onClick={() =>
                 // 主题切换会整树重排：连点去重，避免连续 render 引起的视觉抖动
                 throttleCmd(`theme:${preset.key}`, () => {
                   const mm = handle.requireMm()
                   if (!mm) return
                   mm.setTheme(preset.key === 'default' ? handle.baseTheme() : (deepMerge(handle.baseTheme(), preset.theme) as never))
+                  onThemeKeyChange(preset.key)
                   setBaseTick((n) => n + 1)
                   handle.toast(`已应用主题：${preset.label}`, 'success')
                 })
@@ -368,14 +387,12 @@ export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }
       {/* ---------- 结构 ---------- */}
       <Drawer title="结构" width={320} open={panel === 'layout'} onClose={close} mask={false} getContainer={false} rootClassName="hk-mm-drawer">
         <Radio.Group
-          value={handle.mm?.getLayout?.() ?? 'logicalStructure'}
+          value={layout}
           onChange={(e) => {
-            const next = e.target.value
+            const next = e.target.value as string
             // 结构切换同样触发整树重排：同一目标值 150ms 内重复请求直接丢弃
             throttleCmd(`layout:${next}`, () => {
-              const mm = handle.requireMm()
-              if (!mm) return
-              mm.setLayout(next)
+              onLayoutChange(next)
               handle.toast('结构已切换', 'success')
             })
           }}
@@ -497,7 +514,7 @@ export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }
 }
 
 /** 主题卡片：三色预览 + 名称 */
-function ThemeCard({ preset, onClick }: { preset: MmThemePreset; onClick: () => void }) {
+function ThemeCard({ preset, active, onClick }: { preset: MmThemePreset; active: boolean; onClick: () => void }) {
   const [root, second, line] = preset.preview
   return (
     <Tooltip title={`应用主题：${preset.label}`}>
@@ -506,7 +523,7 @@ function ThemeCard({ preset, onClick }: { preset: MmThemePreset; onClick: () => 
         style={{
           width: 128,
           padding: 10,
-          border: '1px solid #ebedf0',
+          border: `2px solid ${active ? '#2f54eb' : '#ebedf0'}`,
           borderRadius: 8,
           cursor: 'pointer',
           background: '#fff',

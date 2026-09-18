@@ -19,6 +19,8 @@ export interface SmmNode {
 export interface MindmapJSON {
   version: 2
   root: SmmNode
+  /** 布局（simple-mind-map 的 layout，v2.2 起持久化；旧文档无此字段） */
+  layout?: string
   /** 主题/全局样式（simple-mind-map 的 opt.theme 快照，v2.1 起持久化；旧文档无此字段） */
   theme?: Record<string, unknown>
 }
@@ -73,12 +75,13 @@ function fromV1(n: unknown): SmmNode | null {
 export function parseMindmapJSON(content: string): { data: MindmapJSON; reset: boolean } {
   if (content && content.trim() !== '') {
     try {
-      const o = JSON.parse(content) as { version?: unknown; root?: unknown; tree?: unknown; theme?: unknown }
+      const o = JSON.parse(content) as { version?: unknown; root?: unknown; tree?: unknown; theme?: unknown; layout?: unknown }
       if (o && o.version === 2) {
         const root = toSmm(o.root)
         if (root) {
           const theme = o.theme && typeof o.theme === 'object' ? (o.theme as Record<string, unknown>) : undefined
-          return { data: { version: 2, root, ...(theme ? { theme } : {}) }, reset: false }
+          const layout = typeof o.layout === 'string' && o.layout ? o.layout : undefined
+          return { data: { version: 2, root, ...(layout ? { layout } : {}), ...(theme ? { theme } : {}) }, reset: false }
         }
       } else if (o && o.version === 1) {
         const root = fromV1(o.tree)
@@ -91,7 +94,7 @@ export function parseMindmapJSON(content: string): { data: MindmapJSON; reset: b
   return { data: { version: 2, root: defaultRoot() }, reset: !!content && content.trim() !== '' }
 }
 
-/** 序列化为存储字符串（v2 契约）；theme 为当前主题快照（可空，旧文档不写） */
-export function stringifyMindmap(root: SmmNode, theme?: Record<string, unknown>): string {
-  return JSON.stringify({ version: 2, root, ...(theme ? { theme } : {}) } satisfies MindmapJSON)
+/** 序列化为存储字符串（v2 契约）；theme/layout 为当前快照（可空，旧文档不写） */
+export function stringifyMindmap(root: SmmNode, theme?: Record<string, unknown>, layout?: string): string {
+  return JSON.stringify({ version: 2, root, ...(layout ? { layout } : {}), ...(theme ? { theme } : {}) } satisfies MindmapJSON)
 }

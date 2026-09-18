@@ -305,7 +305,9 @@ export default function KnowledgeTree(p: Props) {
     })
     return (
       <Dropdown menu={{ items }} trigger={['contextMenu']}>
-        <span style={{ whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, width: '100%' }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
+        </span>
       </Dropdown>
     )
   }
@@ -370,7 +372,7 @@ export default function KnowledgeTree(p: Props) {
   function titleRender(node: KNode): ReactNode {
     if (node.raw.kind === 'cat') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>
           {node.title as ReactNode}
           {node.raw.catKey === 'private' && (
             <PlusOutlined
@@ -387,8 +389,8 @@ export default function KnowledgeTree(p: Props) {
     }
     if (node.raw.kind === 'book') {
       return (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', whiteSpace: 'nowrap' }}>
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, width: '100%' }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
           {bookMenu(node.raw.book!)}
         </span>
       )
@@ -422,6 +424,8 @@ export default function KnowledgeTree(p: Props) {
       <Tree<KNode>
         blockNode
         showIcon
+        showLine={{ showLeafIcon: false }}
+        className="hk-knowledge-tree"
         treeData={treeData}
         expandedKeys={expandedKeys}
         selectedKeys={selectedKeys}

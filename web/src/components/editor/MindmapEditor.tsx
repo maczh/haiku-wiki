@@ -15,7 +15,7 @@ import VersionDrawer from './VersionDrawer'
 import MindmapTopToolbar from './mindmap/MindmapTopToolbar'
 import MindmapSideToolbar from './mindmap/MindmapSideToolbar'
 import MindmapZoomBar from './mindmap/MindmapZoomBar'
-import type { MmHandle, MmNodeLike, MmPainter } from './mindmap/mmShared'
+import { deepMerge, MM_THEME_PRESETS, type MmHandle, type MmNodeLike, type MmPainter } from './mindmap/mmShared'
 import { type SaveStatus } from './SaveIndicator'
 
 // 插件静态注册（模块级一次即可，所有实例共享）
@@ -33,6 +33,15 @@ interface Props {
 }
 
 const SAVE_DEBOUNCE_MS = 3000
+
+/** 判断当前主题与哪个预设主题等效（用于高亮主题卡片） */
+function matchThemeKey(theme: Record<string, unknown>, base: Record<string, unknown>): string | null {
+  for (const preset of MM_THEME_PRESETS) {
+    const expected = preset.key === 'default' ? base : deepMerge(base, preset.theme)
+    if (JSON.stringify(expected) === JSON.stringify(theme)) return preset.key
+  }
+  return null
+}
 
 /** 节点实例（simple-mind-map 未暴露类型，仅取用到的属性） */
 interface SmmNodeInstance extends MmNodeLike {
@@ -65,6 +74,9 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const themeRef = useRef<Record<string, unknown> | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
+  // 在组件顶层解析一次，用于初始化 layout/theme 状态（文档切换时 key 会变，整个组件会重建）
+  const initialData = parseMindmapJSON(initialContent).data
+
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
@@ -75,6 +87,11 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const [fontFamily, setFontFamily] = useState('')
   const [ready, setReady] = useState(false)
   const [initFailed, setInitFailed] = useState(false)
+  // 当前布局/主题选择（持久化到 docs.content）
+  const [layout, setLayout] = useState(initialData.layout || 'logicalStructure')
+  const [activeThemeKey, setActiveThemeKey] = useState<string | null>(null)
+  const layoutRef = useRef(layout)
+  layoutRef.current = layout
 
   /**
    * 抖动治理用的两个闸门（见下方 ResizeObserver）：
@@ -124,7 +141,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         mm = new MindMap({
           el: host,
           data: data.root,
-          layout: 'logicalStructure',
+          layout,
           initRootNodePosition: ['center', 'center'],
           enableAutoEnterTextEditWhenKeydown: true,
           mousewheelAction: 'zoom',
@@ -161,6 +178,13 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       } else {
         themeRef.current = null
       }
+      // 主题应用后更新基准快照，并高亮对应预设
+      try {
+        baseThemeRef.current = JSON.parse(JSON.stringify(mm.getTheme() ?? {}))
+      } catch {
+        baseThemeRef.current = {}
+      }
+      setActiveThemeKey(matchThemeKey(mm.getTheme(), baseThemeRef.current) ?? 'default')
       setReady(true)
 
       mm.on('data_change', (d: SmmNode) => {
@@ -179,6 +203,11 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       // 主题/全局样式变更（侧栏「主题」面板 setTheme 触发）：快照最新主题并防抖保存
       mm.on('view_theme_change', (t: unknown) => {
         themeRef.current = t && typeof t === 'object' ? (t as Record<string, unknown>) : themeRef.current
+        try {
+          baseThemeRef.current = JSON.parse(JSON.stringify(mm?.getTheme() ?? {}))
+        } catch {
+          /* 忽略 */
+        }
         scheduleSave()
       })
     }
@@ -190,7 +219,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
       if (dirtyRef.current && latestRef.current) {
-        void patchDoc(docId, { content: stringifyMindmap(latestRef.current, themeRef.current ?? undefined), source: 'auto' }).catch(
+        void patchDoc(docId, { content: stringifyMindmap(latestRef.current, themeRef.current ?? undefined, layoutRef.current), source: 'auto' }).catch(
           () => undefined,
         )
         dirtyRef.current = false
@@ -282,7 +311,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     if (!root) return
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyMindmap(root, themeRef.current ?? undefined), source })
+      await patchDoc(docId, { content: stringifyMindmap(root, themeRef.current ?? undefined, layoutRef.current), source })
       dirtyRef.current = false
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
@@ -451,6 +480,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     const mm = requireMindMap()
     if (!mm) return
     setFontFamily(family)
+    setActiveThemeKey(null)
     const base = baseThemeRef.current
     mm.setTheme({
       ...base,
@@ -547,7 +577,21 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         />
 
         {/* onPanelToggle：面板开合期间通知画布跳过 resize（抽屉动画会连续 reflow） */}
-        <MindmapSideToolbar handle={handle} getOutline={getOutline} onPanelToggle={onPanelToggle} />
+        <MindmapSideToolbar
+          handle={handle}
+          getOutline={getOutline}
+          onPanelToggle={onPanelToggle}
+          layout={layout}
+          activeThemeKey={activeThemeKey}
+          onLayoutChange={(next) => {
+            const mm = mindMapRef.current
+            if (!mm) return
+            mm.setLayout(next)
+            setLayout(next)
+            scheduleSave()
+          }}
+          onThemeKeyChange={setActiveThemeKey}
+        />
 
         <MindmapZoomBar
           handle={handle}

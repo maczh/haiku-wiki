@@ -21,6 +21,9 @@ export interface ReaderWidthState {
 /** localStorage 键：阅读区宽度偏好 */
 export const READER_WIDTH_KEY = 'hk-reader-width'
 
+/** 同一标签页内宽度变更广播事件（localStorage 的 storage 事件不触发于当前页） */
+const READER_WIDTH_CHANGE_EVENT = 'hk-reader-width-change'
+
 /** 拖动条范围 */
 export const READER_WIDTH_MIN = 600
 export const READER_WIDTH_MAX = 1800
@@ -104,8 +107,15 @@ export function useReaderWidth(): {
       if (e.key !== READER_WIDTH_KEY) return
       setState(readReaderWidth())
     }
+    function onSameTabChange() {
+      setState(readReaderWidth())
+    }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    window.addEventListener(READER_WIDTH_CHANGE_EVENT, onSameTabChange)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(READER_WIDTH_CHANGE_EVENT, onSameTabChange)
+    }
   }, [])
 
   const setMode = useCallback((m: Exclude<ReaderWidthMode, 'custom'>) => {
@@ -113,6 +123,9 @@ export function useReaderWidth(): {
       const next: ReaderWidthState = m === 'full' ? { mode: 'full', width: null } : { mode: m, width: resolveWidth({ mode: m, width: null }) }
       if (prev.mode === next.mode && prev.width === next.width) return prev
       saveReaderWidth(next)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(READER_WIDTH_CHANGE_EVENT))
+      }
       return next
     })
   }, [])
@@ -122,6 +135,9 @@ export function useReaderWidth(): {
       const next: ReaderWidthState = { mode: 'custom', width: clampWidth(w) }
       if (prev.mode === next.mode && prev.width === next.width) return prev
       saveReaderWidth(next)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(READER_WIDTH_CHANGE_EVENT))
+      }
       return next
     })
   }, [])

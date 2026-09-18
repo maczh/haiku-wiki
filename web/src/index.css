@@ -296,3 +296,41 @@ mark.hk-hit {
   height: 100%;
   border: none;
 }
+
+/* ---------- 多文库目录树：图标/标题不换行、超长省略、整行可点击 ---------- */
+
+.hk-knowledge-tree .ant-tree-treenode {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.hk-knowledge-tree .ant-tree-switcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hk-knowledge-tree .ant-tree-node-content-wrapper {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: 1;
+  width: auto !important;
+  overflow: hidden;
+}
+
+.hk-knowledge-tree .ant-tree-node-content-wrapper .ant-tree-iconEle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.hk-knowledge-tree .ant-tree-node-content-wrapper .ant-tree-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
