@@ -4,6 +4,8 @@ import { Empty, Result, Spin, Tag } from 'antd'
 import { CaretDownOutlined, CaretRightOutlined, FileTextOutlined, FolderOutlined } from '@ant-design/icons'
 import { getShare, getShareDoc } from '../api/share'
 import LazyBoundary from '../components/common/LazyBoundary'
+import WidthControl from '../components/reader/WidthControl'
+import { useReaderWidth } from '../lib/readerWidth'
 import type { DocDetail, DocNode, ShareInfo } from '../types'
 
 // 公开预览页同样按需加载重型渲染器（Vditor / pdf.js / draw.io / pptx），避免首屏一并拉取
@@ -17,6 +19,8 @@ const DrawioView = lazy(() => import('../components/reader/DrawioView'))
  */
 export default function SharePage() {
   const { slug } = useParams()
+  // 分享页访客未登录：宽度偏好只落在本地 localStorage（与阅读页同一份键）
+  const { maxWidth } = useReaderWidth()
   const [info, setInfo] = useState<ShareInfo | null>(null)
   const [invalid, setInvalid] = useState(false)
   const [docId, setDocId] = useState<number>(0)
@@ -164,21 +168,28 @@ export default function SharePage() {
           {loadingDoc && <Spin style={{ display: 'block', margin: '80px auto' }} />}
           {!loadingDoc && doc && (
             <>
-              <div style={{ maxWidth: 780, margin: '0 auto', padding: '28px 24px 0' }}>
+              {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
+              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
                 <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
               </div>
-              {/* 附件型按原文件只读预览；绘图文档用内嵌绘图组件只读预览；其余非 markdown 类型暂以占位提示 */}
+              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
+                <WidthControl compact />
+              </div>
+              {/* 附件型按原文件只读预览；绘图文档渲染已保存的 SVG 矢量图（不加载绘图组件）；
+                  其余非 markdown 类型暂以占位提示 */}
               <LazyBoundary tip="正在加载预览器…">
                 {doc.doc_type === 'file' ? (
                   <FileView content={doc.content} />
                 ) : doc.doc_type === 'drawing' ? (
                   <DrawioView content={doc.content} />
                 ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
-                  <div style={{ maxWidth: 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
+                  <div style={{ maxWidth: maxWidth ?? 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
                     该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
                   </div>
                 ) : (
-                  <MarkdownView content={doc.content} />
+                  <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
+                    <MarkdownView content={doc.content} />
+                  </div>
                 )}
               </LazyBoundary>
             </>

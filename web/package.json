@@ -9,7 +9,9 @@
     "prebuild": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "fetch:drawio": "node scripts/fetch-drawio-assets.mjs"
+    "fetch:drawio": "node scripts/fetch-drawio-assets.mjs",
+    "verify:drawio": "node scripts/verify-drawio-assets.mjs",
+    "verify:import": "node scripts/verify-html-import.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",
@@ -42,6 +44,7 @@
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "jsdom": "^25.0.1",
     "less": "^4.9.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.7"

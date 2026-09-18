@@ -4,6 +4,7 @@ import { Result, Spin, Typography } from 'antd'
 import { getDocShareMeta, verifyDocShare } from '../api/share'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
+import { useReaderWidth } from '../lib/readerWidth'
 import PasswordGate from '../components/share/PasswordGate'
 import type { DocShareContent, DocShareMeta } from '../types'
 
@@ -14,6 +15,8 @@ import type { DocShareContent, DocShareMeta } from '../types'
  */
 export default function DocSharePage() {
   const { slug } = useParams()
+  // 分享页访客未登录：宽度偏好只存本地，与阅读页同一份 localStorage 键
+  const { maxWidth } = useReaderWidth()
   const [meta, setMeta] = useState<DocShareMeta | null>(null)
   const [invalid, setInvalid] = useState(false)
   const [content, setContent] = useState<DocShareContent | null>(null)
@@ -118,7 +121,8 @@ export default function DocSharePage() {
 
       <div className="toc-scroll-root" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'auto' }}>
         <main style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ maxWidth: 780, margin: '0 auto', padding: '28px 24px 0' }}>
+          {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
+          <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
             <h1 style={{ fontSize: 26, marginBottom: 8 }}>{content.title}</h1>
           </div>
           <DocContent

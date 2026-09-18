@@ -15,13 +15,14 @@ import {
   DRAWIO_SETUP_HINT,
   buildEmbedUrl,
   downloadExport,
-  drawioAssetsReady,
+  drawioAssetDiagnosis,
   fetchAsLoadXml,
   parseEditorMessage,
   postAction,
   type DrawioEditorMessage,
   type DrawioExportFormat,
 } from '../../lib/drawio'
+import { isUsableSvg, parseDrawioContent, stringifyDrawioContent } from '../../lib/drawioDoc'
 import { DRAWIO_EXTS, extOf } from '../../lib/attachment'
 
 interface Props {
@@ -46,6 +47,13 @@ interface Props {
 
 /** 自动保存节流（draw.io 的 autosave 触发较密） */
 const AUTOSAVE_DEBOUNCE_MS = 2000
+
+/**
+ * 自动保存时重新导出 SVG 的最小间隔。
+ * draw.io 的 export 动作会在编辑器里弹一次 spinner，autosave 又只有 2s 节流，
+ * 若每次都导出会让画布反复闪动；手动保存不受此限制（force）。
+ */
+const SVG_MIN_INTERVAL_MS = 6000
 
 /**
  * 可选导出格式。
@@ -95,7 +103,11 @@ export default function DrawioEditor({
   /** import 模式允许操作画布，但不提供保存 */
   const interactive = mode !== 'view'
   const [ready, setReady] = useState<boolean | null>(null)
+  /** 资源诊断结论（缺资源时给出具体是哪个文件、为什么，而不是让浏览器抛语法错误） */
+  const [assetIssue, setAssetIssue] = useState('')
   const [booting, setBooting] = useState(true)
+  /** 编辑器超过 15s 仍未 init：多半是资源加载失败，给可操作提示 */
+  const [slowHint, setSlowHint] = useState(false)
   const [status, setStatus] = useState<SaveStatus>('saved')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
@@ -104,10 +116,20 @@ export default function DrawioEditor({
 
   const frameRef = useRef<HTMLIFrameElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  /** 正文可能是新格式（{version,xml,svg} JSON），也可能是历史的纯 XML */
+  const initial = useMemo(() => parseDrawioContent(initialContent), [initialContent])
   /** 最近一次用于 load 的内容：可能是 XML，也可能是 Visio 的 data URI（非 XML） */
-  const latestRef = useRef(initialContent || '')
+  const latestRef = useRef(initial.xml)
   /** 最近一次确认过的图表 XML（只由 save/autosave/export 事件写入，保证是真正的 mxGraphModel） */
-  const xmlRef = useRef(initialContent || '')
+  const xmlRef = useRef(initial.xml)
+  /** 最近一次导出的 SVG（随保存一起落库，供阅读/分享页免组件渲染） */
+  const svgRef = useRef(initial.svg)
+  /** svgRef 对应的 XML 快照：用于判断 SVG 是否已过期 */
+  const svgForXmlRef = useRef(isUsableSvg(initial.svg) ? initial.xml : '')
+  /** 历史文档（只有 XML）的 SVG 补生成只做一次 */
+  const backfillRef = useRef(false)
+  /** 上次自动导出 SVG 的时间戳（节流用，避免每次 autosave 都在编辑器里闪一次 spinner） */
+  const lastSvgAtRef = useRef(0)
   const dirtyRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** 编辑器是否已完成 init（未 init 前发 load/export 都会被丢弃） */
@@ -122,16 +144,40 @@ export default function DrawioEditor({
     [mode],
   )
 
-  // 探测自托管资源是否就位（缺资源时给出明确指引，而不是白屏）
+  // 资源体检（入口页指纹 + 关键 JS 子资源的 Content-Type/首字节校验）。
+  // 任一项拿到 HTML 都说明被 SPA 兜底接管 —— 这类问题在运行时只表现为
+  // `Uncaught SyntaxError: Unexpected token '<'`，这里提前定位到具体文件。
   useEffect(() => {
     let alive = true
-    void drawioAssetsReady().then((ok) => {
-      if (alive) setReady(ok)
+    void drawioAssetDiagnosis().then((d) => {
+      if (!alive) return
+      setReady(d.ok)
+      setAssetIssue(d.ok ? '' : d.message)
     })
     return () => {
       alive = false
     }
   }, [])
+
+  // 编辑器长时间未 init：给出可操作提示（而不是无限转圈）
+  useEffect(() => {
+    if (!booting) {
+      setSlowHint(false)
+      return
+    }
+    const t = setTimeout(() => setSlowHint(true), 15_000)
+    return () => clearTimeout(t)
+  }, [booting])
+
+  // 切换文档 / 正文变化时重建内存副本（含历史纯 XML 文档）
+  useEffect(() => {
+    const p = parseDrawioContent(initialContent)
+    latestRef.current = p.xml
+    xmlRef.current = p.xml
+    svgRef.current = p.svg
+    svgForXmlRef.current = isUsableSvg(p.svg) ? p.xml : ''
+    backfillRef.current = false
+  }, [docId, initialContent])
 
   // import 模式：先把外部文件读成 load action 可用的 xml（Visio 走 data URI），
   // 等编辑器 init 后由 onMessage 的 init 分支补送。
@@ -158,14 +204,70 @@ export default function DrawioEditor({
     }
   }, [mode, sourceUrl, sourceExt, title])
 
-  /** 落库 */
+  /**
+   * 向编辑器索取一次导出数据（xml / svg / png）。
+   * 同一时刻只允许一个在途请求：并发会互相顶掉 pendingExport，导致 resolve 错配。
+   */
+  const requestExport = useCallback(
+    (format: DrawioExportFormat): Promise<string> =>
+      new Promise<string>((resolve, reject) => {
+        if (!initializedRef.current) {
+          reject(new Error('绘图组件尚未就绪'))
+          return
+        }
+        if (pendingExport.current) {
+          reject(new Error('已有导出请求进行中'))
+          return
+        }
+        pendingExport.current = { format, resolve, reject }
+        postAction(frameRef.current, { action: 'export', format, spinKey: 'export' })
+        setTimeout(() => {
+          if (pendingExport.current?.format === format) {
+            pendingExport.current = null
+            reject(new Error('导出超时，请重试'))
+          }
+        }, 60_000)
+      }),
+    [],
+  )
+
+  /**
+   * 保证有与当前 XML 匹配的 SVG。
+   *
+   * 节流原因：drawio 的 export 动作会在编辑器里闪一次 spinner，而 autosave 每 2s 一次，
+   * 每次都导出会让画布不断闪动。这里限制自动导出的最小间隔（手动保存 force=true
+   * 直接放行），既保证预览最终新鲜，又不干扰绘制。
+   * 失败一律不抛错：SVG 只是预览副本，缺了下次保存还会再补，不能因此丢掉正文保存。
+   */
+  const ensureSvg = useCallback(
+    async (xml: string, force = false): Promise<string> => {
+      if (svgForXmlRef.current === xml && isUsableSvg(svgRef.current)) return svgRef.current
+      if (!force && Date.now() - lastSvgAtRef.current < SVG_MIN_INTERVAL_MS) return svgRef.current
+      try {
+        lastSvgAtRef.current = Date.now()
+        const svg = await requestExport('svg')
+        if (isUsableSvg(svg)) {
+          svgRef.current = svg
+          svgForXmlRef.current = xml
+        }
+      } catch {
+        /* 导出被占用/超时/组件未就绪：保留旧 SVG，正文照常保存 */
+      }
+      return svgRef.current
+    },
+    [requestExport],
+  )
+
+  /** 落库：正文 = {version, xml, svg}（阅读/分享页只渲染 SVG，不再加载 draw.io） */
   const save = useCallback(
     async (xml: string, source: 'auto' | 'manual' = 'manual') => {
       if (!xml || !xml.trim()) return
       xmlRef.current = xml
       setStatus('saving')
       try {
-        await patchDoc(docId, { content: xml, source })
+        // 手动保存立即刷新 SVG；自动保存按最小间隔节流（见 SVG_MIN_INTERVAL_MS）
+        const svg = await ensureSvg(xml, source === 'manual')
+        await patchDoc(docId, { content: stringifyDrawioContent(xml, svg), source })
         dirtyRef.current = false
         setStatus('saved')
         setSavedAt(new Date().toLocaleTimeString('zh-CN'))
@@ -174,7 +276,7 @@ export default function DrawioEditor({
         setStatus('editing')
       }
     },
-    [docId],
+    [docId, ensureSvg],
   )
 
   /** 节流保存（autosave 事件触发） */
@@ -194,13 +296,39 @@ export default function DrawioEditor({
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       if (editable && dirtyRef.current && latestRef.current) {
-        void patchDoc(docId, { content: latestRef.current, source: 'auto' }).catch(() => undefined)
+        // 退出时来不及再导出 SVG：正文按新格式写入，SVG 沿用内存里最近一份
+        const payload = stringifyDrawioContent(latestRef.current, svgRef.current)
+        void patchDoc(docId, { content: payload, source: 'auto' }).catch(() => undefined)
         dirtyRef.current = false
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [docId, editable],
   )
+
+  // 历史文档（正文只有 XML、没有 SVG）在编辑态打开时补生成一次并静默回写，
+  // 之后阅读页/分享页就能免组件渲染。只做一次，失败也不打扰用户（下次保存仍会补）。
+  useEffect(() => {
+    if (!editable || booting || !initializedRef.current) return
+    if (backfillRef.current || isUsableSvg(svgRef.current)) return
+    backfillRef.current = true
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const xml = xmlRef.current || latestRef.current
+          if (!xml) return
+          const svg = await requestExport('svg')
+          if (!isUsableSvg(svg)) return
+          svgRef.current = svg
+          svgForXmlRef.current = xml
+          await patchDoc(docId, { content: stringifyDrawioContent(xml, svg), source: 'auto' })
+        } catch {
+          /* 静默：下次保存会再补 */
+        }
+      })()
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [booting, docId, editable, requestExport])
 
   // 接收编辑器事件
   useEffect(() => {
@@ -266,19 +394,9 @@ export default function DrawioEditor({
   /** 向编辑器索取图表 XML（编辑/导入模式下用于「另存」与导出） */
   const requestXml = useCallback(async (): Promise<string> => {
     if (xmlRef.current) return xmlRef.current
-    if (!initializedRef.current) throw new Error('绘图组件尚未就绪')
     // 没有内存副本（如 Visio 刚转换完）时向编辑器要一次
-    return await new Promise<string>((resolve, reject) => {
-      pendingExport.current = { format: 'xml', resolve, reject }
-      postAction(frameRef.current, { action: 'export', format: 'xml' })
-      setTimeout(() => {
-        if (pendingExport.current?.format === 'xml') {
-          pendingExport.current = null
-          reject(new Error('获取绘图内容超时'))
-        }
-      }, 30_000)
-    })
-  }, [])
+    return await requestExport('xml')
+  }, [requestExport])
 
   // 把 requestXml 暴露给父组件（Visio 附件的「另存为绘图文档」）
   useEffect(() => {
@@ -343,16 +461,7 @@ export default function DrawioEditor({
     }
     setBusy('正在导出…')
     try {
-      const data = await new Promise<string>((resolve, reject) => {
-        pendingExport.current = { format, resolve, reject }
-        postAction(frameRef.current, { action: 'export', format, spinKey: 'export' })
-        setTimeout(() => {
-          if (pendingExport.current?.format === format) {
-            pendingExport.current = null
-            reject(new Error('导出超时，请重试'))
-          }
-        }, 60_000)
-      })
+      const data = await requestExport(format)
       if (!data || !String(data).trim()) throw new Error('编辑器未返回内容')
       downloadExport(String(data), format, title || '绘图')
       message.success('已开始下载')
@@ -372,7 +481,9 @@ export default function DrawioEditor({
           message="绘图组件未部署，无法打开绘图文档"
           description={
             <>
-              <Typography.Paragraph style={{ marginBottom: 8 }}>{DRAWIO_SETUP_HINT}</Typography.Paragraph>
+              <Typography.Paragraph style={{ marginBottom: 8, whiteSpace: 'pre-wrap' }}>
+                {assetIssue || DRAWIO_SETUP_HINT}
+              </Typography.Paragraph>
               <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>
                 draw.io 静态资源约 37MB，不随代码仓库分发，由构建脚本按白名单拉取官方发行版子集。
               </Typography.Paragraph>
@@ -532,6 +643,28 @@ export default function DrawioEditor({
         )}
         {loadError && (
           <Alert type="error" showIcon style={{ margin: 12 }} message="绘图组件加载失败" description={loadError} />
+        )}
+        {/* 超过 15s 仍未 init：多半是某个 JS 子资源被 SPA 兜底成了 HTML
+            （表现为控制台 Unexpected token '<'），这里给出可自查的提示而不是无限转圈 */}
+        {slowHint && booting && ready === true && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 4, background: '#fff', padding: 24, overflow: 'auto' }}>
+            <Alert
+              type="warning"
+              showIcon
+              message="绘图组件长时间未响应"
+              description={
+                <>
+                  <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    通常是静态资源路径不正确：某个 <code>.js</code> 请求被应用兜底页接管，返回了 HTML 而不是脚本
+                    （控制台会看到 <code>Uncaught SyntaxError: Unexpected token '&lt;'</code>）。
+                  </Typography.Paragraph>
+                  <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                    {DRAWIO_SETUP_HINT}
+                  </Typography.Paragraph>
+                </>
+              }
+            />
+          </div>
         )}
         {ready === true && (
           <iframe

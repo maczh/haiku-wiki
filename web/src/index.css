@@ -244,6 +244,34 @@ mark.hk-hit {
 .hk-mm-drawer .ant-drawer-body {
   padding: 16px;
 }
+/*
+ * 抽屉以 getContainer={false} 内联渲染在画布容器内。这里把它钉成
+ * 「覆盖层」：不参与父级布局、不产生滚动条，滑入滑出期间不会反过来改变
+ * 画布宿主尺寸（否则 ResizeObserver → mm.resize() → render() 会自激成抖动）。
+ */
+.hk-mm-drawer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hk-mm-drawer .ant-drawer-content-wrapper,
+.hk-mm-drawer .ant-drawer-content {
+  pointer-events: auto;
+}
+
+/* ---------- 绘图文档：SVG 矢量预览（阅读页 / 分享页） ---------- */
+
+/*
+ * draw.io 导出的 SVG 自带 width/height 属性；这里让它在容器里按容器尺寸铺满，
+ * 缩放统一由外层容器的 transform: scale() 承担（见 DrawioSvgView），
+ * 避免「外层缩放 + SVG 自身尺寸」两套尺度互相打架导致滚动条抖动。
+ */
+.hk-drawio-svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 
 /* ---------- 附件预览：PPTX（pptx-preview） ---------- */
 

@@ -74,6 +74,19 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const [ready, setReady] = useState(false)
   const [initFailed, setInitFailed] = useState(false)
 
+  /**
+   * 抖动治理用的两个闸门（见下方 ResizeObserver）：
+   *   · suppressUntilRef：右侧面板开合/滑入滑出期间直接忽略尺寸变化；
+   *   · lastSizeRef：只在宽高真的变化（>1px）时才 resize，切断
+   *     「resize → render → 再触发 resize」的自激回路。
+   */
+  const suppressUntilRef = useRef(0)
+  const lastSizeRef = useRef({ w: 0, h: 0 })
+  /** 面板开合期间完全跳过画布 resize（抽屉滑入/滑出每帧都在改布局） */
+  const onPanelToggle = useCallback(() => {
+    suppressUntilRef.current = Date.now() + 500
+  }, [])
+
   titleRef.current = title
 
   // ---------- 画布初始化 ----------
@@ -124,6 +137,9 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         return
       }
       mindMapRef.current = mm
+      // 记录初始尺寸：ResizeObserver 首次回调（0 → N）不该被当成「真实变化」而触发一次 render
+      const r0 = host.getBoundingClientRect()
+      lastSizeRef.current = { w: Math.round(r0.width), h: Math.round(r0.height) }
       // 初始主题快照：主题/基础样式面板以其为基准做覆盖
       try {
         baseThemeRef.current = JSON.parse(JSON.stringify(mm.getTheme() ?? {}))
@@ -168,26 +184,63 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
 
-  // 容器尺寸变化（左栏折叠/调宽、窗口缩放）时同步画布
+  // 容器尺寸变化（左栏折叠/调宽、窗口缩放）时同步画布。
+  //
+  // 这里是「点击右侧工具条后画布剧烈抖动」的根因所在，三重防护：
+  //   1) **阈值判定**：simple-mind-map 的 resize() 在宽高变化时立刻 render()（整树重排 + 重绘），
+  //      而重绘又会让 ResizeObserver 再次回调 —— 形成自激回路。这里记录上次生效尺寸，
+  //      只有变化超过 1px 才真正 resize，回路在第一圈就被切断。
+  //   2) **抑制窗口**：右侧面板（antd Drawer 内联渲染在画布容器内）开合与滑入滑出动画期间
+  //      浏览器连续 reflow，这段时间内一律不 resize，动画结束后再补一次。
+  //   3) **rAF 节流**：同一帧内多次回调只处理最后一次。
   useEffect(() => {
     const host = elRef.current
     if (!host || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => {
+    let raf = 0
+    const apply = () => {
+      raf = 0
+      const mm = mindMapRef.current
+      if (!mm) return
+      const rect = host.getBoundingClientRect()
+      const w = Math.round(rect.width)
+      const h = Math.round(rect.height)
+      // 抑制窗口内只登记尺寸，不触发 render（动画结束后会自然再回调一次）
+      if (Date.now() < suppressUntilRef.current) {
+        lastSizeRef.current = { w, h }
+        return
+      }
+      const last = lastSizeRef.current
+      if (w > 0 && h > 0 && Math.abs(w - last.w) <= 1 && Math.abs(h - last.h) <= 1) return
+      lastSizeRef.current = { w, h }
       try {
-        mindMapRef.current?.resize()
+        mm.resize()
       } catch {
         /* 销毁瞬间忽略 */
       }
+    }
+    const ro = new ResizeObserver(() => {
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(apply)
     })
     ro.observe(host)
-    return () => ro.disconnect()
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
   // 全屏切换后重新适配画布尺寸
   useEffect(() => {
     const t = setTimeout(() => {
+      const mm = mindMapRef.current
+      if (!mm) return
+      const host = elRef.current
+      if (host) {
+        const rect = host.getBoundingClientRect()
+        lastSizeRef.current = { w: Math.round(rect.width), h: Math.round(rect.height) }
+      }
       try {
-        mindMapRef.current?.resize()
+        mm.resize()
       } catch {
         /* 忽略 */
       }
@@ -412,9 +465,13 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       }
     >
       {/* 画布与浮动工具条同层容器（工具条绝对定位在画布之上，不占布局高度） */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fbfbfc' }}>
-        {/* simple-mind-map 自管理内部尺寸（拖拽画布平移 / 滚轮缩放） */}
-        <div ref={elRef} style={{ position: 'absolute', inset: 0 }} />
+      {/* 画布与浮动工具条同层容器：工具条与面板抽屉都绝对定位，不参与布局，
+          因此画布宿主的尺寸只由本容器决定，面板开合不会改变它（避免 resize→render 抖动回路） */}
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fbfbfc', overflow: 'hidden' }}>
+        {/* simple-mind-map 自管理内部尺寸（拖拽画布平移 / 滚轮缩放）。
+            overflow:hidden —— 画布内容外溢时不产生滚动条，也就不可能反过来撑大本容器
+            （容器尺寸一旦被内容影响，就会和 ResizeObserver 形成抖动回路） */}
+        <div ref={elRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden' }} />
 
         {/* 画布初始化降级态（容器尺寸异常时不再整页白屏，给出可恢复入口） */}
         {initFailed && (
@@ -461,7 +518,8 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
           onExportPng={() => void exportPng()}
         />
 
-        <MindmapSideToolbar handle={handle} getOutline={getOutline} />
+        {/* onPanelToggle：面板开合期间通知画布跳过 resize（抽屉动画会连续 reflow） */}
+        <MindmapSideToolbar handle={handle} getOutline={getOutline} onPanelToggle={onPanelToggle} />
 
         <MindmapZoomBar
           handle={handle}

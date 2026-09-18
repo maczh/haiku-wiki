@@ -19,6 +19,7 @@ import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
 import { IMPORT_EXTENSIONS, extOfName, unsupportedImportReason } from './formats'
+import { collectStyleText, fixLazyImages, hiddenSelectors, pruneInvisible, stripNonContent } from './htmlClean'
 import { stringifySheet, type SheetJSON } from '../sheet'
 import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
 
@@ -194,6 +195,18 @@ const parseXlsx: Parser = async (file) => {
 
 // ---------- html（P3：DOMParser → DOMPurify 清洗 → turndown） ----------
 
+/**
+ * HTML → Markdown（CSS + 脚本综合处理）。
+ *
+ * 处理顺序（每一步都只做一件事，便于定位问题）：
+ *   ① 取 <style> 文本，静态解析出「会把元素藏起来」的选择器（display:none 等）；
+ *   ② 剔除 <script>/<style>/<template>/<svg>/<iframe> 等不产出正文的节点——
+ *      脚本文本绝不进正文；DOMParser 不执行脚本，因此「脚本生成的可见文本」在
+ *      本环境里并不存在，保留的就是 DOM 现有的可见文本节点；
+ *   ③ 按 ① 的选择器 + inline style + hidden 属性剔除不可见元素，隐藏文案不落正文；
+ *   ④ 补懒加载图片的 src（data-src 等），保证图片在 Markdown 里仍是可访问 URL；
+ *   ⑤ DOMPurify 清洗（防 XSS 与样式残留）→ turndown 转 Markdown（保留链接与图片）。
+ */
 const parseHtml: Parser = async (file) => {
   const raw = await file.text()
   const dom = new DOMParser().parseFromString(raw, 'text/html')
@@ -203,7 +216,21 @@ const parseHtml: Parser = async (file) => {
   if (!body || !body.innerHTML.trim()) {
     return { ok: false, title, docType: 'markdown', content: '', reason: 'HTML 中没有可见内容' }
   }
-  // 清洗：移除 script/style 等危险与无关节点（DOMPurify 默认即拦 script，显式声明以示边界）
+
+  // ① 隐藏类选择器（脚本不执行、无布局，只能静态解析 CSS）
+  const hiddenSels = hiddenSelectors(collectStyleText(dom))
+  // ② 脚本/样式/嵌入对象：不进正文
+  stripNonContent(body)
+  // ③ 不可见元素：整棵子树移除，避免隐藏文案污染正文
+  pruneInvisible(body, hiddenSels)
+  // ④ 懒加载图片补 src（base64 占位图不算可用源）
+  fixLazyImages(body)
+
+  if (!body.innerHTML.trim()) {
+    return { ok: false, title, docType: 'markdown', content: '', reason: 'HTML 中没有可见内容（全部为脚本或隐藏元素）' }
+  }
+
+  // ⑤ 清洗（DOMPurify 默认即拦 script，显式声明以示边界）+ 转 Markdown
   const cleaned = DOMPurify.sanitize(body.innerHTML, {
     FORBID_TAGS: ['style', 'script', 'noscript', 'iframe', 'object', 'embed'],
     FORBID_ATTR: ['style'],

@@ -1,5 +1,7 @@
 import { lazy } from 'react'
 import LazyBoundary from '../common/LazyBoundary'
+import WidthControl from './WidthControl'
+import { useReaderWidth } from '../../lib/readerWidth'
 import { type DocType } from '../../types'
 
 // 按文档类型按需加载渲染器：Vditor / simple-mind-map / x-data-spreadsheet / pdf.js / mermaid
@@ -21,6 +23,8 @@ interface Props {
   /** 附件「另存为绘图文档」需要：所属知识库与新建后的跳转回调 */
   bookId?: number
   onDocCreated?: (docId: number) => void
+  /** 是否显示正文宽度调节器（阅读页/分享页默认显示；弹窗内嵌预览可关掉） */
+  widthEditable?: boolean
 }
 
 /** 各类型的加载占位文案（按需加载时才可见） */
@@ -41,67 +45,80 @@ const TIP: Record<string, string> = {
  * XSS 边界：任何非 markdown 内容绝不进入 Vditor/MarkdownView 渲染管线；
  * 未知类型兜底按纯文本 <pre> 展示。
  */
-export default function DocContent({ docType, content, onRendered, bookId, onDocCreated }: Props) {
+export default function DocContent({
+  docType,
+  content,
+  onRendered,
+  bookId,
+  onDocCreated,
+  widthEditable = true,
+}: Props) {
+  // 正文宽度（标准/宽屏/全宽 + 拖动条），偏好存 localStorage，阅读页与分享页共用
+  const { maxWidth } = useReaderWidth()
+
+  /** 按 doc_type 分发的渲染体（宽度控制在最外层统一施加） */
+  let body: JSX.Element
   if (docType === 'markdown') {
-    return (
+    body = (
       <LazyBoundary tip={TIP.markdown}>
         <MarkdownView content={content} onRendered={onRendered} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'sheet') {
-    return (
+  } else if (docType === 'sheet') {
+    body = (
       <LazyBoundary tip={TIP.sheet}>
         <SheetView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'mindmap') {
-    return (
+  } else if (docType === 'mindmap') {
+    body = (
       <LazyBoundary tip={TIP.mindmap}>
         <MindmapView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'flowchart') {
-    return (
+  } else if (docType === 'flowchart') {
+    body = (
       <LazyBoundary tip={TIP.flowchart}>
         <FlowchartView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'drawing') {
-    return (
+  } else if (docType === 'drawing') {
+    body = (
       <LazyBoundary tip={TIP.drawing}>
         <DrawioView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'todo') {
-    return (
+  } else if (docType === 'todo') {
+    body = (
       <LazyBoundary tip={TIP.todo}>
         <TodoView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'calendar') {
-    return (
+  } else if (docType === 'calendar') {
+    body = (
       <LazyBoundary tip={TIP.calendar}>
         <CalendarView content={content} />
       </LazyBoundary>
     )
-  }
-  if (docType === 'file') {
-    return (
+  } else if (docType === 'file') {
+    body = (
       <LazyBoundary tip={TIP.file}>
         <FileView content={content} bookId={bookId} onDocCreated={onDocCreated} />
       </LazyBoundary>
     )
+  } else {
+    // 未知类型兜底：纯文本，不进任何渲染管线
+    body = (
+      <div style={{ padding: '0 24px 40px' }}>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8 }}>{content}</pre>
+      </div>
+    )
   }
-  // 未知类型兜底：纯文本，不进任何渲染管线
+
   return (
-    <div style={{ maxWidth: 780, margin: '0 auto', padding: '0 24px 40px' }}>
-      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.8 }}>{content}</pre>
+    <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', width: '100%' }}>
+      {widthEditable && <WidthControl compact />}
+      {body}
     </div>
   )
 }

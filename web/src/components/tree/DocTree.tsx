@@ -4,7 +4,6 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { Button, Dropdown, Empty, Input, Modal, Select, Spin, message } from 'antd'
 import {
-  ApartmentOutlined,
   CaretDownOutlined,
   CaretRightOutlined,
   CopyOutlined,
@@ -18,14 +17,8 @@ import {
   HolderOutlined,
   ImportOutlined,
   LinkOutlined,
-  PaperClipOutlined,
-  CalendarOutlined,
-  CheckSquareOutlined,
-  DeploymentUnitOutlined,
-  PartitionOutlined,
   PushpinFilled,
   ShareAltOutlined,
-  TableOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
 import { buildChildrenMap, useDocTreeStore } from '../../stores/docTreeStore'
@@ -42,6 +35,7 @@ import { listBooks } from '../../api/books'
 import { DOC_TYPES, DOC_TYPE_LABEL, type BookWithCount, type DocNode, type DocType } from '../../types'
 import LazyBoundary from '../common/LazyBoundary'
 import { IMPORT_FORMATS, IMPORT_URL_KEY } from '../../lib/import/formats'
+import { iconForDocType } from '../../lib/fileIcon'
 import UrlImportDialog from '../import/UrlImportDialog'
 
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts，
@@ -61,27 +55,15 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   file: '未命名附件',
 }
 
-/** 新建/编辑节点图标按 doc_type 分发（目录仍是 Folder） */
+/**
+ * 节点图标：目录用 Folder，其余按 doc_type 分发；
+ * 附件（doc_type=file）再按标题里的扩展名细分（pdf / xlsx / dwg / zip …）。
+ * 映射表统一在 lib/fileIcon.tsx，避免各处各写一份。
+ */
 function nodeIcon(node: DocNode, hasChildren: boolean) {
   if (hasChildren) return <FolderOutlined style={{ color: '#faad14' }} />
-  switch (node.doc_type) {
-    case 'sheet':
-      return <TableOutlined style={{ color: '#13c2c2' }} />
-    case 'mindmap':
-      return <ApartmentOutlined style={{ color: '#722ed1' }} />
-    case 'flowchart':
-      return <PartitionOutlined style={{ color: '#fa8c16' }} />
-    case 'drawing':
-      return <DeploymentUnitOutlined style={{ color: '#eb2f96' }} />
-    case 'todo':
-      return <CheckSquareOutlined style={{ color: '#52c41a' }} />
-    case 'calendar':
-      return <CalendarOutlined style={{ color: '#1677ff' }} />
-    case 'file':
-      return <PaperClipOutlined style={{ color: '#2f54eb' }} />
-    default:
-      return <FileTextOutlined style={{ color: '#8a919f' }} />
-  }
+  const spec = iconForDocType(node.doc_type, node.title)
+  return <span style={{ color: spec.color }}>{spec.icon}</span>
 }
 
 // ---------- R3：导入格式下拉 ----------

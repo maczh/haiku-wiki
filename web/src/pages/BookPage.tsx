@@ -32,6 +32,7 @@ import { getDoc } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type DocDetail, type DocNode } from '../types'
+import { useReaderWidth } from '../lib/readerWidth'
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ x-data-spreadsheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
@@ -83,6 +84,8 @@ export default function BookPage() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const { loadTree, reset, docs } = useDocTreeStore()
+  // 阅读区正文宽度（与 DocContent 内的调节器共享同一份本地偏好）
+  const { maxWidth, customized } = useReaderWidth()
 
   const [book, setBook] = useState<Book | null>(null)
   const [doc, setDoc] = useState<DocDetail | null>(null)
@@ -527,7 +530,9 @@ export default function BookPage() {
                     {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
                     <div
                       style={{
-                        maxWidth: isWideDoc ? 1100 : 780,
+                        // 未手动调宽时沿用原有分档（宽类 1100 / 正文类 780）；
+                        // 用户一旦调过宽度，标题块与正文一起跟随其选择
+                        maxWidth: customized ? (maxWidth ?? undefined) : isWideDoc ? 1100 : 780,
                         margin: '0 auto',
                         paddingTop: 28,
                         paddingLeft: 24,

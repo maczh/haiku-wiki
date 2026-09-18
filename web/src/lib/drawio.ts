@@ -193,32 +193,155 @@ export function toBlob(data: string, format: string): { blob: Blob; mime: string
 
 /**
  * 探测自托管 drawio 资源是否就位。
- * 用 GET 而非 HEAD：部分静态服务对 HEAD 返回 405。
- * 结果按会话缓存，避免每次打开绘图文档都发一次请求。
  *
- * 注意不要用 `Range: bytes=0-64` 之类的窄窗口做探测：drawio 的 index.html 前
- * 65 字节是 `<!DOCTYPE html><html><head><title>Flowchart Maker…`，指纹串
- * （drawio / mxgraph）落在窗口之外，而严格实现 Range 的静态服务器只会返回
- * 请求的那几十字节 —— 会把「资源已就位」误判成「组件未部署」。
- * 该文件仅约 3KB，整取后再校验即可。
+ * 只校验 index.html 是不够的：drawio 的页面只是一个壳，真正的应用由
+ * `js/bootstrap.js` → `js/PreConfig.js` → `js/app.min.js` 依次动态注入。
+ * 只要其中**任何一个**取不到（vendor 同步不完整、构建产物未带上 public/drawio、
+ * 或服务端把它当未知路径回退），静态服务就会返回 **应用自身的 index.html**
+ * （SPA fallback，`Content-Type: text/html`）。浏览器把这份 HTML 当 JS 执行，
+ * 于是抛出经典的 `Uncaught SyntaxError: Unexpected token '<'` —— 报错信息
+ * 完全指不到真正出问题的 URL。
+ *
+ * 因此这里对**关键 JS 子资源逐个做首字节 + Content-Type 校验**，在加载 iframe
+ * 之前就把问题定位到具体文件，并以可读提示呈现，而不是让浏览器抛语法错误。
  */
+export interface DrawioAssetIssue {
+  url: string
+  status: number
+  contentType: string
+  reason: string
+}
+
+export interface DrawioAssetDiagnosis {
+  ok: boolean
+  issues: DrawioAssetIssue[]
+  /** 面向用户的可读结论（ok=true 时为空串） */
+  message: string
+}
+
+/** 关键 JS 资源：缺任一都会让 drawio 起不来 */
+export const DRAWIO_JS_ASSETS = [
+  'js/bootstrap.js',
+  'js/PreConfig.js',
+  'js/app.min.js',
+  'js/PostConfig.js',
+  'js/main.js',
+]
+
+/** 判定「这看起来是 JS」的 Content-Type */
+const JS_MIME = /(?:application|text)\/(?:x-)?(?:java|ecma)script/i
+
 let assetsProbe: Promise<boolean> | null = null
+let diagnosisCache: Promise<DrawioAssetDiagnosis> | null = null
+let diagnosisResult: DrawioAssetDiagnosis | null = null
 
 /** drawio 页面前 4KB 内必现的指纹；SPA 兜底页不含这些串 */
 const DRAWIO_FINGERPRINT = /drawio|mxgraph|geInfo|bootstrap\.js/i
 
-export function drawioAssetsReady(): Promise<boolean> {
-  assetsProbe ??= (async () => {
+/**
+ * 读取响应的**前若干字节**。
+ * 用 `body.getReader()` 而不是整包 `text()`：app.min.js 有 9.7MB，
+ * 探测时整取会把首屏拖垮；取到第一块就 cancel。
+ */
+async function readHead(resp: Response, limit = 512): Promise<string> {
+  const reader = resp.body?.getReader()
+  if (!reader) return (await resp.text()).slice(0, limit)
+  try {
+    const { value } = await reader.read()
+    const head = new TextDecoder().decode(value ?? new Uint8Array())
+    return head.slice(0, limit)
+  } catch {
+    return ''
+  } finally {
+    // 取消剩余流：不下载完整文件
+    void reader.cancel().catch(() => undefined)
+  }
+}
+
+/** 检测单个资源：OK / 返回 HTML（SPA 兜底）/ 状态异常 */
+async function probeAsset(path: string): Promise<DrawioAssetIssue | null> {
+  const url = `${DRAWIO_BASE}/${path}`
+  let resp: Response
+  try {
+    resp = await fetch(url, { method: 'GET' })
+  } catch (e) {
+    return { url, status: 0, contentType: '', reason: `请求失败：${(e as Error)?.message || '网络错误'}` }
+  }
+  const contentType = (resp.headers.get('content-type') || '').toLowerCase()
+  const head = await readHead(resp)
+  const looksHtml = /^\s*<(!doctype|html|head|body)/i.test(head) || contentType.startsWith('text/html')
+
+  if (!resp.ok) {
+    return {
+      url,
+      status: resp.status,
+      contentType,
+      reason: looksHtml ? `HTTP ${resp.status} 且返回了 HTML（疑似被 SPA 兜底页接管）` : `HTTP ${resp.status}`,
+    }
+  }
+  if (looksHtml) {
+    return { url, status: resp.status, contentType, reason: '返回的是 HTML，不是 JS（疑似被 SPA 兜底页接管）' }
+  }
+  // Content-Type 明确存在且不是 JS 类型时同样判为异常（例如被当成纯文本下载）
+  if (contentType && !JS_MIME.test(contentType) && !contentType.startsWith('application/octet-stream')) {
+    return { url, status: resp.status, contentType, reason: `Content-Type 不是 JS（${contentType || '缺失'}）` }
+  }
+  return null
+}
+
+/**
+ * 完整诊断：入口页指纹 + 关键 JS 子资源。
+ * 结果按会话缓存（只探测一次），并同步暴露给 UI 直接取用。
+ */
+export function drawioAssetDiagnosis(): Promise<DrawioAssetDiagnosis> {
+  diagnosisCache ??= (async () => {
+    const issues: DrawioAssetIssue[] = []
+
+    // ① 入口页：存在性 + 指纹（确认不是应用的兜底 index.html）
     try {
       const resp = await fetch(DRAWIO_ENTRY, { method: 'GET' })
-      if (!resp.ok) return false
-      const text = await resp.text()
-      // 兜底校验：确认拿到的是 drawio 页面，而不是 SPA 的 index.html 路由兜底页
-      return DRAWIO_FINGERPRINT.test(text.slice(0, 4096))
-    } catch {
-      return false
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase()
+      if (!resp.ok) {
+        issues.push({ url: DRAWIO_ENTRY, status: resp.status, contentType, reason: `入口页不可达（HTTP ${resp.status}）` })
+      } else {
+        const text = await resp.text()
+        if (!DRAWIO_FINGERPRINT.test(text.slice(0, 4096))) {
+          issues.push({
+            url: DRAWIO_ENTRY,
+            status: resp.status,
+            contentType,
+            reason: '入口页不含 draw.io 指纹（拿到的是应用自身的兜底页）',
+          })
+        }
+      }
+    } catch (e) {
+      issues.push({ url: DRAWIO_ENTRY, status: 0, contentType: '', reason: `入口页请求失败：${(e as Error)?.message || '网络错误'}` })
     }
+
+    // ② 关键 JS：并发探测（首个失败即足够说明问题，但全部列出更利于定位）
+    const results = await Promise.all(DRAWIO_JS_ASSETS.map(probeAsset))
+    for (const r of results) if (r) issues.push(r)
+
+    const ok = issues.length === 0
+    let message = ''
+    if (!ok) {
+      const detail = issues.map((i) => `· ${i.url} —— ${i.reason}`).join('\n')
+      message = `draw.io 静态资源不完整或路径错误，无法加载绘图组件：\n${detail}\n请在 web 目录执行 \`npm run fetch:drawio\` 后重新构建（生产形态还需确认 dist/drawio 已随产物发布）。`
+    }
+    const result: DrawioAssetDiagnosis = { ok, issues, message }
+    diagnosisResult = result
+    return result
   })()
+  return diagnosisCache
+}
+
+/** 同步读取最近一次诊断结果（尚未完成时返回 null） */
+export function getDrawioAssetDiagnosis(): DrawioAssetDiagnosis | null {
+  return diagnosisResult
+}
+
+export function drawioAssetsReady(): Promise<boolean> {
+  assetsProbe ??= drawioAssetDiagnosis().then((d) => d.ok)
   return assetsProbe
 }
 

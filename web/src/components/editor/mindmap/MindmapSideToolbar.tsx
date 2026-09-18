@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Divider, Drawer, InputNumber, Radio, Select, Slider, Space, Switch, Tooltip, Typography } from 'antd'
 import {
   ApartmentOutlined,
@@ -15,6 +15,12 @@ interface Props {
   handle: MmHandle
   /** 按需生成大纲文本（仅在打开大纲面板时调用，避免每次数据变更都重算） */
   getOutline: () => string
+  /**
+   * 面板开合通知。抽屉以 `getContainer={false}` 内联渲染在画布容器内，
+   * 挂载/卸载与滑入滑出动画都会让浏览器连续 reflow；父组件据此在动画窗口内
+   * 跳过画布 resize，避免「resize → render → 再 resize」的抖动回路。
+   */
+  onPanelToggle?: () => void
 }
 
 type PanelKey = 'node' | 'base' | 'theme' | 'layout' | 'outline' | 'setting'
@@ -23,7 +29,7 @@ type PanelKey = 'node' | 'base' | 'theme' | 'layout' | 'outline' | 'setting'
  * 思维导图右侧浮动工具条（仿 Simple Mind Map 官方 Demo）：
  *  节点样式 / 基础样式 / 主题 / 结构 / 大纲 / 设置，点击后右侧滑出对应面板。
  */
-export default function MindmapSideToolbar({ handle, getOutline }: Props) {
+export default function MindmapSideToolbar({ handle, getOutline, onPanelToggle }: Props) {
   const [panel, setPanel] = useState<PanelKey | null>(null)
   // 节点样式面板需要"当前选中节点样式"作为回显，激活节点变化时刷新
   const [styleTick, setStyleTick] = useState(0)
@@ -34,6 +40,24 @@ export default function MindmapSideToolbar({ handle, getOutline }: Props) {
   const [lineMarker, setLineMarker] = useState(true)
 
   const close = () => setPanel(null)
+
+  // 面板开合 → 通知父组件（抽屉动画期间不要 resize 画布）
+  useEffect(() => {
+    onPanelToggle?.()
+  }, [onPanelToggle, panel])
+
+  /**
+   * 连点防护：主题/结构等「整树重排」类操作很重，
+   * 同一个动作 150ms 内重复触发直接丢弃（拖动取色器时浏览器会高频 onChange）。
+   */
+  const lastCmdRef = useRef<{ key: string; at: number }>({ key: '', at: 0 })
+  function throttleCmd(key: string, run: () => void) {
+    const now = Date.now()
+    const last = lastCmdRef.current
+    if (last.key === key && now - last.at < 150) return
+    lastCmdRef.current = { key, at: now }
+    run()
+  }
 
   /** 主题/基础样式统一入口：以初始主题为基准做覆盖 */
   function applyThemePatch(patch: Record<string, unknown>, tip: string) {
@@ -326,13 +350,16 @@ export default function MindmapSideToolbar({ handle, getOutline }: Props) {
             <ThemeCard
               key={preset.key}
               preset={preset}
-              onClick={() => {
-                const mm = handle.requireMm()
-                if (!mm) return
-                mm.setTheme(preset.key === 'default' ? handle.baseTheme() : (deepMerge(handle.baseTheme(), preset.theme) as never))
-                setBaseTick((n) => n + 1)
-                handle.toast(`已应用主题：${preset.label}`, 'success')
-              }}
+              onClick={() =>
+                // 主题切换会整树重排：连点去重，避免连续 render 引起的视觉抖动
+                throttleCmd(`theme:${preset.key}`, () => {
+                  const mm = handle.requireMm()
+                  if (!mm) return
+                  mm.setTheme(preset.key === 'default' ? handle.baseTheme() : (deepMerge(handle.baseTheme(), preset.theme) as never))
+                  setBaseTick((n) => n + 1)
+                  handle.toast(`已应用主题：${preset.label}`, 'success')
+                })
+              }
             />
           ))}
         </div>
@@ -343,10 +370,14 @@ export default function MindmapSideToolbar({ handle, getOutline }: Props) {
         <Radio.Group
           value={handle.mm?.getLayout?.() ?? 'logicalStructure'}
           onChange={(e) => {
-            const mm = handle.requireMm()
-            if (!mm) return
-            mm.setLayout(e.target.value)
-            handle.toast('结构已切换', 'success')
+            const next = e.target.value
+            // 结构切换同样触发整树重排：同一目标值 150ms 内重复请求直接丢弃
+            throttleCmd(`layout:${next}`, () => {
+              const mm = handle.requireMm()
+              if (!mm) return
+              mm.setLayout(next)
+              handle.toast('结构已切换', 'success')
+            })
           }}
           style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
         >
