@@ -1,6 +1,6 @@
-import { lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Button, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
+import { Button, Dropdown, Empty, Form, Input, Modal, Popconfirm, Radio, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
 import {
   CloseOutlined,
   CopyOutlined,
@@ -10,9 +10,11 @@ import {
   EyeOutlined,
   FileAddOutlined,
   GlobalOutlined,
+  ImportOutlined,
   LockOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  PlusOutlined,
   ReadOutlined,
   SafetyOutlined,
   ShareAltOutlined,
@@ -20,7 +22,7 @@ import {
   UnorderedListOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
-import DocTree from '../components/tree/DocTree'
+import KnowledgeTree from '../components/tree/KnowledgeTree'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
@@ -29,11 +31,12 @@ import WeChatShareModal from '../components/share/WeChatShareModal'
 import ExportDialog, { type ExportTarget } from '../components/export/ExportDialog'
 import CollaboratorModal from '../components/collab/CollaboratorModal'
 import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
-import { getBook, setBookVisibility, updateBook, deleteBook } from '../api/books'
-import { getDoc } from '../api/docs'
-import { useDocTreeStore } from '../stores/docTreeStore'
+import { getBook, setBookVisibility, updateBook, deleteBook, listBooks, createBook } from '../api/books'
+import { getDoc, createDoc, getTree, duplicateDoc, moveDoc, moveDocToBook, pinDoc } from '../api/docs'
+import { buildChildrenMap, useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
-import { VISIBILITY_LABEL, type Book, type DocDetail, type DocNode } from '../types'
+import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNode, type DocType, type Visibility } from '../types'
+import { COVER_COLORS, DOC_TYPES, DOC_TYPE_LABEL } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
@@ -46,8 +49,30 @@ const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
 const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
 const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
 const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
+// ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts（SheetJS/turndown/jszip 等）
+const ImportDialog = lazy(() => import('../components/import/ImportDialog'))
+const UrlImportDialog = lazy(() => import('../components/import/UrlImportDialog'))
 
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
+
+interface BookEditState {
+  mode: 'create' | 'edit'
+  book?: Book
+}
+
+/** 把知识库文档平铺成"目录"下拉选项（含层级缩进） */
+function flattenDocs(docs: DocNode[]): { id: number; label: string }[] {
+  const map = buildChildrenMap(docs)
+  const out: { id: number; label: string }[] = []
+  const walk = (parentId: number, depth: number) => {
+    for (const d of map.get(parentId) || []) {
+      out.push({ id: d.id, label: '　'.repeat(depth) + (d.title || '未命名') })
+      walk(d.id, depth + 1)
+    }
+  }
+  walk(0, 0)
+  return out
+}
 
 // 左栏宽度 / 折叠态、大纲浮动层开关均持久化到 localStorage（本地偏好）
 const LS_SIDEBAR_W = 'hk.sidebar.width'
@@ -109,14 +134,55 @@ export default function BookPage() {
   const [renameModalOpen, setRenameModalOpen] = useState(false)
   const [renameBookValue, setRenameBookValue] = useState('')
   const [renameSaving, setRenameSaving] = useState(false)
-  // 知识库右键"新建文档"→ DocTree（信号计数器）
-  const [createSignal, setCreateSignal] = useState(0)
   /** 「分享到微信」弹窗（所有文档通用入口） */
   const [weChatOpen, setWeChatOpen] = useState(false)
   const contentKeyRef = useRef(0)
   // 公司知识库写权限管理（仅管理员可见）
   const isAdmin = user?.role === 'admin'
-  const [writersOpen, setWritersOpen] = useState(false)
+  const [writersBook, setWritersBook] = useState<Book | null>(null)
+
+  // ---------- 多文库目录树状态 ----------
+  const [books, setBooks] = useState<Bookshelf | null>(null)
+  const [booksLoading, setBooksLoading] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const [edit, setEdit] = useState<BookEditState | null>(null)
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  // 新建文档：两步（先选知识库+目录，再填类型与名称）
+  const [newDocStep, setNewDocStep] = useState(0)
+  const [newDocBookId, setNewDocBookId] = useState<number | null>(null)
+  const [newDocParentId, setNewDocParentId] = useState(0)
+  const [newDocType, setNewDocType] = useState<DocType>('markdown')
+  const [newDocName, setNewDocName] = useState('')
+  const [dirOptions, setDirOptions] = useState<{ id: number; label: string }[]>([])
+  const [dirLoading, setDirLoading] = useState(false)
+
+  // 导入：两步（先选知识库+目录，再选方式）
+  const [importStep, setImportStep] = useState(0)
+  const [importBookId, setImportBookId] = useState<number | null>(null)
+  const [importParentId, setImportParentId] = useState(0)
+  const [importMode, setImportMode] = useState<'file' | 'url'>('file')
+  const [fileImport, setFileImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
+    open: false,
+    bookId: 0,
+    parentId: 0,
+  })
+  const [urlImport, setUrlImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
+    open: false,
+    bookId: 0,
+    parentId: 0,
+  })
+  // 导入/新建后刷新指定库的文档树
+  const [reloadBookId, setReloadBookId] = useState<number | null>(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
+
+  // 文档移动到其他知识库
+  const [moveNode, setMoveNode] = useState<DocNode | null>(null)
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null)
+  const [moveBooks, setMoveBooks] = useState<Book[] | null>(null)
+  const [moveLoading, setMoveLoading] = useState(false)
+  const [moveSaving, setMoveSaving] = useState(false)
 
   // 左栏（文档库）：可折叠 + 可拖拽调宽（持久化）
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readLS(LS_SIDEBAR_COLLAPSED) === '1')
@@ -219,6 +285,218 @@ export default function BookPage() {
     setTocCount(el.querySelectorAll('h1, h2, h3, h4').length)
   }, [])
 
+  // ---------- 多文库目录树：数据与操作 ----------
+
+  async function refreshBooks() {
+    setBooksLoading(true)
+    try {
+      const res = await listBooks()
+      setBooks({ mine: res.mine || [], visible: res.visible || [], teams: res.teams || [] })
+    } finally {
+      setBooksLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshBooks()
+  }, [])
+
+  // 当前书变化时刷新左侧树中该书的数据（保持选中状态与计数最新）
+  useEffect(() => {
+    if (bookID) {
+      setReloadBookId(bookID)
+      setReloadNonce((n) => n + 1)
+    }
+  }, [bookID])
+
+  function openCreateBook(cat?: 'private' | 'team' | 'company') {
+    const visibility: Visibility = cat === 'team' ? 'members' : 'private'
+    setEdit({ mode: 'create' })
+    form.setFieldsValue({ name: '', description: '', cover_color: COVER_COLORS[0], visibility })
+  }
+
+  function openEditBook(b: Book) {
+    setEdit({ mode: 'edit', book: b })
+    form.setFieldsValue({
+      name: b.name,
+      description: b.description,
+      cover_color: b.cover_color || COVER_COLORS[0],
+      visibility: b.visibility,
+    })
+  }
+
+  async function submitBook() {
+    const values = await form.validateFields()
+    setSaving(true)
+    try {
+      if (edit?.mode === 'create') {
+        await createBook(values)
+        message.success('知识库已创建')
+      } else if (edit?.book) {
+        await updateBook(edit.book.id, {
+          name: values.name,
+          description: values.description,
+          cover_color: values.cover_color,
+        })
+        message.success('知识库已更新')
+        if (book?.id === edit.book.id) {
+          const b = await getBook(edit.book.id)
+          setBook(b)
+        }
+      }
+      setEdit(null)
+      await refreshBooks()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeleteBook(b: Book) {
+    await deleteBook(b.id)
+    message.success('知识库已删除')
+    await refreshBooks()
+    if (b.id === bookID) navigate('/')
+  }
+
+  async function loadDirOptions(bookId: number) {
+    setDirLoading(true)
+    try {
+      const docs = await getTree(bookId)
+      setDirOptions([{ id: 0, label: '根目录（知识库顶层）' }, ...flattenDocs(docs)])
+    } catch {
+      setDirOptions([{ id: 0, label: '根目录（知识库顶层）' }])
+    } finally {
+      setDirLoading(false)
+    }
+  }
+
+  async function openNewDoc(bookId?: number, parentId?: number) {
+    setNewDocStep(1)
+    setNewDocBookId(bookId ?? null)
+    setNewDocParentId(parentId ?? 0)
+    setNewDocType('markdown')
+    setNewDocName('')
+    if (bookId != null) {
+      await loadDirOptions(bookId)
+    } else {
+      setDirOptions([])
+    }
+  }
+
+  async function onNewDocBookChange(bookId: number) {
+    setNewDocBookId(bookId)
+    setNewDocParentId(0)
+    await loadDirOptions(bookId)
+  }
+
+  async function submitNewDoc() {
+    if (newDocBookId == null) return
+    const name = newDocName.trim()
+    try {
+      const d = await createDoc(newDocBookId, newDocParentId, name, newDocType)
+      setNewDocStep(0)
+      message.success('文档已创建')
+      setReloadBookId(newDocBookId)
+      setReloadNonce((n) => n + 1)
+      navigate(`/books/${newDocBookId}?docId=${d.id}&tab=edit`)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  async function openImport(bookId?: number, parentId?: number) {
+    setImportStep(1)
+    setImportBookId(bookId ?? null)
+    setImportParentId(parentId ?? 0)
+    setImportMode('file')
+    if (bookId != null) {
+      await loadDirOptions(bookId)
+    } else {
+      setDirOptions([])
+    }
+  }
+
+  async function onImportBookChange(bookId: number) {
+    setImportBookId(bookId)
+    setImportParentId(0)
+    await loadDirOptions(bookId)
+  }
+
+  function confirmImport() {
+    if (importBookId == null) return
+    setImportStep(0)
+    if (importMode === 'file') {
+      setFileImport({ open: true, bookId: importBookId, parentId: importParentId })
+    } else {
+      setUrlImport({ open: true, bookId: importBookId, parentId: importParentId })
+    }
+  }
+
+  function afterImport(bookId: number) {
+    setReloadBookId(bookId)
+    setReloadNonce((n) => n + 1)
+  }
+
+  async function handleDuplicateDoc(_bookId: number, node: DocNode) {
+    try {
+      const cp = await duplicateDoc(node.id)
+      message.success(`已复制为「${cp.title}」`)
+      afterImport(node.book_id)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  async function handlePinDoc(_bookId: number, node: DocNode) {
+    try {
+      await pinDoc(node.id, !node.pinned_at)
+      message.success(node.pinned_at ? '已取消置顶' : '已置顶')
+      afterImport(node.book_id)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  async function openMoveDoc(_bookId: number, node: DocNode) {
+    setMoveNode(node)
+    setMoveTargetId(null)
+    setMoveBooks(null)
+    setMoveLoading(true)
+    try {
+      const shelf = await listBooks()
+      const writable = [...shelf.mine, ...shelf.visible.filter((b) => b.visibility === 'members')]
+      setMoveBooks(writable.filter((b) => b.id !== node.book_id))
+    } catch {
+      setMoveBooks([])
+    } finally {
+      setMoveLoading(false)
+    }
+  }
+
+  async function submitMoveDoc() {
+    if (!moveNode || !moveTargetId) return
+    setMoveSaving(true)
+    try {
+      await moveDocToBook(moveNode.id, moveTargetId)
+      const target = moveBooks?.find((b) => b.id === moveTargetId)
+      message.success(`已移动到「${target?.name ?? '目标知识库'}」根目录`)
+      setMoveNode(null)
+      afterImport(moveNode.book_id)
+      if (docIdParam === moveNode.id) setParams({ docId: 0 })
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setMoveSaving(false)
+    }
+  }
+
+  const bookOptions = useMemo(() => {
+    const all: Book[] = [...(books?.mine || []), ...(books?.teams || []), ...(books?.visible || [])]
+    return all.map((b) => ({ value: b.id, label: b.name }))
+  }, [books])
+
+  const filterFn = (b: Book) => !keyword || b.name.includes(keyword)
+
   if (notFound) {
     return (
       <Empty description="知识库不存在或无权访问" style={{ marginTop: 120 }}>
@@ -288,14 +566,12 @@ export default function BookPage() {
       okType: 'danger',
       cancelText: '取消',
       onOk: async () => {
-        await deleteBook(book.id)
-        message.success('知识库已删除')
-        navigate('/')
+        await handleDeleteBook(book)
       },
     })
   }
 
-  /** 知识库节点右键菜单：新建文档 / 重命名 / 修改可见性 / 导出 / 删除 */
+  /** 顶栏书头右键菜单：新建文档 / 重命名 / 修改可见性 / 导出 / 删除 */
   const bookMenu = {
     items: [
       { key: 'create', icon: <FileAddOutlined />, label: '新建文档', disabled: !canWrite },
@@ -305,7 +581,7 @@ export default function BookPage() {
       { key: 'delete', icon: <DeleteOutlined />, label: '删除知识库', danger: true, disabled: !isOwner },
     ],
     onClick: ({ key }: { key: string }) => {
-      if (key === 'create') setCreateSignal((n) => n + 1)
+      if (key === 'create') openNewDoc(bookID, 0)
       if (key === 'rename') {
         setRenameBookValue(book?.name ?? '')
         setRenameModalOpen(true)
@@ -350,7 +626,7 @@ export default function BookPage() {
               flexDirection: 'column',
             }}
           >
-            {/* 书头：知识库节点（右键菜单 R4） */}
+            {/* 书头：当前知识库概览 + 全局操作入口 */}
             <Dropdown menu={bookMenu} trigger={['contextMenu']}>
               <div style={{ padding: '12px 12px 8px 16px', borderBottom: '1px solid #f0f2f5' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -365,8 +641,19 @@ export default function BookPage() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {book?.name ?? '加载中…'}
+                    寄海文档
                   </div>
+                  <Tooltip title="新建知识库">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openCreateBook('private')
+                      }}
+                    />
+                  </Tooltip>
                   <Tooltip title="收起文档库">
                     <Button
                       type="text"
@@ -380,22 +667,45 @@ export default function BookPage() {
                   <Tag icon={visIcon[book?.visibility ?? 'private']} style={{ fontSize: 11 }}>
                     {VISIBILITY_LABEL[book?.visibility ?? 'private']}
                   </Tag>
-                  <span style={{ color: '#8a919f', fontSize: 12 }}>{docs.length} 篇</span>
+                  <span style={{ color: '#8a919f', fontSize: 12 }}>{book?.name ?? '加载中…'} · {docs.length} 篇</span>
                 </div>
               </div>
             </Dropdown>
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <DocTree
-                bookId={bookID}
-                selectedId={docIdParam || null}
-                onSelect={(id) => setParams({ docId: id })}
-                onOpenInEdit={(id) => setParams({ docId: id, tab: 'edit' })}
-                onShare={openShare}
-                onExportDoc={openExportDoc}
-                onCollaborators={openCollaborators}
-                canWrite={canWrite}
-                createSignal={createSignal}
-              />
+              {booksLoading && <Spin style={{ display: 'block', margin: '24px auto' }} />}
+              {!booksLoading && books && (
+                <KnowledgeTree
+                  books={{
+                    mine: (books.mine || []).filter(filterFn),
+                    teams: (books.teams || []).filter(filterFn),
+                    visible: (books.visible || []).filter(filterFn),
+                  }}
+                  selectedBookId={bookID}
+                  selectedDocId={docIdParam || undefined}
+                  isAdmin={!!isAdmin}
+                  onOpenBook={(id) => navigate(`/books/${id}`)}
+                  onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
+                  onNewDoc={(bid, pid) => void openNewDoc(bid, pid)}
+                  onImport={(bid, pid) => void openImport(bid, pid)}
+                  onNewBook={(cat) => openCreateBook(cat)}
+                  onEditBook={(b) => openEditBook(b)}
+                  onDeleteBook={(b) => void handleDeleteBook(b)}
+                  onManageWriters={(b) => setWritersBook(b)}
+                  canWriteDoc={(bid) => {
+                    const b = [...(books?.mine || []), ...(books?.teams || []), ...(books?.visible || [])].find((x) => x.id === bid)
+                    return !!user && (b?.can_write === true || b?.owner_id === user.id || b?.visibility === 'members')
+                  }}
+                  onEditDoc={(_bid, d) => setParams({ docId: d.id, tab: 'edit' })}
+                  onDuplicateDoc={(_bid, d) => void handleDuplicateDoc(_bid, d)}
+                  onMoveDoc={(_bid, d) => void openMoveDoc(_bid, d)}
+                  onPinDoc={(_bid, d) => void handlePinDoc(_bid, d)}
+                  onShareDoc={(_bid, d) => openShare(d)}
+                  onExportDoc={(_bid, d) => openExportDoc(d)}
+                  onCollaborators={(_bid, d) => openCollaborators(d)}
+                  reloadBookId={reloadBookId}
+                  reloadNonce={reloadNonce}
+                />
+              )}
             </div>
           </aside>
           {/* 右边缘拖拽把手：调整左栏宽度 */}
@@ -462,7 +772,7 @@ export default function BookPage() {
             )}
             {book?.is_company_kb && isAdmin && (
               <Tooltip title="管理公司知识库的写权限授权">
-                <Button size="small" icon={<SafetyOutlined />} onClick={() => setWritersOpen(true)}>
+                <Button size="small" icon={<SafetyOutlined />} onClick={() => setWritersBook(book)}>
                   管理写权限
                 </Button>
               </Tooltip>
@@ -491,7 +801,7 @@ export default function BookPage() {
                         {canWrite && (
                           <>
                             {' '}
-                            或 <a onClick={() => setCreateSignal((n) => n + 1)}>新建文档</a>
+                            或 <a onClick={() => void openNewDoc(bookID, 0)}>新建文档</a>
                           </>
                         )}
                       </span>
@@ -708,16 +1018,267 @@ export default function BookPage() {
 
       {/* 公司知识库写权限管理（仅管理员）：授权后刷新本库 can_write，使编辑按钮即时生效 */}
       <CompanyKBWritersModal
-        open={writersOpen}
+        open={!!writersBook}
         onClose={() => {
-          setWritersOpen(false)
-          void getBook(bookID)
-            .then(setBook)
-            .catch(() => undefined)
+          setWritersBook(null)
+          if (writersBook?.id === bookID) {
+            void getBook(bookID)
+              .then(setBook)
+              .catch(() => undefined)
+          }
+          void refreshBooks()
         }}
-        bookId={bookID}
-        bookName={book?.name}
+        bookId={writersBook?.id ?? bookID}
+        bookName={writersBook?.name ?? book?.name}
       />
+
+      {/* 新建 / 编辑知识库弹窗 */}
+      <Modal
+        title={edit?.mode === 'create' ? '新建知识库' : '编辑知识库'}
+        open={!!edit}
+        onOk={() => void submitBook()}
+        onCancel={() => setEdit(null)}
+        confirmLoading={saving}
+        okText={edit?.mode === 'create' ? '创建' : '保存'}
+        cancelText="取消"
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="封面色" name="cover_color">
+            <Select
+              options={COVER_COLORS.map((c) => ({ value: c, label: c }))}
+              optionRender={(opt) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 4, background: opt.value as string }} />
+                  {opt.value}
+                </div>
+              )}
+            />
+          </Form.Item>
+          <Form.Item
+            label="知识库名称"
+            name="name"
+            rules={[{ required: true, message: '请输入名称' }, { max: 128, message: '名称过长' }]}
+          >
+            <Input placeholder="例如：产品技术文档" />
+          </Form.Item>
+          <Form.Item label="简介" name="description">
+            <Input.TextArea rows={2} placeholder="一句话介绍这个知识库（可选）" maxLength={512} />
+          </Form.Item>
+          {edit?.mode === 'create' && (
+            <Form.Item label="可见性" name="visibility">
+              <Select
+                options={(['private', 'members', 'public'] as Visibility[]).map((v) => ({
+                  value: v,
+                  label: VISIBILITY_LABEL[v],
+                }))}
+              />
+            </Form.Item>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {edit?.mode === 'edit' && edit.book ? (
+              <Popconfirm
+                title="删除后其下文档一并移入回收站，确定删除？"
+                okText="删除"
+                okType="danger"
+                cancelText="取消"
+                onConfirm={() => void handleDeleteBook(edit.book!)}
+              >
+                <Button danger>删除知识库</Button>
+              </Popconfirm>
+            ) : (
+              <span />
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button onClick={() => setEdit(null)}>取消</Button>
+              <Button type="primary" loading={saving} onClick={() => void submitBook()}>
+                {edit?.mode === 'create' ? '创建' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* 新建文档：第一步 选择知识库 + 目录 */}
+      <Modal
+        title="新建文档 · 选择位置"
+        open={newDocStep === 1}
+        onCancel={() => setNewDocStep(0)}
+        okText="下一步"
+        cancelText="取消"
+        okButtonProps={{ disabled: newDocBookId == null }}
+        onOk={() => setNewDocStep(2)}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>知识库 *</div>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择知识库"
+            value={newDocBookId ?? undefined}
+            onChange={(v) => void onNewDocBookChange(v)}
+            options={bookOptions}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>目录（存放位置）</div>
+          {dirLoading ? (
+            <Spin size="small" />
+          ) : (
+            <Select
+              style={{ width: '100%' }}
+              placeholder="选择目录"
+              value={newDocParentId}
+              onChange={setNewDocParentId}
+              options={dirOptions}
+            />
+          )}
+        </div>
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>未选择子目录时，文档将创建在知识库根目录。</div>
+      </Modal>
+
+      {/* 新建文档：第二步 类型与名称 */}
+      <Modal
+        title="新建文档 · 填写信息"
+        open={newDocStep === 2}
+        onCancel={() => setNewDocStep(0)}
+        okText="创建"
+        cancelText="取消"
+        onOk={() => void submitNewDoc()}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
+          <Select
+            style={{ width: '100%' }}
+            value={newDocType}
+            onChange={setNewDocType}
+            options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>文档名称</div>
+          <Input
+            autoFocus
+            placeholder="请输入文档名称"
+            value={newDocName}
+            onChange={(e) => setNewDocName(e.target.value)}
+            onPressEnter={() => void submitNewDoc()}
+          />
+        </div>
+      </Modal>
+
+      {/* 导入：第一步 选择知识库 + 目录 */}
+      <Modal
+        title="导入 · 选择位置"
+        open={importStep === 1}
+        onCancel={() => setImportStep(0)}
+        okText="下一步"
+        cancelText="取消"
+        okButtonProps={{ disabled: importBookId == null }}
+        onOk={() => setImportStep(2)}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>知识库 *</div>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择知识库"
+            value={importBookId ?? undefined}
+            onChange={(v) => void onImportBookChange(v)}
+            options={bookOptions}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>目录（存放位置）</div>
+          {dirLoading ? (
+            <Spin size="small" />
+          ) : (
+            <Select
+              style={{ width: '100%' }}
+              placeholder="选择目录"
+              value={importParentId}
+              onChange={setImportParentId}
+              options={dirOptions}
+            />
+          )}
+        </div>
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>导入的文档将落入所选知识库的该目录。</div>
+      </Modal>
+
+      {/* 导入：第二步 选择方式 */}
+      <Modal
+        title="导入 · 选择方式"
+        open={importStep === 2}
+        onCancel={() => setImportStep(0)}
+        okText="确定"
+        cancelText="取消"
+        onOk={confirmImport}
+        destroyOnClose
+      >
+        <Radio.Group value={importMode} onChange={(e) => setImportMode(e.target.value)}>
+          <Radio value="file">从文件导入（Word / Excel / Markdown / 图片型文档等）</Radio>
+          <br />
+          <Radio value="url">从网页链接（URL）导入</Radio>
+        </Radio.Group>
+      </Modal>
+
+      {/* 移动文档到其他知识库 */}
+      <Modal
+        title={`移动「${moveNode?.title ?? ''}」`}
+        open={!!moveNode}
+        onOk={() => void submitMoveDoc()}
+        onCancel={() => setMoveNode(null)}
+        okText="移动"
+        okButtonProps={{ disabled: !moveTargetId }}
+        confirmLoading={moveSaving}
+        cancelText="取消"
+        destroyOnClose
+      >
+        {moveLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}
+        {!moveLoading && moveBooks && moveBooks.length === 0 && (
+          <Empty description="没有可写入的其他知识库" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
+        {!moveLoading && moveBooks && moveBooks.length > 0 && (
+          <Select
+            style={{ width: '100%' }}
+            placeholder="选择目标知识库（我有编辑权限）"
+            value={moveTargetId}
+            onChange={setMoveTargetId}
+            options={moveBooks.map((b) => ({ value: b.id, label: b.name }))}
+          />
+        )}
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
+          移动后该文档及其子文档将整体迁移到目标知识库根目录末尾。
+        </div>
+      </Modal>
+
+      {/* 文件导入对话框（指定目录） */}
+      {fileImport.open && (
+        <LazyBoundary tip="正在加载导入组件…">
+          <ImportDialog
+            open={fileImport.open}
+            onClose={() => setFileImport((s) => ({ ...s, open: false }))}
+            bookId={fileImport.bookId}
+            parentId={fileImport.parentId}
+            onImported={() => afterImport(fileImport.bookId)}
+          />
+        </LazyBoundary>
+      )}
+
+      {/* 网页链接导入对话框（指定目录） */}
+      {urlImport.open && (
+        <LazyBoundary tip="正在加载导入组件…">
+          <UrlImportDialog
+            open={urlImport.open}
+            onClose={() => setUrlImport((s) => ({ ...s, open: false }))}
+            defaultBookId={urlImport.bookId}
+            parentId={urlImport.parentId}
+            onImported={() => afterImport(urlImport.bookId)}
+          />
+        </LazyBoundary>
+      )}
     </div>
   )
 }

@@ -3,15 +3,21 @@ import { Tree, Dropdown, Empty, Modal, Input, message } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
   BookOutlined,
+  CopyOutlined,
   DeleteOutlined,
+  DownloadOutlined,
   EditOutlined,
   FileAddOutlined,
+  FileTextOutlined,
   FolderOutlined,
   FolderOpenOutlined,
   ImportOutlined,
   MoreOutlined,
   PlusOutlined,
+  PushpinFilled,
   SafetyCertificateOutlined,
+  ShareAltOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons'
 import type { BookWithCount, Bookshelf, DocNode } from '../../types'
 import { getTree, deleteDoc, patchDoc } from '../../api/docs'
@@ -59,6 +65,22 @@ interface Props {
   /** 外部触发某知识库文档刷新（导入/新建后）；传 {bookId, nonce} 变化即重载并展开 */
   reloadBookId?: number | null
   reloadNonce?: number
+  /** 判断某文档是否可写；未传时以 book.can_write 为准 */
+  canWriteDoc?: (bookId: number, doc?: DocNode) => boolean
+  /** 右键/菜单：编辑文档（打开编辑页） */
+  onEditDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：复制文档 */
+  onDuplicateDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：移动到其他知识库 */
+  onMoveDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：置顶/取消置顶 */
+  onPinDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：分享 */
+  onShareDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：导出 */
+  onExportDoc?: (bookId: number, doc: DocNode) => void
+  /** 右键/菜单：邀请协作 */
+  onCollaborators?: (bookId: number, doc: DocNode) => void
 }
 
 const CAT_LABEL: Record<'private' | 'team' | 'company', string> = {
@@ -93,6 +115,23 @@ function buildDocNodes(bookId: number, childrenMap: Map<number, DocNode[]>, pare
 
 export default function KnowledgeTree(p: Props) {
   const { books, selectedBookId, selectedDocId, isAdmin, reloadBookId, reloadNonce } = p
+
+  const bookMap = useMemo(() => {
+    const map = new Map<number, BookWithCount>()
+    for (const b of [...books.mine, ...books.teams, ...books.visible]) {
+      map.set(b.id, b)
+    }
+    return map
+  }, [books])
+
+  const canWriteFor = useCallback(
+    (bookId: number, doc?: DocNode) => {
+      if (p.canWriteDoc) return p.canWriteDoc(bookId, doc)
+      const book = bookMap.get(bookId)
+      return book?.can_write === true
+    },
+    [bookMap, p.canWriteDoc],
+  )
 
   const [treeData, setTreeData] = useState<KNode[]>([])
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
@@ -215,18 +254,57 @@ export default function KnowledgeTree(p: Props) {
   function docMenu(node: KNode) {
     const bookId = node.raw.bookId!
     const doc = node.raw.doc!
+    const canWrite = canWriteFor(bookId, doc)
+    const items: any[] = [
+      { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
+    ]
+    if (p.onEditDoc) {
+      items.push({
+        key: 'edit',
+        icon: <FileTextOutlined />,
+        label: '编辑文档',
+        disabled: !canWrite || doc.doc_type === 'file',
+        onClick: () => p.onEditDoc!(bookId, doc),
+      })
+    }
+    items.push(
+      { key: 'newChild', icon: <FileAddOutlined />, label: '新建子文档', disabled: !canWrite, onClick: () => p.onNewDoc(bookId, doc.id) },
+      { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !canWrite, onClick: () => beginRename(bookId, doc) },
+    )
+    if (p.onDuplicateDoc) {
+      items.push({ key: 'duplicate', icon: <CopyOutlined />, label: '复制', disabled: !canWrite, onClick: () => p.onDuplicateDoc!(bookId, doc) })
+    }
+    if (p.onMoveDoc) {
+      items.push({ key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !canWrite, onClick: () => p.onMoveDoc!(bookId, doc) })
+    }
+    if (p.onExportDoc) {
+      items.push({ key: 'export', icon: <DownloadOutlined />, label: '导出', onClick: () => p.onExportDoc!(bookId, doc) })
+    }
+    if (p.onShareDoc) {
+      items.push({ key: 'share', icon: <ShareAltOutlined />, label: '分享', onClick: () => p.onShareDoc!(bookId, doc) })
+    }
+    if (p.onCollaborators) {
+      items.push({ key: 'collab', icon: <UserAddOutlined />, label: '邀请协作', disabled: !canWrite, onClick: () => p.onCollaborators!(bookId, doc) })
+    }
+    if (p.onPinDoc) {
+      items.push({
+        key: 'pin',
+        icon: <PushpinFilled style={{ color: doc.pinned_at ? '#fa8c16' : undefined }} />,
+        label: doc.pinned_at ? '取消置顶' : '置顶',
+        disabled: !canWrite,
+        onClick: () => p.onPinDoc!(bookId, doc),
+      })
+    }
+    items.push({ type: 'divider' as const }, {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '删除（进回收站）',
+      danger: true,
+      disabled: !canWrite,
+      onClick: () => confirmDeleteDoc(bookId, doc),
+    })
     return (
-      <Dropdown
-        menu={{
-          items: [
-            { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
-            { key: 'newChild', icon: <FileAddOutlined />, label: '新建子文档', onClick: () => p.onNewDoc(bookId, doc.id) },
-            { key: 'rename', icon: <EditOutlined />, label: '重命名', onClick: () => beginRename(bookId, doc) },
-            { key: 'delete', icon: <DeleteOutlined />, label: '删除', danger: true, onClick: () => confirmDeleteDoc(bookId, doc) },
-          ],
-        }}
-        trigger={['contextMenu']}
-      >
+      <Dropdown menu={{ items }} trigger={['contextMenu']}>
         <span>{node.title as ReactNode}</span>
       </Dropdown>
     )
