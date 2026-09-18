@@ -38,3 +38,11 @@
 ## 验证
 - `tsc --noEmit` 对 `ApiEditor.tsx` / `apiDoc.ts` 零错误（其余 7 条为沙箱缺失依赖 `docx/jquery/html2canvas/jspdf/pptxgenjs`，与本次无关）。
 - 整站 `npm run build` 受沙箱环境限制无法跑，需在联网正常环境验证。
+
+## 阅读模式（ApiView = ApiEditor readOnly）关键点
+- **文档结构只读、调试输入可编辑**：阅读模式下，方法 / 名称 / URI / Host / Content-Type / 分组树 / 保存·导入 全部禁用或隐藏；但
+  **请求头、请求参数、请求体（类型+框）始终可编辑**——读者需填入自己的测试值，经服务端 `/api/proxy` 转发调试。
+- 这是与初版（eef2da6）的差异：初版把上述输入也 `disabled={readOnly}` 锁死，导致阅读模式无法填值调试；
+  现改为 `disabled={false}`，编辑模式下行为不变（本就允许编辑）。
+- 阅读模式下的输入编辑**不落库**（无 docId 或 readOnly 时跳过自动保存），仅作用于当前调试会话。
+- 导入时额外补齐参数的 `type` 字段（Swagger2 取 `p.type`，OpenAPI3 取 `p.schema.type`），使 GET 请求参数悬停提示能显示「类型」。
