@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/middleware"
+	"haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/service"
 )
 
