@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Spin, message } from 'antd'
-import { PlusOutlined, TeamOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { listBooks, createBook, deleteBook, updateBook } from '../api/books'
 import BookCard from '../components/book/BookCard'
 import type { BookWithCount, Visibility } from '../types'
@@ -12,7 +12,7 @@ interface EditState {
   book?: BookWithCount
 }
 
-/** 书架页：高仿语雀卡片网格（我的 + 可见的公开/成员库） */
+/** 书架页：我的知识库、团队知识库、公司知识库三类入口。 */
 export default function BookshelfPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<{
@@ -121,9 +121,22 @@ export default function BookshelfPage() {
             </Row>
           )}
 
+          {data.teams.filter(filterFn).length > 0 && (
+            <>
+              <h3 style={{ color: '#5f6672', fontSize: 14, marginTop: 32 }}>团队知识库</h3>
+              <Row gutter={[16, 16]}>
+                {data.teams.filter(filterFn).map((b) => (
+                  <Col key={b.id} xs={24} sm={12} md={8} lg={6} xl={6}>
+                    <BookCard book={b} mine={false} />
+                  </Col>
+                ))}
+              </Row>
+            </>
+          )}
+
           {data.visible.filter(filterFn).length > 0 && (
             <>
-              <h3 style={{ color: '#5f6672', fontSize: 14, marginTop: 32 }}>成员 / 公开知识库</h3>
+              <h3 style={{ color: '#5f6672', fontSize: 14, marginTop: 32 }}>公司知识库</h3>
               <Row gutter={[16, 16]}>
                 {data.visible.filter(filterFn).map((b) => (
                   <Col key={b.id} xs={24} sm={12} md={8} lg={6} xl={6}>

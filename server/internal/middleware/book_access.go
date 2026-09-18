@@ -6,8 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/model"
-	"haiku-wiki/server/internal/pkg"
-	hkerr "haiku-wiki/server/internal/pkg"
+	resp "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service"
 )
@@ -20,7 +19,7 @@ import (
 //
 // read=false（写操作）：owner 恒可写；members 库所有登录用户可写；
 //
-//	public/private 仅 owner；团队文库团队任意成员可写。
+//	public/private 仅 owner；团队文库 admin/read_write 可写。
 //
 // 判定直接复用 service.CanReadBook / service.CanWriteBook —— 与 service 层
 // （canReadBook / canWriteDoc）同源，避免「service 放行、中间件拦截」的语义漂移。

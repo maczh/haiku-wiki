@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/middleware"
-	"haiku-wiki/server/internal/pkg"
+	resp "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/service"
 )
 
@@ -158,7 +158,7 @@ func ListTeamMembers(c *gin.Context) {
 
 type addMemberReq struct {
 	Identifier string `json:"identifier" binding:"required"`
-	Role       string `json:"role"`
+	Role       string `json:"role"` // admin | read_write | read_only，缺省 read_write
 }
 
 // AddTeamMember POST /api/teams/:id/members —— 添加成员（需团队 admin）。
@@ -204,7 +204,7 @@ type setMemberRoleReq struct {
 	Role string `json:"role" binding:"required"`
 }
 
-// SetTeamMemberRole PATCH /api/teams/:id/members/:uid —— 设置/降权成员角色（需团队 admin）。
+// SetTeamMemberRole PATCH /api/teams/:id/members/:uid —— 设置成员角色（需团队 admin）。
 func SetTeamMemberRole(c *gin.Context) {
 	id, ok := teamIDFromPath(c)
 	if !ok {

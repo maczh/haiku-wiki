@@ -176,7 +176,7 @@ func (s *TeamService) ListMembers(userID, teamID uint64) ([]TeamMemberView, erro
 	return out, nil
 }
 
-// AddMember 添加成员（仅团队 admin）：按 username/phone/name/email 搜索，默认 member。
+// AddMember 添加成员（仅团队 admin）：按 username/phone/name/email 搜索，默认读写。
 func (s *TeamService) AddMember(adminID, teamID uint64, identifier, role string) (*TeamMemberView, error) {
 	t, myRole, err := s.Get(adminID, teamID)
 	if err != nil {
@@ -185,8 +185,11 @@ func (s *TeamService) AddMember(adminID, teamID uint64, identifier, role string)
 	if myRole != "admin" {
 		return nil, hkerr.Forbidden()
 	}
-	if role != "admin" && role != "member" {
-		role = "member"
+	if role == "member" || role == "" {
+		role = "read_write"
+	}
+	if role != "admin" && role != "read_write" && role != "read_only" {
+		role = "read_write"
 	}
 	u, err := repository.FindUserByIdentifier(identifier)
 	if err != nil {
@@ -246,8 +249,11 @@ func (s *TeamService) SetMemberRole(adminID, teamID, userID uint64, role string)
 	if userID == t.OwnerID {
 		return nil, hkerr.Param("创建者角色不可更改")
 	}
-	if role != "admin" && role != "member" {
-		return nil, hkerr.Param("角色值非法（仅 admin/member）")
+	if role == "member" {
+		role = "read_write"
+	}
+	if role != "admin" && role != "read_write" && role != "read_only" {
+		return nil, hkerr.Param("角色值非法（admin/read_write/read_only）")
 	}
 	m, err := repository.FindTeamMember(teamID, userID)
 	if err != nil {

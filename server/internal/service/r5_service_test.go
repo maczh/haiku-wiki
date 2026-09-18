@@ -51,9 +51,13 @@ func TestTeamCRUDAndAutoLibrary(t *testing.T) {
 		t.Fatalf("非成员不应看到团队, got %v err=%v", len(list2), err)
 	}
 
-	// AddMember：按邮箱添加 other
-	if _, err := ts.AddMember(owner.ID, team.ID, "team-other@x.com", "member"); err != nil {
+	// AddMember：按邮箱添加 other，缺省旧 member 值兼容为读写
+	added, err := ts.AddMember(owner.ID, team.ID, "team-other@x.com", "member")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if added.Role != "read_write" {
+		t.Fatalf("新成员默认应为读写权限, got %q", added.Role)
 	}
 	if list3, err := ts.List(other.ID); err != nil || len(list3) != 1 {
 		t.Fatalf("other 加入后应看到团队, got %v err=%v", len(list3), err)
@@ -67,6 +71,12 @@ func TestTeamCRUDAndAutoLibrary(t *testing.T) {
 	if !CanWriteBook(&lib, other.ID) {
 		t.Fatal("成员应可写团队文库")
 	}
+	if _, err := ts.SetMemberRole(owner.ID, team.ID, other.ID, "read_only"); err != nil {
+		t.Fatal(err)
+	}
+	if CanWriteBook(&lib, other.ID) {
+		t.Fatal("只读成员不应可写团队文库")
+	}
 	stranger := mkUser(t, "stranger@x.com", "pass123", "member")
 	if CanWriteBook(&lib, stranger.ID) {
 		t.Fatal("非成员不应可写团队文库")
@@ -77,6 +87,12 @@ func TestTeamCRUDAndAutoLibrary(t *testing.T) {
 	doc := mkDoc(t, &lib, owner.ID, 0, "团队文档")
 	if _, _, err := ds.LoadForRead(other.ID, doc.ID); err != nil {
 		t.Fatalf("成员应可读团队文库文档: %v", err)
+	}
+	if _, err := ts.SetMemberRole(owner.ID, team.ID, other.ID, "read_write"); err != nil {
+		t.Fatal(err)
+	}
+	if !CanWriteBook(&lib, other.ID) {
+		t.Fatal("读写成员应可写团队文库")
 	}
 	if _, _, err := ds.LoadForRead(stranger.ID, doc.ID); codeOf(t, err) != 40301 {
 		t.Fatalf("非成员读团队文库应 40301, got %v", err)

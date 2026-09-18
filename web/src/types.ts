@@ -273,7 +273,7 @@ export interface TeamWithCount extends Team {
 export interface TeamMemberView {
   team_id: number
   user_id: number
-  role: 'admin' | 'member'
+  role: 'admin' | 'read_write' | 'read_only' | 'member'
   created_at: string
   username: string
   name: string
@@ -286,7 +286,7 @@ export interface TeamMemberView {
 /** 团队详情返回 */
 export interface TeamDetail {
   team: Team
-  my_role: 'admin' | 'member'
+  my_role: 'admin' | 'read_write' | 'read_only' | 'member'
 }
 
 /** 文档协作者（个人库文档邀请协作） */

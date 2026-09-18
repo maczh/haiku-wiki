@@ -167,15 +167,19 @@ func isTeamMember(teamID, uid uint64) bool {
 	return err == nil
 }
 
-// isTeamWriter 团队文库的写权限：团队任意成员可写（owner 恒写在 canWriteDoc 兜底）。
+// isTeamWriter 团队文库的写权限：团队 admin/read_write 可写（owner 恒写在 canWriteDoc 兜底）。
 func isTeamWriter(book *model.Book, uid uint64) bool {
 	if book.TeamID == nil || *book.TeamID == 0 {
 		return false
 	}
-	return isTeamMember(*book.TeamID, uid)
+	m, err := repository.FindTeamMember(*book.TeamID, uid)
+	if err != nil {
+		return false
+	}
+	return m.Role == "admin" || m.Role == "read_write" || m.Role == "member"
 }
 
-// isTeamReader 团队文库的读权限：团队任意成员可读（与写一致，团队内完全协作）。
+// isTeamReader 团队文库的读权限：团队任意成员可读。
 func isTeamReader(book *model.Book, uid uint64) bool {
 	if book.TeamID == nil || *book.TeamID == 0 {
 		return false

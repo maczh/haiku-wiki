@@ -6,7 +6,7 @@ import type { Book, Team, TeamDetail, TeamMemberView, TeamWithCount } from '../t
  *
  * 权限模型（后端 TeamService 为单一事实来源）：
  *   - 创建者自动成为团队 admin，且不可被移除 / 降权；
- *   - 团队成员任意角色可读团队文库；
+ *   - 团队成员任意角色可读团队文库，admin/read_write 可写，read_only 只读；
  *   - 增删成员、改成员角色、编辑/删除团队、新建团队文库均需团队 admin。
  */
 
@@ -46,7 +46,7 @@ export async function listTeamMembers(id: number): Promise<TeamMemberView[]> {
 /** 按用户名 / 手机号 / 姓名 / 邮箱 添加成员（仅团队 admin） */
 export async function addTeamMember(
   id: number,
-  payload: { identifier: string; role?: 'admin' | 'member' },
+  payload: { identifier: string; role?: 'admin' | 'read_write' | 'read_only' },
 ): Promise<TeamMemberView> {
   return request.post(`/teams/${id}/members`, payload) as Promise<TeamMemberView>
 }
@@ -56,11 +56,11 @@ export async function removeTeamMember(id: number, uid: number): Promise<{ remov
   return request.delete(`/teams/${id}/members/${uid}`) as Promise<{ removed: boolean }>
 }
 
-/** 设为团队管理员 / 降级为普通成员（仅团队 admin） */
+/** 修改团队成员权限（仅团队 admin） */
 export async function setTeamMemberRole(
   id: number,
   uid: number,
-  role: 'admin' | 'member',
+  role: 'admin' | 'read_write' | 'read_only',
 ): Promise<TeamMemberView> {
   return request.patch(`/teams/${id}/members/${uid}`, { role }) as Promise<TeamMemberView>
 }

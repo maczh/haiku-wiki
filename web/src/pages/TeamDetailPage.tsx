@@ -48,7 +48,7 @@ import type { Book, Team, TeamMemberView } from '../types'
  * 权限（后端 TeamService 判定，界面按 my_role 隐藏不可用入口）：
  *   - 创建者 = 团队 admin，不可被移除、不可降权、角色不可更改；
  *   - 仅团队 admin 可改团队信息 / 增删成员 / 改成员角色 / 新建文库 / 删除团队；
- *   - 成员任意角色都能看到并进入团队文库（后端对团队文库放开读写）。
+ *   - 成员任意角色都能看到并进入团队文库；管理员与读写成员可修改，只读成员不可修改。
  */
 export default function TeamDetailPage() {
   const { teamId } = useParams()
@@ -57,7 +57,7 @@ export default function TeamDetailPage() {
   const me = useAuthStore((s) => s.user)
 
   const [team, setTeam] = useState<Team | null>(null)
-  const [myRole, setMyRole] = useState<'admin' | 'member'>('member')
+  const [myRole, setMyRole] = useState<'admin' | 'read_write' | 'read_only' | 'member'>('read_write')
   const [members, setMembers] = useState<TeamMemberView[]>([])
   const [libs, setLibs] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +65,7 @@ export default function TeamDetailPage() {
 
   // 添加成员
   const [identifier, setIdentifier] = useState('')
-  const [addRole, setAddRole] = useState<'admin' | 'member'>('member')
+  const [addRole, setAddRole] = useState<'admin' | 'read_write' | 'read_only'>('read_write')
   const [adding, setAdding] = useState(false)
 
   // 编辑团队 / 删除
@@ -127,7 +127,7 @@ export default function TeamDetailPage() {
     try {
       await addTeamMember(teamID, { identifier: kw, role: addRole })
       setIdentifier('')
-      setAddRole('member')
+      setAddRole('read_write')
       message.success('已加入团队')
       await refreshMembers()
     } finally {
@@ -145,10 +145,10 @@ export default function TeamDetailPage() {
     }
   }
 
-  async function handleRole(m: TeamMemberView, role: 'admin' | 'member') {
+  async function handleRole(m: TeamMemberView, role: 'admin' | 'read_write' | 'read_only') {
     try {
       await setTeamMemberRole(teamID, m.user_id, role)
-      message.success(role === 'admin' ? '已设为团队管理员' : '已降级为普通成员')
+      message.success('成员权限已更新')
       await refreshMembers()
     } catch {
       /* 拦截器已提示 */
@@ -227,7 +227,10 @@ export default function TeamDetailPage() {
       title: '角色',
       key: 'role',
       width: 100,
-      render: (_, m) => (m.role === 'admin' ? <Tag color="gold">管理员</Tag> : <Tag>成员</Tag>),
+      render: (_, m) => {
+        const role = m.role === 'member' ? 'read_write' : m.role
+        return role === 'admin' ? <Tag color="gold">管理员</Tag> : role === 'read_only' ? <Tag>只读</Tag> : <Tag color="blue">读写</Tag>
+      },
     },
     {
       title: '操作',
@@ -238,15 +241,17 @@ export default function TeamDetailPage() {
         if (m.user_id === team?.owner_id) return <span style={{ color: '#8a919f' }}>不可操作</span>
         return (
           <Space size={4}>
-            {m.role === 'admin' ? (
-              <Button size="small" onClick={() => void handleRole(m, 'member')}>
-                降级为成员
-              </Button>
-            ) : (
-              <Button size="small" icon={<CrownOutlined />} onClick={() => void handleRole(m, 'admin')}>
-                设为管理员
-              </Button>
-            )}
+            <Select
+              size="small"
+              value={m.role === 'member' ? 'read_write' : m.role}
+              style={{ width: 108 }}
+              onChange={(role: 'admin' | 'read_write' | 'read_only') => void handleRole(m, role)}
+              options={[
+                { value: 'admin', label: '管理员' },
+                { value: 'read_write', label: '读写' },
+                { value: 'read_only', label: '只读' },
+              ]}
+            />
             <Popconfirm
               title={`将「${m.name || m.username}」移出团队？`}
               okText="移出"
@@ -352,8 +357,9 @@ export default function TeamDetailPage() {
                   style={{ width: 120 }}
                   onChange={setAddRole}
                   options={[
-                    { value: 'member', label: '普通成员' },
                     { value: 'admin', label: '团队管理员' },
+                    { value: 'read_write', label: '读写权限' },
+                    { value: 'read_only', label: '只读权限' },
                   ]}
                 />
                 <Button type="primary" loading={adding} onClick={() => void submitAddMember()}>
