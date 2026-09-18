@@ -56,7 +56,7 @@ func qaSetup(t *testing.T) (*gin.Engine, uint64, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := &model.User{Email: "qa-route@x.com", PasswordHash: string(hash), Nickname: "qaroute", Role: "member"}
+	u := &model.User{Username: "qa-route@x.com", Email: "qa-route@x.com", PasswordHash: string(hash), Nickname: "qaroute", Role: "member"}
 	if err := repository.CreateUser(u); err != nil {
 		t.Fatal(err)
 	}

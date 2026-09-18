@@ -29,13 +29,14 @@ func genSlug() string {
 	return string(b)
 }
 
-// BookshelfOutput 书架页数据：我的库 + 可见库。
+// BookshelfOutput 书架页数据：我的库 + 可见库 + 参与的团队文库。
 type BookshelfOutput struct {
 	Mine    []model.BookWithCount `json:"mine"`
 	Visible []model.BookWithCount `json:"visible"`
+	Teams   []model.BookWithCount `json:"teams"`
 }
 
-// List 书架列表（mine + visible）。
+// List 书架列表（mine + visible + teams）。
 func (s *BookService) List(userID uint64) (*BookshelfOutput, error) {
 	mine, err := repository.ListBooksByOwner(userID)
 	if err != nil {
@@ -45,7 +46,11 @@ func (s *BookService) List(userID uint64) (*BookshelfOutput, error) {
 	if err != nil {
 		return nil, hkerr.Internal("查询失败")
 	}
-	return &BookshelfOutput{Mine: mine, Visible: visible}, nil
+	teams, err := repository.ListTeamLibraries(userID)
+	if err != nil {
+		return nil, hkerr.Internal("查询失败")
+	}
+	return &BookshelfOutput{Mine: mine, Visible: visible, Teams: teams}, nil
 }
 
 // Create 创建知识库（默认封面色与私有可见性）。
@@ -75,6 +80,27 @@ func (s *BookService) Create(userID uint64, name, description, coverColor, visib
 	}
 	if err := repository.CreateBook(b); err != nil {
 		return nil, hkerr.Internal("创建失败")
+	}
+	return b, nil
+}
+
+// CreateTeamLibrary 创建团队文库：team_id 非空、name 为团队名+"文库"，默认私有。
+// 团队文库对个人库而言仍私有可见性，但团队任意成员（team_members 任意角色）可读写（见 canReadBook/canWriteDoc）。
+func (s *BookService) CreateTeamLibrary(teamID, ownerID uint64, name string) (*model.Book, error) {
+	if name == "" {
+		name = "文库"
+	}
+	if len(name) > 128 {
+		name = name[:128]
+	}
+	b := &model.Book{
+		OwnerID:    ownerID,
+		Name:       name,
+		Visibility: "private",
+		TeamID:     &teamID,
+	}
+	if err := repository.CreateBook(b); err != nil {
+		return nil, hkerr.Internal("创建团队文库失败")
 	}
 	return b, nil
 }
@@ -132,13 +158,54 @@ func (s *BookService) SetVisibility(book *model.Book, visibility string) (*model
 // DocService 文档树业务。
 type DocService struct{}
 
+// isTeamMember 判断用户是否为某团队成员（任意角色）。
+func isTeamMember(teamID, uid uint64) bool {
+	if teamID == 0 || uid == 0 {
+		return false
+	}
+	_, err := repository.FindTeamMember(teamID, uid)
+	return err == nil
+}
+
+// isTeamWriter 团队文库的写权限：团队任意成员可写（owner 恒写在 canWriteDoc 兜底）。
+func isTeamWriter(book *model.Book, uid uint64) bool {
+	if book.TeamID == nil || *book.TeamID == 0 {
+		return false
+	}
+	return isTeamMember(*book.TeamID, uid)
+}
+
+// isTeamReader 团队文库的读权限：团队任意成员可读（与写一致，团队内完全协作）。
+func isTeamReader(book *model.Book, uid uint64) bool {
+	if book.TeamID == nil || *book.TeamID == 0 {
+		return false
+	}
+	return isTeamMember(*book.TeamID, uid)
+}
+
+// isDocCollaborator 判断用户是否为某文档协作者。
+func isDocCollaborator(docID, uid uint64) bool {
+	if uid == 0 {
+		return false
+	}
+	_, err := repository.FindDocCollaborator(docID, uid)
+	return err == nil
+}
+
 // canWriteDoc 判定用户是否可写某文档（编辑/移动/删除）。
-// 规则：owner 恒可写；members 库所有登录用户可写；public/private 仅 owner。
+// 规则：owner 恒可写；members 库所有登录用户可写；团队文库（team_id 非空）团队任意成员可写；
+// 文档协作者获得等价 owner 编辑权限。
 func canWriteDoc(book *model.Book, uid uint64) bool {
-	return book.OwnerID == uid || (book.Visibility == "members" && uid > 0)
+	return book.OwnerID == uid || (book.Visibility == "members" && uid > 0) || isTeamWriter(book, uid)
+}
+
+// CanWriteBook 导出给 handler 等包外使用的写权限判定（团队文库权限已含）。
+func CanWriteBook(book *model.Book, uid uint64) bool {
+	return canWriteDoc(book, uid)
 }
 
 // loadDocForAccess 载入文档并做读/写权限校验。
+// 读：book 可见性（含团队文库成员可读）或文档协作者；写：canWriteDoc 或文档协作者。
 func (s *DocService) loadDocForAccess(docID, uid uint64, write bool) (*model.Doc, *model.Book, error) {
 	doc, err := repository.FindDocByID(docID)
 	if err != nil {
@@ -149,11 +216,11 @@ func (s *DocService) loadDocForAccess(docID, uid uint64, write bool) (*model.Doc
 		return nil, nil, hkerr.NotFound("所属知识库不存在")
 	}
 	if write {
-		if !canWriteDoc(book, uid) {
+		if !canWriteDoc(book, uid) && !isDocCollaborator(docID, uid) {
 			return nil, nil, hkerr.Forbidden()
 		}
 	} else {
-		if !canReadBook(book, uid) {
+		if !canReadBook(book, uid) && !isDocCollaborator(docID, uid) {
 			return nil, nil, hkerr.Forbidden()
 		}
 	}
@@ -417,7 +484,7 @@ type MoveToBookInput struct {
 }
 
 // MoveToBook 移动文档到目标知识库根目录末尾（第四轮增量 R4）。
-// 源库需编辑权限，目标库需编辑权限（owner 恒可写 / members 库登录用户可写）；
+// 源库需编辑权限，目标库需编辑权限（owner 恒可写 / members 库登录用户可写 / 团队文库成员可写）；
 // 跨库移动时整棵子树（含软删子孙）book_id 一并迁移，保证树结构完整。
 func (s *DocService) MoveToBook(uid uint64, docID uint64, targetBookID uint64) (*model.Doc, error) {
 	doc, _, err := s.loadDocForAccess(docID, uid, true)

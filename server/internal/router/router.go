@@ -96,6 +96,35 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.GET("/export/books/:id", handler.ExportBook)
 		// 网页标题代理（粘贴 URL 转链接用）
 		jwt.GET("/fetch-title", handler.FetchTitle)
+		// URL 抓取导入（SSRF 防护，转为 Markdown 文档）
+		jwt.POST("/import/url", handler.ImportURL)
+
+		// 管理员用户管理（仅 admin）
+		admin := jwt.Group("/admin", middleware.RequireAdmin())
+		{
+			admin.GET("/users", handler.ListUsers)
+			admin.PATCH("/users/:id/status", handler.SetUserStatus)
+			admin.PATCH("/users/:id/reset-password", handler.ResetUserPassword)
+		}
+
+		// 团队管理
+		jwt.POST("/teams", handler.CreateTeam)
+		jwt.GET("/teams", handler.ListTeams)
+		teams := jwt.Group("/teams/:id")
+		{
+			teams.GET("", handler.GetTeam)
+			teams.PUT("", handler.UpdateTeam)
+			teams.DELETE("", handler.DeleteTeam)
+			teams.GET("/members", handler.ListTeamMembers)
+			teams.POST("/members", handler.AddTeamMember)
+			teams.DELETE("/members/:uid", handler.RemoveTeamMember)
+			teams.PATCH("/members/:uid", handler.SetTeamMemberRole)
+		}
+
+		// 文档协作邀请（个人库文档）
+		jwt.POST("/docs/:id/collaborators", handler.AddCollaborator)
+		jwt.GET("/docs/:id/collaborators", handler.ListCollaborators)
+		jwt.DELETE("/docs/:id/collaborators/:uid", handler.RemoveCollaborator)
 	}
 
 	// 上传文件静态托管

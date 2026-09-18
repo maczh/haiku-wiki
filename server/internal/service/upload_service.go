@@ -96,3 +96,41 @@ func (s *UploadService) Save(uid uint64, fh *multipart.FileHeader) (*UploadOutpu
 		Size:     fh.Size,
 	}, nil
 }
+
+// SaveBytes 把字节数据落盘为上传文件（复用与 Save 一致的存储方案与白名单），
+// 用于 URL 抓取导入时把远程图片本地化。返回可访问 URL。
+func (s *UploadService) SaveBytes(uid uint64, filename string, data []byte) (*UploadOutput, error) {
+	if len(data) > maxUploadSize {
+		return nil, hkerr.FileTooLarge()
+	}
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == "" || !allowedExt[ext] {
+		return nil, hkerr.FileTypeNotAllowed()
+	}
+	now := time.Now().UTC()
+	relDir := fmt.Sprintf("uploads/%04d/%02d", now.Year(), int(now.Month()))
+	absDir := filepath.Join(DataDir, relDir)
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
+		return nil, hkerr.Internal("创建上传目录失败")
+	}
+	name := uuid.NewString() + ext
+	absPath := filepath.Join(absDir, name)
+	if err := os.WriteFile(absPath, data, 0o644); err != nil {
+		return nil, hkerr.Internal("写入文件失败")
+	}
+	att := &model.Attachment{
+		UploaderID:  uid,
+		Filename:    filepath.Base(filename),
+		StoragePath: relDir + "/" + name,
+		MimeType:    mimeByExt(ext),
+		Size:        int64(len(data)),
+	}
+	if err := repository.CreateAttachment(att); err != nil {
+		_ = err
+	}
+	return &UploadOutput{
+		URL:      "/" + relDir + "/" + name,
+		Filename: att.Filename,
+		Size:     int64(len(data)),
+	}, nil
+}

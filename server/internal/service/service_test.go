@@ -67,7 +67,7 @@ func mkUser(t *testing.T, email, password, role string) *model.User {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := &model.User{Email: email, PasswordHash: string(hash), Nickname: email, Role: role}
+	u := &model.User{Username: email, Email: email, PasswordHash: string(hash), Nickname: email, Role: role, Status: 1}
 	if err := repository.CreateUser(u); err != nil {
 		t.Fatalf("创建测试用户失败: %v", err)
 	}
@@ -104,21 +104,25 @@ func setDocContent(t *testing.T, uid, docID uint64, content string) *model.Doc {
 
 // ---------- 认证 ----------
 
-func TestRegisterFirstUserAdminAndBcrypt(t *testing.T) {
+func TestRegisterMemberRoleAndBcrypt(t *testing.T) {
 	newEnv(t)
 	s := &AuthService{}
-	out, err := s.Register("Admin@Example.COM ", "secret123", "", "10.0.0.1")
+	// 新注册用户固定 member（首用户即管理员旧规则已退役）
+	out, err := s.Register("admin1", "管理员", "Admin@Example.COM ", "", "", "secret123", "10.0.0.1")
 	if err != nil {
-		t.Fatalf("首用户注册失败: %v", err)
+		t.Fatalf("注册失败: %v", err)
 	}
-	if out.User.Role != "admin" {
-		t.Fatalf("首用户角色 = %q, 期望 admin", out.User.Role)
+	if out.User.Role != "member" {
+		t.Fatalf("新用户角色 = %q, 期望 member", out.User.Role)
 	}
 	if out.User.Email != "admin@example.com" {
-		t.Fatalf("邮箱应小写化: %q", out.User.Email)
+		t.Fatalf("邮箱应小写化并去除首尾空格: %q", out.User.Email)
 	}
-	if out.User.Nickname != "admin" {
-		t.Fatalf("默认昵称应取邮箱前缀: %q", out.User.Nickname)
+	if out.User.Username != "admin1" {
+		t.Fatalf("用户名应原样保存: %q", out.User.Username)
+	}
+	if out.User.Nickname != "管理员" {
+		t.Fatalf("昵称应取姓名: %q", out.User.Nickname)
 	}
 	if out.Token == "" {
 		t.Fatal("注册应返回 token")
@@ -134,13 +138,20 @@ func TestRegisterFirstUserAdminAndBcrypt(t *testing.T) {
 	if bcrypt.CompareHashAndPassword([]byte(stored.PasswordHash), []byte("secret123")) != nil {
 		t.Fatal("bcrypt 哈希与原密码不匹配")
 	}
-	// 第二个注册用户应为 member
-	out2, err := s.Register("second@example.com", "secret456", "", "10.0.0.2")
+	// 第二个注册用户仍为 member
+	out2, err := s.Register("member2", "", "second@example.com", "", "", "secret456", "10.0.0.2")
 	if err != nil {
 		t.Fatalf("第二用户注册失败: %v", err)
 	}
 	if out2.User.Role != "member" {
 		t.Fatalf("第二用户角色 = %q, 期望 member", out2.User.Role)
+	}
+	// 用户名重复应 40901
+	authRateMu.Lock()
+	authRateMap = map[string]time.Time{}
+	authRateMu.Unlock()
+	if _, err := s.Register("admin1", "", "third@example.com", "", "", "secret123", "10.0.0.3"); codeOf(t, err) != 40901 {
+		t.Fatalf("用户名重复应 40901, got %v", err)
 	}
 }
 
@@ -148,42 +159,47 @@ func TestRegisterValidation(t *testing.T) {
 	newEnv(t)
 	s := &AuthService{}
 	// 邮箱非法
-	if _, err := s.Register("not-an-email", "secret123", "", "1.1.1.1"); codeOf(t, err) != 40001 {
+	if _, err := s.Register("u1", "", "not-an-email", "", "", "secret123", "1.1.1.1"); codeOf(t, err) != 40001 {
 		t.Fatalf("非法邮箱应 40001, got %v", err)
 	}
 	// 密码过短
-	if _, err := s.Register("a@b.com", "123", "", "1.1.1.2"); codeOf(t, err) != 40001 {
+	if _, err := s.Register("u2", "", "a@b.com", "", "", "123", "1.1.1.2"); codeOf(t, err) != 40001 {
 		t.Fatalf("短密码应 40001, got %v", err)
+	}
+	// 手机号格式错误
+	if _, err := s.Register("u3", "", "c@b.com", "123", "", "secret123", "1.1.1.5"); codeOf(t, err) != 40001 {
+		t.Fatalf("非法手机号应 40001, got %v", err)
 	}
 }
 
 func TestRegisterDuplicateConflict(t *testing.T) {
 	newEnv(t)
 	s := &AuthService{}
-	if _, err := s.Register("dup@example.com", "secret123", "", "2.2.2.1"); err != nil {
+	if _, err := s.Register("dup", "", "dup@example.com", "", "", "secret123", "2.2.2.1"); err != nil {
 		t.Fatal(err)
 	}
 	authRateMu.Lock()
 	authRateMap = map[string]time.Time{} // 清限频，聚焦冲突场景
 	authRateMu.Unlock()
-	_, err := s.Register("dup@example.com", "secret123", "", "2.2.2.2")
+	// 同邮箱重复 → 40901
+	_, err := s.Register("dup2", "", "dup@example.com", "", "", "secret123", "2.2.2.2")
 	if codeOf(t, err) != 40901 {
-		t.Fatalf("重复注册应 40901, got %v", err)
+		t.Fatalf("重复邮箱应 40901, got %v", err)
 	}
 }
 
 func TestRegisterRateLimitPerIP(t *testing.T) {
 	newEnv(t)
 	s := &AuthService{}
-	if _, err := s.Register("r1@example.com", "secret123", "", "3.3.3.3"); err != nil {
+	if _, err := s.Register("r1", "", "r1@example.com", "", "", "secret123", "3.3.3.3"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := s.Register("r2@example.com", "secret123", "", "3.3.3.3")
+	_, err := s.Register("r2", "", "r2@example.com", "", "", "secret123", "3.3.3.3")
 	if codeOf(t, err) != 42901 {
 		t.Fatalf("同 IP 60s 内第二次注册应 42901, got %v", err)
 	}
 	// 不同 IP 不受限
-	if _, err := s.Register("r2@example.com", "secret123", "", "3.3.3.4"); err != nil {
+	if _, err := s.Register("r3", "", "r2@example.com", "", "", "secret123", "3.3.3.4"); err != nil {
 		t.Fatalf("不同 IP 注册不应被限频: %v", err)
 	}
 }

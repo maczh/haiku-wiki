@@ -59,3 +59,15 @@ func Role(c *gin.Context) string {
 	}
 	return ""
 }
+
+// RequireAdmin 仅管理员可执行；否则 40301。
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if Role(c) != "admin" {
+			resp.Error(c, hkerr.Forbidden())
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

@@ -33,6 +33,10 @@ func main() {
 	if err := repository.MigrateData(g); err != nil {
 		log.Fatalf("[haiku] 数据修正失败: %v", err)
 	}
+	// 种子数据：回填旧用户 username/status + 内置管理员
+	if err := repository.SeedData(g); err != nil {
+		log.Fatalf("[haiku] 种子数据失败: %v", err)
+	}
 
 	// 上传根目录注入
 	service.DataDir = cfg.DataDir

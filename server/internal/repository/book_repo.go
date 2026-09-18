@@ -34,23 +34,37 @@ func DeleteBook(b *model.Book) error { return db.Delete(b).Error }
 const bookWithCountSelect = `books.*, ` +
 	`(SELECT COUNT(*) FROM docs WHERE docs.book_id = books.id AND docs.deleted_at IS NULL) AS doc_count`
 
-// ListBooksByOwner 我的知识库（含文档数）。
+// ListBooksByOwner 我的个人知识库（含文档数，team_id 为 NULL 的个人库）。
+// 团队文库（team_id 非空）归团队，不计入个人「我的库」，改由 ListTeamLibraries 呈现。
 func ListBooksByOwner(ownerID uint64) ([]model.BookWithCount, error) {
 	var out []model.BookWithCount
 	err := db.Model(&model.Book{}).
 		Select(bookWithCountSelect).
-		Where("books.owner_id = ?", ownerID).
+		Where("books.owner_id = ? AND books.team_id IS NULL", ownerID).
 		Order("books.created_at DESC").
 		Find(&out).Error
 	return out, err
 }
 
-// ListBooksVisible 对我可见、但非我创建的知识库（members/public，含文档数）。
+// ListBooksVisible 对我可见、但非我创建的个人知识库（members/public；team_id 为 NULL）。
 func ListBooksVisible(userID uint64) ([]model.BookWithCount, error) {
 	var out []model.BookWithCount
 	err := db.Model(&model.Book{}).
 		Select(bookWithCountSelect).
-		Where("books.owner_id <> ? AND books.visibility IN ?", userID, []string{"members", "public"}).
+		Where("books.owner_id <> ? AND books.team_id IS NULL AND books.visibility IN ?", userID, []string{"members", "public"}).
+		Order("books.created_at DESC").
+		Find(&out).Error
+	return out, err
+}
+
+// ListTeamLibraries 我参与的团队的文库（我是团队成员或团队创建者，任意角色均可读写）。
+// 团队文库 team_id 非空、visibility=private，仅团队内可见；不计入「我的库」/「可见库」。
+func ListTeamLibraries(userID uint64) ([]model.BookWithCount, error) {
+	var out []model.BookWithCount
+	err := db.Model(&model.Book{}).
+		Select(bookWithCountSelect).
+		Where("books.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?) OR books.team_id IN (SELECT id FROM teams WHERE owner_id = ?)",
+			userID, userID).
 		Order("books.created_at DESC").
 		Find(&out).Error
 	return out, err

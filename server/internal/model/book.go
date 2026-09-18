@@ -4,6 +4,7 @@ import "time"
 
 // Book 知识库。visibility 三档：private / members / public。
 // 文档可见性继承所属 Book，不在 Doc 上重复存权限字段。
+// TeamID 非空表示该库为「团队文库」（团队内成员可读写，见团队管理域）。
 type Book struct {
 	ID          uint64    `gorm:"primaryKey" json:"id"`
 	OwnerID     uint64    `gorm:"index" json:"owner_id"`
@@ -13,6 +14,7 @@ type Book struct {
 	CoverImage  string    `gorm:"size:255" json:"cover_image"`
 	Visibility  string    `gorm:"size:16;default:private" json:"visibility"` // private|members|public
 	ShareSlug   *string   `gorm:"size:32;uniqueIndex" json:"share_slug"`     // 仅 public 时有值
+	TeamID      *uint64   `gorm:"index" json:"team_id"`                      // 团队文库归属（nil=个人库）
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

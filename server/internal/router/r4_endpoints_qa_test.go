@@ -30,7 +30,7 @@ func qaNewUser(t *testing.T, email string) (uint64, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := &model.User{Email: email, PasswordHash: string(hash), Nickname: email, Role: "member"}
+	u := &model.User{Username: email, Email: email, PasswordHash: string(hash), Nickname: email, Role: "member"}
 	if err := repository.CreateUser(u); err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -80,6 +81,10 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.DocVersion{},
 		&model.Attachment{},
 		&model.DocShare{},
+		// R5 新增域模型
+		&model.Team{},
+		&model.TeamMember{},
+		&model.DocCollaborator{},
 	)
 }
 
@@ -89,6 +94,46 @@ func AutoMigrate(g *gorm.DB) error {
 func MigrateData(g *gorm.DB) error {
 	if err := g.Exec("UPDATE docs SET doc_type = 'sheet' WHERE doc_type = 'datatable'").Error; err != nil {
 		return fmt.Errorf("migrate datatable->sheet: %w", err)
+	}
+	return nil
+}
+
+// SeedData 启动种子数据（在 AutoMigrate + MigrateData 之后调用）：
+//  1. 回填旧用户缺失的 username（=email）与 status（=1），phone 保持为空；
+//  2. 内置管理员：若不存在 username='admin' 则插入 admin / Jihai2026。
+func SeedData(g *gorm.DB) error {
+	// 补 username（username 为空时取 email，保持唯一）
+	if err := g.Exec("UPDATE users SET username = email WHERE username = '' OR username IS NULL").Error; err != nil {
+		return fmt.Errorf("backfill username: %w", err)
+	}
+	// 补 status（缺省/异常值统一置为启用）
+	if err := g.Exec("UPDATE users SET status = 1 WHERE status IS NULL OR status = 0").Error; err != nil {
+		return fmt.Errorf("backfill status: %w", err)
+	}
+
+	// 内置管理员种子
+	var cnt int64
+	if err := g.Model(&model.User{}).Where("username = ?", "admin").Count(&cnt).Error; err != nil {
+		return fmt.Errorf("count admin: %w", err)
+	}
+	if cnt > 0 {
+		return nil
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte("Jihai2026"), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash admin password: %w", err)
+	}
+	admin := &model.User{
+		Username:     "admin",
+		Email:        "admin@haiku.local",
+		PasswordHash: string(hash),
+		Nickname:     "管理员",
+		Name:         "管理员",
+		Role:         "admin",
+		Status:       1,
+	}
+	if err := g.Create(admin).Error; err != nil {
+		return fmt.Errorf("create admin: %w", err)
 	}
 	return nil
 }

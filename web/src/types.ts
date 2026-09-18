@@ -2,9 +2,18 @@
 
 export interface User {
   id: number
+  username: string
   email: string
   nickname: string
+  /** 真实姓名（可选） */
+  name: string
+  /** 部门（可选） */
+  department: string
+  /** 手机号（可选，唯一） */
+  phone: string
   role: 'admin' | 'member'
+  /** 1=启用 0=禁用 */
+  status: number
   created_at: string
 }
 
@@ -19,6 +28,8 @@ export interface Book {
   cover_image: string
   visibility: Visibility
   share_slug: string | null
+  /** 团队文库归属（nil=个人库） */
+  team_id: number | null
   created_at: string
   updated_at: string
 }
@@ -30,6 +41,8 @@ export interface BookWithCount extends Book {
 export interface Bookshelf {
   mine: BookWithCount[]
   visible: BookWithCount[]
+  /** 我参与的团队文库（任意角色可读写） */
+  teams: BookWithCount[]
 }
 
 export interface DocNode {
@@ -216,4 +229,79 @@ export interface DocShareContent {
   title: string
   doc_type: DocType
   content: string
+}
+
+// ---------- 增量 R5：后台管理 / 团队 / 协作 ----------
+
+/** 管理员视角的用户列表项（GET /api/admin/users） */
+export interface AdminUser {
+  id: number
+  username: string
+  name: string
+  email: string
+  phone: string
+  department: string
+  role: 'admin' | 'member'
+  status: number
+  created_at: string
+}
+
+/** 管理员用户列表分页包 */
+export interface AdminUserList {
+  users: AdminUser[]
+  total: number
+  page: number
+  page_size: number
+}
+
+/** 团队 */
+export interface Team {
+  id: number
+  name: string
+  description: string
+  owner_id: number
+  created_at: string
+  updated_at: string
+}
+
+/** 团队列表项（含文库数） */
+export interface TeamWithCount extends Team {
+  book_count: number
+}
+
+/** 团队成员视图（含用户展示信息） */
+export interface TeamMemberView {
+  team_id: number
+  user_id: number
+  role: 'admin' | 'member'
+  created_at: string
+  username: string
+  name: string
+  email: string
+  nickname: string
+  department: string
+  is_owner: boolean
+}
+
+/** 团队详情返回 */
+export interface TeamDetail {
+  team: Team
+  my_role: 'admin' | 'member'
+}
+
+/** 文档协作者（个人库文档邀请协作） */
+export interface DocCollaborator {
+  doc_id: number
+  user_id: number
+  created_at: string
+  username: string
+  name: string
+  email: string
+  nickname: string
+}
+
+/** 网页导入返回 */
+export interface ImportUrlResult {
+  doc_id: number
+  title: string
 }

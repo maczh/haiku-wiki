@@ -23,20 +23,23 @@ var (
 	exportService = &service.ExportService{}
 )
 
-type authReq struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Nickname string `json:"nickname"`
+type registerReq struct {
+	Username   string `json:"username" binding:"required"`
+	Name       string `json:"name"`
+	Email      string `json:"email" binding:"required"`
+	Phone      string `json:"phone"`
+	Department string `json:"department"`
+	Password   string `json:"password" binding:"required"`
 }
 
 // Register POST /api/auth/register
 func Register(c *gin.Context) {
-	var req authReq
+	var req registerReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, paramErr(err))
 		return
 	}
-	out, err := authService.Register(req.Email, req.Password, req.Nickname, c.ClientIP())
+	out, err := authService.Register(req.Username, req.Name, req.Email, req.Phone, req.Department, req.Password, c.ClientIP())
 	if err != nil {
 		resp.Error(c, err)
 		return
@@ -44,14 +47,19 @@ func Register(c *gin.Context) {
 	resp.OK(c, out)
 }
 
-// Login POST /api/auth/login
+type loginReq struct {
+	Account  string `json:"account" binding:"required"` // 用户名 / 手机号 / 邮箱
+	Password string `json:"password" binding:"required"`
+}
+
+// Login POST /api/auth/login（支持用户名 / 手机号 / 邮箱）
 func Login(c *gin.Context) {
-	var req authReq
+	var req loginReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, paramErr(err))
 		return
 	}
-	out, err := authService.Login(req.Email, req.Password)
+	out, err := authService.Login(req.Account, req.Password)
 	if err != nil {
 		resp.Error(c, err)
 		return

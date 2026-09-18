@@ -38,7 +38,8 @@ func ContentDisposition(filename string) string {
 	return fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(filename))
 }
 
-// canReadBook 读权限：private 仅 owner；members 登录用户（uid>0）；public 任何人。
+// canReadBook 读权限：public 任何人；members 登录用户；private 仅 owner；
+// 团队文库（team_id 非空）团队任意成员可读（与写一致，团队内完全协作）。
 func canReadBook(book *model.Book, uid uint64) bool {
 	switch book.Visibility {
 	case "public":
@@ -46,7 +47,7 @@ func canReadBook(book *model.Book, uid uint64) bool {
 	case "members":
 		return uid > 0
 	default: // private
-		return book.OwnerID == uid
+		return book.OwnerID == uid || isTeamReader(book, uid)
 	}
 }
 
