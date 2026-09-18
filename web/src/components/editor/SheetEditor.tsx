@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import luckysheet from 'luckysheet'
 import 'luckysheet/dist/css/luckysheet.css'
 import 'luckysheet/dist/assets/iconfont/iconfont.css'
-import { Button, Space, Tooltip, message } from 'antd'
+import { Alert, Button, Space, Tooltip, message } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
@@ -52,6 +52,7 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
 
   // docId 变化时重建表格
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
     dirtyRef.current = false
     setStatus('editing')
     setSavedAt(null)
+    setInitError(null)
 
     const host = elRef.current
     if (!host) return
@@ -167,7 +169,9 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
         },
       })
     } catch (e) {
-      message.error(`表格组件初始化失败：${(e as Error)?.message || '未知错误'}`)
+      const detail = (e as Error)?.message || '未知错误'
+      setInitError(detail)
+      message.error(`表格组件初始化失败：${detail}`)
     }
 
     return () => {
@@ -231,7 +235,17 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
       </div>
 
       {/* Luckysheet 容器：必须给确定高度，否则画布高度为 0 */}
-      <div ref={elRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
+      {initError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="表格组件初始化失败"
+          description={initError}
+          style={{ margin: 24 }}
+        />
+      ) : (
+        <div ref={elRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
+      )}
 
       <VersionDrawer
         open={versionOpen}

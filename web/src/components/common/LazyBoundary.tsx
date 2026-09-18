@@ -1,5 +1,5 @@
-import { Suspense, type ReactNode } from 'react'
-import { Spin } from 'antd'
+import { Component, Suspense, type ErrorInfo, type ReactNode } from 'react'
+import { Alert, Button, Spin } from 'antd'
 
 interface Props {
   children: ReactNode
@@ -11,6 +11,36 @@ interface Props {
    * 占位会居中在内容区而不是顶在左上角。
    */
   fill?: boolean
+}
+
+interface ErrorBoundaryState {
+  error: Error | null
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode; tip?: string }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('懒加载组件渲染失败', error, info.componentStack)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="编辑器加载失败"
+        description={this.state.error.message || this.props.tip || '请刷新页面后重试'}
+        action={<Button size="small" onClick={() => window.location.reload()}>刷新</Button>}
+        style={{ margin: 24 }}
+      />
+    )
+  }
 }
 
 /**
@@ -25,27 +55,28 @@ interface Props {
  */
 export default function LazyBoundary({ children, tip, fill }: Props) {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: 48,
-            // fill：跟随父级确定高度并居中（`html,body,#root` 均为 height:100%）
-            ...(fill ? { height: '100%', padding: 0 } : null),
-            color: '#8a919f',
-            fontSize: 13,
-          }}
-        >
-          <Spin size="small" />
-          <span>{tip ?? '正在加载…'}</span>
-        </div>
-      }
-    >
-      {children}
-    </Suspense>
+    <ErrorBoundary tip={tip}>
+      <Suspense
+        fallback={
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: 48,
+              ...(fill ? { height: '100%', padding: 0 } : null),
+              color: '#8a919f',
+              fontSize: 13,
+            }}
+          >
+            <Spin size="small" />
+            <span>{tip ?? '正在加载…'}</span>
+          </div>
+        }
+      >
+        {children}
+      </Suspense>
+    </ErrorBoundary>
   )
 }

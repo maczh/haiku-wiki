@@ -24,6 +24,11 @@ declare module 'mammoth' {
   export function convertToHtml(input: { arrayBuffer: ArrayBuffer }, options?: ConvertOptions): Promise<ConvertResult>
 }
 
+
+declare module 'jquery-mousewheel' {
+  const install: (jquery: typeof import('jquery')) => void
+  export default install
+}
 // simple-mind-map（wanglin2）：仅声明本项目用到的 API（v0.14.x）
 declare module 'simple-mind-map' {
   /** simple-mind-map 节点数据树（与 docs.content v2 契约同构） */
