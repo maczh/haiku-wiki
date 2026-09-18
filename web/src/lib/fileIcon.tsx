@@ -22,6 +22,7 @@ import {
   FileUnknownOutlined,
   FileWordOutlined,
   FileZipOutlined,
+  NodeIndexOutlined,
   PaperClipOutlined,
   PartitionOutlined,
   TableOutlined,
@@ -154,6 +155,8 @@ export function iconForDocType(docType: DocType, name?: string): IconSpec {
       return { icon: <CheckSquareOutlined />, color: '#52c41a' }
     case 'calendar':
       return { icon: <CalendarOutlined />, color: '#1677ff' }
+    case 'gantt':
+      return { icon: <NodeIndexOutlined />, color: '#fa8c16' }
     case 'api':
       return { icon: <ApiOutlined />, color: '#13c2c2' }
     case 'file':

@@ -49,6 +49,13 @@ var formatsByDocType = map[string][]FormatSpec{
 		{Value: "ics", Label: "日历文件（.ics）", Ext: "ics", MIME: "text/calendar; charset=utf-8"},
 		{Value: "json", Label: "日历数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
 	},
+	// gantt：甘特图。正文为 {version:1, tasks:[{id,text,start,duration,progress,type,parent,details}], links:[…]}，
+	// 日期只存 start + duration（end 由二者推导），导出 xlsx 得到任务表、md 得到层级清单。
+	"gantt": {
+		{Value: "xlsx", Label: "Excel 工作簿（.xlsx）", Ext: "xlsx", MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{Value: "md", Label: "Markdown 清单（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
+		{Value: "json", Label: "甘特图数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+	},
 	"flowchart": {
 		{Value: "md", Label: "Markdown + Mermaid（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
 		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
@@ -115,6 +122,8 @@ func NormalizeDocType(docType string) string {
 		return "todo"
 	case "calendar", "workcalendar":
 		return "calendar"
+	case "gantt":
+		return "gantt"
 	case "api":
 		return "api"
 	case "file":
@@ -263,6 +272,17 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 			return data, spec, err
 		case "ics":
 			data, err := BuildCalendarICS(content, title)
+			return data, spec, err
+		case "json":
+			return []byte(content), spec, nil
+		}
+	case "gantt":
+		switch spec.Value {
+		case "xlsx":
+			data, err := BuildGanttXLSX(content, title)
+			return data, spec, err
+		case "md":
+			data, err := BuildGanttMD(content, title)
 			return data, spec, err
 		case "json":
 			return []byte(content), spec, nil

@@ -52,6 +52,7 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   drawing: '未命名绘图',
   todo: '未命名待办清单',
   calendar: '未命名工作日历',
+  gantt: '未命名甘特图',
   api: '未命名接口',
   file: '未命名附件',
 }

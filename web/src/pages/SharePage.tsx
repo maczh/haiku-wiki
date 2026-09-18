@@ -12,6 +12,7 @@ import type { DocDetail, DocNode, ShareInfo } from '../types'
 const MarkdownView = lazy(() => import('../components/reader/MarkdownView'))
 const FileView = lazy(() => import('../components/reader/FileView'))
 const DrawioView = lazy(() => import('../components/reader/DrawioView'))
+const GanttView = lazy(() => import('../components/reader/GanttView'))
 
 /**
  * 公开分享页（/share/:slug）：免登录只读。
@@ -182,6 +183,9 @@ export default function SharePage() {
                   <FileView content={doc.content} />
                 ) : doc.doc_type === 'drawing' ? (
                   <DrawioView content={doc.content} />
+                ) : doc.doc_type === 'gantt' ? (
+                  // 公开分享不传 docId：甘特图按完全只读渲染
+                  <GanttView content={doc.content} />
                 ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
                   <div style={{ maxWidth: maxWidth ?? 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
                     该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。

@@ -14,6 +14,7 @@ const FileView = lazy(() => import('./FileView'))
 const DrawioView = lazy(() => import('./DrawioView'))
 const TodoView = lazy(() => import('./TodoView'))
 const CalendarView = lazy(() => import('./CalendarView'))
+const GanttView = lazy(() => import('./GanttView'))
 const ApiView = lazy(() => import('./ApiView'))
 
 interface Props {
@@ -24,6 +25,10 @@ interface Props {
   /** 附件「另存为绘图文档」需要：所属知识库与新建后的跳转回调 */
   bookId?: number
   onDocCreated?: (docId: number) => void
+  /** 文档 id：甘特图在阅读态改进度时要回写正文 */
+  docId?: number
+  /** 当前用户对文档是否有写权限：甘特图据此在阅读态开放「仅改进度」 */
+  canWrite?: boolean
   /** 是否显示正文宽度调节器（阅读页/分享页默认显示；弹窗内嵌预览可关掉） */
   widthEditable?: boolean
 }
@@ -37,6 +42,7 @@ const TIP: Record<string, string> = {
   drawing: '正在加载绘图…',
   todo: '正在加载待办清单…',
   calendar: '正在加载工作日历…',
+  gantt: '正在加载甘特图…',
   api: '正在加载接口文档…',
   file: '正在加载附件预览器…',
 }
@@ -53,6 +59,8 @@ export default function DocContent({
   onRendered,
   bookId,
   onDocCreated,
+  docId,
+  canWrite,
   widthEditable = true,
 }: Props) {
   // 正文宽度（标准/宽屏/全宽 + 拖动条），偏好存 localStorage，阅读页与分享页共用
@@ -102,6 +110,13 @@ export default function DocContent({
         <CalendarView content={content} />
       </LazyBoundary>
     )
+  } else if (docType === 'gantt') {
+    // 甘特图：横向时间轴需要整幅宽度，不套阅读宽度，也不显示宽度调节器
+    body = (
+      <LazyBoundary tip={TIP.gantt}>
+        <GanttView content={content} docId={docId} progressEditable={canWrite === true} />
+      </LazyBoundary>
+    )
   } else if (docType === 'file') {
     body = (
       <LazyBoundary tip={TIP.file}>
@@ -123,9 +138,11 @@ export default function DocContent({
     )
   }
 
+  // 甘特图要横向铺满（时间轴在窄栏下没法看），其余类型沿用阅读宽度偏好
+  const fullWidth = docType === 'gantt'
   return (
-    <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', width: '100%' }}>
-      {widthEditable && <WidthControl compact />}
+    <div style={{ maxWidth: fullWidth ? undefined : (maxWidth ?? undefined), margin: '0 auto', width: '100%' }}>
+      {widthEditable && !fullWidth && <WidthControl compact />}
       {body}
     </div>
   )

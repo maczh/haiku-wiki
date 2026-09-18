@@ -48,6 +48,7 @@ const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
 const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
 const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
+const GanttEditor = lazy(() => import('../components/editor/GanttEditor'))
 const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts（SheetJS/turndown/jszip 等）
 const ImportDialog = lazy(() => import('../components/import/ImportDialog'))
@@ -843,6 +844,15 @@ export default function BookPage() {
                         {doc.doc_type === 'calendar' && (
                           <CalendarEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
+                        {doc.doc_type === 'gantt' && (
+                          <GanttEditor
+                            key={doc.id}
+                            docId={doc.id}
+                            initialContent={doc.content}
+                            title={doc.title}
+                            teamId={book?.team_id ?? null}
+                          />
+                        )}
                         {doc.doc_type === 'api' && (
                           <ApiEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
@@ -876,6 +886,8 @@ export default function BookPage() {
                     <DocContent
                       docType={docTypeNow}
                       content={doc.content}
+                      docId={doc.id}
+                      canWrite={canWrite}
                       onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
                       bookId={bookID}
                       onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}

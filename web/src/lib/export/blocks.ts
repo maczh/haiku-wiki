@@ -7,6 +7,8 @@
 import type { DocType } from '../../types'
 import { flattenSheets, parseSheetJSON } from '../sheet'
 import { parseMindmapJSON } from '../mindmap'
+import { parseGanttJSON, GANTT_STATUS_META, taskStatus } from '../gantt'
+import type { GanttId } from '../gantt'
 
 /** 行内片段：导出时映射为加粗/斜体/等宽/超链接 */
 export interface InlineRun {
@@ -254,6 +256,34 @@ function calendarBlocks(content: string): Block[] {
   }
 }
 
+/** 甘特图 → 表格块（按层级缩进；列与后端导出一致：任务/负责人/开始/工期/进度/状态/描述） */
+function ganttBlocks(content: string): Block[] {
+  try {
+    const { data } = parseGanttJSON(content)
+    if (data.tasks.length === 0) return [{ type: 'paragraph', runs: runs('（空甘特图）') }]
+    const rows: string[][] = [['任务', '负责人', '优先级', '开始', '工期(天)', '进度', '状态', '描述']]
+    const walk = (parent: GanttId, depth: number) => {
+      for (const t of data.tasks.filter((x) => (x.parent ?? 0) === parent)) {
+        rows.push([
+          `${'　'.repeat(depth)}${t.text}`,
+          (t.assignees ?? []).join('、'),
+          `P${t.priority ?? 5}`,
+          t.type === 'milestone' ? `${t.start}（里程碑）` : t.start,
+          t.type === 'milestone' ? '0' : String(t.duration),
+          `${Math.round(t.progress)}%`,
+          GANTT_STATUS_META[taskStatus(t)].label,
+          t.details ?? '',
+        ])
+        walk(t.id, depth + 1)
+      }
+    }
+    walk(0, 0)
+    return rows.length > 1 ? [{ type: 'table', rows }] : [{ type: 'paragraph', runs: runs('（空甘特图）') }]
+  } catch {
+    return [{ type: 'paragraph', runs: runs('（甘特图内容无法解析）') }]
+  }
+}
+
 /** 任意文档类型 → Blocks（导出统一入口） */
 export function contentToBlocks(docType: DocType, content: string): Block[] {
   switch (docType) {
@@ -265,6 +295,8 @@ export function contentToBlocks(docType: DocType, content: string): Block[] {
       return todoBlocks(content)
     case 'calendar':
       return calendarBlocks(content)
+    case 'gantt':
+      return ganttBlocks(content)
     case 'flowchart':
       return [{ type: 'code', text: content ?? '', lang: 'mermaid' }]
     default:

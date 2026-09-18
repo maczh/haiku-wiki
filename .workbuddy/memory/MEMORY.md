@@ -72,6 +72,22 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - 实测收益：入口 chunk 3819 KB → **649 KB**（gzip 213 KB），入口 CSS 43 KB → **3.0 KB**，
   `BookPage` chunk 623 KB → **216 KB**。
 
+## 甘特图文档（doc_type=gantt）
+- 组件选型：`vxe-gantt` 是 **Vue 3 专用**，React18 项目用不了 → 已改用 **SVAR React Gantt**
+  (`@svar-ui/react-gantt@2.7.3` + `@svar-ui/gantt-locales@2.7.2`，MIT)。进度手柄派 `update-task {task:{progress}}`、
+  横/纵向改期派 `drag-task` —— 阅读态只改进度 = intercept 拦 `drag-task` 等 + `update-task` 白名单仅放行 `progress` 键。
+- **致命坑 ①**：给所有任务写 `open:true` 会让叶子节点白屏。SVAR `lib-state` 的 `parse()` 把每个任务 `data` 置 `null`，
+  `toArray()` 遇 `open===true && data===null` 抛 `Cannot read properties of null (reading 'forEach')`。
+  **只给有子任务的父节点写 `open:true`**（`ganttToSvar` 用 `hasChild` 集合判定）。
+- **致命坑 ②**：SVAR `byId` 是 `Map`，键为**数字** id；DOM `data-id` 是字符串 → `getTask(字符串)` 查不到。
+  `web/src/lib/gantt.ts` 抽了 `resolveSvarTask(api, id)`（先 `getTask(Number(id))` 再遍历 `serialize` 兜底）。
+- **外框被 hover 覆盖**：SVAR hover 规则用 CSS-Modules 哈希类，比注入选择器加载更晚 → 覆盖我们的 `box-shadow`。
+  注入选择器须加深为 `.hk-gantt .wx-bar[data-id="X"]` 并对 `box-shadow` 加 `!important`。
+- **零 CDN**：只能用 `@svar-ui/react-gantt/style.css`（无 url()），**不能用 `all.css`**（含 `@font-face` 指向 cdn.svar.dev）。
+- 甘特代码在独立 chunk（`GanttChart-*.js`/`GanttChart-*.css`），入口 `wx-gantt/svar/GanttChart/vxe` 计数必须为 0。
+- 状态灯/优先级规则前后端各一份且须同步：`web/src/lib/gantt.ts` 与 `server/internal/service/exportx/gantt.go`。
+  判定序：已结束→已超期→未开始→进度拖延→正常；优先级外框 alpha 0.16(P1)→0.72(P10)，紫罗兰 `rgba(114,46,209,a)`。
+
 ## CAD / DWG 约定
 - **DWG 两级策略**：① 外部转换器（`dwg2dxf` / `dwgread` / `ODAFileConverter`）转 DXF → 自研渲染器出
   SVG + PNG（矢量）；② 兜底抽取 DWG 内嵌预览位图（PNG/BMP 魔数扫描），此时 `Degraded=true`。
