@@ -75,22 +75,23 @@ export default function MindmapSideToolbar({
     run()
   }
 
-  /** 主题/基础样式统一入口：以当前主题为基准做覆盖 */
+  /** 主题/基础样式统一入口：在当前已生效配置上做覆盖（setThemeConfig 才会真正重算渲染主题） */
   function applyThemePatch(patch: Record<string, unknown>, tip: string) {
     const mm = handle.requireMm()
     if (!mm) return
-    mm.setTheme(deepMerge(handle.baseTheme(), patch) as never)
+    mm.setThemeConfig(deepMerge(handle.baseTheme(), patch) as never)
     onThemeKeyChange(null)
     setBaseTick((n) => n + 1)
+    handle.scheduleSave()
     handle.toast(tip, 'success')
   }
 
-  /** 取当前主题值（用于面板回显） */
+  /** 取当前主题配置值（用于面板回显） */
   function themeValue(key: string, fallback: unknown): unknown {
     void baseTick
     const mm = handle.mm
     if (!mm) return fallback
-    const t = mm.getTheme() as Record<string, unknown>
+    const t = (mm.getCustomThemeConfig?.() ?? {}) as Record<string, unknown>
     return t[key] ?? fallback
   }
 
@@ -373,9 +374,15 @@ export default function MindmapSideToolbar({
                 throttleCmd(`theme:${preset.key}`, () => {
                   const mm = handle.requireMm()
                   if (!mm) return
-                  mm.setTheme(preset.key === 'default' ? handle.baseTheme() : (deepMerge(handle.baseTheme(), preset.theme) as never))
+                  // 以「默认主题配置」为基准做干净切换（setThemeConfig 才会真正重算渲染主题）
+                  mm.setThemeConfig(
+                    preset.key === 'default'
+                      ? {}
+                      : (deepMerge(handle.defaultTheme(), preset.theme) as never),
+                  )
                   onThemeKeyChange(preset.key)
                   setBaseTick((n) => n + 1)
+                  handle.scheduleSave()
                   handle.toast(`已应用主题：${preset.label}`, 'success')
                 })
               }

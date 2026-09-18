@@ -69,9 +69,8 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const latestRef = useRef<SmmNode | null>(null)
   const dirtyRef = useRef(false)
   const titleRef = useRef(title)
-  const baseThemeRef = useRef<Record<string, unknown>>({})
-  /** 当前生效主题快照（simple-mind-map 的 opt.theme），随节点树一起持久化 */
-  const themeRef = useRef<Record<string, unknown> | null>(null)
+  /** 默认主题配置（未叠加任何自定义样式时的基准，用于主题预设干净切换与高亮匹配） */
+  const defaultThemeRef = useRef<Record<string, unknown>>({})
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   // 在组件顶层解析一次，用于初始化 layout/theme 状态（文档切换时 key 会变，整个组件会重建）
@@ -159,32 +158,28 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       // 记录初始尺寸：ResizeObserver 首次回调（0 → N）不该被当成「真实变化」而触发一次 render
       const r0 = host.getBoundingClientRect()
       lastSizeRef.current = { w: Math.round(r0.width), h: Math.round(r0.height) }
-      // 初始主题快照：主题/基础样式面板以其为基准做覆盖
+      // 默认主题配置快照：未叠加任何自定义样式时的基准，供主题预设「干净切换」与高亮匹配使用
       try {
-        baseThemeRef.current = JSON.parse(JSON.stringify(mm.getTheme() ?? {}))
+        defaultThemeRef.current = JSON.parse(JSON.stringify(mm.getCustomThemeConfig() ?? {}))
       } catch {
-        baseThemeRef.current = {}
+        defaultThemeRef.current = {}
       }
-      // 还原持久化的主题（v2.1+）：把存储的 theme 快照整体应用回画布实例，
-      // 使主题/全局样式（布局、连线、字体、背景…）在重载后保持用户修改后的样子，
-      // 而不是每次都被默认主题覆盖（#31 修复点）。
+      // 还原持久化的自定义主题配置（v2.1+）：
+      // 必须用 setThemeConfig 才会真正重算渲染用的 themeConfig（setTheme 仅接受已注册主题名，
+      // 传入对象不会生效），这样主题/基础样式/字体等样式在重载后保持用户修改后的样子（#31 修复点）。
       if (data.theme && typeof data.theme === 'object') {
         try {
-          mm.setTheme(data.theme as never)
-          themeRef.current = data.theme as Record<string, unknown>
+          mm.setThemeConfig(data.theme as never)
         } catch {
-          themeRef.current = null
+          /* 主题格式异常时忽略，按默认渲染 */
         }
-      } else {
-        themeRef.current = null
       }
-      // 主题应用后更新基准快照，并高亮对应预设
+      // 应用后高亮对应预设（与 setThemeConfig 后的真实配置比对）
       try {
-        baseThemeRef.current = JSON.parse(JSON.stringify(mm.getTheme() ?? {}))
+        setActiveThemeKey(matchThemeKey(mm.getCustomThemeConfig() ?? {}, defaultThemeRef.current) ?? 'default')
       } catch {
-        baseThemeRef.current = {}
+        setActiveThemeKey('default')
       }
-      setActiveThemeKey(matchThemeKey(mm.getTheme(), baseThemeRef.current) ?? 'default')
       setReady(true)
 
       mm.on('data_change', (d: SmmNode) => {
@@ -200,16 +195,6 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       mm.on('scale', (s: number) => setScale(s))
       mm.on('painter_start', () => setBrushing(true))
       mm.on('painter_end', () => setBrushing(false))
-      // 主题/全局样式变更（侧栏「主题」面板 setTheme 触发）：快照最新主题并防抖保存
-      mm.on('view_theme_change', (t: unknown) => {
-        themeRef.current = t && typeof t === 'object' ? (t as Record<string, unknown>) : themeRef.current
-        try {
-          baseThemeRef.current = JSON.parse(JSON.stringify(mm?.getTheme() ?? {}))
-        } catch {
-          /* 忽略 */
-        }
-        scheduleSave()
-      })
     }
     create()
 
@@ -217,9 +202,13 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       cancelled = true
       if (raf) cancelAnimationFrame(raf)
       if (timerRef.current) clearTimeout(timerRef.current)
-      // 切换文档前若有未保存内容，立即保存（fire-and-forget）
+      // 切换文档前若有未保存内容（含节点改动或样式改动），立即保存（fire-and-forget）。
+      // 直接读取画布实例的最新数据树与主题配置，避免依赖被节流的 data_change 事件导致漏存。
       if (dirtyRef.current && latestRef.current) {
-        void patchDoc(docId, { content: stringifyMindmap(latestRef.current, themeRef.current ?? undefined, layoutRef.current), source: 'auto' }).catch(
+        const liveMm = mindMapRef.current
+        const root = (liveMm?.getData?.() ?? latestRef.current) as SmmNode
+        const theme = liveMm?.getCustomThemeConfig?.() ?? undefined
+        void patchDoc(docId, { content: stringifyMindmap(root, theme ?? undefined, layoutRef.current), source: 'auto' }).catch(
           () => undefined,
         )
         dirtyRef.current = false
@@ -299,19 +288,26 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     return () => clearTimeout(t)
   }, [fullscreen])
 
-  /** 防抖自动保存（节点编辑 / 主题变更共用） */
+  /** 防抖自动保存（节点编辑 / 主题·基础样式·字体等样式改动共用） */
   function scheduleSave() {
+    dirtyRef.current = true
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
   }
 
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
-    const root = latestRef.current
+    const liveMm = mindMapRef.current
+    if (!liveMm) return
+    // 直接读取画布实例的最新数据树与主题配置，确保刚改完样式就保存时不会漏存
+    // （setThemeConfig 不触发 data_change，主题必须主动读取实例而非依赖事件刷新）。
+    const root = (liveMm.getData?.() ?? latestRef.current) as SmmNode
+    const theme = liveMm.getCustomThemeConfig?.() ?? undefined
     if (!root) return
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyMindmap(root, themeRef.current ?? undefined, layoutRef.current), source })
+      await patchDoc(docId, { content: stringifyMindmap(root, theme ?? undefined, layoutRef.current), source })
+      latestRef.current = root
       dirtyRef.current = false
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
@@ -353,11 +349,15 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       toast: (msg, kind = 'info') => {
         message[kind](msg)
       },
-      baseTheme: () => baseThemeRef.current,
+      // 当前已生效的自定义主题配置（实时从实例读取，供基础样式/字体累加式覆盖）
+      baseTheme: () => mindMapRef.current?.getCustomThemeConfig?.() ?? {},
+      // 默认主题配置基准（供主题预设干净切换与高亮匹配）
+      defaultTheme: () => defaultThemeRef.current,
+      scheduleSave: () => scheduleSave(),
     }),
-    // requireActiveNode / requireMindMap / doSave 均为稳定引用或仅依赖 ref
+    // requireActiveNode / requireMindMap / scheduleSave 均为稳定引用或仅依赖 ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasActive, ready],
+    [hasActive, ready, scheduleSave],
   )
 
   // ---------- 顶部工具条操作 ----------
@@ -481,13 +481,15 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     if (!mm) return
     setFontFamily(family)
     setActiveThemeKey(null)
-    const base = baseThemeRef.current
-    mm.setTheme({
+    // 在「当前已生效配置」上叠加字体，setThemeConfig 才会真正重算渲染主题
+    const base = (mm.getCustomThemeConfig?.() ?? {}) as Record<string, unknown>
+    mm.setThemeConfig({
       ...base,
       root: { ...(base.root as Record<string, unknown>), fontFamily: family },
       second: { ...(base.second as Record<string, unknown>), fontFamily: family },
       node: { ...(base.node as Record<string, unknown>), fontFamily: family },
     } as never)
+    scheduleSave()
   }
 
   async function exportPng() {

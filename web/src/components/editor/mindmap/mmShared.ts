@@ -29,8 +29,12 @@ export interface MmHandle {
   requireMm: () => MindMap | null
   /** 提示统一出口 */
   toast: (msg: string, kind?: 'info' | 'success' | 'warning' | 'error') => void
-  /** 初始主题快照（主题/基础样式面板以其为基准做覆盖，避免预设相互污染） */
+  /** 当前已生效的自定义主题配置（opt.themeConfig 的实时快照，用于基础样式/字体的累加式覆盖） */
   baseTheme: () => Record<string, unknown>
+  /** 默认主题配置（未叠加任何自定义样式时的基准，用于主题预设的「干净切换」与高亮匹配） */
+  defaultTheme: () => Record<string, unknown>
+  /** 触发防抖自动保存（主题/基础样式/字体等不触发 data_change 的改动需显式调用） */
+  scheduleSave: () => void
 }
 
 /** 浅递归合并：普通对象逐键合并，数组与基本类型直接替换 */

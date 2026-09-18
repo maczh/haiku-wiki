@@ -62,6 +62,10 @@ declare module 'simple-mind-map' {
     /** 主题（含连线、节点各层级样式）与布局读写 */
     getTheme(): Record<string, unknown>
     setTheme(theme: Record<string, unknown>, notRender?: boolean): void
+    /** 当前已生效的自定义主题配置（opt.themeConfig 的实时快照，setThemeConfig 写入的值） */
+    getCustomThemeConfig(): Record<string, unknown>
+    /** 设置自定义主题配置：传入对象会真正重算渲染用的 themeConfig（区别于仅接受已注册主题名的 setTheme） */
+    setThemeConfig(config: Record<string, unknown>, notRender?: boolean): void
     getLayout(): string
     setLayout(layout: string, notRender?: boolean): void
     /** 只读 / 编辑模式 */

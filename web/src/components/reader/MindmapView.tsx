@@ -25,10 +25,11 @@ export default function MindmapView({ content }: Props) {
       layout: data.layout || 'logicalStructure',
       initRootNodePosition: ['center', 'center'],
     })
-    // 只读也还原持久化的主题（#31）：保持与编辑态一致的视觉样式
+    // 只读也还原持久化的主题配置（#31）：保持与编辑态一致的视觉样式。
+    // 必须用 setThemeConfig（setTheme 仅接受已注册主题名，传入对象不会生效）。
     if (data.theme && typeof data.theme === 'object') {
       try {
-        mm.setTheme(data.theme as never)
+        mm.setThemeConfig(data.theme as never)
       } catch {
         /* 主题格式异常时忽略，按默认渲染 */
       }
