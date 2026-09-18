@@ -1,47 +1,41 @@
-# 本轮交付概览：接口文档 + 公司知识库 + 思维导图样式持久化
+# 书架目录树 + 导入目标目录
 
-> 后端（proxy 转发、公司知识库模型/权限/种子/接口、api 导出分支）已在更早会话完成并 `go build` 通过；
-> 本轮补齐**前端全部界面**与**思维导图样式持久化**，并对后端改动做了重新编译验证。
+## 需求
+1. 继续完成上轮未竟的构建验证。
+2. 把书架「文件列表框」改为**树型目录树**：第一级 私人知识库 / 团队知识库 / 公司知识库（均可多个），第二层起是文档与子目录；「新建文档」「导入」都要先选知识库 + 目录，再创建 / 导入。
 
-## 一、接口文档（`doc_type = 'api'`，仿 Apifox）
+## 已实现
 
-**能力**
-- 分组管理接口；每个接口含 `baseHost / uri / method / Content-Type / 请求头 / 请求参数 / 请求体`，返回结果展示。
-- **在线调试**：经服务端 `POST /api/proxy` 转发（绕开浏览器 CORS + SSRF 防护），展示状态码、耗时、响应头、响应体（JSON 自动美化）。
-- **导入**：支持 Swagger2 / OpenAPI3 / Apifox / Postman 的 JSON 文件导入，以及「从 URL 在线导入」（服务端代理拉取后解析）。
-- 2.5s 防抖自动保存（`patchDoc`）；阅读模式同样可调试，但表单禁用。
+### 1. 统一目录树 `KnowledgeTree.tsx`（新增）
+- antd `Tree`，三层结构：
+  - **第一级**：分类节点 `私人知识库` / `团队知识库` / `公司知识库`（分别来自 `listBooks` 的 `mine` / `teams` / `visible`）。
+  - **第二级**：知识库（book），点击打开 `/books/:id`；hover 的 `···` 菜单：新建文档 / 导入 / 设置 / 删除 /（公司库 + 管理员）管理写权限。
+  - **第三层起**：文档与子目录，按 `getTree(bookId)` **懒加载**（`Tree` 的 `loadData`，展开书籍时才拉取），点击文档打开 `/books/:id?docId=:d`；右键菜单：打开 / 新建子文档 / 重命名（就地输入）/ 删除（`Modal.confirm` + 局部缓存刷新）。
+- 文档图标按 `doc_type` 分发（`lib/fileIcon`），目录（含子节点）用文件夹图标；分类计数实时显示。
 
-**新增/改动文件**
-- `web/src/lib/apiDoc.ts` — 数据契约 + 导入解析（自动识别三种格式、`schemaToSample` 示例生成）。
-- `web/src/components/editor/ApiEditor.tsx` — 编辑器（核心）。
-- `web/src/components/reader/ApiView.tsx` — 只读阅读器（复用 ApiEditor + `readOnly`）。
-- `web/src/api/proxy.ts` — `proxyRequest`；`web/src/api/admin.ts` — writers 接口。
-- `web/src/pages/BookPage.tsx`、`web/src/components/reader/DocContent.tsx` — 编辑/阅读分发接入 + `canWrite` 改用后端 `book.can_write`。
-- `web/src/types.ts`（加 `BookWriterView`、`api` 类型）、`web/src/components/tree/DocTree.tsx`（默认名）、`web/src/lib/fileIcon.tsx`（api 图标，前序已完成）。
+### 2. `BookshelfPage.tsx`（改写）
+- 原卡片网格 → `KnowledgeTree`。
+- 顶部工具栏：**新建知识库 / 新建文档 / 导入 / 按名称过滤**。
+- 「新建文档」「导入」均为**两步模态**：第一步选**知识库 + 目录**（目录 = 该库 `getTree` 拍平的文档树，含「根目录」项，强制先确定位置），第二步再填类型 / 名称（新建）或选方式（文件 / 网页链接，导入）。
+- 导入落库后通过 `reloadBookId + reloadNonce` 触发该库文档树重载并自动展开。
+- 公司库写权限管理复用既有 `CompanyKBWritersModal`；删除知识库走确认弹窗。
 
-## 二、公司知识库（前端 UI 收尾）
+### 3. 「导入到指定目录」贯通全链路
+- 后端 `handler/import_url_handler.go`：`importUrl` 入参新增可选 `parent_id`（默认 0），传入 `CreateDocWithContent`。
+- 前端 `api/docs.ts` `importUrl(url, bookId, parentId=0)`；`ImportDialog` 新增 `parentId?`（默认 0）使 `createDoc` 落到目标目录；`UrlImportDialog` 新增 `parentId?`。
+- 文件导入（Word/Excel/Markdown/附件等）与网页链接导入均可指定目录。
 
-- 系统启动时自动创建「公司知识库」，所有登录用户**只读**；管理员可在 `BookWriter` 表授权多个成员的**写**权限。
-- `web/src/components/admin/CompanyKBWritersModal.tsx` — 列出/授予/撤销写权限（管理员视角，管理员自身恒可写，不在表中）。
-- `web/src/pages/AdminUsersPage.tsx` — 「公司知识库写权限」入口（从书架定位公司库 id）。
-- `web/src/pages/BookPage.tsx` — 管理员在知识库页可见「管理写权限」按钮，关闭后刷新 `can_write` 即时生效。
+## 验证状态
+- ✅ **后端** `go build ./...` 绿灯（环境变量：`GOPATH/GOMODCACHE=/home/macro/go/pkg/mod`、`GOPROXY=off`、`GOFLAGS=-mod=mod`、`GOCACHE/HOME=/home/macro`、`TMPDIR/GOTMPDIR=/home/macro/.workbuddy/tmp/gotmp`）。
+- ✅ **前端** `tsc --noEmit`：本次新增 / 修改文件**全部零类型错误**。
+- ⚠️ **完整 `npm run build` 在本沙箱已确认无法跑通**（不是代码问题）：`node_modules` 缺 5 个重型依赖（`docx/jquery/html2canvas/jspdf/pptxgenjs`，仅被导出功能引用），补装连撞三道墙——
+  ① `npm ci` 被宿主批量删除守卫拦死（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`，exit 2）；
+  ② `npm install` 撞 overlayfs 非空目录改名 `ENOTEMPTY`；
+  ③ npm 缓存 `/root/.npm` 属 root 导致 `EACCES`（用 `npm_config_cache` 可修这条，但修完立刻撞 ②）。
+  故全量 `tsc` 仍报这 5 个 `Cannot find module`（与改动无关，可 `grep -vE 'node_modules/(docx|jquery|html2canvas|jspdf|pptxgenjs)'` 滤掉）。
+  整站构建 / 浏览器冒烟**必须在能联网 + 正常文件系统（非 overlayfs）的环境**做，那边 `npm install && npm run build` 即可。
 
-## 三、思维导图样式持久化（#31 修复）
-
-- 原缺陷：主题/全局样式（布局、连线、字体、背景等）改完重载即丢失（`setTheme` 只改实例，未落库）。
-- 修复：`MindmapJSON` 增加可选 `theme` 字段；`parse` 读、`stringify` 写；编辑器初始化 `setTheme` 还原、监听 `view_theme_change` 快照并防抖保存；只读渲染器也还原主题。
-- 改动：`web/src/lib/mindmap.ts`、`web/src/components/editor/MindmapEditor.tsx`、`web/src/components/reader/MindmapView.tsx`。
-
-## 四、验证状态
-
-| 项 | 结果 |
-| --- | --- |
-| 后端 `go build ./...` | ✅ 通过（需 `TMPDIR` 指向家目录，因 `/tmp` 仅 10MB） |
-| 前端 `tsc --noEmit`（本次新增/修改文件） | ✅ 零报错 |
-| 前端 `npm run build` | ⚠️ 环境阻塞：本沙箱 `node_modules` 缺 `docx/html2canvas/jspdf/pptxgenjs/jquery` 且 `npm install` 因 overlayfs 目录重命名 `ENOTEMPTY` 无法补装；属既有环境缺口，与三需求无关。正常联网/文件系统环境下 `npm install && npm run build` 即可通过 |
-
-## 五、下一步建议（交付前）
-
-1. 在可联网环境 `npm install` 后跑 `npm run build`，确认整站构建绿。
-2. 浏览器冒烟：新建「接口」文档 → 编辑/调试/导入 swagger；打开公司知识库（管理员授权写、普通成员只读）；编辑思维导图换主题后刷新确认保留。
-3. 提交改动（`git commit`）；本沙箱无 docker，镜像构建/起服验证需在能联网与跑 docker 的环境执行。
+## 建议下一步
+1. 联网环境 `npm install && npm run build` 确认整站绿。
+2. 浏览器冒烟：书架树展开各分类 / 知识库 → 文档；新建文档走「选库 + 选目录」两步；导入文件 / URL 并确认落入所选目录；公司库管理员「管理写权限」。
+3. 改动均已 `git commit`（059d35d 目录树主体 + 懒加载刷新修复），尚未 `git push`。

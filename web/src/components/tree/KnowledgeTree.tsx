@@ -140,7 +140,7 @@ export default function KnowledgeTree(p: Props) {
 
   useEffect(() => {
     rebuildTop()
-  }, [rebuildTop])
+  }, [rebuildTop, loadedKeys])
 
   /** 加载（或重载）某知识库的文档 */
   const loadBookDocs = useCallback(
