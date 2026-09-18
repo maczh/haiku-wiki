@@ -64,7 +64,8 @@ interface Props {
   docId?: number
   initialContent: string
   title?: string
-  /** 只读（阅读模式）：表单禁用、隐藏保存/导入，但调试可用 */
+  /** 只读（阅读模式）：文档结构字段禁用、隐藏保存/导入；
+   *  但「请求头 / 请求参数 / 请求体」这些调试输入仍可编辑（读者需填入自己的测试值来调试）。 */
   readOnly?: boolean
 }
 
@@ -231,7 +232,8 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
  *  - 右栏：选中接口的配置（方法/名称/baseHost/uri/Content-Type/请求头/请求参数/请求体）
  *  - 「调试」经服务端 /api/proxy 转发（绕开 CORS + SSRF 防护），返回结果在「返回结果」页
  *  - 「导入」支持 Swagger2 / OpenAPI3 / Apifox / Postman 文件，或从 URL 在线导入
- *  - 内容 2.5s 防抖自动保存（patchDoc）；只读模式下表单禁用但调试仍可用。
+ *  - 内容 2.5s 防抖自动保存（patchDoc）；只读模式下文档结构字段禁用、隐藏保存/导入，
+ *    但请求头 / 请求参数 / 请求体仍可编辑（读者可填入测试值经代理调试）。
  */
 export default function ApiEditor({ docId, initialContent, title, readOnly }: Props) {
   const [doc, setDoc] = useState<ApiDoc>(() => normalizeApiDoc(initialContent))
@@ -956,9 +958,10 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                       key: 'headers',
                       label: `请求头 (${current.ep.headers.filter((h) => h.enabled).length})`,
                       children: (
+                        // 调试输入在阅读模式也可编辑：动态添加 / 手工输入 key+value / 勾选传或不传
                         <KVEditor
                           value={current.ep.headers}
-                          disabled={readOnly}
+                          disabled={false}
                           shortKey
                           onChange={(v) => patchEndpoint({ headers: v })}
                         />
@@ -968,9 +971,10 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                       key: 'params',
                       label: `请求参数 (${current.ep.params.filter((h) => h.enabled).length})`,
                       children: (
+                        // GET 请求参数：勾选框 + value 可编辑；无中文名称列；字段名短；悬停显示中文名+类型
                         <KVEditor
                           value={current.ep.params}
-                          disabled={readOnly}
+                          disabled={false}
                           shortKey
                           showDesc={false}
                           hoverCn
@@ -983,9 +987,10 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                       label: '请求体',
                       children: (
                         <div>
+                          {/* 请求体类型：阅读模式也可编辑（POST 调试时切换 JSON/FORM/RAW） */}
                           <Select
                             value={current.ep.body_type}
-                            disabled={readOnly}
+                            disabled={false}
                             onChange={(v) => patchEndpoint({ body_type: v as ApiEndpoint['body_type'] })}
                             options={BODY_TYPE_OPTIONS}
                             style={{ width: 240, marginBottom: 10 }}
@@ -1012,9 +1017,10 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
                           )}
                           {(current.ep.body_type === 'json' || current.ep.body_type === 'raw') && (
                             <div>
+                              {/* 请求体框：阅读模式也可编辑；JSON 时下方展示字段参数说明表 */}
                               <Input.TextArea
                                 value={current.ep.body}
-                                disabled={readOnly}
+                                disabled={false}
                                 onChange={(e) => patchEndpoint({ body: e.target.value })}
                                 placeholder={
                                   current.ep.body_type === 'json'

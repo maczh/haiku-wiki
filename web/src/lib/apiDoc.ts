@@ -142,6 +142,12 @@ function coerceKV(kv: Partial<ApiKeyValue>): ApiKeyValue {
   }
 }
 
+/** 从 Swagger/OAS 参数对象提取类型字符串（用于阅读模式悬停提示「类型」） */
+function paramType(p: Record<string, unknown>): string {
+  const t = p.type ?? (p.schema as Record<string, unknown> | undefined)?.type
+  return t ? String(t) : ''
+}
+
 function coerceField(f: Partial<ApiField>): ApiField {
   return {
     name: f.name ?? '',
@@ -212,9 +218,9 @@ function parseSwagger2(o: Record<string, unknown>): ApiDoc {
       for (const p of params) {
         const inWhere = String(p.in || '')
         if (inWhere === 'header') {
-          headers.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || '') })
+          headers.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
         } else if (inWhere === 'query' || inWhere === 'path') {
-          query.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || '') })
+          query.push({ key: String(p.name || ''), value: String(p.default ?? p.example ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
         } else if (inWhere === 'body') {
           body = schemaToSample(p.schema)
           bodyType = 'json'
@@ -271,8 +277,8 @@ function parseOpenAPI3(o: Record<string, unknown>): ApiDoc {
       const query: ApiKeyValue[] = []
       for (const p of params) {
         const inWhere = String(p.in || '')
-        if (inWhere === 'header') headers.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || '') })
-        else if (inWhere === 'query' || inWhere === 'path') query.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || '') })
+        if (inWhere === 'header') headers.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
+        else if (inWhere === 'query' || inWhere === 'path') query.push({ key: String(p.name || ''), value: String(p.default ?? ''), enabled: true, description: String(p.description || ''), type: paramType(p) })
       }
       let body = ''
       let bodyType: ApiEndpoint['body_type'] = 'none'
