@@ -22,7 +22,7 @@ import {
   type DrawioEditorMessage,
   type DrawioExportFormat,
 } from '../../lib/drawio'
-import { isUsableSvg, parseDrawioContent, stringifyDrawioContent } from '../../lib/drawioDoc'
+import { decodeSvgDataUri, isUsableSvg, parseDrawioContent, stringifyDrawioContent } from '../../lib/drawioDoc'
 import { DRAWIO_EXTS, extOf } from '../../lib/attachment'
 
 interface Props {
@@ -245,7 +245,8 @@ export default function DrawioEditor({
       if (!force && Date.now() - lastSvgAtRef.current < SVG_MIN_INTERVAL_MS) return svgRef.current
       try {
         lastSvgAtRef.current = Date.now()
-        const svg = await requestExport('svg')
+        const raw = await requestExport('svg')
+        const svg = decodeSvgDataUri(raw)
         if (isUsableSvg(svg)) {
           svgRef.current = svg
           svgForXmlRef.current = xml
@@ -266,11 +267,18 @@ export default function DrawioEditor({
       setStatus('saving')
       try {
         // 手动保存立即刷新 SVG；自动保存按最小间隔节流（见 SVG_MIN_INTERVAL_MS）
-        const svg = await ensureSvg(xml, source === 'manual')
+        let svg = await ensureSvg(xml, source === 'manual')
+        // 手动保存若仍无可用 SVG（如导出超时/返回异常），再强制重试一次，保证阅读/分享页能预览
+        if (source === 'manual' && !isUsableSvg(svg)) {
+          svg = await ensureSvg(xml, true)
+        }
         await patchDoc(docId, { content: stringifyDrawioContent(xml, svg), source })
         dirtyRef.current = false
         setStatus('saved')
         setSavedAt(new Date().toLocaleTimeString('zh-CN'))
+        if (source === 'manual' && !isUsableSvg(svg)) {
+          message.warning('矢量预览生成失败，阅读/分享页可能暂时无法显示，请稍后再次保存重试')
+        }
       } catch {
         // 失败回到「编辑中」：内容仍在编辑器里，用户可继续手动保存，不静默丢改动
         setStatus('editing')
@@ -317,7 +325,8 @@ export default function DrawioEditor({
         try {
           const xml = xmlRef.current || latestRef.current
           if (!xml) return
-          const svg = await requestExport('svg')
+          const raw = await requestExport('svg')
+          const svg = decodeSvgDataUri(raw)
           if (!isUsableSvg(svg)) return
           svgRef.current = svg
           svgForXmlRef.current = xml

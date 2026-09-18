@@ -152,7 +152,7 @@ export default function KnowledgeTree(p: Props) {
     const cat = (key: 'private' | 'team' | 'company', list: BookWithCount[]): KNode => ({
       key: `cat:${key}`,
       title: (
-        <span style={{ fontWeight: 600 }}>
+        <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
           {CAT_LABEL[key]}
           <span style={{ color: '#8a919f', fontWeight: 400, marginLeft: 6 }}>{list.length}</span>
         </span>
@@ -305,7 +305,7 @@ export default function KnowledgeTree(p: Props) {
     })
     return (
       <Dropdown menu={{ items }} trigger={['contextMenu']}>
-        <span>{node.title as ReactNode}</span>
+        <span style={{ whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
       </Dropdown>
     )
   }
@@ -370,7 +370,7 @@ export default function KnowledgeTree(p: Props) {
   function titleRender(node: KNode): ReactNode {
     if (node.raw.kind === 'cat') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           {node.title as ReactNode}
           {node.raw.catKey === 'private' && (
             <PlusOutlined
@@ -387,7 +387,7 @@ export default function KnowledgeTree(p: Props) {
     }
     if (node.raw.kind === 'book') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: '100%' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', whiteSpace: 'nowrap' }}>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
           {bookMenu(node.raw.book!)}
         </span>

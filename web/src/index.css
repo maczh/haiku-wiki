@@ -20,10 +20,8 @@ a {
   text-decoration: none;
 }
 
-/* 正文区域：居中最大宽度约 780px（语雀阅读版式） */
+/* 正文区域：宽度由 DocContent 外层容器统一控制（useReaderWidth），这里只保留版式 padding */
 .doc-content {
-  max-width: 780px;
-  margin: 0 auto;
   padding: 32px 24px 80px;
   font-size: 15px;
   line-height: 1.8;

@@ -57,3 +57,28 @@ export function isUsableSvg(svg: string): boolean {
   const t = (svg || '').trim()
   return t.startsWith('<svg') || (t.startsWith('<?xml') && t.includes('<svg'))
 }
+
+/**
+ * draw.io 的 export 事件可能返回 data URI（如 data:image/svg+xml;base64,...），
+ * 而阅读页需要纯 SVG 文本。这里统一解码为可用 SVG。
+ */
+export function decodeSvgDataUri(raw: string): string {
+  const t = (raw || '').trim()
+  if (!t.startsWith('data:')) return t
+  const comma = t.indexOf(',')
+  if (comma <= 0) return ''
+  const meta = t.slice(5, comma)
+  const payload = t.slice(comma + 1)
+  if (meta.includes('base64')) {
+    try {
+      return atob(payload)
+    } catch {
+      return ''
+    }
+  }
+  try {
+    return decodeURIComponent(payload)
+  } catch {
+    return ''
+  }
+}

@@ -8,7 +8,7 @@ import {
   RedoOutlined,
 } from '@ant-design/icons'
 import DOMPurify from 'dompurify'
-import { isUsableSvg } from '../../lib/drawioDoc'
+import { decodeSvgDataUri, isUsableSvg } from '../../lib/drawioDoc'
 import LazyBoundary from '../common/LazyBoundary'
 
 interface Props {
@@ -37,10 +37,11 @@ export default function DrawioSvgView({ svg }: Props) {
   const [scale, setScale] = useState(1)
   const [fit, setFit] = useState(true)
 
-  // 清洗：只保留 SVG 画像允许的标签与属性
+  // 清洗：只保留 SVG 画像允许的标签与属性（兼容 draw.io 返回的 data URI）
   const clean = useMemo(() => {
-    if (!isUsableSvg(svg)) return ''
-    return DOMPurify.sanitize(svg, {
+    const decoded = decodeSvgDataUri(svg)
+    if (!isUsableSvg(decoded)) return ''
+    return DOMPurify.sanitize(decoded, {
       USE_PROFILES: { svg: true, svgFilters: true },
       // draw.io 的文本用 <switch><foreignObject> 输出富文本，DOMPurify 的 svg 画像默认不含它
       ADD_TAGS: ['foreignObject', 'switch'],
