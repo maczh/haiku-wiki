@@ -76,6 +76,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-w
 # 中文字体：PDF / PNG 导出需要真实 CJK 字体（缺字体时中文会渲染为空白）
 # EXPORT_FONT_PATH 必须指向 font-wqy-zenhei 实际安装的位置
 # （apk 包把 wqy-zenhei.ttc 放在 /usr/share/fonts/wqy-zenhei/）。
+#
+# 字体选型说明（避免后人改错；实测矩阵见 internal/service/exportx/font.go 头部注释）：
+#   · font-wqy-zenhei 位于 Alpine **community** 仓库（main 仓没有，Alpine 也只提供
+#     这一个 wqy 包）。若基础镜像的 /etc/apk/repositories 未启用 community，
+#     `apk add` 会失败并中断构建 —— 届时需显式 --repository 指定 community 源。
+#   · 该 .ttc 已实测同时通过 hasCJK（freetype）与 gopdf 加载两道校验，可正常出 PDF/PNG。
+#   · **不要**改投 font-noto-cjk：其 .ttc 内部为 CFF 轮廓（sfntVersion='OTTO'），
+#     现有管线（freetype truetype + TTC 抽首字体）解析不了，换了反而彻底无字体可用。
+#   · 即使 EXPORT_FONT_PATH 指向了渲染器不能用的字体，LoadFont 也会告警并回退自动探测，
+#     不会重演「LoadFont 成功、BuildPDF 全线失败」（BUG-R6-02）。
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei && adduser -D -u 10001 haiku
 WORKDIR /app
