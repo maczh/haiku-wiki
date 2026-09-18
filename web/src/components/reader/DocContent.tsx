@@ -4,7 +4,7 @@ import WidthControl from './WidthControl'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { type DocType } from '../../types'
 
-// 按文档类型按需加载渲染器：Vditor / simple-mind-map / x-data-spreadsheet / pdf.js / mermaid
+// 按文档类型按需加载渲染器：Vditor / simple-mind-map / Luckysheet / pdf.js / mermaid
 // / draw.io / pptx-preview 都只在打开对应类型文档时才需要，静态 import 会把它们全部塞进首屏 chunk。
 const MarkdownView = lazy(() => import('./MarkdownView'))
 const SheetView = lazy(() => import('./SheetView'))

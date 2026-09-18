@@ -34,7 +34,7 @@ import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type DocDetail, type DocNode } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
 
-// 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ x-data-spreadsheet / mermaid 体积大，
+// 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
 const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
 const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))

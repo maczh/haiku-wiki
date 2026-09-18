@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import x_spreadsheet from 'x-data-spreadsheet'
-import 'x-data-spreadsheet/dist/xspreadsheet.css'
+import luckysheet from 'luckysheet'
+import 'luckysheet/dist/css/luckysheet.css'
+import 'luckysheet/dist/assets/iconfont/iconfont.css'
 import { Button, Space, Tooltip, message } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import { patchDoc } from '../../api/docs'
-import { sheetToXData, xDataToSheet, parseSheetJSON, stringifySheet } from '../../lib/sheet'
-import type { SheetJSON, XSheetRaw } from '../../lib/sheet'
+import { luckysheetToSheetJSON, parseSheetJSON, sheetsToLuckysheet, stringifySheet } from '../../lib/sheet'
+import type { SheetJSON } from '../../lib/sheet'
 
 interface Props {
   docId: number
@@ -16,13 +17,32 @@ interface Props {
   docType: 'sheet'
 }
 
-const SAVE_DEBOUNCE_MS = 3000 // 3s 防抖自动保存（与 VditorEditor 一致）
+const SAVE_DEBOUNCE_MS = 3000 // 3s 防抖自动保存（与其余编辑器一致）
+
+/** Luckysheet 容器 id 的自增序列（同一页面可能先后挂载多个实例） */
+let seq = 0
+
+/** 类型补全：Luckysheet 未随包提供 TS 类型，这里只声明用到的 API 面 */
+interface LuckysheetApi {
+  create(options: Record<string, unknown>): void
+  destroy(): void
+  getAllSheets(): unknown
+  [key: string]: unknown
+}
 
 /**
- * x-data-spreadsheet 唯一隔离层（架构文档 I05）：
- *  - 加载/保存各一个转换函数（lib/sheet.ts），对外只暴露稳定 JSON schema
- *  - 3s 防抖 patchDoc 自动保存 + 手动保存 + 历史版本
- *  - 日后更换 Univer 只改本文件与 lib/sheet.ts，不动存储契约
+ * Luckysheet 表格编辑器（替换原 x-data-spreadsheet，界面与操作仿 Excel）。
+ *
+ * 隔离层约定（架构文档 I05）：
+ *  - 加载/保存各一个转换函数（lib/sheet.ts），对外只暴露稳定 JSON schema；
+ *  - 3s 防抖 patchDoc 自动保存 + 手动保存 + SaveIndicator + 版本快照链路；
+ *  - 日后更换表格内核只需改本文件与 lib/sheet.ts，不动存储契约。
+ *
+ * Vite 下的两个注意点：
+ *  - luckysheet 的 ESM 产物内部会读 window（含部分依赖全局 `luckysheet` 的分支），
+ *    因此创建前把实例挂到 window，保证其内部自引用可用；
+ *  - 只引入本地 CSS（核心样式 + iconfont 图标字体）。官方 pluginsCss 里有
+ *    //at.alicdn.com 的协议相对外链，离线环境会因字体 404 拖慢首屏，故不引入。
  */
 export default function SheetEditor({ docId, initialContent, title, docType }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
@@ -35,8 +55,9 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
 
   // docId 变化时重建表格
   useEffect(() => {
-    const { data, reset } = parseSheetJSON(initialContent)
+    const { data, reset, migrated } = parseSheetJSON(initialContent)
     if (reset) message.warning('内容格式异常，已重置为空表格')
+    if (migrated) message.info('表格已升级为新版（Luckysheet），内容与原有数据一致')
     latestRef.current = data
     dirtyRef.current = false
     setStatus('editing')
@@ -45,25 +66,109 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
     const host = elRef.current
     if (!host) return
     host.innerHTML = ''
-    const xs = new x_spreadsheet(host, {
-      mode: 'edit',
-      showToolbar: true,
-      showGrid: true,
-      showContextmenu: true,
-      showBottomBar: false,
-      view: {
-        height: () => (host.clientHeight || 600) - 4,
-        width: () => (host.clientWidth || 900) - 4,
-      },
-    })
-    xs.loadData(sheetToXData(data))
-    xs.change((json: XSheetRaw | XSheetRaw[]) => {
-      latestRef.current = xDataToSheet(json)
+    const containerId = `hk-luckysheet-${docId}-${++seq}`
+    const box = document.createElement('div')
+    box.id = containerId
+    box.style.width = '100%'
+    box.style.height = '100%'
+    host.appendChild(box)
+
+    const api = luckysheet as unknown as LuckysheetApi
+    // 内部若干分支直接引用全局 luckysheet（见文件头说明），先挂上去再 create
+    ;(window as unknown as { luckysheet?: unknown }).luckysheet = api
+
+    /** 内容变更 → 记入内存副本并触发防抖保存 */
+    const onChange = () => {
+      try {
+        latestRef.current = luckysheetToSheetJSON(api.getAllSheets())
+      } catch {
+        return
+      }
       dirtyRef.current = true
       setStatus('editing')
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
-    })
+    }
+
+    try {
+      api.create({
+        container: containerId,
+        lang: 'zh',
+        title: '',
+        showinfobar: false, // 隐藏顶部标题栏（文档标题由宿主页面管理）
+        showtoolbar: true,
+        showtoolbarConfig: {
+          undoRedo: true,
+          paintFormat: true,
+          currencyFormat: true,
+          percentageFormat: true,
+          numberDecrease: true,
+          numberIncrease: true,
+          moreFormats: true,
+          font: true,
+          fontSize: true,
+          bold: true,
+          italic: true,
+          strikethrough: true,
+          underline: true,
+          textColor: true,
+          fillColor: true,
+          border: true,
+          mergeCell: true,
+          horizontalAlignMode: true,
+          verticalAlignMode: true,
+          textWrapMode: true,
+          textRotateMode: true,
+          image: true,
+          link: true,
+          chart: false, // 图表依赖官方 plugins（含外链字体），离线环境不可用
+          postil: true,
+          pivotTable: false,
+          function: true,
+          frozenMode: true,
+          sortAndFilter: true,
+          conditionalFormat: true,
+          splitColumn: false,
+          screenshot: false,
+          findAndReplace: true,
+          protection: false,
+          print: false,
+        },
+        showsheetbar: true,
+        showsheetbarConfig: {
+          add: true,
+          menu: true,
+          sheet: true,
+        },
+        showstatisticBar: true,
+        showstatisticBarConfig: { count: true, view: true, zoom: true },
+        enableAddRow: true,
+        enableAddBackTop: true,
+        allowEdit: true,
+        allowCopy: true,
+        sheetFormulaBar: true,
+        defaultColWidth: 100,
+        defaultRowHeight: 24,
+        data: sheetsToLuckysheet(data),
+        hook: {
+          // 不同版本暴露的钩子略有差异，这里多挂几个：Luckysheet 只调用存在的钩子，
+          // 未定义的键会被安全忽略，因此宁可多写也不漏（漏了就丢改动）。
+          updated: onChange,
+          cellUpdated: onChange,
+          rangePasteAfter: onChange,
+          sheetAdd: onChange,
+          sheetDelete: onChange,
+          sheetCopy: onChange,
+          sheetMoveAfter: onChange,
+          rowInsertAfter: onChange,
+          rowDeleteAfter: onChange,
+          columnInsertAfter: onChange,
+          columnDeleteAfter: onChange,
+        },
+      })
+    } catch (e) {
+      message.error(`表格组件初始化失败：${(e as Error)?.message || '未知错误'}`)
+    }
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -73,9 +178,9 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
         dirtyRef.current = false
       }
       try {
-        ;(xs as unknown as { destroy?: () => void }).destroy?.()
+        api.destroy()
       } catch {
-        /* 部分版本无 destroy，忽略 */
+        /* 重复销毁等场景忽略 */
       }
       host.innerHTML = ''
     }
@@ -125,7 +230,8 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
         </Space>
       </div>
 
-      <div ref={elRef} style={{ flex: 1, minHeight: 0 }} />
+      {/* Luckysheet 容器：必须给确定高度，否则画布高度为 0 */}
+      <div ref={elRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }} />
 
       <VersionDrawer
         open={versionOpen}

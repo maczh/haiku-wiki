@@ -13,7 +13,11 @@ import (
 
 // SheetJSON 与前端 lib/sheet.ts 的存储契约一致：
 //
-//	{"version":1,"cells":{"行-列":{"text":"…"}},"colLen":26,"rowLen":100}（键 0 基）
+//	v3（Luckysheet，当前）：{"version":3,"sheets":[{"name","row","column","celldata":[{"r","c","v"}]}]}
+//	v1：{"version":1,"cells":{"行-列":{"text":"…"}},"colLen":26,"rowLen":100}（键 0 基）
+//
+// 对外（导出侧）统一仍是扁平的 cells 映射：v3 在这里被降级成首表的 cells，
+// 因此 BuildXLSX / BuildCSV / BuildSheetJSONFile 三条链路无需感知版本差异。
 type SheetJSON struct {
 	Version int                    `json:"version"`
 	Cells   map[string]SheetCell   `json:"cells"`
@@ -29,10 +33,16 @@ type SheetCell struct {
 }
 
 // ParseSheetJSON 解析表格文档内容；解析失败返回空表（导出不报错，导出空表更友好）。
+//
+// 先按 v3（Luckysheet 多工作表）解析，命中即返回；否则回落到 v1/v2 的扁平结构。
+// 两个分支互不影响，历史文档与历史测试的行为完全不变。
 func ParseSheetJSON(content string) SheetJSON {
 	out := SheetJSON{Version: 1, Cells: map[string]SheetCell{}, ColLen: 26, RowLen: 100}
 	if strings.TrimSpace(content) == "" {
 		return out
+	}
+	if v3, ok := parseLuckysheetV3(content); ok {
+		return v3
 	}
 	var raw struct {
 		Version int                    `json:"version"`
@@ -56,6 +66,107 @@ func ParseSheetJSON(content string) SheetJSON {
 		}
 	}
 	return out
+}
+
+// luckysheetCell v3 的稀疏单元格：v 可能是标量，也可能是 {v,m,ct,…} 富值对象。
+type luckysheetCell struct {
+	R int             `json:"r"`
+	C int             `json:"c"`
+	V json.RawMessage `json:"v"`
+}
+
+// parseLuckysheetV3 解析 {"version":3,"sheets":[…]}；不是 v3 或无法解析时返回 ok=false。
+//
+// current 导出链路（xlsx/csv/json）都是单工作表，因此取首表；多工作表文档导出的
+// 是首个 sheet，这与阅读页默认展示首表的行为一致。
+func parseLuckysheetV3(content string) (SheetJSON, bool) {
+	out := SheetJSON{Version: 3, Cells: map[string]SheetCell{}, ColLen: 26, RowLen: 100}
+	var raw struct {
+		Version *int              `json:"version"`
+		Sheets  []luckysheetSheet `json:"sheets"`
+	}
+	if err := json.Unmarshal([]byte(content), &raw); err != nil {
+		return out, false
+	}
+	if len(raw.Sheets) == 0 {
+		return out, false
+	}
+	sheet := raw.Sheets[0]
+	if sheet.Column != nil && *sheet.Column > 0 {
+		out.ColLen = *sheet.Column
+	}
+	if sheet.Row != nil && *sheet.Row > 0 {
+		out.RowLen = *sheet.Row
+	}
+	for _, cell := range sheet.Celldata {
+		if cell.R < 0 || cell.C < 0 {
+			continue
+		}
+		text := luckysheetCellText(cell.V)
+		if text == "" {
+			continue
+		}
+		out.Cells[fmt.Sprintf("%d-%d", cell.R, cell.C)] = SheetCell{Text: text}
+	}
+	// 内容规模超过声明的行列数时按实际内容放宽，避免导出被截断
+	if _, maxR, _, maxC, ok := out.bounds(); ok {
+		if maxC+3 > out.ColLen {
+			out.ColLen = maxC + 3
+		}
+		if maxR+10 > out.RowLen {
+			out.RowLen = maxR + 10
+		}
+	}
+	return out, true
+}
+
+// luckysheetSheet v3 单表结构（只声明导出需要的字段）。
+type luckysheetSheet struct {
+	Name     *string          `json:"name"`
+	Row      *int             `json:"row"`
+	Column   *int             `json:"column"`
+	Celldata []luckysheetCell `json:"celldata"`
+}
+
+// luckysheetCellText 取单元格的可展示文本：富值对象优先 m，其次 v；标量直接字符串化。
+func luckysheetCellText(v json.RawMessage) string {
+	if len(v) == 0 {
+		return ""
+	}
+	// 字符串：去掉 JSON 引号
+	var s string
+	if err := json.Unmarshal(v, &s); err == nil {
+		return s
+	}
+	// 数字 / 布尔
+	var n interface{}
+	if err := json.Unmarshal(v, &n); err == nil {
+		switch t := n.(type) {
+		case float64:
+			return strconv.FormatFloat(t, 'f', -1, 64)
+		case bool:
+			return strconv.FormatBool(t)
+		}
+	}
+	// 富值对象 {v,m,ct,…}
+	var rich struct {
+		M *string     `json:"m"`
+		V interface{} `json:"v"`
+	}
+	if err := json.Unmarshal(v, &rich); err == nil {
+		if rich.M != nil {
+			return *rich.M
+		}
+		switch t := rich.V.(type) {
+		case string:
+			return t
+		case float64:
+			return strconv.FormatFloat(t, 'f', -1, 64)
+		case bool:
+			return strconv.FormatBool(t)
+		}
+	}
+	return ""
 }
 
 func splitCellKey(key string) (int, int, bool) {

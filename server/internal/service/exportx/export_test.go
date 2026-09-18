@@ -479,3 +479,57 @@ func minInt(a, b int) int {
 	}
 	return b
 }
+
+// TestSheetV3LuckysheetCompat 校验表格存储契约升级到 v3（Luckysheet）后，
+// 服务端导出链路（xlsx / csv）仍能拿到单元格内容——否则导出会静默变成空表。
+func TestSheetV3LuckysheetCompat(t *testing.T) {
+	// 与前端 lib/sheet.ts 的 stringifySheet 输出形状一致：标量值与富值对象混排
+	v3 := `{"version":3,"sheets":[{"name":"人员表","index":0,"order":0,"status":1,"row":100,"column":26,
+		"celldata":[{"r":0,"c":0,"v":{"v":"姓名","m":"姓名","ct":{"fa":"General","t":"s"}}},
+		{"r":0,"c":1,"v":{"v":"部门","m":"部门","ct":{"fa":"General","t":"s"}}},
+		{"r":1,"c":0,"v":{"v":"张三","m":"张三","ct":{"fa":"General","t":"s"}}},
+		{"r":1,"c":1,"v":"研发中心"},
+		{"r":1,"c":2,"v":42}]}]}`
+
+	sheet := ParseSheetJSON(v3)
+	if got := sheet.Cells["0-0"].Text; got != "姓名" {
+		t.Fatalf("v3 富值对象解析错误：%q", got)
+	}
+	if got := sheet.Cells["1-1"].Text; got != "研发中心" {
+		t.Fatalf("v3 标量字符串解析错误：%q", got)
+	}
+	if got := sheet.Cells["1-2"].Text; got != "42" {
+		t.Fatalf("v3 数字解析错误：%q", got)
+	}
+
+	csvData, err := BuildCSV(v3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(csvData), "张三,研发中心") {
+		t.Fatalf("v3 CSV 内容不正确：%s", string(csvData))
+	}
+
+	xlsx, err := BuildXLSX(v3, "人员表")
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(xlsx), int64(len(xlsx)))
+	if err != nil {
+		t.Fatalf("xlsx 不是合法 zip：%v", err)
+	}
+	for _, f := range zr.File {
+		if f.Name != "xl/worksheets/sheet1.xml" {
+			continue
+		}
+		rc, _ := f.Open()
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(rc)
+		_ = rc.Close()
+		if !bytes.Contains(buf.Bytes(), []byte("研发中心")) {
+			t.Fatal("v3 xlsx 未包含单元格内容")
+		}
+		return
+	}
+	t.Fatal("xlsx 缺少 worksheet")
+}

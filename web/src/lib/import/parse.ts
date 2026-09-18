@@ -20,7 +20,15 @@ import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
 import { IMPORT_EXTENSIONS, extOfName, unsupportedImportReason } from './formats'
 import { collectStyleText, fixLazyImages, hiddenSelectors, pruneInvisible, stripNonContent } from './htmlClean'
-import { stringifySheet, type SheetJSON } from '../sheet'
+import {
+  DEFAULT_COL,
+  DEFAULT_ROW,
+  SHEET_VERSION,
+  emptySheet,
+  stringifySheet,
+  type LuckysheetCellData,
+  type LuckysheetSheet,
+} from '../sheet'
 import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
 
 /** 子文档（多文档导入产物，如 xlsx 的多工作表） */
@@ -144,23 +152,42 @@ const parseDrawio: Parser = async (file) => {
 
 // ---------- xlsx / xls / csv / et：每个有内容的工作表 → 一个「表格」 ----------
 
-/** 单个工作表 → 表格内容字符串；无内容返回 null */
-function sheetToContent(ws: XLSX.WorkSheet): string | null {
+/**
+ * 单个工作表 → 表格内容字符串（v3：Luckysheet 的 celldata）；无内容返回 null。
+ * 数值/布尔按「原样入格 + 文本回显」保存（Luckysheet 会按 ct 判定类型），
+ * 其余一律按文本保存，避免把 "1-2" 之类的字符串误解析成公式或日期。
+ */
+function sheetToContent(ws: XLSX.WorkSheet, sheetName?: string): string | null {
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: '' })
-  const cells: SheetJSON['cells'] = {}
+  const celldata: LuckysheetCellData[] = []
   let r = 0
+  let maxC = 0
   for (const row of rows.slice(0, MAX_SHEET_ROWS)) {
     let c = 0
     for (const v of row.slice(0, MAX_SHEET_COLS)) {
       const text = String(v ?? '').trim()
-      if (text !== '') cells[`${r}-${c}`] = { text }
+      if (text !== '') {
+        const numeric = typeof v === 'number' && Number.isFinite(v)
+        const bool = typeof v === 'boolean'
+        celldata.push({
+          r,
+          c,
+          v: numeric || bool ? { v, m: text, ct: { fa: 'General', t: numeric ? 'n' : 'b' } } : { v: text, m: text, ct: { fa: 'General', t: 's' } },
+        })
+        if (c > maxC) maxC = c
+      }
       c++
     }
     r++
   }
-  if (Object.keys(cells).length === 0) return null
-  const data: SheetJSON = { version: 1, cells, colLen: 26, rowLen: 100 }
-  return stringifySheet(data)
+  if (celldata.length === 0) return null
+  const sheet: LuckysheetSheet = {
+    ...emptySheet(sheetName && sheetName.trim() !== '' ? sheetName : 'Sheet1'),
+    row: Math.max(DEFAULT_ROW, r + 10),
+    column: Math.max(DEFAULT_COL, maxC + 3),
+    celldata,
+  }
+  return stringifySheet({ version: SHEET_VERSION, sheets: [sheet] })
 }
 
 const parseXlsx: Parser = async (file) => {
@@ -170,7 +197,7 @@ const parseXlsx: Parser = async (file) => {
   for (const name of wb.SheetNames) {
     const ws = wb.Sheets[name]
     if (!ws) continue
-    const content = sheetToContent(ws)
+    const content = sheetToContent(ws, name)
     if (content) sheets.push({ name, content })
   }
   const title = baseName(file.name)

@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Alert, Input, Modal, Radio, Spin, Typography, message } from 'antd'
-import { exportBookBlob, exportDocBlob, getExportFormats, saveBlob } from '../../api/docs'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, Button, Input, Modal, Radio, Spin, Typography, message } from 'antd'
+import { exportBookBlob, exportDocBlob, getDoc, getExportFormats, saveBlob } from '../../api/docs'
+import {
+  CLIENT_FORMAT_EXT,
+  clientFormatsFor,
+  exportClientDoc,
+  printClientDoc,
+  safeFilename,
+  type ClientFormat,
+} from '../../lib/export'
 import type { DocExportFormats, DocType } from '../../types'
 
 export interface ExportTarget {
@@ -15,14 +23,27 @@ export interface ExportTarget {
   docType?: DocType
 }
 
+/** 浏览器端格式的选项值统一带前缀，与服务端格式值（md/docx/xlsx…）区分 */
+const CLIENT_PREFIX = 'client:'
+
+interface Option {
+  value: string
+  label: string
+  ext: string
+}
+
 /**
- * 导出对话框：
- *  格式清单来自服务端 GET /api/export/docs/:id/formats（单一事实来源），
- *  转换全部在服务端完成，前端只负责保存返回的二进制流：
- *    文档 → .md / .docx / .pdf ；表格 → .xlsx / .csv / .json ；
- *    思维导图 → .km / .smm / .xmind / .mm / .png ；流程图 → .md / .svg / .png ；
- *    附件型（doc_type=file，导入的 docx/pdf）→ 原样下载原文件。
- *  保存：浏览器支持 File System Access API 时弹系统保存对话框，否则降级浏览器下载。
+ * 导出对话框。
+ *
+ * 两条产出路径并存：
+ *  · 服务端转换（单一事实来源 GET /api/export/docs/:id/formats）：md / xlsx / csv /
+ *    km / smm / xmind / mm / ics / drawio…，前端只负责保存返回的二进制流；
+ *  · 浏览器端转换（lib/export）：Word .docx、演示 .pptx/.ppts、PDF .pdf ——
+ *    这些要么服务端做不了，要么在浏览器里能拿到更好的排版与图片还原。
+ * 附件型（doc_type=file）默认「原样下载原文件」，但若是 docx/pptx 会额外给出
+ * 浏览器端可做的格式（docx 转 PDF、pptx 转 .ppts / PDF）。
+ *
+ * 保存：浏览器支持 File System Access API 时弹系统保存对话框，否则降级浏览器下载。
  */
 export default function ExportDialog({
   open,
@@ -40,6 +61,10 @@ export default function ExportDialog({
   const [fallbackTip, setFallbackTip] = useState(false)
   const [meta, setMeta] = useState<DocExportFormats | null>(null)
   const [loadError, setLoadError] = useState('')
+  /** 浏览器端 PDF 位图化失败时，提供「打印为 PDF」兜底入口 */
+  const [pdfFallback, setPdfFallback] = useState('')
+  /** 已取回的文档正文（浏览器端导出需要；按需拉取，同一目标只取一次） */
+  const contentRef = useRef<{ docId: number; content: string } | null>(null)
 
   const isBook = target?.kind === 'book'
   const isAttachment = !isBook && !!meta?.is_file
@@ -54,13 +79,32 @@ export default function ExportDialog({
    * 服务端无法生成，因此这里只暴露 .drawio，并引导用户去编辑器里导出其余格式。
    */
   const isDrawing = !isBook && meta?.doc_type === 'drawing'
-  const formats = isDrawing ? allFormats.filter((f) => f.value === 'drawio') : allFormats
-  const spec = formats.find((f) => f.value === format)
-  const pickable = !isBook && (!isAttachment || isCadAttachment)
+  const serverFormats = isDrawing ? allFormats.filter((f) => f.value === 'drawio') : allFormats
+
+  const fileExt = extOf(meta?.filename ?? '')
+  const docType: DocType = (meta?.doc_type ?? target?.docType ?? 'markdown') as DocType
+  /** 浏览器端可额外提供的格式（附件型按扩展名给，其余类型全给） */
+  const clientOpts: Option[] = isBook
+    ? []
+    : clientFormatsFor(docType, fileExt).map((o) => ({
+        value: CLIENT_PREFIX + o.value,
+        label: o.label,
+        ext: CLIENT_FORMAT_EXT[o.value],
+      }))
+
+  const options: Option[] = [
+    ...serverFormats.map((f) => ({ value: f.value, label: f.label, ext: f.ext })),
+    ...clientOpts,
+  ]
+  /** 有得选才展示单选列表：普通附件只有「原文件」一种，不需要 */
+  const pickable = !isBook && (serverFormats.length > 0 || clientOpts.length > 0)
+  const isClientFormat = format.startsWith(CLIENT_PREFIX)
+  const clientFormat = (isClientFormat ? format.slice(CLIENT_PREFIX.length) : '') as ClientFormat | ''
+  const spec = options.find((o) => o.value === format)
   const ext = isBook
     ? 'md.zip'
-    : isAttachment && !isCadAttachment
-      ? extOf(meta?.filename ?? '') || 'bin'
+    : isAttachment && !isCadAttachment && clientOpts.length === 0
+      ? fileExt || 'bin'
       : spec?.ext || 'md'
 
   // 每次打开时按目标重置，并向服务端拉取该文档的可用格式
@@ -69,8 +113,10 @@ export default function ExportDialog({
     setFallbackTip(typeof (window as { showSaveFilePicker?: unknown }).showSaveFilePicker !== 'function')
     setFilename(target.title)
     setLoadError('')
+    setPdfFallback('')
     setMeta(null)
     setFormat('')
+    contentRef.current = null
     if (target.kind === 'book') return
 
     let alive = true
@@ -92,10 +138,20 @@ export default function ExportDialog({
     }
   }, [open, target])
 
-  /** 执行导出：后端转换 → saveBlob（picker 优先，降级下载） */
+  /** 取正文（浏览器端导出用），按 docId 缓存 */
+  async function contentOf(docId: number): Promise<string> {
+    if (contentRef.current?.docId === docId) return contentRef.current.content
+    const d = await getDoc(docId)
+    const content = (d as { content?: string }).content ?? ''
+    contentRef.current = { docId, content }
+    return content
+  }
+
+  /** 执行导出：服务端转换或浏览器端转换 → saveBlob（picker 优先，降级下载） */
   async function doExport() {
     if (!target) return
     setSaving(true)
+    setPdfFallback('')
     try {
       let blob: Blob
       let name: string
@@ -103,8 +159,20 @@ export default function ExportDialog({
         const r = await exportBookBlob(target.bookId!, target.title)
         blob = r.blob
         name = r.filename
+      } else if (isClientFormat && clientFormat) {
+        const docId = target.docId!
+        const content = await contentOf(docId)
+        const r = await exportClientDoc(clientFormat, {
+          docType,
+          content,
+          title: filename.trim() || target.title,
+          fileUrl: attachmentUrl(content),
+          fileExt,
+        })
+        blob = r.blob
+        name = safeFilename(filename.trim() || target.title, r.ext)
+        if (r.note) message.info(r.note)
       } else {
-        // 附件里只有 CAD 需要选格式（原图 / svg / png）；其余附件直接下载原文件
         const r = await exportDocBlob(target.docId!, target.title, pickable ? format : undefined)
         blob = r.blob
         const typed = filename.trim()
@@ -116,7 +184,35 @@ export default function ExportDialog({
       else message.info(`文件将保存到浏览器下载目录：${name}`)
       onClose()
     } catch (e) {
-      message.error((e as Error)?.message || '导出失败')
+      const msg = (e as Error)?.message || '导出失败'
+      if (isClientFormat && clientFormat === 'pdf') {
+        // 位图化失败（跨域图片污染画布、超长文档等）→ 给出打印兜底而不是就此失败
+        setPdfFallback(msg)
+        message.warning('直接生成 PDF 失败，可改用「打印为 PDF」')
+      } else {
+        message.error(msg)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** 打印兜底：打开只读打印视图，由用户在系统对话框里「另存为 PDF」 */
+  async function doPrint() {
+    if (!target) return
+    setSaving(true)
+    try {
+      const content = await contentOf(target.docId!)
+      await printClientDoc({
+        docType,
+        content,
+        title: filename.trim() || target.title,
+        fileUrl: attachmentUrl(content),
+        fileExt,
+      })
+      message.info('已打开打印视图，请在打印对话框中选择「另存为 PDF」')
+    } catch (e) {
+      message.error((e as Error)?.message || '打开打印视图失败')
     } finally {
       setSaving(false)
     }
@@ -132,10 +228,12 @@ export default function ExportDialog({
       onOk={() => void doExport()}
       confirmLoading={saving}
       okButtonProps={{ disabled: okDisabled }}
-      okText={isAttachment && !isCadAttachment ? '下载原文件' : '导出'}
+      okText={
+        isAttachment && !isCadAttachment && clientOpts.length === 0 ? '下载原文件' : clientFormat === 'pdf' ? '生成 PDF' : '导出'
+      }
       cancelText="取消"
       destroyOnClose
-      width={480}
+      width={500}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {isBook
@@ -143,8 +241,8 @@ export default function ExportDialog({
           : isCadAttachment
             ? '图纸原文件与后端转换出的矢量图/位图均可导出'
             : isAttachment
-              ? '该文档为导入的原始文件，按原样保存、内容不可编辑，导出即下载原文件'
-              : '选择导出格式，转换在服务端完成后下载'}
+              ? '该文档为导入的原始文件；下面可选的格式里，「原文件」与上传时完全一致，其余由浏览器转换生成'
+              : '选择导出格式：标注「服务端」的由服务端转换，标注「浏览器」的在浏览器内转换（排版与图片还原更好）'}
       </Typography.Paragraph>
 
       {loading && (
@@ -155,7 +253,7 @@ export default function ExportDialog({
 
       {loadError && <Alert type="error" showIcon message={loadError} style={{ marginBottom: 12 }} />}
 
-      {!isBook && !loading && !loadError && isAttachment && !isCadAttachment && (
+      {!isBook && !loading && !loadError && isAttachment && !isCadAttachment && clientOpts.length === 0 && (
         <Alert
           type="info"
           showIcon
@@ -174,13 +272,41 @@ export default function ExportDialog({
         />
       )}
 
+      {clientFormat === 'ppts' && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="关于 .ppts"
+          description=".ppts 是 WPS 演示的自有封装，开源库无法生成真正的 .ppts 二进制；这里以「标准 .pptx 内容 + .ppts 扩展名」保存，WPS 可直接打开，PowerPoint 请把扩展名改回 .pptx。"
+        />
+      )}
+
+      {pdfFallback && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="直接生成 PDF 失败"
+          description={pdfFallback}
+          action={
+            <Button size="small" onClick={() => void doPrint()}>
+              打印为 PDF
+            </Button>
+          }
+        />
+      )}
+
       {!isBook && !loading && !loadError && pickable && (
         <Radio.Group
           value={format}
-          onChange={(e) => setFormat(e.target.value)}
+          onChange={(e) => {
+            setFormat(e.target.value)
+            setPdfFallback('')
+          }}
           style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
         >
-          {formats.map((o) => (
+          {options.map((o) => (
             <Radio key={o.value} value={o.value}>
               {o.label}
             </Radio>
@@ -210,4 +336,18 @@ export default function ExportDialog({
 function extOf(name: string): string {
   const i = name.lastIndexOf('.')
   return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
+}
+
+/** 附件型正文是 FileAttachment JSON，取其文件 URL（非 JSON 时返回 undefined） */
+function attachmentUrl(content: string): string | undefined {
+  if (!content) return undefined
+  try {
+    const v: unknown = JSON.parse(content)
+    if (v && typeof v === 'object' && typeof (v as { url?: unknown }).url === 'string') {
+      return (v as { url: string }).url
+    }
+  } catch {
+    /* 非 JSON 正文：不是附件 */
+  }
+  return undefined
 }
