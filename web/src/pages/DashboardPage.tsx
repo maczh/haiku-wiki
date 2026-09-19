@@ -8,6 +8,7 @@ import {
   RightOutlined,
 } from '@ant-design/icons'
 import { listRecentDocs } from '../api/recent'
+import { getWorkbench } from '../api/workbench'
 import { useAuthStore } from '../stores/authStore'
 import BookshelfSection from '../components/book/BookshelfSection'
 // 样式随页面 chunk 一起加载：入口 CSS 保持极简（与 Vditor / 甘特图同样处理）
@@ -18,6 +19,13 @@ import OnboardingGuide from '../components/dashboard/OnboardingGuide'
 import IntroVideo, { type VideoChapter } from '../components/dashboard/IntroVideo'
 import RecentDocsCard from '../components/dashboard/RecentDocsCard'
 import {
+  CalendarWorkbenchCard,
+  GanttWorkbenchCard,
+  LibrarySearchCard,
+  TodoWorkbenchCard,
+} from '../components/dashboard/WorkbenchCards'
+import { hasWorkbench, pickWorkbenchDocs } from '../lib/workbench'
+import {
   INTRO_DISMISS_KEY,
   ONBOARD_DISMISS_KEY,
   browserStorage,
@@ -27,7 +35,7 @@ import {
   sortRecentDocs,
   writeFlag,
 } from '../lib/dashboard'
-import type { Bookshelf, RecentDocItem } from '../types'
+import type { Bookshelf, RecentDocItem, WorkbenchView } from '../types'
 
 /** 演示视频与封面（随前端静态资源分发，离线可用） */
 const INTRO_SRC = '/onboarding/haiku-wiki-guide.mp4'
@@ -52,15 +60,19 @@ const INTRO_SECONDS = 167
 /**
  * 首页 Dashboard。
  *
- * 结构（自上而下，一屏内可读完关键信息）：
+ * 区块优先级（自上而下，一屏内先看到「手头有什么活」再看到「去哪」）：
  *   欢迎条（问候 + 统计 + 向导/视频开关）
- *   快捷操作（8 个高频入口）
- *   新手向导 | 视频介绍（各自可关闭，关闭状态本地记忆）
- *   最近更新 | 团队速览
+ *   **工作台**：待办 | 甘特图进度 | 工作日历（三类文档都没有时整段不渲染）
+ *   最近更新 | 文库内搜索
+ *   快捷操作 | 团队速览
  *   书架（我的 / 团队 / 公司）
+ *   新手向导 | 视频介绍（各自可关闭，关闭状态本地记忆）
  *
- * 拆成「区块组合」而不是把一切塞进一个组件：向导、视频、最近更新、快捷操作
- * 各自独立成组件，任一区块关闭或加载失败都不会影响其余部分。
+ * 拆成「区块组合」而不是把一切塞进一个组件：工作台三卡、向导、视频、最近更新、
+ * 快捷操作各自独立成组件，任一区块加载失败或关闭都不影响其余部分。
+ *
+ * 数据侧两条独立请求：/recent-docs（元数据）与 /workbench（含正文，供算进度）。
+ * 后者失败时只有工作台消失，首页其余部分照常可用。
  */
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -70,6 +82,10 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<RecentDocItem[]>([])
   const [recentLoading, setRecentLoading] = useState(true)
   const [quickModal, setQuickModal] = useState<QuickStartMode | null>(null)
+
+  // 工作台：待办 / 甘特图 / 工作日历（后端只给每类最近 8 篇，故卡片会标注口径）
+  const [workbench, setWorkbench] = useState<WorkbenchView>({ items: [], counts: {} })
+  const [wbLoading, setWbLoading] = useState(true)
 
   // 关闭状态第一次渲染就确定（避免先显示再消失的闪烁）
   const [showOnboard, setShowOnboard] = useState(() => !readFlag(ONBOARD_DISMISS_KEY, browserStorage()))
@@ -94,6 +110,24 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+    setWbLoading(true)
+    getWorkbench(8)
+      .then((view) => {
+        if (alive) setWorkbench(view)
+      })
+      .catch(() => {
+        /* 工作台是增强区块：失败就不显示，不影响最近更新与书架 */
+      })
+      .finally(() => {
+        if (alive) setWbLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   /** 可写库排前，供快捷新建/导入选择目标 */
   const allBooks = useMemo(() => {
     if (!shelf) return []
@@ -107,6 +141,12 @@ export default function DashboardPage() {
     teams: shelf?.teams,
     recent,
   })
+
+  // 工作台三卡的数据切片 + 是否渲染。三类文档一篇都没有时整段隐藏（需求原文：「无则不显示」）
+  const showWorkbench = !wbLoading && hasWorkbench(workbench.items)
+  const todoDocs = useMemo(() => pickWorkbenchDocs(workbench.items, 'todo'), [workbench.items])
+  const ganttDocs = useMemo(() => pickWorkbenchDocs(workbench.items, 'gantt'), [workbench.items])
+  const calendarDocs = useMemo(() => pickWorkbenchDocs(workbench.items, 'calendar'), [workbench.items])
 
   function dismissOnboard() {
     setShowOnboard(false)
@@ -128,6 +168,16 @@ export default function DashboardPage() {
 
   function openRecent(item: RecentDocItem) {
     navigate(`/books/${item.book_id}?docId=${item.id}&tab=read`)
+  }
+
+  /** 工作台里点开某篇文档（阅读态） */
+  function openWorkbenchDoc(bookId: number, docId: number) {
+    navigate(`/books/${bookId}?docId=${docId}&tab=read`)
+  }
+
+  /** 文库内搜索：交给搜索页（后端按标题+正文检索） */
+  function runSearch(q: string) {
+    navigate(`/search?q=${encodeURIComponent(q)}`)
   }
 
   /** 需要至少一个知识库才能继续的动作：没有就先引导建库 */
@@ -186,55 +236,35 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ---------- 快捷操作 ---------- */}
-        <div className="hk-dash-section">
-          <div className="hk-dash-section-head">
-            <h3 className="hk-dash-section-title">快捷操作</h3>
-            <span className="hk-dash-section-extra">常用入口一屏直达</span>
+        {/* ---------- 工作台（最高优先级：先看「手头有什么活」） ----------
+            三类文档都没有时整段不渲染（showWorkbench 已合并 loading 与空判断）。 */}
+        {showWorkbench && (
+          <div className="hk-dash-section" data-testid="hk-workbench">
+            <div className="hk-dash-section-head">
+              <h3 className="hk-dash-section-title">工作台</h3>
+              <span className="hk-dash-section-extra">待办、排期与日程一屏汇总</span>
+            </div>
+            <Row gutter={[16, 16]} align="top">
+              {todoDocs.length > 0 && (
+                <Col xs={24} lg={8}>
+                  <TodoWorkbenchCard docs={todoDocs} total={workbench.counts.todo} onOpenDoc={openWorkbenchDoc} />
+                </Col>
+              )}
+              {ganttDocs.length > 0 && (
+                <Col xs={24} lg={8}>
+                  <GanttWorkbenchCard docs={ganttDocs} total={workbench.counts.gantt} onOpenDoc={openWorkbenchDoc} />
+                </Col>
+              )}
+              {calendarDocs.length > 0 && (
+                <Col xs={24} lg={8}>
+                  <CalendarWorkbenchCard docs={calendarDocs} total={workbench.counts.calendar} onOpenDoc={openWorkbenchDoc} />
+                </Col>
+              )}
+            </Row>
           </div>
-          <QuickActions
-            onCreateBook={() => setCreateBookSignal((n) => n + 1)}
-            onCreateDoc={() => void requireBook('doc')}
-            onImportFile={() => void requireBook('import-file')}
-            onImportUrl={() => void requireBook('import-url')}
-            onSearch={() => navigate('/search')}
-            onTeams={() => navigate('/teams')}
-            onTrash={() => navigate('/trash')}
-            onSettings={() => navigate('/settings')}
-          />
-        </div>
-
-        {/* ---------- 新手向导 / 视频介绍 ---------- */}
-        {(showOnboard || showIntro) && (
-          <Row gutter={[16, 16]} className="hk-dash-section" align="top">
-            {showOnboard && (
-              <Col xs={24} lg={showIntro ? 15 : 24}>
-                <OnboardingGuide
-                  onCreateBook={() => setCreateBookSignal((n) => n + 1)}
-                  onCreateDoc={() => void requireBook('doc')}
-                  onShare={() =>
-                    allBooks.length > 0 ? navigate(`/books/${allBooks[0].id}`) : setCreateBookSignal((n) => n + 1)
-                  }
-                  onClose={dismissOnboard}
-                />
-              </Col>
-            )}
-            {showIntro && (
-              <Col xs={24} lg={showOnboard ? 9 : 24}>
-                <IntroVideo
-                  src={INTRO_SRC}
-                  poster={INTRO_POSTER}
-                  chapters={INTRO_CHAPTERS}
-                  seconds={INTRO_SECONDS}
-                  onClose={dismissIntro}
-                  onDismissForever={dismissIntro}
-                />
-              </Col>
-            )}
-          </Row>
         )}
 
-        {/* ---------- 最近更新 / 团队速览 ---------- */}
+        {/* ---------- 最近更新 | 文库内搜索 ---------- */}
         <Row gutter={[16, 16]} className="hk-dash-section" align="top">
           <Col xs={24} lg={16}>
             <RecentDocsCard
@@ -250,9 +280,33 @@ export default function DashboardPage() {
             />
           </Col>
           <Col xs={24} lg={8}>
+            <LibrarySearchCard onSearch={runSearch} />
+          </Col>
+        </Row>
+
+        {/* ---------- 快捷操作 | 团队速览 ---------- */}
+        <Row gutter={[16, 16]} className="hk-dash-section" align="top">
+          <Col xs={24} lg={16}>
+            <div className="hk-dash-section-head">
+              <h3 className="hk-dash-section-title">快捷操作</h3>
+              <span className="hk-dash-section-extra">常用入口一屏直达</span>
+            </div>
+            <QuickActions
+              onCreateBook={() => setCreateBookSignal((n) => n + 1)}
+              onCreateDoc={() => void requireBook('doc')}
+              onImportFile={() => void requireBook('import-file')}
+              onImportUrl={() => void requireBook('import-url')}
+              onSearch={() => navigate('/search')}
+              onTeams={() => navigate('/teams')}
+              onTrash={() => navigate('/trash')}
+              onSettings={() => navigate('/settings')}
+            />
+          </Col>
+          <Col xs={24} lg={8}>
             <Card
               size="small"
               data-testid="hk-team-glance"
+              style={{ height: '100%' }}
               title={
                 <span style={{ fontSize: 14 }}>
                   <TeamOutlined style={{ marginRight: 6, color: '#1677ff' }} />
@@ -310,6 +364,38 @@ export default function DashboardPage() {
         <div className="hk-dash-section">
           <BookshelfSection onLoaded={setShelf} createSignal={createBookSignal} />
         </div>
+
+        {/* ---------- 新手向导 / 视频介绍 ----------
+            刻意放在最后：这两块是「一次性上手材料」，老用户会关掉、关闭状态本地记忆；
+            放在工作台之前会挤掉每天真正要看的内容。 */}
+        {(showOnboard || showIntro) && (
+          <Row gutter={[16, 16]} className="hk-dash-section" align="top">
+            {showOnboard && (
+              <Col xs={24} lg={showIntro ? 15 : 24}>
+                <OnboardingGuide
+                  onCreateBook={() => setCreateBookSignal((n) => n + 1)}
+                  onCreateDoc={() => void requireBook('doc')}
+                  onShare={() =>
+                    allBooks.length > 0 ? navigate(`/books/${allBooks[0].id}`) : setCreateBookSignal((n) => n + 1)
+                  }
+                  onClose={dismissOnboard}
+                />
+              </Col>
+            )}
+            {showIntro && (
+              <Col xs={24} lg={showOnboard ? 9 : 24}>
+                <IntroVideo
+                  src={INTRO_SRC}
+                  poster={INTRO_POSTER}
+                  chapters={INTRO_CHAPTERS}
+                  seconds={INTRO_SECONDS}
+                  onClose={dismissIntro}
+                  onDismissForever={dismissIntro}
+                />
+              </Col>
+            )}
+          </Row>
+        )}
       </div>
 
       {/* ---------- 快捷新建 / 选择导入目标 ---------- */}

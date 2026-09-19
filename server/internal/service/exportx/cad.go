@@ -30,13 +30,101 @@ type cadPolyline struct {
 	Width  float64
 }
 
-// cadText 单行文字。
+// 文字盒度量模型（近似值）。折行宽度、包围盒与锚点换算全部共用这一组常量，
+// 保证「算出来的盒」与「画出来的字」是同一个盒。
+//
+// ascent 0.8 / descent 0.2 使「字面盒高 = 字高」，与 AutoCAD 的字高定义相符
+// （西文大写高度约 0.7 字高；把汉字全角框一并计入后约 0.8/0.2）。
+// 行距 1.2 倍是 AutoCAD 单倍行距的常用近似 —— MTEXT 的真实行距由组码 44/45 给出，
+// 这里不解析：它对整体观感的影响远小于字高本身。
+const (
+	cadAscent      = 0.8
+	cadDescent     = 0.2
+	cadLineAdvance = 1.2
+	// cadCharWidthRatio 平均字宽 / 字高。0.62 是西文字符的典型值，
+	// 汉字为全角（1.0）会被略微低估 —— 宁可估窄不过估宽：
+	// 估宽会把文字包围盒放大、进而把整幅图挤小。
+	cadCharWidthRatio = 0.62
+)
+
+// cadText 一段文字（可能多行）。
 type cadText struct {
 	Pos      cadPt
-	Content  string
-	Height   float64 // 字高（世界单位）
+	Content  string  // 可能含 \n：MTEXT 的 \P 分段 / 按参考宽度折行后的结果
+	Height   float64 // 字高（世界单位）；<=0 表示待兜底（见 resolveTextHeights）
 	Rotation float64 // 度，逆时针
 	Color    string
+	AnchorH  int     // 水平锚点 0=左 1=中 2=右
+	AnchorV  int     // 垂直锚点 0=基线 1=底 2=中 3=顶
+	// WidthFactor 字宽因子（STYLE 组码 41 / TEXT 组码 41），<=0 视为 1。
+	WidthFactor float64
+	// blockScale 该文字所在块参照链上的累积 Y 缩放。
+	// 仅在 Height<=0 时被 resolveTextHeights 使用：兜底字高是世界单位，
+	// 必须再乘块缩放才是最终设备字高。Height>0 时 emit 阶段已乘过，此字段无意义。
+	blockScale float64
+}
+
+// cadTextBox 文字的排版盒（坐标系与传入的 Height 一致）。
+// 位置以 Pos 为原点：LeftX/TopY 是盒左上角相对 Pos 的偏移（DXF 坐标，Y 向上）。
+type cadTextBox struct {
+	LeftX, TopY          float64
+	Width, Height        float64
+	LineAdvance          float64
+	FirstBaselineFromTop float64
+}
+
+// textBox 按锚点计算排版盒。
+//
+// 垂直锚点统一按「整个文字盒」解释：对单行（TEXT）它就退化为该行自身的盒，
+// 对多行（MTEXT）则对应附着点的顶/中/底语义。这样两种实体共用一套换算，
+// 不会出现「TEXT 算对了、MTEXT 差一行」的偏差。
+func textBox(t cadText) cadTextBox {
+	h := t.Height
+	if h <= 0 {
+		h = 1e-6
+	}
+	wf := t.WidthFactor
+	if wf <= 0 {
+		wf = 1
+	}
+	lines := strings.Split(t.Content, "\n")
+	if len(lines) == 0 {
+		lines = []string{""}
+	}
+	maxRunes := 0
+	for _, ln := range lines {
+		if n := len([]rune(ln)); n > maxRunes {
+			maxRunes = n
+		}
+	}
+	adv := cadLineAdvance * h
+	width := h * wf * float64(maxRunes) * cadCharWidthRatio
+	boxH := h + float64(len(lines)-1)*adv
+
+	var top float64
+	switch t.AnchorV {
+	case 1: // 底：Pos.Y 位于盒底
+		top = boxH
+	case 2: // 中：Pos.Y 位于盒中
+		top = boxH / 2
+	case 3: // 顶：Pos.Y 位于盒顶
+		top = 0
+	default: // 基线：Pos.Y 是首行基线
+		top = cadAscent * h
+	}
+	var left float64
+	switch t.AnchorH {
+	case 1:
+		left = -width / 2
+	case 2:
+		left = -width
+	}
+	return cadTextBox{
+		LeftX: left, TopY: top,
+		Width: width, Height: boxH,
+		LineAdvance:          adv,
+		FirstBaselineFromTop: cadAscent * h,
+	}
 }
 
 // cadDrawing 解析结果：可直接用于渲染。
@@ -113,11 +201,29 @@ type dxfEntity struct {
 	height   float64
 	rotation float64
 
-	block          string
-	scaleX, scaleY float64
+	// 文字排版相关（TEXT/MTEXT/ATTRIB/ATTDEF）
+	style       string  // 组码 7：文字样式名；固定字高与宽度因子挂在 STYLE 表上
+	widthFactor float64 // TEXT 组码 41：相对 X 缩放（字宽因子，1=正常）
+	mtWidth     float64 // MTEXT 组码 41：参考矩形宽度（折行宽度，世界单位）
+	attach      int     // MTEXT 组码 71：附着点 1..9（1=左上 … 9=右下）
+	justH       int     // TEXT 组码 72：水平对齐 0=左 1=中 2=右
+	justV       int     // TEXT 组码 73：垂直对齐 0=基线 1=底 2=中 3=顶
+	alignPt     cadPt   // TEXT 组码 11/21：对齐点（justH/justV 非 0 时才是真插入点）
+	hasAlign    bool
+	dirVec      cadPt // MTEXT 组码 11/21：文字 X 轴方向向量（用于反推旋转）
+	hasDirVec   bool
+
+	block                  string
+	scaleX, scaleY, scaleZ float64
 
 	color int // ACI 索引；0=ByBlock，256=ByLayer
 	layer string
+}
+
+// cadTextStyle STYLE 表的一条记录。
+type cadTextStyle struct {
+	Height float64 // 组码 40：固定字高；0 = 不固定，由实体自身指定
+	Width  float64 // 组码 41：宽度因子
 }
 
 // ---------- 解析 ----------
@@ -134,6 +240,7 @@ func ParseDXF(data []byte) (*cadDrawing, error) {
 		blocks:    map[string][]dxfEntity{},
 		blockBase: map[string]cadPt{},
 		layerCol:  map[string]int{},
+		styles:    map[string]cadTextStyle{},
 	}
 	if err := p.run(); err != nil {
 		return nil, err
@@ -141,6 +248,9 @@ func ParseDXF(data []byte) (*cadDrawing, error) {
 
 	d := &cadDrawing{Units: p.insUnits}
 	p.emit(p.entities, cadPt{}, [2]float64{1, 1}, 0, 0, d)
+
+	// 字高兜底必须排在包围盒之前：兜底值依赖图幅尺度（见 fallbackTextHeight）。
+	p.resolveTextHeights(d)
 
 	// 包围盒优先用 HEADER 的 $EXTMIN/$EXTMAX（更接近 CAD 的"图形范围"），
 	// 缺失或退化时回退到实际图元范围。
@@ -163,8 +273,10 @@ type dxfParser struct {
 	blockBase map[string]cadPt
 	layerCol  map[string]int
 	layers    map[string]bool
+	styles    map[string]cadTextStyle
 
 	insUnits   int
+	textSize   float64 // HEADER $TEXTSIZE
 	extMin     cadPt
 	extMax     cadPt
 	hasExtents bool
@@ -248,6 +360,10 @@ func (p *dxfParser) headerTag(t dxfTag) {
 	case "$EXTMAX":
 		p.extMax = cadPt{X: p.peekFloat(10), Y: p.peekFloat(20)}
 		p.hasExtents = true
+	case "$TEXTSIZE":
+		// 图形声明的默认字高（世界单位）。它是文件自带的尺度信息，
+		// 比任何写死的常量都可靠，故作为字高兜底链上的一环。
+		p.textSize = p.peekFloat(40)
 	}
 }
 
@@ -257,6 +373,13 @@ func (p *dxfParser) tableTag(t dxfTag) {
 		name := p.peekValue(2)
 		if name != "" {
 			p.layerCol[name] = int(p.peekFloat(62))
+		}
+	case "STYLE":
+		// STYLE 表：文字样式可以固定字高（组码 40≠0）。此时实体的组码 40 为 0，
+		// 字高只能从样式取 —— 正是历史实现拿不到字高、回落到写死常量 2.5 的场景。
+		name := p.peekValue(2)
+		if name != "" {
+			p.styles[name] = cadTextStyle{Height: p.peekFloat(40), Width: p.peekFloat(41)}
 		}
 	}
 }
@@ -284,7 +407,7 @@ func (p *dxfParser) entityTag(t dxfTag) {
 // newEntity 建立实体、读取其公共属性，并按「当前是否在 BLOCK 内」决定归属。
 // 返回指向该实体的指针，便于 POLYLINE 后续收集 VERTEX。
 func (p *dxfParser) newEntity(kind string) *dxfEntity {
-	e := dxfEntity{kind: kind, scaleX: 1, scaleY: 1, ratio: 1}
+	e := dxfEntity{kind: kind, scaleX: 1, scaleY: 1, scaleZ: 1, ratio: 1, widthFactor: 1}
 	p.fillCommon(&e)
 	if p.inBlock != "" {
 		p.blocks[p.inBlock] = append(p.blocks[p.inBlock], e)
@@ -342,6 +465,12 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 				e.pts[1].X = f
 			} else if e.kind == "ELLIPSE" {
 				e.major.X = f
+			} else if e.kind == "TEXT" || e.kind == "ATTDEF" || e.kind == "ATTRIB" {
+				e.alignPt.X = f
+				e.hasAlign = true
+			} else if e.kind == "MTEXT" {
+				e.dirVec.X = f
+				e.hasDirVec = true
 			}
 		case 21:
 			if e.kind == "LINE" || e.kind == "SOLID" || e.kind == "3DFACE" || e.kind == "TRACE" {
@@ -349,6 +478,12 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 				e.pts[1].Y = f
 			} else if e.kind == "ELLIPSE" {
 				e.major.Y = f
+			} else if e.kind == "TEXT" || e.kind == "ATTDEF" || e.kind == "ATTRIB" {
+				e.alignPt.Y = f
+				e.hasAlign = true
+			} else if e.kind == "MTEXT" {
+				e.dirVec.Y = f
+				e.hasDirVec = true
 			}
 		case 12:
 			if e.kind == "SOLID" || e.kind == "3DFACE" || e.kind == "TRACE" {
@@ -381,11 +516,17 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 				e.radius = f // 兜底：视作尺寸
 			}
 		case 41:
-			if e.kind == "ELLIPSE" {
+			switch e.kind {
+			case "ELLIPSE":
 				e.p1 = f
 				e.hasParam = true
-			} else if e.kind == "INSERT" {
+			case "INSERT":
 				e.scaleX = f
+			case "MTEXT":
+				// MTEXT 的 41 是「参考矩形宽度」（折行宽度），**不是**字宽因子
+				e.mtWidth = f
+			case "TEXT", "ATTDEF", "ATTRIB":
+				e.widthFactor = f
 			}
 		case 42:
 			if e.kind == "LWPOLYLINE" && vertIdx >= 0 {
@@ -396,8 +537,11 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 				e.scaleY = f
 			}
 		case 43:
+			// DXF 中 INSERT 的组码 43 是 **scaleZ**。
+			// 历史实现写成 e.scaleY = f，把已由组码 42 读到的 Y 缩放覆盖掉，
+			// 于是凡是 Z 缩放 ≠ 1 的块参照，块内文字与几何都会被整体拉扁/拉长。
 			if e.kind == "INSERT" {
-				e.scaleY = f
+				e.scaleZ = f
 			}
 		case 50:
 			if e.kind == "TEXT" || e.kind == "MTEXT" || e.kind == "ATTDEF" || e.kind == "ATTRIB" ||
@@ -411,7 +555,11 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 				e.a2 = f
 			}
 		case 2:
-			if e.kind == "INSERT" {
+			// INSERT 是块参照；DIMENSION 的可见几何同样装在一个匿名块里
+			// （*D1 / *D2 之类），也靠组码 2 引用它。
+			// 历史实现只认 INSERT，于是**所有尺寸标注被静默丢弃** ——
+			// emit 里的 DIMENSION 分支因此是一段永远进不去的死代码。
+			if e.kind == "INSERT" || e.kind == "DIMENSION" {
 				e.block = t.Value
 			}
 		case 1:
@@ -422,9 +570,36 @@ func (p *dxfParser) fillCommon(e *dxfEntity) {
 			if e.kind == "MTEXT" {
 				e.text += t.Value
 			}
+		case 7:
+			if isTextKind(e.kind) {
+				e.style = t.Value
+			}
+		case 71:
+			// MTEXT 附着点（1..9）。缺了它，多行注释会以「左上」以外的位置为基准落点，
+			// 常常整块偏出一行/一列，和其它标注重叠。
+			if e.kind == "MTEXT" {
+				e.attach = int(f)
+			}
+		case 72:
+			if e.kind == "TEXT" || e.kind == "ATTDEF" || e.kind == "ATTRIB" {
+				e.justH = int(f)
+			}
+		case 73:
+			if e.kind == "TEXT" || e.kind == "ATTDEF" || e.kind == "ATTRIB" {
+				e.justV = int(f)
+			}
 		}
 	}
 	p.i = end - 1
+}
+
+// isTextKind 是否为携带字高/样式/对齐属性的文字类实体。
+func isTextKind(kind string) bool {
+	switch kind {
+	case "TEXT", "MTEXT", "ATTDEF", "ATTRIB":
+		return true
+	}
+	return false
 }
 
 // consumeVertex 收集 POLYLINE 的 VERTEX 子实体（紧随其后、直到 SEQEND）。
@@ -527,24 +702,53 @@ func (p *dxfParser) emit(ents []dxfEntity, offset cadPt, scale [2]float64, rot f
 			if len(e.pts) > 0 {
 				pos = e.pts[0]
 			}
-			pos = transformPt(pos, offset, scale, rot)
-			h := e.height
-			if h <= 0 {
-				h = 2.5
+			// TEXT：组码 72/73 任一非 0 时，真正的落点是 11/21（对齐点），
+			// 10/20 只是名义插入点。忽略这点会把居中/右对齐的标注整体平移，
+			// 与相邻文字挤在一起。
+			if e.kind != "MTEXT" && (e.justH != 0 || e.justV != 0) && e.hasAlign {
+				pos = e.alignPt
 			}
-			h *= math.Abs(scale[1])
-			if len(e.pts) > 0 {
-				h *= 1 // 保持与坐标缩放一致
+			pos = transformPt(pos, offset, scale, rot)
+
+			// 字高：实体 → 样式固定字高 → $TEXTSIZE；都拿不到就留 0 待兜底。
+			// ⚠️ 历史实现在这里是 `h = 2.5`（写死的**世界单位**常量）。
+			// 字高脱离图幅尺度没有意义：米制图幅（图幅几十个单位）下 2.5 会折算成
+			// 上百像素的字，文字直接铺满整张图 —— 这是「字体太大、糊成一片」的主因。
+			h := p.textHeightOf(e)
+			if h > 0 {
+				h *= math.Abs(scale[1])
+			}
+			wf := p.widthFactorOf(e)
+
+			// MTEXT 的水平方向由「X 轴方向向量」（11/21）给出，组码 50 常为 0。
+			// 纵向排版（方向 3）不在此处倒推，仍按水平处理。
+			rev := e.rotation
+			if e.kind == "MTEXT" && e.hasDirVec && (e.dirVec.X != 0 || e.dirVec.Y != 0) {
+				rev = math.Atan2(e.dirVec.Y, e.dirVec.X) * 180 / math.Pi
+			}
+
+			lines := strings.Split(txt, "\n")
+			if e.kind == "MTEXT" && e.mtWidth > 0 {
+				lines = wrapCadText(lines, e.mtWidth*math.Abs(scale[0]), h, wf)
+			}
+			ah, av := e.justH, e.justV
+			if e.kind == "MTEXT" {
+				ah, av = mtextAnchor(e.attach)
 			}
 			d.Texts = append(d.Texts, cadText{
-				Pos:      pos,
-				Content:  txt,
-				Height:   h,
-				Rotation: e.rotation + rot,
-				Color:    p.colorOf(e),
+				Pos:         pos,
+				Content:     strings.Join(lines, "\n"),
+				Height:      h, // 可能为 0：交由 resolveTextHeights 按图幅兜底
+				Rotation:    rev + rot,
+				Color:       p.colorOf(e),
+				AnchorH:     clampInt(ah, 0, 2),
+				AnchorV:     clampInt(av, 0, 3),
+				WidthFactor: wf,
+				blockScale:  math.Abs(scale[1]),
 			})
 		case "DIMENSION":
-			// 尺寸标注的可见几何在其匿名块里，通过 code 2 引用
+			// 尺寸标注的可见几何在其匿名块里，通过组码 2 引用
+			// （组码 2 的解析已同时覆盖 INSERT 与 DIMENSION，见 fillCommon）。
 			if e.block != "" {
 				if sub, ok := p.blocks[e.block]; ok {
 					base := p.blockBase[e.block]
@@ -583,8 +787,11 @@ func (p *dxfParser) emitInsert(e *dxfEntity, offset cadPt, scale [2]float64, rot
 		shifted = append(shifted, inner[i])
 	}
 	totalRot := rot + e.rotation
-	// 先把插入点变换到当前坐标系
-	insT := transformPt(ins, offset, [2]float64{1, 1}, rot)
+	// 插入点是**当前坐标系里的点**，必须按当前累积缩放 scale 变换后再叠加外层位移。
+	// 历史实现这里写死 [1,1]（只平移+旋转、丢掉缩放），于是嵌套块参照
+	// （块里再插块，标注块/图框图/标准件库常见）整体错位，
+	// 错位量与外层缩放系数成正比 —— 图元彼此错位叠在一起就是一片糊。
+	insT := transformPt(ins, offset, scale, rot)
 	p.emit(shifted, insT, total, totalRot, depth+1, d)
 }
 
@@ -631,9 +838,178 @@ func (d *cadDrawing) computeBounds() {
 		}
 	}
 	for _, t := range d.Texts {
-		upd(t.Pos)
-		upd(cadPt{X: t.Pos.X + t.Height*float64(len([]rune(t.Content)))*0.6, Y: t.Pos.Y + t.Height})
+		// 复用与渲染完全相同的那一份 textBox，避免「包围盒按一处估、字按另一处画」
+		// 导致文字被裁在画布外。旋转文字仍按未旋转的盒计入（近似）——
+		// CAD 图里旋转标注占比很低，为它引入完整的方向包围盒不划算。
+		tb := textBox(t)
+		left := t.Pos.X + tb.LeftX
+		top := t.Pos.Y + tb.TopY
+		upd(cadPt{X: left, Y: top})
+		upd(cadPt{X: left + tb.Width, Y: top - tb.Height})
 	}
+}
+
+// ---------- 文字字高兜底 ----------
+
+// resolveTextHeights 为「实体与样式都没给出字高」的文字兜一个与图幅相关的字高。
+//
+// 为什么必须相对图幅：字高是世界单位，脱离图幅尺度就没有意义。历史实现用写死的
+// 2.5（世界单位）兜底 —— 在米制图幅（整体只有几十个单位）或小尺寸零件图下，
+// 2.5 折算到设备像素会有上百像素高，文字直接铺满并盖住整张图。
+func (p *dxfParser) resolveTextHeights(d *cadDrawing) {
+	pending := false
+	for i := range d.Texts {
+		if d.Texts[i].Height <= 0 {
+			pending = true
+			break
+		}
+	}
+	if !pending {
+		return
+	}
+	h := p.fallbackTextHeight(d)
+	for i := range d.Texts {
+		if d.Texts[i].Height > 0 {
+			continue
+		}
+		s := d.Texts[i].blockScale
+		if s <= 0 {
+			s = 1
+		}
+		d.Texts[i].Height = h * s
+	}
+}
+
+// fallbackTextHeight 兜底字高 = 图幅短边的 1/60。
+// 参照：A1（841×594mm）上 10mm 高的注记约为短边的 1/60，是常见的小号标注尺度。
+func (p *dxfParser) fallbackTextHeight(d *cadDrawing) float64 {
+	w, h := p.extentForTextFallback(d)
+	short := math.Min(w, h)
+	if short <= 0 {
+		short = math.Max(w, h)
+	}
+	if short <= 0 {
+		return 1
+	}
+	return short / 60
+}
+
+// extentForTextFallback 估算图幅：优先 HEADER 的 $EXTMIN/$EXTMAX；
+// 否则只用**折线**范围。
+//
+// 刻意不含文字：若把文字自身算进去就会形成正反馈
+// （兜底字高变大 → 文字包围盒变大 → 图幅变大 → 兜底字高再变大）。
+func (p *dxfParser) extentForTextFallback(d *cadDrawing) (float64, float64) {
+	if p.hasExtents && p.extMax.X > p.extMin.X && p.extMax.Y > p.extMin.Y {
+		return p.extMax.X - p.extMin.X, p.extMax.Y - p.extMin.Y
+	}
+	var minPt, maxPt cadPt
+	first := true
+	for _, pl := range d.Polylines {
+		for _, pt := range pl.Pts {
+			if first {
+				minPt, maxPt, first = pt, pt, false
+				continue
+			}
+			minPt.X, minPt.Y = math.Min(minPt.X, pt.X), math.Min(minPt.Y, pt.Y)
+			maxPt.X, maxPt.Y = math.Max(maxPt.X, pt.X), math.Max(maxPt.Y, pt.Y)
+		}
+	}
+	if first {
+		return 0, 0
+	}
+	return maxPt.X - minPt.X, maxPt.Y - minPt.Y
+}
+
+// wrapCadText 按参考宽度把 MTEXT 折行（宽度与字高须同处一个坐标系）。
+// 字宽按「字高 × 字宽因子 × cadCharWidthRatio」估算，与 textBox 同源，
+// 让「折行后不越界」和「包围盒不虚大」两个结论彼此一致。
+func wrapCadText(lines []string, width, height, widthFactor float64) []string {
+	per := height * widthFactor * cadCharWidthRatio
+	if per <= 0 || width <= 0 {
+		return lines
+	}
+	max := int(width / per)
+	if max < 1 {
+		max = 1
+	}
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		runes := []rune(ln)
+		if len(runes) <= max {
+			out = append(out, ln)
+			continue
+		}
+		for len(runes) > max {
+			out = append(out, strings.TrimRight(string(runes[:max]), " "))
+			runes = runes[max:]
+		}
+		out = append(out, string(runes))
+	}
+	if len(out) == 0 {
+		return lines
+	}
+	return out
+}
+
+// mtextAnchor 把 MTEXT 附着点（组码 71，1..9）归一化为
+// 水平 0=左/1=中/2=右、垂直 0=基线/1=底/2=中/3=顶。
+// 1..3 为顶行、4..6 为中行、7..9 为底行，每行内依次是 左/中/右。
+// MTEXT 没有「基线」锚点，故本函数不会返回 0。
+func mtextAnchor(attach int) (int, int) {
+	if attach < 1 || attach > 9 {
+		attach = 1 // DXF 缺省附着点为左上
+	}
+	row := (attach - 1) / 3 // 0=顶 1=中 2=底
+	col := (attach - 1) % 3 // 0=左 1=中 2=右
+	switch row {
+	case 1:
+		return col, 2
+	case 2:
+		return col, 1
+	default:
+		return col, 3
+	}
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// textHeightOf 解析实体字高，按可靠性依次取：
+//  1. 实体自身组码 40；
+//  2. 其文字样式的固定字高（STYLE 组码 40）；
+//  3. 图形声明的 $TEXTSIZE。
+//
+// 都拿不到时返回 0，交由 resolveTextHeights 按图幅兜底。
+func (p *dxfParser) textHeightOf(e *dxfEntity) float64 {
+	if e.height > 0 {
+		return e.height
+	}
+	if st, ok := p.styles[e.style]; ok && st.Height > 0 {
+		return st.Height
+	}
+	if p.textSize > 0 {
+		return p.textSize
+	}
+	return 0
+}
+
+// widthFactorOf 字宽因子：实体组码 41 → 样式组码 41 → 1。
+func (p *dxfParser) widthFactorOf(e *dxfEntity) float64 {
+	if e.widthFactor > 0 {
+		return e.widthFactor
+	}
+	if st, ok := p.styles[e.style]; ok && st.Width > 0 {
+		return st.Width
+	}
+	return 1
 }
 
 // ---------- 曲线离散化 ----------
@@ -866,7 +1242,13 @@ func parseDxfFloat(s string) (float64, bool) {
 	return f, true
 }
 
-// cleanDXFText 去掉 MTEXT 的内联格式码（\P 换行、\f...; 字体、{} 分组等）。
+// cleanDXFText 去掉 MTEXT 的内联格式码（\f...; 字体、{} 分组、^I 控制码等），
+// 并把段落分隔 \P **保留为换行**。
+//
+// ⚠️ \P 必须保留换行。历史实现把它折成一个空格，于是「多行注释 / 说明文字」这种
+// 在图纸里极其常见的 MTEXT 会被压成**一整行横贯图幅的长文本**，与相邻标注全部
+// 重叠 —— 这正是用户看到的「糊成一片」的直接来源。
+// 换行在渲染层按行绘制（见 cad_render.go），不改动图的几何。
 func cleanDXFText(s string) string {
 	if s == "" {
 		return ""
@@ -879,7 +1261,7 @@ func cleanDXFText(s string) string {
 			n := s[i+1]
 			switch n {
 			case 'P', 'p':
-				b.WriteByte(' ')
+				b.WriteByte('\n')
 				i += 2
 			case 'f', 'F', 'H', 'C', 'c', 'T', 'Q', 'W', 'A', 'S':
 				// 参数直到分号
@@ -907,5 +1289,10 @@ func cleanDXFText(s string) string {
 			i++
 		}
 	}
-	return strings.Join(strings.Fields(b.String()), " ")
+	// 逐行收敛空白：换行是排版信息，其余连续空白才该被压掉。
+	lines := strings.Split(b.String(), "\n")
+	for i, ln := range lines {
+		lines[i] = strings.Join(strings.Fields(ln), " ")
+	}
+	return strings.Join(lines, "\n")
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Tree, Dropdown, Empty, Modal, Input, message } from 'antd'
+import type { TreeProps } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
   BookOutlined,
@@ -21,9 +22,10 @@ import {
   UserAddOutlined,
 } from '@ant-design/icons'
 import type { BookWithCount, Bookshelf, DocNode } from '../../types'
-import { getTree, deleteDoc, patchDoc } from '../../api/docs'
+import { getTree, deleteDoc, patchDoc, moveDoc, moveDocToBook } from '../../api/docs'
 import { buildChildrenMap } from '../../stores/docTreeStore'
 import { iconForDocType } from '../../lib/fileIcon'
+import { isDescendantOf } from '../../lib/docTree'
 import type { ReactNode } from 'react'
 
 interface NodeRaw {
@@ -71,10 +73,15 @@ interface Props {
   canWriteDoc?: (bookId: number, doc?: DocNode) => boolean
   /** 右键/菜单：编辑文档（打开编辑页） */
   onEditDoc?: (bookId: number, doc: DocNode) => void
-  /** 右键/菜单：复制文档 */
+  /** 右键/菜单：复制文档（跨知识库 + 指定目标目录，走弹窗） */
   onDuplicateDoc?: (bookId: number, doc: DocNode) => void
-  /** 右键/菜单：移动到其他知识库 */
+  /** 右键/菜单：移动文档（目标目录 / 目标文档，走弹窗） */
   onMoveDoc?: (bookId: number, doc: DocNode) => void
+  /**
+   * 拖拽移动完成后的通知（源库 id、被移动的文档、目标库 id）。
+   * 由页面决定是否要同步 URL（例如正在看的文档被拖到了别的库）与刷新其它区域。
+   */
+  onDocMoved?: (srcBookId: number, doc: DocNode, targetBookId: number) => void
   /** 右键/菜单：置顶/取消置顶 */
   onPinDoc?: (bookId: number, doc: DocNode) => void
   /** 右键/菜单：分享 */
@@ -261,7 +268,8 @@ export default function KnowledgeTree(p: Props) {
     const bookId = node.raw.bookId!
     const doc = node.raw.doc!
     const canWrite = canWriteFor(bookId, doc)
-    // 目录（folder）不承载正文：不能编辑、导出、分享、复制（复制不级联子节点，只会得到空目录）
+    // 目录（folder）不承载正文：不能编辑、导出、分享。复制与移动现在是支持的
+    // ——复制会递归带上子文档（后端 /docs/:id/copy），移动只改 parent_id。
     const isFolder = doc.doc_type === 'folder'
     const items: any[] = [
       { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
@@ -281,10 +289,11 @@ export default function KnowledgeTree(p: Props) {
       { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !canWrite, onClick: () => beginRename(bookId, doc) },
     )
     if (p.onDuplicateDoc) {
-      items.push({ key: 'duplicate', icon: <CopyOutlined />, label: '复制', disabled: !canWrite || isFolder, onClick: () => p.onDuplicateDoc!(bookId, doc) })
+      // 复制现在会**递归复制整棵子树**（后端 POST /docs/:id/copy），因此目录也可复制
+      items.push({ key: 'duplicate', icon: <CopyOutlined />, label: '复制', disabled: !canWrite, onClick: () => p.onDuplicateDoc!(bookId, doc) })
     }
     if (p.onMoveDoc) {
-      items.push({ key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !canWrite, onClick: () => p.onMoveDoc!(bookId, doc) })
+      items.push({ key: 'move', icon: <FolderOpenOutlined />, label: '移动', disabled: !canWrite, onClick: () => p.onMoveDoc!(bookId, doc) })
     }
     if (p.onExportDoc && !isFolder) {
       items.push({ key: 'export', icon: <DownloadOutlined />, label: '导出', onClick: () => p.onExportDoc!(bookId, doc) })
@@ -378,6 +387,122 @@ export default function KnowledgeTree(p: Props) {
     return []
   }, [selectedBookId, selectedDocId])
 
+  // ---------- 拖拽移动 ----------
+
+  /**
+   * 拖拽过程中允许/禁止落点。
+   *
+   * 「分类」节点（私人 / 团队 / 公司知识库）只是分组标题，不能作为容器 ——
+   * 落上去只会让人以为能放进去。知识库与文档节点都允许。
+   */
+  const allowDrop: TreeProps['allowDrop'] = ({ dropNode }) => {
+    return (dropNode as unknown as KNode).raw.kind !== 'cat'
+  }
+
+  /** 哪些节点可以被拖动：有写权限的文档/目录。知识库与分类不可拖。 */
+  const nodeDraggable = (node: DataNode) => {
+    const n = node as unknown as KNode
+    if (n.raw.kind !== 'doc') return false
+    return canWriteFor(n.raw.bookId!, n.raw.doc)
+  }
+
+  /**
+   * 拖拽落点 → 移动请求。
+   *
+   * 落点语义（rc-tree 的 onDrop 契约）：
+   *   · `dropToGap === false`（悬停在节点中部）→ 成为该节点的**子节点**；
+   *   · `dropToGap === true`（悬停在节点上下缝隙）→ 插入到该节点**前/后**（同级排序）。
+   *   rc-tree 回传的 `dropPosition` 是**整棵扁平树的绝对索引**，需要减去落点节点在
+   *   其兄弟中的下标才能还原出「前 / 内 / 后」三态（见 dropToGap 的三态换算）。
+   *
+   * 跨知识库：落到另一个库的库节点或该库的任意文档上，走 move-to-book（带 parent_id）。
+   */
+  const handleDrop: TreeProps['onDrop'] = async (info) => {
+    const drag = info.dragNode as unknown as KNode
+    const over = info.node as unknown as KNode
+    if (!drag || !over) return
+    if (drag.raw.kind !== 'doc') {
+      message.info('只有文档或目录可以拖动')
+      return
+    }
+    if (over.raw.kind === 'cat') {
+      message.info('请拖到知识库或目录上')
+      return
+    }
+    const srcBookId = drag.raw.bookId!
+    const srcDoc = drag.raw.doc!
+    if (!canWriteFor(srcBookId, srcDoc)) {
+      message.warning('没有编辑权限，无法移动')
+      return
+    }
+
+    // 三态换算：rc-tree 给的是扁平绝对索引，减去落点在其兄弟中的下标
+    const overPos = String((info.node as unknown as { pos?: string }).pos ?? '')
+    const siblingIdx = Number(overPos.split('-').pop())
+    const rel = info.dropToGap && Number.isFinite(siblingIdx) ? info.dropPosition - siblingIdx : 0
+
+    let targetBookId: number
+    let targetParentId = 0
+    let prevPos: string | undefined
+    let nextPos: string | undefined
+
+    if (over.raw.kind === 'book') {
+      // 落到知识库节点：进该库根目录（缝隙落点对「库的排序」无意义，一律按追加处理）
+      targetBookId = over.raw.bookId!
+    } else {
+      const overDoc = over.raw.doc!
+      targetBookId = over.raw.bookId!
+      if (rel === 0) {
+        targetParentId = overDoc.id
+      } else {
+        targetParentId = overDoc.parent_id
+        const sibs = (buildChildrenMap(bookDocsRef.current.get(targetBookId) || []).get(targetParentId) || []).filter(
+          (d) => d.id !== srcDoc.id,
+        )
+        const i = sibs.findIndex((d) => d.id === overDoc.id)
+        if (rel < 0) {
+          prevPos = i > 0 ? sibs[i - 1].pos : undefined
+          nextPos = overDoc.pos
+        } else {
+          prevPos = overDoc.pos
+          nextPos = i >= 0 && i + 1 < sibs.length ? sibs[i + 1].pos : undefined
+        }
+      }
+    }
+
+    if (!canWriteFor(targetBookId)) {
+      message.warning('目标知识库没有编辑权限')
+      return
+    }
+    // 防环 + 原地不动：都在前端先拦一道（后端同样校验）
+    if (targetBookId === srcBookId) {
+      const flat = bookDocsRef.current.get(srcBookId) || []
+      if (isDescendantOf(flat, srcDoc.id, targetParentId)) {
+        message.warning('不能移动到自身或其子孙节点下')
+        return
+      }
+      if (targetParentId === srcDoc.parent_id && prevPos === srcDoc.pos && !nextPos) {
+        return // 落回原位，什么都不做
+      }
+    }
+
+    try {
+      if (targetBookId === srcBookId) {
+        await moveDoc(srcDoc.id, { parent_id: targetParentId, prev_pos: prevPos, next_pos: nextPos })
+      } else {
+        await moveDocToBook(srcDoc.id, targetBookId, targetParentId)
+      }
+      message.success('已移动')
+      // 源库必刷（节点消失）；跨库时目标库也刷，并展开它让用户看到结果
+      const jobs = [loadBookDocs(srcBookId, false)]
+      if (targetBookId !== srcBookId) jobs.push(loadBookDocs(targetBookId, true))
+      await Promise.all(jobs)
+      p.onDocMoved?.(srcBookId, srcDoc, targetBookId)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
   function titleRender(node: KNode): ReactNode {
     if (node.raw.kind === 'cat') {
       return (
@@ -445,6 +570,11 @@ export default function KnowledgeTree(p: Props) {
           if (keys.length > 0) handleClick(info.node as unknown as KNode)
         }}
         titleRender={(n) => titleRender(n as KNode)}
+        // 拖拽移动：只有可写文档能拖；落到知识库节点 = 进该库根目录，
+        // 落到文档中部 = 成为其子文档，落到上下缝隙 = 同级前/后插入。
+        draggable={{ icon: false, nodeDraggable }}
+        allowDrop={allowDrop}
+        onDrop={handleDrop}
       />
     </div>
   )

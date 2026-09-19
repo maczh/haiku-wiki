@@ -53,6 +53,32 @@ func ListSiblings(bookID, parentID, excludeID uint64) ([]model.Doc, error) {
 	return out, err
 }
 
+// ListChildDocs 取某父节点下的**直接子文档（含正文）**，按 pos 升序。
+//
+// 与 ListSiblings 的区别：后者只 Select 树字段（供排序用），本函数取全字段，
+// 专供「递归复制子树」（service.DocService.Copy）使用 —— 复制必须带上 content，
+// 否则目录树复制出来的子文档全是空壳。
+func ListChildDocs(bookID, parentID uint64) ([]model.Doc, error) {
+	return ListChildDocsTx(db, bookID, parentID)
+}
+
+// ListChildDocsTx 与 ListChildDocs 同语义，但走调用方传入的事务。
+//
+// **必须有这个版本，不能图省事在事务里调用 ListChildDocs。**
+// 原因（真实踩过）：本项目的 SQLite 测试环境把连接池限成 MaxOpenConns(1)
+// （service_test.go，为串行化避免锁竞争），事务会独占那唯一一条连接；
+// 事务内再用全局 db 发查询就永远拿不到连接而**永久阻塞** ——
+// 表现是 `go test` 跑满 10 分钟被 timeout 杀掉，栈停在 database/sql.(*DB).conn，
+// 极难从「测试挂了」这个现象反推到根因。生产环境连接池是 20，
+// 不会死锁，但同样有「读不到本事务未提交的写入」和写锁争用两个隐患。
+func ListChildDocsTx(tx *gorm.DB, bookID, parentID uint64) ([]model.Doc, error) {
+	var out []model.Doc
+	err := tx.Where("book_id = ? AND parent_id = ?", bookID, parentID).
+		Order("pos ASC").
+		Find(&out).Error
+	return out, err
+}
+
 // UpdateDoc 保存文档变更（标题/内容/pos/parent）。
 func UpdateDoc(d *model.Doc) error { return db.Save(d).Error }
 

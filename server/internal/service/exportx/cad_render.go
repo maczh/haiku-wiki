@@ -28,6 +28,27 @@ func defaultCadOpts() cadRenderOpts {
 	return cadRenderOpts{MaxW: 1600, MaxH: 1200, Padding: 24, Background: true}
 }
 
+// pngMinFontSize 位图输出的最小可读字号（像素）。SVG 输出不用它 —— 见 buildCadSVG。
+const pngMinFontSize = 6
+
+// cadFontSize 世界坐标字高 × 视口缩放 → 设备字号，并按需做上下限钳制。
+//
+// minPx=0 表示不设下限（矢量输出用）：任何抬升都会让字号脱离与图元的真实比例，
+// 密排标注下直接变成一团互相覆盖的黑块。
+// maxPx 用于挡住病态数据（例如误读出的巨大字高）把单条文本糊满整幅图。
+func cadFontSize(devSize, minPx, maxPx float64) float64 {
+	if devSize <= 0 {
+		return 0
+	}
+	if minPx > 0 && devSize < minPx {
+		devSize = minPx
+	}
+	if maxPx > 0 && devSize > maxPx {
+		devSize = maxPx
+	}
+	return devSize
+}
+
 // cadViewport 世界坐标 → 设备坐标的变换结果。
 type cadViewport struct {
 	Scale  float64
@@ -120,19 +141,32 @@ func buildCadSVG(d *cadDrawing, o cadRenderOpts) ([]byte, error) {
 	sb.WriteString(`</g>`)
 
 	for _, t := range d.Texts {
-		x, y := v.pt(t.Pos)
-		size := t.Height * v.Scale
-		if size < 6 {
-			size = 6 // 极小字在预览里不可读，抬到可读下限
+		// 矢量输出 **不做最小字号抬升**（minPx=0）。
+		// 历史实现把 <6px 的字号一律抬到 6px：对图幅大、标注密的图纸，抬升后字比它
+		// 标注的图元还大，几十条标注互相覆盖成一团黑 —— 这正是「字体太大 / 糊成一片」
+		// 的两大成因之一。SVG 是矢量的、前端可放大到 60 倍，保持与 AutoCAD 一致的
+		// 真实比例才是正解。上限只用来挡住病态字高把单条文本糊满整幅图。
+		size := cadFontSize(t.Height*v.Scale, 0, float64(v.H)*0.5)
+		if size <= 0 {
+			continue
 		}
-		esc := html.EscapeString(t.Content)
+		x, _ := v.pt(t.Pos)
+		tb := textBox(t)
+		// 首行基线（设备坐标，Y 向下）：盒顶向下 FirstBaselineFromTop
+		_, baseY := v.pt(cadPt{X: t.Pos.X, Y: t.Pos.Y + tb.TopY - tb.FirstBaselineFromTop})
+		anchor := [3]string{"start", "middle", "end"}[t.AnchorH]
+		attrs := fmt.Sprintf(`font-size="%.2f" fill="%s" text-anchor="%s"`, size, t.Color, anchor)
 		if math.Abs(t.Rotation) > 0.01 {
 			// 屏幕 Y 轴朝下，故旋转角取反
-			fmt.Fprintf(&sb, `<text x="%.2f" y="%.2f" font-size="%.2f" fill="%s" transform="rotate(%.2f %.2f %.2f)">%s</text>`,
-				x, y, size, t.Color, -t.Rotation, x, y, esc)
-		} else {
-			fmt.Fprintf(&sb, `<text x="%.2f" y="%.2f" font-size="%.2f" fill="%s">%s</text>`,
-				x, y, size, t.Color, esc)
+			attrs += fmt.Sprintf(` transform="rotate(%.2f %.2f %.2f)"`, -t.Rotation, x, baseY)
+		}
+		adv := size * cadLineAdvance
+		for i, ln := range strings.Split(t.Content, "\n") {
+			if ln == "" {
+				continue
+			}
+			fmt.Fprintf(&sb, `<text x="%.2f" y="%.2f" %s>%s</text>`,
+				x, baseY+float64(i)*adv, attrs, html.EscapeString(ln))
 		}
 	}
 	sb.WriteString(`</svg>`)
@@ -164,19 +198,40 @@ func buildCadPNG(d *cadDrawing, o cadRenderOpts) ([]byte, error) {
 		c.strokeLine(dev, hexToRGB(pl.Color), v.Stroke, nil)
 	}
 	for _, t := range d.Texts {
-		x, y := v.pt(t.Pos)
-		size := t.Height * v.Scale
-		if size < 6 {
-			size = 6
+		// 位图是不可缩放的固定分辨率，极小字号会直接消失，故保留一个可读下限；
+		// 上限同样用于挡病态字高。注意这与 SVG 的策略**刻意不同**：
+		// SVG 保真（用来和 AutoCAD 比对），PNG 只求可辨认（仅作兜底/派生下载）。
+		size := cadFontSize(t.Height*v.Scale, pngMinFontSize, float64(v.H)*0.5)
+		if size <= 0 {
+			continue
 		}
+		x, _ := v.pt(t.Pos)
+		tb := textBox(t)
+		_, baseY := v.pt(cadPt{X: t.Pos.X, Y: t.Pos.Y + tb.TopY - tb.FirstBaselineFromTop})
+		face := c.face(size)
 		col := hexToRGB(t.Color)
-		if math.Abs(t.Rotation) > 0.01 {
+		adv := size * cadLineAdvance
+		rotated := math.Abs(t.Rotation) > 0.01
+		if rotated {
 			c.dc.Push()
-			c.dc.RotateAbout(-t.Rotation*math.Pi/180, x, y)
-			c.drawString(t.Content, x, y, size, col)
+			c.dc.RotateAbout(-t.Rotation*math.Pi/180, x, baseY)
+		}
+		for i, ln := range strings.Split(t.Content, "\n") {
+			if ln == "" {
+				continue
+			}
+			lx := x
+			// 用字体真实度量做水平对齐，比按比例估算宽度准确
+			switch t.AnchorH {
+			case 1:
+				lx = x - measureText(face, ln)/2
+			case 2:
+				lx = x - measureText(face, ln)
+			}
+			c.drawString(ln, lx, baseY+float64(i)*adv, size, col)
+		}
+		if rotated {
 			c.dc.Pop()
-		} else {
-			c.drawString(t.Content, x, y, size, col)
 		}
 	}
 	var buf bytes.Buffer

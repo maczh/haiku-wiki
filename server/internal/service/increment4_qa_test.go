@@ -87,7 +87,7 @@ func TestMoveToBook(t *testing.T) {
 	existing := mkDoc(t, dst, owner.ID, 0, "目标库已有文档")
 
 	ds := &DocService{}
-	moved, err := ds.MoveToBook(owner.ID, parent.ID, dst.ID)
+	moved, err := ds.MoveToBook(owner.ID, parent.ID, MoveToBookInput{BookID: dst.ID})
 	if err != nil {
 		t.Fatalf("移动失败: %v", err)
 	}
@@ -103,8 +103,90 @@ func TestMoveToBook(t *testing.T) {
 		t.Fatalf("子文档应随父迁移到目标库: err=%v book=%d", err, c.BookID)
 	}
 	// 非法目标库 → 404
-	if _, err := ds.MoveToBook(owner.ID, parent.ID, 99999); err == nil {
+	if _, err := ds.MoveToBook(owner.ID, parent.ID, MoveToBookInput{BookID: 99999}); err == nil {
 		t.Fatal("目标库不存在应报错")
+	}
+
+	// ---- 以下为「移动到指定目录/文档之下」的新增覆盖（ParentID 语义）----
+	targetDir := mkDoc(t, dst, owner.ID, 0, "目标库内的目录")
+	into, err := ds.MoveToBook(owner.ID, parent.ID, MoveToBookInput{BookID: dst.ID, ParentID: targetDir.ID})
+	if err != nil {
+		t.Fatalf("移动到目标目录下失败: %v", err)
+	}
+	if into.ParentID != targetDir.ID {
+		t.Fatalf("应挂到目标目录下: parent=%d 期望 %d", into.ParentID, targetDir.ID)
+	}
+	// 防环：不能把节点挪到自己的子孙之下（此时 parent/child 都已在 dst 库内）
+	if _, err := ds.MoveToBook(owner.ID, parent.ID, MoveToBookInput{BookID: dst.ID, ParentID: child.ID}); err == nil {
+		t.Fatal("移动到自身子孙之下应被拒绝")
+	}
+	// 目标父节点必须属于目标库：拿源库里的节点当目标父节点应报错
+	otherInSrc := mkDoc(t, src, owner.ID, 0, "源库内另一个节点")
+	if _, err := ds.MoveToBook(owner.ID, parent.ID, MoveToBookInput{BookID: dst.ID, ParentID: otherInSrc.ID}); err == nil {
+		t.Fatal("目标父节点不在目标库内应被拒绝")
+	}
+}
+
+// TestCopyDocSubtree 复制：递归复制整棵子树、跨库、指定目标目录、标题规则、防环与权限。
+func TestCopyDocSubtree(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "copy-owner@x.com", "secret123", "member")
+	src := mkBook(t, owner.ID, "复制源库", "private")
+	dst := mkBook(t, owner.ID, "复制目标库", "private")
+
+	dir := mkDoc(t, src, owner.ID, 0, "项目资料")
+	sub := mkDoc(t, src, owner.ID, dir.ID, "设计稿")
+	leaf := mkDoc(t, src, owner.ID, sub.ID, "终稿")
+	setDocContent(t, owner.ID, leaf.ID, "# 终稿正文")
+	target := mkDoc(t, dst, owner.ID, 0, "目标目录")
+	ds := &DocService{}
+
+	// 跨库 + 指定目标目录：整棵子树一起过去
+	cp, err := ds.Copy(owner.ID, dir.ID, CopyInput{BookID: dst.ID, ParentID: target.ID})
+	if err != nil {
+		t.Fatalf("复制失败: %v", err)
+	}
+	if cp.BookID != dst.ID || cp.ParentID != target.ID {
+		t.Fatalf("副本应落在目标库的目标目录下: book=%d parent=%d", cp.BookID, cp.ParentID)
+	}
+	if cp.Title != "项目资料 副本" {
+		t.Fatalf("根副本标题 = %q，期望 %q", cp.Title, "项目资料 副本")
+	}
+	kids, err := repository.ListChildDocs(dst.ID, cp.ID)
+	if err != nil || len(kids) != 1 {
+		t.Fatalf("目录副本应带 1 个子文档: err=%v n=%d", err, len(kids))
+	}
+	if kids[0].Title != "设计稿" {
+		t.Fatalf("子节点标题应原样（不加副本后缀）: %q", kids[0].Title)
+	}
+	grand, err := repository.ListChildDocs(dst.ID, kids[0].ID)
+	if err != nil || len(grand) != 1 {
+		t.Fatalf("应递归复制到第三层: err=%v n=%d", err, len(grand))
+	}
+	if grand[0].Content != "# 终稿正文" {
+		t.Fatalf("叶子正文未复制: %q", grand[0].Content)
+	}
+	if grand[0].ID == leaf.ID {
+		t.Fatal("副本必须是新文档")
+	}
+
+	// 零值入参 = 同位复制（保持 Duplicate 的兼容语义）
+	same, err := ds.Copy(owner.ID, dir.ID, CopyInput{})
+	if err != nil {
+		t.Fatalf("同位复制失败: %v", err)
+	}
+	if same.BookID != src.ID || same.ParentID != 0 {
+		t.Fatalf("同位复制应留在源库同父级: book=%d parent=%d", same.BookID, same.ParentID)
+	}
+
+	// 防环：不能复制到自己的子孙之下
+	if _, err := ds.Copy(owner.ID, dir.ID, CopyInput{BookID: src.ID, ParentID: sub.ID}); err == nil {
+		t.Fatal("复制到自身子孙之下应被拒绝")
+	}
+	// 权限：目标库不可写 → 拒绝
+	other := mkUser(t, "copy-other@x.com", "secret123", "member")
+	if _, err := ds.Copy(other.ID, dir.ID, CopyInput{BookID: dst.ID, ParentID: target.ID}); err == nil {
+		t.Fatal("无源库写权限应被拒绝")
 	}
 }
 

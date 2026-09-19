@@ -109,9 +109,25 @@ export async function duplicateDoc(docId: number): Promise<DocDetail> {
   return request.post(`/docs/${docId}/duplicate`) as Promise<DocDetail>
 }
 
-/** 跨知识库移动（目标书根目录末尾，子树整体迁移） */
-export async function moveDocToBook(docId: number, bookId: number): Promise<DocDetail> {
-  return request.post(`/docs/${docId}/move-to-book`, { book_id: bookId }) as Promise<DocDetail>
+/** 跨知识库移动（子树整体迁移）。parentId 省略/为 0 时落到目标库根目录。 */
+export async function moveDocToBook(docId: number, bookId: number, parentId = 0): Promise<DocDetail> {
+  return request.post(`/docs/${docId}/move-to-book`, {
+    book_id: bookId,
+    parent_id: parentId,
+  }) as Promise<DocDetail>
+}
+
+/**
+ * 复制文档到指定知识库 + 目标位置（**递归复制整棵子树**）。
+ *
+ * 与 `duplicateDoc` 的区别：本接口可跨库、可指定目标父节点，且复制「目录」时
+ * 会连同子文档一起复制。标题规则一致（根节点加「 副本」，子节点原样）。
+ */
+export async function copyDoc(
+  docId: number,
+  payload: { book_id?: number; parent_id?: number } = {},
+): Promise<DocDetail> {
+  return request.post(`/docs/${docId}/copy`, payload) as Promise<DocDetail>
 }
 
 /** 置顶/取消置顶 */

@@ -24,6 +24,8 @@ import {
   UserAddOutlined,
 } from '@ant-design/icons'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
+import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
+import BookDashboard from '../components/dashboard/BookDashboard'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
@@ -33,7 +35,7 @@ import ExportDialog, { type ExportTarget } from '../components/export/ExportDial
 import CollaboratorModal from '../components/collab/CollaboratorModal'
 import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
 import { getBook, setBookVisibility, updateBook, deleteBook, listBooks, createBook } from '../api/books'
-import { getDoc, createDoc, getTree, duplicateDoc, moveDoc, moveDocToBook, pinDoc } from '../api/docs'
+import { getDoc, createDoc, getTree, copyDoc, moveDoc, moveDocToBook, pinDoc } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNode, type DocType, type Visibility } from '../types'
@@ -171,12 +173,17 @@ export default function BookPage() {
   const [reloadBookId, setReloadBookId] = useState<number | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
 
-  // 文档移动到其他知识库
+  // 文档移动 / 复制：共用「目标知识库 → 目标位置」二级选择（DocTargetPicker）
   const [moveNode, setMoveNode] = useState<DocNode | null>(null)
-  const [moveTargetId, setMoveTargetId] = useState<number | null>(null)
+  const [moveTarget, setMoveTarget] = useState<DocTarget>({ bookId: null, parentId: 0 })
   const [moveBooks, setMoveBooks] = useState<Book[] | null>(null)
   const [moveLoading, setMoveLoading] = useState(false)
   const [moveSaving, setMoveSaving] = useState(false)
+  const [copyNode, setCopyNode] = useState<DocNode | null>(null)
+  const [copyTarget, setCopyTarget] = useState<DocTarget>({ bookId: null, parentId: 0 })
+  const [copyBooks, setCopyBooks] = useState<Book[] | null>(null)
+  const [copyLoading, setCopyLoading] = useState(false)
+  const [copySaving, setCopySaving] = useState(false)
 
   // 左栏（文档库）：可折叠 + 可拖拽调宽（持久化）
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readLS(LS_SIDEBAR_COLLAPSED) === '1')
@@ -223,7 +230,16 @@ export default function BookPage() {
     [sidebarWidth],
   )
 
-  const docIdParam = Number(searchParams.get('docId') || 0)
+  /**
+   * 当前选中文档 id：**未选中时必须是 `undefined`，不能是数字 `0`**。
+   *
+   * 踩过的坑：原先写作 `Number(searchParams.get('docId') || 0)`，未选中文档时得到数字 `0`。
+   * 下游有大量 `{docIdParam && ...}` 形式的条件渲染，`0 && x` 会短路成 `0`，而 React 把
+   * 数字 `0` 视为**合法子节点**并渲染成文本 —— 于是工具条尾部凭空多出 `00`、正文区多出
+   * `0000`（`tools/verify/book-home-check.sh` 盯住这条不变量）。
+   */
+  const rawDocId = Number(searchParams.get('docId'))
+  const docIdParam = Number.isInteger(rawDocId) && rawDocId > 0 ? rawDocId : undefined
   const tab = searchParams.get('tab') === 'edit' ? 'edit' : 'read'
 
   const setParams = useCallback(
@@ -455,16 +471,6 @@ export default function BookPage() {
     setReloadNonce((n) => n + 1)
   }
 
-  async function handleDuplicateDoc(_bookId: number, node: DocNode) {
-    try {
-      const cp = await duplicateDoc(node.id)
-      message.success(`已复制为「${cp.title}」`)
-      afterImport(node.book_id)
-    } catch {
-      /* 拦截器已提示 */
-    }
-  }
-
   async function handlePinDoc(_bookId: number, node: DocNode) {
     try {
       await pinDoc(node.id, !node.pinned_at)
@@ -475,15 +481,21 @@ export default function BookPage() {
     }
   }
 
+  /** 可作为移动/复制目标的候选知识库：我有写权限的（含当前库——同库换目录是最常见的操作） */
+  async function loadWritableBooks(): Promise<Book[]> {
+    const shelf = await listBooks()
+    const all = [...shelf.mine, ...shelf.teams, ...shelf.visible]
+    return all.filter((b) => b.can_write === true || b.visibility === 'members')
+  }
+
+  /** 打开「移动」弹窗：可以在同一个库里换目录，也可以跨库 */
   async function openMoveDoc(_bookId: number, node: DocNode) {
     setMoveNode(node)
-    setMoveTargetId(null)
+    setMoveTarget({ bookId: node.book_id, parentId: 0 })
     setMoveBooks(null)
     setMoveLoading(true)
     try {
-      const shelf = await listBooks()
-      const writable = [...shelf.mine, ...shelf.visible.filter((b) => b.visibility === 'members')]
-      setMoveBooks(writable.filter((b) => b.id !== node.book_id))
+      setMoveBooks(await loadWritableBooks())
     } catch {
       setMoveBooks([])
     } finally {
@@ -491,20 +503,60 @@ export default function BookPage() {
     }
   }
 
+  /** 提交移动：目标位置可以是另一个库，也可以是同库的某个目录/文档 */
   async function submitMoveDoc() {
-    if (!moveNode || !moveTargetId) return
+    if (!moveNode || moveTarget.bookId == null) return
     setMoveSaving(true)
     try {
-      await moveDocToBook(moveNode.id, moveTargetId)
-      const target = moveBooks?.find((b) => b.id === moveTargetId)
-      message.success(`已移动到「${target?.name ?? '目标知识库'}」根目录`)
+      await moveDocToBook(moveNode.id, moveTarget.bookId, moveTarget.parentId)
+      const target = moveBooks?.find((b) => b.id === moveTarget.bookId)
+      const same = moveTarget.bookId === moveNode.book_id
+      message.success(
+        same
+          ? '已移动到新位置'
+          : `已移动到「${target?.name ?? '目标知识库'}」${moveTarget.parentId ? '的指定目录下' : '根目录'}`,
+      )
       setMoveNode(null)
       afterImport(moveNode.book_id)
-      if (docIdParam === moveNode.id) setParams({ docId: 0 })
+      if (!same) afterImport(moveTarget.bookId)
+      // 正在看的就是被移动的文档时不能清空 docId（跨库后 URL 仍指向它，页面会 404）——
+      // 只有跨库移动才需要把选中态交还给目标库
+      if (!same && docIdParam === moveNode.id) navigate(`/books/${moveTarget.bookId}?docId=${moveNode.id}&tab=read`, { replace: true })
     } catch {
       /* 拦截器已提示 */
     } finally {
       setMoveSaving(false)
+    }
+  }
+
+  /** 打开「复制」弹窗：先选目标文库，再选该文库下的目录（多级） */
+  async function openCopyDoc(_bookId: number, node: DocNode) {
+    setCopyNode(node)
+    setCopyTarget({ bookId: node.book_id, parentId: node.parent_id })
+    setCopyBooks(null)
+    setCopyLoading(true)
+    try {
+      setCopyBooks(await loadWritableBooks())
+    } catch {
+      setCopyBooks([])
+    } finally {
+      setCopyLoading(false)
+    }
+  }
+
+  /** 提交复制：递归复制整棵子树；默认值就是「原库原地」，一路回车等于快速复制一份 */
+  async function submitCopyDoc() {
+    if (!copyNode || copyTarget.bookId == null) return
+    setCopySaving(true)
+    try {
+      const cp = await copyDoc(copyNode.id, { book_id: copyTarget.bookId, parent_id: copyTarget.parentId })
+      message.success(`已复制为「${cp.title}」`)
+      setCopyNode(null)
+      afterImport(copyTarget.bookId)
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setCopySaving(false)
     }
   }
 
@@ -718,8 +770,16 @@ export default function BookPage() {
                     return !!user && (b?.can_write === true || b?.owner_id === user.id || b?.visibility === 'members')
                   }}
                   onEditDoc={(_bid, d) => setParams({ docId: d.id, tab: 'edit' })}
-                  onDuplicateDoc={(_bid, d) => void handleDuplicateDoc(_bid, d)}
+                  onDuplicateDoc={(_bid, d) => void openCopyDoc(_bid, d)}
                   onMoveDoc={(_bid, d) => void openMoveDoc(_bid, d)}
+                  onDocMoved={(srcBookId, d, targetBookId) => {
+                    // 拖拽移动由树内部完成落库；这里同步页面状态：
+                    // 被移走的文档若还开在 URL 里，跨库时要跟着跳过去（同库则地址不变）
+                    if (targetBookId !== srcBookId) afterImport(targetBookId)
+                    if (targetBookId !== srcBookId && docIdParam === d.id) {
+                      navigate(`/books/${targetBookId}?docId=${d.id}&tab=read`, { replace: true })
+                    }
+                  }}
                   onPinDoc={(_bid, d) => void handlePinDoc(_bid, d)}
                   onShareDoc={(_bid, d) => openShare(d)}
                   onExportDoc={(_bid, d) => openExportDoc(d)}
@@ -814,22 +874,17 @@ export default function BookPage() {
               {/* height:100% 不可省：编辑器（如思维导图画布）依赖它拿到确定高度，否则画布高度塌陷为 0 */}
               <div style={{ height: '100%', paddingRight: showTocFloat ? 264 : 0 }}>
                 {!docIdParam && (
-                  <Empty
-                    style={{ marginTop: 120 }}
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                      <span>
-                        从左侧选择一篇文档
-                        {canWrite && (
-                          <>
-                            {' '}
-                            或 <a onClick={() => void openNewDoc(bookID, 0, 'doc')}>新建文档</a>
-                            {' '}
-                            / <a onClick={() => void openNewDoc(bookID, 0, 'folder')}>新建目录</a>
-                          </>
-                        )}
-                      </span>
-                    }
+                  /* 未选中任何文档时：文库工作台（概览 + 工作台三卡 + 文库内搜索 + 最近更新），
+                     替代原来只有一句提示的 Empty —— 这块空间是用户进库看到的第一屏 */
+                  <BookDashboard
+                    bookId={bookID}
+                    bookName={book?.name ?? ''}
+                    docs={docs}
+                    canWrite={canWrite}
+                    onOpenDoc={(id) => setParams({ docId: id })}
+                    onNewDoc={() => void openNewDoc(bookID, 0, 'doc')}
+                    onNewFolder={() => void openNewDoc(bookID, 0, 'folder')}
+                    onImport={() => void openImport(bookID)}
                   />
                 )}
                 {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
@@ -965,7 +1020,7 @@ export default function BookPage() {
       <DocShareDrawer
         open={shareDrawerOpen}
         onClose={() => setShareDrawerOpen(false)}
-        docId={shareNodeId ?? docIdParam}
+        docId={shareNodeId ?? docIdParam ?? 0}
         docTitle={doc?.title ?? ''}
       />
 
@@ -981,7 +1036,7 @@ export default function BookPage() {
       <WeChatShareModal
         open={weChatOpen}
         onClose={() => setWeChatOpen(false)}
-        docId={docIdParam}
+        docId={docIdParam ?? 0}
         docTitle={doc?.title ?? ''}
       />
 
@@ -1284,33 +1339,66 @@ export default function BookPage() {
         </Radio.Group>
       </Modal>
 
-      {/* 移动文档到其他知识库 */}
+      {/* 移动文档：目标知识库 + 目标位置（目录支持多级，也可以选某篇文档作为其子文档） */}
       <Modal
         title={`移动「${moveNode?.title ?? ''}」`}
         open={!!moveNode}
         onOk={() => void submitMoveDoc()}
         onCancel={() => setMoveNode(null)}
         okText="移动"
-        okButtonProps={{ disabled: !moveTargetId }}
+        okButtonProps={{ disabled: moveTarget.bookId == null }}
         confirmLoading={moveSaving}
         cancelText="取消"
         destroyOnClose
+        width={520}
       >
         {moveLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}
         {!moveLoading && moveBooks && moveBooks.length === 0 && (
-          <Empty description="没有可写入的其他知识库" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          <Empty description="没有可写入的知识库" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}
-        {!moveLoading && moveBooks && moveBooks.length > 0 && (
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择目标知识库（我有编辑权限）"
-            value={moveTargetId}
-            onChange={setMoveTargetId}
-            options={moveBooks.map((b) => ({ value: b.id, label: b.name }))}
+        {!moveLoading && moveBooks && moveBooks.length > 0 && moveNode && (
+          <DocTargetPicker
+            books={moveBooks}
+            value={moveTarget}
+            onChange={setMoveTarget}
+            defaultBookId={moveNode.book_id}
+            // 防环：目标库就是源库时，把「自己这棵子树」从可选项里摘掉
+            exclude={{ bookId: moveNode.book_id, docId: moveNode.id }}
           />
         )}
         <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
-          移动后该文档及其子文档将整体迁移到目标知识库根目录末尾。
+          移动后该文档及其子文档整体迁移；选择某篇文档即成为它的子文档，选择「根目录」即放到知识库顶层。
+        </div>
+      </Modal>
+
+      {/* 复制文档：先选目标文库，再选该文库下的目录（多级）；目录会连同子文档一起复制 */}
+      <Modal
+        title={`复制「${copyNode?.title ?? ''}」`}
+        open={!!copyNode}
+        onOk={() => void submitCopyDoc()}
+        onCancel={() => setCopyNode(null)}
+        okText="复制"
+        okButtonProps={{ disabled: copyTarget.bookId == null }}
+        confirmLoading={copySaving}
+        cancelText="取消"
+        destroyOnClose
+        width={520}
+      >
+        {copyLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}
+        {!copyLoading && copyBooks && copyBooks.length === 0 && (
+          <Empty description="没有可写入的知识库" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
+        {!copyLoading && copyBooks && copyBooks.length > 0 && copyNode && (
+          <DocTargetPicker
+            books={copyBooks}
+            value={copyTarget}
+            onChange={setCopyTarget}
+            defaultBookId={copyNode.book_id}
+            exclude={{ bookId: copyNode.book_id, docId: copyNode.id }}
+          />
+        )}
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
+          目录会连同其下所有子文档一起复制；副本标题在原名称后加「 副本」，默认位置是原库的同一级。
         </div>
       </Modal>
 

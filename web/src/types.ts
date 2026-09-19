@@ -94,6 +94,7 @@ export interface SearchHit {
   book_id: number
   book_name: string
   title: string
+  doc_type?: string
   snippet: string
   updated_at: string
 }
@@ -352,4 +353,29 @@ export interface RecentDocItem {
   /** RFC3339 时间串 */
   updated_at: string
   can_write: boolean
+}
+
+/**
+ * 工作台文档条目（GET /api/workbench）。
+ *
+ * 与 RecentDocItem 的唯一差异是**带正文**：待办完成率、甘特图进度、今日日程
+ * 都必须解析 content 才能算出来，所以聚合接口把正文一并返回，避免前端 N+1。
+ * doc_type 目前只会是 'todo' | 'gantt' | 'calendar'（仍按 DocType 收窄，便于复用渲染逻辑）。
+ */
+export interface WorkbenchDoc {
+  id: number
+  title: string
+  doc_type: DocType
+  book_id: number
+  book_name: string
+  /** RFC3339 时间串 */
+  updated_at: string
+  can_write: boolean
+  content: string
+}
+
+/** 工作台聚合结果：items 是各类型的最近若干篇，counts 是各类型文档总数 */
+export interface WorkbenchView {
+  items: WorkbenchDoc[]
+  counts: Record<string, number>
 }

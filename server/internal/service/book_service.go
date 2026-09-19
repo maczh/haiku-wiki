@@ -547,61 +547,50 @@ func (s *DocService) SoftDelete(uid uint64, docID uint64) error {
 
 // Duplicate 复制文档（第四轮增量 R4）：新标题=原标题+" 副本"，同父级末尾，
 // content/doc_type 原样复制，不复制版本快照。需编辑权限。
+//
+// 现已委托给 Copy（零值 CopyInput 即「同库同位复制」），使两条入口共用同一套
+// 权限校验、标题规则与 pos 计算；副作用是复制「目录」时会连同子文档一起复制，
+// 这正是用户对目录复制的预期。
 func (s *DocService) Duplicate(uid uint64, docID uint64) (*model.Doc, error) {
-	doc, _, err := s.loadDocForAccess(docID, uid, true)
-	if err != nil {
-		return nil, err
-	}
-	// 含自身的兄弟列表 → 追加到末尾
-	siblings, err := repository.ListSiblings(doc.BookID, doc.ParentID, 0)
-	if err != nil {
-		return nil, hkerr.Internal("查询失败")
-	}
-	pos := fracidx.Initial()
-	if len(siblings) > 0 {
-		pos = fracidx.Between(siblings[len(siblings)-1].Pos, "")
-	}
-	title := doc.Title + " 副本"
-	if len(title) > 256 {
-		title = title[:256]
-	}
-	cp := &model.Doc{
-		BookID:    doc.BookID,
-		ParentID:  doc.ParentID,
-		Title:     title,
-		DocType:   doc.DocType,
-		Pos:       pos,
-		Content:   doc.Content,
-		CreatedBy: uid,
-	}
-	if err := repository.CreateDoc(cp); err != nil {
-		return nil, hkerr.Internal("复制失败")
-	}
-	return cp, nil
+	return s.Copy(uid, docID, CopyInput{})
 }
 
-// MoveToBookInput 跨知识库移动请求。
+// MoveToBookInput 移动请求（跨库 / 库内改父节点共用）。
+//
+// ParentID 语义与「同库移动」一致：0 = 目标知识库的根目录（顶层）。
+// 早先本接口只接受 BookID 并强制落到目标库根目录，无法表达「挪到另一个库的
+// 某个目录下」，故补上 ParentID（缺省仍为 0，老调用方行为不变）。
 type MoveToBookInput struct {
-	BookID uint64 `json:"book_id"`
+	BookID   uint64 `json:"book_id"`
+	ParentID uint64 `json:"parent_id"`
 }
 
-// MoveToBook 移动文档到目标知识库根目录末尾（第四轮增量 R4）。
+// MoveToBook 移动文档（可跨知识库、可指定目标父节点）。
+//
 // 源库需编辑权限，目标库需编辑权限（owner 恒可写 / members 库登录用户可写 / 团队文库成员可写）；
-// 跨库移动时整棵子树（含软删子孙）book_id 一并迁移，保证树结构完整。
-func (s *DocService) MoveToBook(uid uint64, docID uint64, targetBookID uint64) (*model.Doc, error) {
+// 移动时整棵子树 book_id 一并迁移，保证树结构完整。
+//
+// 三种情形的语义（都在同一事务里完成）：
+//   - 跨库 + ParentID=0：落到目标库根目录末尾；
+//   - 跨库 + ParentID=X：落到目标库的 X 之下（X 必须属于目标库）；
+//   - 同库 + ParentID=X：等价于同库改父节点（会做防环校验）。
+func (s *DocService) MoveToBook(uid uint64, docID uint64, in MoveToBookInput) (*model.Doc, error) {
 	doc, _, err := s.loadDocForAccess(docID, uid, true)
 	if err != nil {
 		return nil, err
 	}
-	target, err := repository.FindBookByID(targetBookID)
+	target, err := repository.FindBookByID(in.BookID)
 	if err != nil {
 		return nil, hkerr.NotFound("目标知识库不存在")
 	}
 	if !canWriteDoc(target, uid) {
 		return nil, hkerr.Forbidden()
 	}
-	// 先取目标库根级兄弟（不含自身）确定追加 pos，再收集子树 ID（在事务外查询）
-	siblings, err := repository.ListSiblings(target.ID, 0, doc.ID)
+	if err := s.checkMoveTarget(doc, target.ID, in.ParentID); err != nil {
+		return nil, err
+	}
+	// 先取目标父级下的兄弟（不含自身）确定追加 pos，再收集子树 ID（在事务外查询）
+	siblings, err := repository.ListSiblings(target.ID, in.ParentID, doc.ID)
 	if err != nil {
 		return nil, hkerr.Internal("查询失败")
 	}
@@ -620,7 +609,7 @@ func (s *DocService) MoveToBook(uid uint64, docID uint64, targetBookID uint64) (
 			return err
 		}
 		doc.BookID = target.ID
-		doc.ParentID = 0
+		doc.ParentID = in.ParentID
 		doc.Pos = pos
 		return tx.Save(doc).Error
 	})
@@ -628,6 +617,154 @@ func (s *DocService) MoveToBook(uid uint64, docID uint64, targetBookID uint64) (
 		return nil, hkerr.Internal("移动失败")
 	}
 	return doc, nil
+}
+
+// checkMoveTarget 校验「把 doc 挪到 targetBookID 的 parentID 之下」是否合法。
+//
+// 三条规则：
+//  1. 目标父节点必须存在，且属于目标知识库（防止把节点挂到别的库的节点下，把树撕裂）；
+//  2. 不能挪到自身或自己的子孙之下（防环，仅同库时可能发生）；
+//  3. 附件型文档（doc_type=file）正文不可编辑，不能作为父节点承载子文档。
+func (s *DocService) checkMoveTarget(doc *model.Doc, targetBookID, parentID uint64) error {
+	if parentID == 0 {
+		return nil
+	}
+	var p model.Doc
+	if err := repository.DB().Where("id = ? AND book_id = ?", parentID, targetBookID).First(&p).Error; err != nil {
+		return hkerr.Param("目标位置不存在")
+	}
+	if p.ID == doc.ID || s.isDescendant(doc.BookID, doc.ID, p.ID) {
+		return hkerr.Param("不能移动到自身或其子孙节点下")
+	}
+	if p.DocType == "file" {
+		return hkerr.Param("附件型文档不能作为目标位置")
+	}
+	return nil
+}
+
+// CopyInput 复制请求。
+//
+// 全部字段可缺省，缺省语义（保持与早期 POST /docs/:id/duplicate 的兼容）：
+//   - BookID=0   → 复制到源文档所在的知识库；
+//   - ParentID=0 → 复制到「源文档的父节点」之下（即同位复制）。
+//
+// 注意：前端弹窗**总是显式传 BookID**，此时 ParentID=0 表示「目标库根目录」。
+// 只有当 BookID 也为 0（即完全空 body 的老调用）才当作同位复制。
+type CopyInput struct {
+	BookID   uint64 `json:"book_id"`
+	ParentID uint64 `json:"parent_id"`
+}
+
+// Copy 复制文档（**递归复制整棵子树**），可跨知识库、可指定目标父节点。
+//
+// 与 Duplicate 的关系：Duplicate 是同库同位、只复制单个节点的历史实现；
+// Copy 是它的超集（支持跨库 / 指定父节点 / 递归子节点），Duplicate 现在
+// 直接委托给 Copy，保证两条入口的标题规则、权限口径、pos 计算完全一致。
+//
+// 规则：
+//   - 根节点标题加「 副本」后缀，子节点标题原样（否则整棵树的每一层都带后缀）；
+//   - 需要源库写权限 + 目标库写权限；
+//   - 目标父节点校验同 MoveToBook（归属 / 防环 / 不能是附件型文档）；
+//   - 不复制版本快照与协作者（与 Duplicate 历史行为一致）。
+func (s *DocService) Copy(uid uint64, docID uint64, in CopyInput) (*model.Doc, error) {
+	src, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	targetBookID := in.BookID
+	inPlace := false
+	if targetBookID == 0 {
+		targetBookID = src.BookID
+		if in.ParentID == 0 {
+			inPlace = true // 完全缺省 → 同位复制
+		}
+	}
+	target, err := repository.FindBookByID(targetBookID)
+	if err != nil {
+		return nil, hkerr.NotFound("目标知识库不存在")
+	}
+	if !canWriteDoc(target, uid) {
+		return nil, hkerr.Forbidden()
+	}
+
+	parentID := in.ParentID
+	if inPlace {
+		parentID = src.ParentID
+	}
+	if err := s.checkMoveTarget(src, target.ID, parentID); err != nil {
+		return nil, err
+	}
+
+	// 目标父级下的兄弟（取末尾 pos）
+	siblings, err := repository.ListSiblings(target.ID, parentID, 0)
+	if err != nil {
+		return nil, hkerr.Internal("查询失败")
+	}
+	pos := fracidx.Initial()
+	if len(siblings) > 0 {
+		pos = fracidx.Between(siblings[len(siblings)-1].Pos, "")
+	}
+
+	var root *model.Doc
+	err = repository.DB().Transaction(func(tx *gorm.DB) error {
+		cp, e := copySubtree(tx, src, target.ID, parentID, pos, uid, true)
+		if e != nil {
+			return e
+		}
+		root = cp
+		return nil
+	})
+	if err != nil {
+		// 事务内只可能出数据库错误（权限/归属/防环都已在事务外校验过）
+		return nil, hkerr.Internal("复制失败")
+	}
+	return root, nil
+}
+
+// copySubtree 递归复制一棵子树：先建本节点，再按 pos 顺序复制其全部子节点。
+//
+// 用 tx 串起来：任一节点失败则整棵树回滚，避免留下半棵「残树」。
+// 树深度由 parent_id 链天然有限（页面侧另用 64 层防环保护），这里不再重复限制。
+//
+// ⚠️ 事务内的**读也必须走 tx**（ListChildDocsTx）：见该函数注释 ——
+// 用全局 db 读会在 MaxOpenConns(1) 的测试环境下死锁。
+func copySubtree(tx *gorm.DB, src *model.Doc, bookID, parentID uint64, pos string, uid uint64, isRoot bool) (*model.Doc, error) {
+	title := src.Title
+	if isRoot {
+		title += " 副本"
+	}
+	if len(title) > 256 {
+		title = title[:256]
+	}
+	cp := &model.Doc{
+		BookID:    bookID,
+		ParentID:  parentID,
+		Title:     title,
+		DocType:   src.DocType,
+		Pos:       pos,
+		Content:   src.Content,
+		CreatedBy: uid,
+	}
+	if err := tx.Create(cp).Error; err != nil {
+		return nil, err
+	}
+
+	kids, err := repository.ListChildDocsTx(tx, src.BookID, src.ID)
+	if err != nil {
+		return nil, err
+	}
+	prev := ""
+	for i := range kids {
+		childPos := fracidx.Initial()
+		if prev != "" {
+			childPos = fracidx.Between(prev, "")
+		}
+		prev = childPos
+		if _, err := copySubtree(tx, &kids[i], bookID, cp.ID, childPos, uid, false); err != nil {
+			return nil, err
+		}
+	}
+	return cp, nil
 }
 
 // SetPinned 置顶/取消置顶（第四轮增量 R4）：pinned=true 写入当前时间，false 置 NULL。

@@ -92,7 +92,7 @@ func TestQADocTypeSearchFiltering(t *testing.T) {
 	}
 	setDocContent(t, owner.ID, mind.ID, `{"version":1,"tree":{"text":"量子猫中心","children":[]}}`)
 
-	hits, err := ss.Search(owner.ID, "量子猫")
+	hits, err := ss.Search(owner.ID, "量子猫", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,9 +118,22 @@ func TestQADocTypeSearchFiltering(t *testing.T) {
 	}
 
 	// markdown 专属正文词：非 markdown 不参与正文搜索
-	hits2, _ := ss.Search(owner.ID, "出没记录")
+	hits2, _ := ss.Search(owner.ID, "出没记录", 0)
 	if len(hits2) != 1 || hits2[0].DocID != mdDoc.ID {
 		t.Fatalf("正文词应仅命中 markdown 文档: %+v", hits2)
+	}
+
+	// book_id 限定：文库内搜索只返回该库的命中；不存在的库返回空
+	scoped, err := ss.Search(owner.ID, "量子猫", book.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scoped) != len(hits) {
+		t.Fatalf("单库限定应与全局等价（都在同一库）: 全局 %d, 单库 %d", len(hits), len(scoped))
+	}
+	empty, _ := ss.Search(owner.ID, "量子猫", book.ID+99999)
+	if len(empty) != 0 {
+		t.Fatalf("不存在的书库限定应返回空: %+v", empty)
 	}
 	// markdown 命中时 snippet 非空
 	if _, ok := byID[mdDoc.ID]; ok && byID[mdDoc.ID].Snippet == "" {

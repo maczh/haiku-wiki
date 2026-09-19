@@ -58,6 +58,8 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | `e2e-dashboard.sh` | 40 | 8150 | 视频/封面真的随包分发（Content-Type + 字节数 + MP4 `ftyp`）、播放器解出真实时长、向导与视频可关闭且持久、快捷操作链路 |
 | `e2e-import.sh` | 10 | 18081 | xlsx 多工作表拆父子、空表跳过、docx/pdf 存为附件并可预览、表格 v3 契约 |
 | `e2e_export.sh` | — | 18080 | 导出双通道：服务端逐格式响应头/字节校验 |
+| `e2e-workbench-dnd.sh` | 30 | 8195 | 首页工作台三卡与搜索、目录树右键移动/复制弹窗、拖拽落点（部分树内探针尚未命中，见套件内注释） |
+| `e2e-book-dashboard.sh` | 25 | 8196 | **文库工作台**（书页空态）：概览/快捷操作、`book_id` 限定的三卡与搜索（API+界面）、逾期口径（今天到期≠逾期）、最近更新、无裸 0 |
 | `ui-doc-types.sh` | 18 | 8080 | markdown / sheet / mindmap / flowchart / file 的读写渲染 |
 | `gantt-fold-check.sh` | 30 | 8112 | 甘特折叠右时间轴后左表格**不得丢行**、只读态拦截 |
 | `gantt-fold-edge-check.sh` | 22 | 8131 | 折叠的边界态（相对不变量、滚动、折叠态气泡） |
@@ -171,6 +173,33 @@ CSS 注入，而 DOM 上非数字 id 多一个 `:` 前缀 → 选择器静默失
 其余（`dist-backup*`、`dockersim-web-*`、`e2e-*`、`*-out-*`、`shots-*`、旧 `gocache`/`npmcache`、
 一次性排查脚本 `gantt-diag*.sh` / `gantt-*-probe*.sh` / `capture-video-shots*.sh` 等）都是
 **可再生产物**，可以清。
+
+## 非浏览器套件：`cad-render-probe.sh`
+
+上面那一堆是浏览器/接口 e2e，**必须**跑在生产形态上。CAD 预览的字号问题不属于这一类 ——
+它出在纯渲染链路（DXF → 图元 → SVG/PNG），起服务反而看不出来，所以单独有一套：
+
+```bash
+bash tools/verify/cad-render-probe.sh
+```
+
+无端口、无浏览器、不需要 `build-embed.sh`。它先跑 `cad_text_qa_test.go` 的断言，
+再把两套**按真实尺度构造**的 DXF 渲成 SVG/PNG 落盘，打印 `font-size` 区间：
+
+| 夹具 | 图幅 | 要点 | 期望 |
+| --- | --- | --- | --- |
+| `site` | 400m×240m | 36 个区域标注仅 250mm；含 `\P` 分段的多行说明 | font-size `0.97~9.31px`；说明必须是 5 行且互不重叠 |
+| `metric` | 40m×30m | 字高由 STYLE 固定为 0.5m（实体不写组码 40） | font-size 恒为 `19.20px`（= 0.5 × 38.4），**不是 96px** |
+
+**为什么必须有这一层**：字号是**世界单位**，脱离图幅就没有意义，所以「数值对不对」必须靠
+单元测试断言比例不变量，而「看起来对不对」只能落成图看。历史上两类文件都出过事：
+
+1. 米制图幅 + 样式固定字高 —— 旧实现拿写死的 `2.5` 世界单位兜底，等于 2.5m 高的字（`metric` 期望 19.2px，实得 96px）；
+2. 大图幅 + 小标注 —— SVG 侧把 `<6px` 一律抬到 `6px`，实得值是真实值的 6 倍多，密排标注叠成一团黑。
+
+`site` 的标注按设计就只有 0.97px（和 AutoCAD 缩放到全图的观感一致）——
+**不要**为了「看得清」去加大它：SVG 是矢量的，放大 60 倍仍然清晰，而抬升下限会让它
+失去与图元的真实比例，那正是用户报的 bug。
 
 ## 新增套件
 

@@ -46,6 +46,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.PUT("/users/me", handler.UpdateMe)
 		// 首页 Dashboard「最近更新」：跨库聚合当前用户可读的最近更新文档（含协作文档）
 		jwt.GET("/recent-docs", handler.ListRecentDocs)
+		// 首页「工作台」：一次请求拿到待办 / 甘特图 / 工作日历三类文档（含正文，供前端算进度）
+		jwt.GET("/workbench", handler.Workbench)
 
 		// 知识库
 		jwt.GET("/books", handler.ListBooks)
@@ -71,6 +73,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			// 第四轮增量：复制 / 跨库移动 / 置顶（写权限在各 service 内校验）
 			docs.POST("/duplicate", handler.DuplicateDoc)
 			docs.POST("/move-to-book", handler.MoveDocToBook)
+			// 目录树拖拽/右键菜单：移动（可指定目标父节点）与递归复制（可跨库、可指定目标父节点）
+			docs.POST("/copy", handler.CopyDoc)
 			docs.PATCH("/pin", handler.PinDoc)
 			docs.GET("/versions", handler.ListVersions)
 			docs.GET("/versions/:vid", handler.GetVersion)

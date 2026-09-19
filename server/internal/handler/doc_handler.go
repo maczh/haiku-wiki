@@ -162,18 +162,17 @@ func DuplicateDoc(c *gin.Context) {
 	resp.OK(c, doc)
 }
 
-type moveToBookReq struct {
-	BookID uint64 `json:"book_id"`
-}
-
-// MoveDocToBook POST /api/docs/:id/move-to-book —— 跨知识库移动到目标书根目录末尾。
+// MoveDocToBook POST /api/docs/:id/move-to-book —— 移动文档。
+//
+// book_id 必填；parent_id 可选（0 或缺省 = 目标知识库根目录，否则为目标库内的目录/文档 id）。
+// 目标库与源库都需要写权限，校验在 service 内完成。
 func MoveDocToBook(c *gin.Context) {
 	id, ok := docIDFromPath(c)
 	if !ok {
 		resp.Error(c, paramMsg("无效的文档 ID"))
 		return
 	}
-	var req moveToBookReq
+	var req service.MoveToBookInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, paramErr(err))
 		return
@@ -182,7 +181,29 @@ func MoveDocToBook(c *gin.Context) {
 		resp.Error(c, paramMsg("book_id 不能为空"))
 		return
 	}
-	doc, err := docService.MoveToBook(middleware.UID(c), id, req.BookID)
+	doc, err := docService.MoveToBook(middleware.UID(c), id, req)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, doc)
+}
+
+// CopyDoc POST /api/docs/:id/copy —— 复制文档（递归复制整棵子树，可跨库、可指定目标父节点）。
+//
+// body 可省略：省略时等价于原 POST /docs/:id/duplicate（同库同位、标题加「 副本」）。
+func CopyDoc(c *gin.Context) {
+	id, ok := docIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的文档 ID"))
+		return
+	}
+	var req service.CopyInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// 空 body 是合法的（按同位复制处理），只有「有 body 但格式错」才算参数错误
+		req = service.CopyInput{}
+	}
+	doc, err := docService.Copy(middleware.UID(c), id, req)
 	if err != nil {
 		resp.Error(c, err)
 		return

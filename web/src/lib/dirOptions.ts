@@ -59,3 +59,47 @@ export function buildDirOptions(docs: DocNode[]): DirOption[] {
 export function withRootDir(options: DirOption[]): DirOption[] {
   return [{ value: ROOT_DIR_VALUE, label: ROOT_DIR_LABEL }, ...options]
 }
+
+/**
+ * TreeSelect 的数据节点。
+ * ⚠️ 字段名 `value` / `title` / `children` 是 AntD TreeSelect 的默认契约
+ * （`fieldNames` 缺省为 `{ label: 'title', value: 'value', children: 'children' }`），
+ * 和 Select 的 `{value,label}` 不是一套 —— 写错同样会「选什么都变成 0」。
+ */
+export interface DirTreeNode {
+  value: number
+  title: string
+  children?: DirTreeNode[]
+}
+
+/**
+ * 构造带**真实层级**的「目标位置」树（TreeSelect 用）。
+ *
+ * 与 buildDirOptions（扁平 + 全角空格缩进）的区别：这里保留 children 结构，
+ * 长目录树可逐级展开，不必在一长条缩进里数层数。
+ *
+ * `excludeRootId` 用于防环：移动/复制时不能把节点放进它自己的子孙里，
+ * 传入被操作节点 id 即可把整棵子树从可选项里摘掉（连同其子孙）。
+ */
+export function buildDirTree(docs: DocNode[], excludeRootId?: number): DirTreeNode[] {
+  const map = buildChildrenMap(docs)
+  const walk = (parentId: number): DirTreeNode[] => {
+    const out: DirTreeNode[] = []
+    for (const d of map.get(parentId) || []) {
+      if (excludeRootId != null && d.id === excludeRootId) continue
+      const children = walk(d.id)
+      out.push({
+        value: d.id,
+        title: (d.title || '未命名') + (d.doc_type === 'folder' ? '（目录）' : ''),
+        children: children.length > 0 ? children : undefined,
+      })
+    }
+    return out
+  }
+  return walk(0)
+}
+
+/** 在位置树前补一个「根目录」节点 */
+export function withRootDirTree(nodes: DirTreeNode[]): DirTreeNode[] {
+  return [{ value: ROOT_DIR_VALUE, title: ROOT_DIR_LABEL, children: nodes.length > 0 ? nodes : undefined }]
+}

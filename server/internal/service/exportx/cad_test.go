@@ -334,9 +334,11 @@ func TestParseDXFEmpty(t *testing.T) {
 func TestCleanDXFText(t *testing.T) {
 	cases := map[string]string{
 		`\fArial|b0|i0;房间名`: "房间名",
-		"第一行\\P第二行":         "第一行 第二行",
-		"{颜色}\\C1;红色文字":     "颜色红色文字",
-		"普通文本":              "普通文本",
+		// \P 是段落分隔，必须保留为换行（折成空格会把多行注释压成一整行长文本，
+		// 见 cad_text_qa_test.go 的 TestCadMTextMultiLine）
+		"第一行\\P第二行":     "第一行\n第二行",
+		"{颜色}\\C1;红色文字": "颜色红色文字",
+		"普通文本":          "普通文本",
 	}
 	for in, want := range cases {
 		if got := cleanDXFText(in); got != want {

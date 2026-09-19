@@ -16,6 +16,7 @@ type Hit struct {
 	BookID    uint64    `json:"book_id"`
 	BookName  string    `json:"book_name"`
 	Title     string    `json:"title"`
+	DocType   string    `json:"doc_type"`
 	Snippet   string    `json:"snippet"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -27,12 +28,13 @@ const (
 
 // Search 标题 + 正文搜索，返回带上下文片段的结果。
 // 可见性过滤在 repository.SearchDocs 中完成（public 任何人 / members 登录 / private 仅 owner）。
-func (s *SearchService) Search(userID uint64, keyword string) ([]Hit, error) {
+// bookID > 0 时限定单个知识库（文库工作台的「文库内搜索」），可见性口径不变。
+func (s *SearchService) Search(userID uint64, keyword string, bookID uint64) ([]Hit, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return []Hit{}, nil
 	}
-	rows, err := repository.SearchDocs(userID, keyword, searchLimit)
+	rows, err := repository.SearchDocs(userID, keyword, bookID, searchLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +52,7 @@ func (s *SearchService) Search(userID uint64, keyword string) ([]Hit, error) {
 			BookID:    r.BookID,
 			BookName:  r.BookName,
 			Title:     r.Title,
+			DocType:   r.DocType,
 			Snippet:   snippet,
 			UpdatedAt: r.UpdatedAt,
 		})

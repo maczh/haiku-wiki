@@ -86,10 +86,36 @@ export function todoProgress(items: TodoItem[]): { done: number; total: number; 
   return { done, total, percent: total === 0 ? 0 : Math.round((done / total) * 100) }
 }
 
-/** 是否已逾期：有截止时间、未完成、且截止时间早于现在 */
+/**
+ * 把待办的截止串解析成**逾期的起始时刻**。
+ *
+ * 关键语义：**只填日期的截止项，逾期从「当天结束」开始计时**，而不是当天 00:00 ——
+ * 「今天到期」是「还没到期」，不是「已逾期」。历史实现直接把 `'2026-09-19'` 交给
+ * `new Date` 得到当天 00:00，于是当天一过零点就判逾期：工作台的「已逾期」计数会多算，
+ * 行内标签也会把「今天到期」显示成「已逾期」。
+ *
+ * 带具体时间的截止项（`YYYY-MM-DD HH:mm`，含 datetime-local 的 `T` 分隔）按精确时刻比较。
+ * 解析不出返回 null（调用方按「未逾期」处理）。
+ */
+function overdueFrom(due: string): Date | null {
+  const m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(due.trim())
+  if (!m) return null
+  const hasTime = m[4] !== undefined
+  const t = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    hasTime ? Number(m[4]) : 23,
+    hasTime ? Number(m[5]) : 59,
+    hasTime ? 0 : 59,
+    hasTime ? 0 : 999,
+  )
+  return Number.isNaN(t.getTime()) ? null : t
+}
+
+/** 是否已逾期：有截止时间、未完成、且已越过截止时刻（只填日期则当天整日都不算逾期）。 */
 export function isOverdue(item: TodoItem, now = new Date()): boolean {
   if (item.done || !item.due) return false
-  const t = new Date(item.due.replace(/-/g, '/'))
-  if (Number.isNaN(t.getTime())) return false
-  return t.getTime() < now.getTime()
+  const t = overdueFrom(item.due)
+  return t !== null && t.getTime() < now.getTime()
 }

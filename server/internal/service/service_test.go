@@ -697,7 +697,7 @@ func TestSearchVisibilityAndSnippet(t *testing.T) {
 	setDocContent(t, alice.ID, pubDoc.ID, "独角兽饲养指南")
 
 	hitBooks := func(uid uint64) map[uint64]bool {
-		hits, err := as.Search(uid, "独角兽")
+		hits, err := as.Search(uid, "独角兽", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -726,7 +726,7 @@ func TestSearchVisibilityAndSnippet(t *testing.T) {
 		t.Fatalf("匿名应仅命中 public: %v", m)
 	}
 	// 空关键词
-	if hits, _ := as.Search(alice.ID, "   "); len(hits) != 0 {
+	if hits, _ := as.Search(alice.ID, "   ", 0); len(hits) != 0 {
 		t.Fatal("空关键词应返回空结果")
 	}
 
@@ -734,7 +734,7 @@ func TestSearchVisibilityAndSnippet(t *testing.T) {
 	long := strings.Repeat("前", 100) + "关键词" + strings.Repeat("后", 100)
 	longDoc := mkDoc(t, pub, alice.ID, 0, "长文")
 	setDocContent(t, alice.ID, longDoc.ID, long)
-	hits, err := as.Search(alice.ID, "关键词")
+	hits, err := as.Search(alice.ID, "关键词", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -757,7 +757,7 @@ func TestSearchVisibilityAndSnippet(t *testing.T) {
 	// 换行应被压平
 	nlDoc := mkDoc(t, pub, alice.ID, 0, "换行文档")
 	setDocContent(t, alice.ID, nlDoc.ID, "第一行\n第二行关键词第三行")
-	hits, _ = as.Search(alice.ID, "关键词")
+	hits, _ = as.Search(alice.ID, "关键词", 0)
 	for _, h := range hits {
 		if h.DocID == nlDoc.ID && strings.ContainsAny(h.Snippet, "\n\r") {
 			t.Fatalf("snippet 不应包含换行: %q", h.Snippet)
@@ -766,7 +766,7 @@ func TestSearchVisibilityAndSnippet(t *testing.T) {
 	// 仅标题命中：snippet 取正文开头
 	tDoc := mkDoc(t, pub, alice.ID, 0, "关键词在标题里")
 	setDocContent(t, alice.ID, tDoc.ID, "正文开头几点内容")
-	hits, _ = as.Search(alice.ID, "关键词")
+	hits, _ = as.Search(alice.ID, "关键词", 0)
 	for _, h := range hits {
 		if h.DocID == tDoc.ID && h.Snippet != "正文开头几点内容" {
 			t.Fatalf("标题命中时 snippet 应取正文开头: %q", h.Snippet)

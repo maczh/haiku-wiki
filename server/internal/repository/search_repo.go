@@ -27,7 +27,9 @@ func escapeLike(kw string) string {
 //   - public：任何人（含匿名）
 //   - members：登录用户（userID > 0）
 //   - private：仅 owner
-func SearchDocs(userID uint64, keyword string, limit int) ([]SearchRow, error) {
+//
+// bookID > 0 时限定在单个知识库内（文库工作台的「文库内搜索」），可见性口径不变。
+func SearchDocs(userID uint64, keyword string, bookID uint64, limit int) ([]SearchRow, error) {
 	kw := "%" + escapeLike(keyword) + "%"
 	q := db.Table("docs").
 		Select("docs.id, docs.book_id, docs.title, docs.doc_type, docs.content, docs.updated_at, books.name AS book_name").
@@ -38,6 +40,9 @@ func SearchDocs(userID uint64, keyword string, limit int) ([]SearchRow, error) {
 				" OR docs.doc_type <> 'markdown' AND docs.title LIKE ? ESCAPE '\\')",
 			kw, kw, kw,
 		)
+	if bookID > 0 {
+		q = q.Where("docs.book_id = ?", bookID)
+	}
 	if userID > 0 {
 		q = q.Where("books.visibility = ? OR books.visibility = ? OR books.owner_id = ?",
 			"public", "members", userID)
