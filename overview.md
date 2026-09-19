@@ -272,7 +272,14 @@ tools/verify/   14 个套件（全部登记进 run-all）+ run-all.sh
 `tmp` 自身由 **6.9 GB → 822 MB**（剩下的主要是 `vendor/lr` 553 MB + `haiku-wiki` 101 MB）；
 搬完后复跑 **12 套 ✅=274 ❌=0 `ALL_SUITES_PASS`**，并单独复验了 `embed-prod-check`（17/17，
 覆盖 `vendor/lr` 里的 DWG 转换器与一次完整 `go build`）与 `gantt-api-check`（21/21，覆盖 `gotmp`）。
-最后一步 `rm -rf _trash-20260919` 留给确认后执行 —— 在那之前随时能挪回来。
+
+**最后一步已执行**：删前先做了一次「不可再生内容」体检 —— 体检对象的 500 项里，`find` 只命中各套件
+运行时产生的临时库（`e2e-folder-*/data/haiku.db`、`imp-data-*/haiku.db`、`gantt-*-data/haiku.db` …）、
+测试上传件，以及从 `node_modules` 解包出来的 SVAR 源码副本（`svar-src/`、`svar-store-src/`）——
+**全部可再生**，无 `.go` / `.ts` / `.key` / `.pem` / `.env` 命中，仓库夹具种子库
+`tools/verify/fixtures/e2e-data/haiku.db` 不在其中。确认后 `rm -rf _trash-20260919 _trash-stale-scripts`
+执行完毕，`tmp` 收敛到 **34 项 / 909 MB**（余下即「必须保留的 6 项」+ 最近一次回归新产生的产物 + 待你确认的
+两项 cloud-naotu 产物）；`/home` 分区使用率 47%。
 
 ---
 
@@ -280,9 +287,10 @@ tools/verify/   14 个套件（全部登记进 run-all）+ run-all.sh
 
 - **`git push` 未执行**：本机没有任何 GitHub 凭据，需要你自己推。
 - **本机没有 Docker**：`Dockerfile` 未真实构建，只能陈述 `go build` 与 embed 产物的实测数字。
-- `/home/macro/.workbuddy/tmp` 的清理**已执行第 ①② 步**（只 `mv`，未删）：500 项 / 6.1 GB 进入
-  `_trash-20260919/`，tmp 自身 6.9 GB → 822 MB，搬完 12 套回归全绿。
-  **只剩最后一步 `rm -rf _trash-20260919`** 等你确认（在那之前随时可挪回）。
+- `/home/macro/.workbuddy/tmp` 的清理**已全部完成**：500 项 / 6.1 GB 先 `mv` 进 `_trash-20260919/`
+  （搬完 12 套回归全绿），体检确认无可再生之外的内容后已删除，tmp 自身 **6.9 GB → 909 MB**。
+  余下的 909 MB 是「必须保留的 6 项」（`vendor/lr`、`haiku-wiki`、`gotmp`、`xdg`、
+  `agent-browser-chrome-*`、`regress`）+ 最近一次回归新产生的日志/截图/`dist-backup` + 下面两项待定。
   清单：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`。
   另外 `naotu-verify`、`mindmap-server`（都属于 cloud-naotu 那个仓库）按清单第四档**没有动**。
   **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必担心弄丢验证手段；唯一要记住的是
