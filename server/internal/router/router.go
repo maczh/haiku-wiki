@@ -109,6 +109,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.GET("/fetch-title", handler.FetchTitle)
 		// URL 抓取导入（SSRF 防护，转为 Markdown 文档）
 		jwt.POST("/import/url", handler.ImportURL)
+		// 网页包导入：单 html / zip 包 / 网页目录，原样保存后 iframe 嵌入展示
+		jwt.POST("/import/html", handler.ImportHTML)
 		// 接口文档「在线调试」服务端代理转发（SSRF 防护，CORS 绕行）
 		jwt.POST("/proxy", handler.ProxyRequest)
 
@@ -122,6 +124,12 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.GET("/books/:id/writers", handler.ListBookWriters)
 			admin.POST("/books/:id/writers", handler.AddBookWriter)
 			admin.DELETE("/books/:id/writers/:uid", handler.RemoveBookWriter)
+
+			// 系统迁移（数据库 SQLite↔MySQL、存储 local↔S3）：仅管理员
+			admin.GET("/migrate/config", handler.MigrateConfig)
+			admin.GET("/migrate/status", handler.MigrateStatus)
+			admin.POST("/migrate/database", handler.MigrateDatabase)
+			admin.POST("/migrate/storage", handler.MigrateStorage)
 		}
 
 		// 团队管理

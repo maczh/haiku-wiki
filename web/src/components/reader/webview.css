@@ -1,0 +1,44 @@
+/* 网页型文档（WebView）：外部网址 / 导入的 HTML 包，各自随组件懒加载 */
+
+.hk-webview {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 176px);
+  min-height: 520px;
+}
+
+.hk-webview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid #e8eaed;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: #fafbfc;
+  flex: none;
+}
+
+.hk-webview-icon {
+  color: #8a919f;
+  flex: none;
+}
+
+.hk-webview-src {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #6a7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-webview-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid #e8eaed;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+}

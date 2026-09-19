@@ -17,6 +17,7 @@ const TodoView = lazy(() => import('./TodoView'))
 const CalendarView = lazy(() => import('./CalendarView'))
 const GanttView = lazy(() => import('./GanttView'))
 const ApiView = lazy(() => import('./ApiView'))
+const WebView = lazy(() => import('./WebView'))
 
 interface Props {
   docType: DocType
@@ -46,6 +47,7 @@ const TIP: Record<string, string> = {
   gantt: '正在加载甘特图…',
   api: '正在加载接口文档…',
   file: '正在加载附件预览器…',
+  web: '正在加载网页…',
 }
 
 /**
@@ -130,6 +132,12 @@ export default function DocContent({
         <ApiView content={content} />
       </LazyBoundary>
     )
+  } else if (docType === 'web') {
+    body = (
+      <LazyBoundary tip={TIP.web}>
+        <WebView content={content} />
+      </LazyBoundary>
+    )
   } else if (docType === 'folder') {
     // 目录（doc_type=folder）：不承载正文，占位提示如何在其下继续建内容。
     // 这里刻意不懒加载任何渲染器 —— 目录没有正文，加载 Vditor/Luckysheet 是纯浪费。
@@ -154,7 +162,8 @@ export default function DocContent({
   }
 
   // 甘特图要横向铺满（时间轴在窄栏下没法看），其余类型沿用阅读宽度偏好
-  const fullWidth = docType === 'gantt'
+  // 甘特图要横向铺满；网页 iframe 同样需要整幅宽度（原型页常按固定画布宽度设计）
+  const fullWidth = docType === 'gantt' || docType === 'web'
   // 目录没有正文，宽度调节器无意义
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
   return (

@@ -57,6 +57,7 @@ const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts（SheetJS/turndown/jszip 等）
 const ImportDialog = lazy(() => import('../components/import/ImportDialog'))
 const UrlImportDialog = lazy(() => import('../components/import/UrlImportDialog'))
+const HtmlImportDialog = lazy(() => import('../components/import/HtmlImportDialog'))
 
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
 
@@ -158,13 +159,18 @@ export default function BookPage() {
   const [importStep, setImportStep] = useState(0)
   const [importBookId, setImportBookId] = useState<number | null>(null)
   const [importParentId, setImportParentId] = useState<number>(ROOT_DIR_VALUE)
-  const [importMode, setImportMode] = useState<'file' | 'url'>('file')
+  const [importMode, setImportMode] = useState<'file' | 'url' | 'html'>('file')
   const [fileImport, setFileImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
     open: false,
     bookId: 0,
     parentId: 0,
   })
   const [urlImport, setUrlImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
+    open: false,
+    bookId: 0,
+    parentId: 0,
+  })
+  const [htmlImport, setHtmlImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
     open: false,
     bookId: 0,
     parentId: 0,
@@ -461,6 +467,8 @@ export default function BookPage() {
     setImportStep(0)
     if (importMode === 'file') {
       setFileImport({ open: true, bookId: importBookId, parentId: importParentId })
+    } else if (importMode === 'html') {
+      setHtmlImport({ open: true, bookId: importBookId, parentId: importParentId })
     } else {
       setUrlImport({ open: true, bookId: importBookId, parentId: importParentId })
     }
@@ -587,6 +595,8 @@ export default function BookPage() {
   const isAttachmentDoc = docTypeNow === 'file'
   // 目录（doc_type=folder）：不承载正文，只能读占位提示，不能编辑/分享/协作
   const isFolderDoc = docTypeNow === 'folder'
+  // 网页型文档（doc_type=web）：内容是外部站点或导入的整包静态资源，不提供编辑模式
+  const isWebDoc = docTypeNow === 'web'
   const isMarkdownDoc = docTypeNow === 'markdown'
   // 绘图文档（内嵌 draw.io）在编辑态由 iframe 撑满，不需要页面再给内边距
   const isDrawingDoc = docTypeNow === 'drawing'
@@ -828,12 +838,22 @@ export default function BookPage() {
               >
                 阅读
               </Button>
-              <Tooltip title={isAttachmentDoc ? '附件型文档按原文件保存，不可编辑' : isFolderDoc ? '目录不承载正文，无需编辑' : ''}>
+              <Tooltip
+                title={
+                  isAttachmentDoc
+                    ? '附件型文档按原文件保存，不可编辑'
+                    : isFolderDoc
+                      ? '目录不承载正文，无需编辑'
+                      : isWebDoc
+                        ? '网页型文档以嵌入方式展示原内容，不提供编辑'
+                        : ''
+                }
+              >
                 <Button
                   size="small"
                   type={tab === 'edit' ? 'primary' : 'default'}
                   icon={<EditOutlined />}
-                  disabled={!canWrite || isAttachmentDoc || isFolderDoc}
+                  disabled={!canWrite || isAttachmentDoc || isFolderDoc || isWebDoc}
                   onClick={() => setParams({ tab: 'edit' })}
                 >
                   编辑
@@ -1335,9 +1355,24 @@ export default function BookPage() {
         <Radio.Group value={importMode} onChange={(e) => setImportMode(e.target.value)}>
           <Radio value="file">从文件导入（Word / Excel / Markdown / 图片型文档等）</Radio>
           <br />
-          <Radio value="url">从网页链接（URL）导入</Radio>
+          <Radio value="url">从网页链接（URL）导入（只存网址，嵌入展示）</Radio>
+          <br />
+          <Radio value="html">从 HTML 页面导入（单页面 / zip 包 / 网页目录，原样保存）</Radio>
         </Radio.Group>
       </Modal>
+
+      {/* 网页包导入对话框（单页面 / zip / 目录） */}
+      {htmlImport.open && (
+        <LazyBoundary tip="正在加载导入组件…">
+          <HtmlImportDialog
+            open={htmlImport.open}
+            onClose={() => setHtmlImport((s) => ({ ...s, open: false }))}
+            defaultBookId={htmlImport.bookId}
+            parentId={htmlImport.parentId}
+            onImported={() => afterImport(htmlImport.bookId)}
+          />
+        </LazyBoundary>
+      )}
 
       {/* 移动文档：目标知识库 + 目标位置（目录支持多级，也可以选某篇文档作为其子文档） */}
       <Modal

@@ -56,6 +56,7 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   api: '未命名接口',
   file: '未命名附件',
   folder: '未命名目录',
+  web: '未命名网页',
 }
 
 /**

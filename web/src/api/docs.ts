@@ -90,9 +90,46 @@ export async function removeCollaborator(docId: number, uid: number): Promise<{ 
   return request.delete(`/docs/${docId}/collaborators/${uid}`) as Promise<{ removed: boolean }>
 }
 
-/** 网页抓取导入：把 URL 页面转 Markdown 落入目标知识库的指定目录（服务端做 SSRF 防护与图片本地化） */
-export async function importUrl(url: string, bookId: number, parentId = 0): Promise<ImportUrlResult> {
-  return request.post('/import/url', { url, book_id: bookId, parent_id: parentId }) as Promise<ImportUrlResult>
+/**
+ * 网址导入：只保存原网址作为一篇「网页文档」，服务端**不抓取**页面内容
+ * （旧实现会抓取并转成 Markdown 抄一份进本站），阅读页用 iframe 直接加载原站。
+ */
+export async function importUrl(
+  url: string,
+  bookId: number,
+  parentId = 0,
+  title?: string,
+): Promise<ImportUrlResult> {
+  return request.post('/import/url', {
+    url,
+    book_id: bookId,
+    parent_id: parentId,
+    ...(title ? { title } : {}),
+  }) as Promise<ImportUrlResult>
+}
+
+/**
+ * 网页包导入：单个 HTML 页面 / zip 包 / 一个网页目录，原样保存不做转换。
+ *
+ * files 里的每个文件可带相对路径（目录导入时前端给出 webkitRelativePath），
+ * 通过 paths 字段一并提交，服务端按该结构落盘并挑出入口页。
+ */
+export async function importHtml(params: {
+  files: File[]
+  paths?: string[]
+  bookId: number
+  parentId?: number
+  title?: string
+}): Promise<ImportUrlResult> {
+  const form = new FormData()
+  form.append('book_id', String(params.bookId))
+  form.append('parent_id', String(params.parentId ?? 0))
+  if (params.title) form.append('title', params.title)
+  if (params.paths?.length) form.append('paths', JSON.stringify(params.paths))
+  params.files.forEach((f) => form.append('files', f))
+  return request.post('/import/html', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }) as Promise<ImportUrlResult>
 }
 
 export async function moveDoc(

@@ -158,6 +158,7 @@ export type DocType =
   | 'api'
   | 'file'
   | 'folder'
+  | 'web'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
@@ -176,6 +177,24 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   api: '接口',
   file: '附件',
   folder: '目录',
+  web: '网页',
+}
+
+/**
+ * 网页型文档（doc_type=web）content 结构，与后端 service.WebRef 对应。
+ *
+ * kind=url ：只保存原始网址，服务端不抓取（旧实现会把网页转成 Markdown 抄一份进本站，
+ *            既慢又有版权与一致性问题），阅读页用 iframe 直接加载原站。
+ * kind=html：导入的 HTML 页面 / zip 包 / 网页目录，原样保存不做转换，iframe 加载入口文件。
+ */
+export interface WebRef {
+  kind: 'url' | 'html'
+  /** kind=url 时的原始网址 */
+  url?: string
+  /** kind=html 时的入口文件访问路径 */
+  entry?: string
+  title?: string
+  note?: string
 }
 
 /** 附件型文档（doc_type=file）content 结构，与后端 exportx.FileRef 对应 */
