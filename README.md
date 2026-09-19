@@ -229,7 +229,7 @@ npm run verify:dashboard         # 首页纯逻辑 + 目录下拉 {value,label} 
 ### 浏览器端到端套件（`tools/verify/`）
 
 上面两节是「不启浏览器」的回归。真正操作界面、并用 API 回查落库结果的套件在 **`tools/verify/`**
-（12 套 + `run-all.sh`，含端口表、数据夹具与已知坑说明）：
+（14 套 + `run-all.sh`，含端口表、数据夹具与已知坑说明）：
 
 ```bash
 bash tools/build/build-embed.sh                    # 必须先跑：产出生产形态二进制 $TMPDIR/haiku-wiki

@@ -126,8 +126,8 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
 
 ## 回归套件与构建脚本（tools/，2026-09-19 起收进仓库）
-- **浏览器/接口端到端套件在 `tools/verify/`**（13 个脚本，其中 `gantt-ui-check.sh` 已停用未登记；
-  `run-all.sh` + README 含端口表与夹具说明）。
+- **浏览器/接口端到端套件在 `tools/verify/`**（14 个套件，其中 `gantt-ui-check.sh` 停用、未登记进
+  `run-all`；含 `run-all.sh` 与 README 的端口表、夹具说明）。
   这些原先散在 `/home/macro/.workbuddy/tmp/*.sh`，**那个目录会被清理**，所以已入库。
   改完前端**必须先** `bash tools/build/build-embed.sh`（产出 `$TMPDIR/haiku-wiki`），否则套件测的是旧产物；
   跑法：单跑 `bash tools/verify/<suite>.sh`，全跑 `bash tools/verify/run-all.sh`（`SUITES="a b"` 取子集）。

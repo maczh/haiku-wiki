@@ -160,7 +160,7 @@ vditor / simple-mind-map / mermaid / pdfjs` 在入口 chunk 计数**全为 0**�
 
 ```
 tools/build/    build-embed.sh（前端 → embed → go build）、build-guide-pdf.sh（指南 → PDF）+ README
-tools/verify/   13 个套件（12 个登记进 run-all）+ run-all.sh + README（端口表/夹具/已知坑/新增规范）
+tools/verify/   14 个套件（13 个登记进 run-all，gantt-ui-check 停用）+ run-all.sh
                 fixtures/e2e-data/        种子库快照（book 1 固定 1=md 2=sheet 3=mindmap 4=flowchart 5=file）
                 fixtures/import-fixtures/ xlsx（含空表）/docx/pdf + 重生成脚本
                 gen-upload-js.py          夹具 → 页面注入 JS（agent-browser upload 静默失效的替代）
