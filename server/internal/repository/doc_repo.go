@@ -185,3 +185,9 @@ func ListTrash(ownerID uint64) ([]TrashItem, error) {
 		Find(&out).Error
 	return out, err
 }
+
+// UpdateDocPublicEdit 更新文档的「所有人可编辑」标记。
+func UpdateDocPublicEdit(docID uint64, enabled bool) error {
+	return db.Model(&model.Doc{}).Where("id = ?", docID).
+		Update("public_edit", enabled).Error
+}

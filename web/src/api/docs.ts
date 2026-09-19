@@ -132,6 +132,11 @@ export async function importHtml(params: {
   }) as Promise<ImportUrlResult>
 }
 
+/** 公司文库「所有人可编辑」开关（管理员 / 库 owner） */
+export async function setDocPublicEdit(docId: number, enabled: boolean): Promise<{ public_edit: boolean }> {
+  return request.patch(`/docs/${docId}/public-edit`, { enabled }) as Promise<{ public_edit: boolean }>
+}
+
 export async function moveDoc(
   docId: number,
   payload: { parent_id: number; prev_pos?: string; next_pos?: string },

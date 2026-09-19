@@ -3,7 +3,7 @@ package router
 // QA 独立测试（第五/六轮 R5+R6，测试轮次 1）——HTTP 路由层集成测试：
 //   - 注册 / 登录（三标识符）全链路 + 唯一冲突 40901
 //   - 管理员用户管理三接口：非 admin 一律 40301
-//   - POST /api/import/url：SSRF 四重防护（私网/环回/云元数据/非 http）+ 目标书无写权限 40301
+//   - POST /api/import/url：只保存网址（不抓取）→ 非法协议 40001 + 目标库无写权限 40301
 //   - 团队 HTTP 权限矩阵：非成员 40301、普通成员不可增删成员/建文库
 //   - 文档协作者 HTTP 全链路：邀请 → 读写 → 移除后回收
 //
@@ -11,7 +11,6 @@ package router
 
 import (
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -211,7 +210,11 @@ func TestQAAdminOnlyEndpoints403(t *testing.T) {
 	}
 }
 
-// TestQAImportURLGuards POST /api/import/url：SSRF 防护 + 目标书权限校验。
+// TestQAImportURLGuards POST /api/import/url：只保存网址（不抓取）+ 目标库权限校验。
+//
+// 改版要点：服务端不再发起任何网络请求，因此**不存在 SSRF 面**——私网/环回地址不再拦截
+// （页面由访问者的浏览器加载，与服务端无关）。真正要守的是 iframe src 的执行权：
+// 只放行 http/https，挡掉 javascript: / data: / file: 这类可脚本化的协议。
 func TestQAImportURLGuards(t *testing.T) {
 	r, _, token := qaSetup(t)
 	_, otherToken := qaNewUser(t, "qa-r6-other@x.com")
@@ -234,55 +237,44 @@ func TestQAImportURLGuards(t *testing.T) {
 		map[string]any{"url": "http://example.com", "book_id": 999999}); nf.Code != 40401 {
 		t.Fatalf("目标库不存在应 40401, got %+v", nf)
 	}
-	// 目标库无写权限 → 40301（权限校验先于任何网络请求）
+	// 目标库无写权限 → 40301（权限校验先于落库）
 	if fr := qaDo(t, r, "POST", "/api/import/url", token,
-		map[string]any{"url": "http://127.0.0.1/x", "book_id": otherBookID}); fr.Code != 40301 {
+		map[string]any{"url": "http://example.com/x", "book_id": otherBookID}); fr.Code != 40301 {
 		t.Fatalf("无写权限的目标库应 40301, got %+v", fr)
 	}
 
-	// SSRF：私网 / 环回 / 云元数据 / 非 http 一律 40001（不得发起请求）
-	ssrf := []string{
-		"http://127.0.0.1/",
-		"http://127.0.0.1:8080/admin",
-		"http://localhost/",
-		"http://0.0.0.0/",
-		"http://10.0.0.1/",
-		"http://172.16.0.1/",
-		"http://192.168.1.1/",
-		"http://169.254.169.254/latest/meta-data/", // 云元数据
-		"http://[::1]/",
+	// 协议白名单：非 http/https 一律 40001（iframe src 若允许 javascript:/data: 等于交出脚本执行权）
+	bad := []string{
 		"file:///etc/passwd",
 		"ftp://example.com/x",
 		"gopher://example.com/",
-		"not-a-url",
+		"javascript:alert(1)",
+		"data:text/html,<script>alert(1)</script>",
+		"about:blank",
+		"   ", // 空白
 	}
-	for _, u := range ssrf {
+	for _, u := range bad {
 		got := qaDo(t, r, "POST", "/api/import/url", token, map[string]any{"url": u, "book_id": bookID})
 		if got.Code != 40001 {
-			t.Fatalf("SSRF 目标 %q 应被拒（40001）, got %+v", u, got)
+			t.Fatalf("非法地址 %q 应被拒（40001）, got %+v", u, got)
 		}
 	}
 }
 
-// TestQAImportURLHappyPath 正常网页 → 生成 markdown 文档落入目标库（端到端）。
+// TestQAImportURLHappyPath 正常网址 → 生成 web 文档落入目标库（端到端，离线可跑）。
 //
-// 说明：SSRF 防护会拒绝一切私网/环回目标，本地 httptest 服务器（127.0.0.1）必然被拦，
-// 因此 happy path 只能打真实公网页面。网络不可达时自动 skip（不判失败），
-// 断言的是「拿到 HTML 之后的落库契约」，离线环境下由 handler 层纯函数用例覆盖。
+// 改版后不再抓取页面，因此这个用例不再依赖外网：断言的是「网址被原样保存成网页文档」，
+// 而不是「页面被转成 markdown」。正文应是 WebRef JSON，且 url 与提交值一致。
 func TestQAImportURLHappyPath(t *testing.T) {
-	probe, err := http.Get("http://example.com")
-	if err != nil {
-		t.Skipf("无外网，跳过 URL 导入端到端用例（离线环境由 handler 层纯函数用例覆盖）: %v", err)
-	}
-	probe.Body.Close()
-
 	r, _, token := qaSetup(t)
 	bookID := qaCreateBook(t, r, token, "QA导入落库", "private")
 
+	// 裸域名也要能存（用户常直接粘 www.example.com），服务端自动补 https
+	const raw = "www.example.com/help"
 	resp := qaDo(t, r, "POST", "/api/import/url", token,
-		map[string]any{"url": "http://example.com", "book_id": bookID})
+		map[string]any{"url": raw, "book_id": bookID})
 	if resp.Code != 0 {
-		t.Fatalf("导入公网页面应成功: %+v", resp)
+		t.Fatalf("导入网址应成功: %+v", resp)
 	}
 	var out struct {
 		DocID uint64 `json:"doc_id"`
@@ -298,19 +290,18 @@ func TestQAImportURLHappyPath(t *testing.T) {
 		t.Fatal("导入文档标题不应为空")
 	}
 
-	// 文档确实落在目标库，且是 markdown 类型、正文非空
+	// 文档确实落在目标库，且是 web 类型、正文是 WebRef JSON（原样保存网址）
 	got := qaDo(t, r, "GET", "/api/docs/"+uitoa(out.DocID), token, nil)
 	if got.Code != 0 {
 		t.Fatalf("取导入文档应成功: %+v", got)
 	}
 	var wrap struct {
 		Doc struct {
-			ID       uint64 `json:"id"`
-			BookID   uint64 `json:"book_id"`
-			Title    string `json:"title"`
-			DocType  string `json:"doc_type"`
-			Content  string `json:"content"`
-			ParentID uint64 `json:"parent_id"`
+			ID      uint64 `json:"id"`
+			BookID  uint64 `json:"book_id"`
+			Title   string `json:"title"`
+			DocType string `json:"doc_type"`
+			Content string `json:"content"`
 		} `json:"doc"`
 	}
 	if err := json.Unmarshal(got.Data, &wrap); err != nil {
@@ -319,11 +310,21 @@ func TestQAImportURLHappyPath(t *testing.T) {
 	if wrap.Doc.BookID != bookID {
 		t.Fatalf("导入文档应落在目标库 %d, got %d", bookID, wrap.Doc.BookID)
 	}
-	if wrap.Doc.DocType != "markdown" {
-		t.Fatalf("导入文档类型应为 markdown, got %q", wrap.Doc.DocType)
+	if wrap.Doc.DocType != "web" {
+		t.Fatalf("导入文档类型应为 web, got %q", wrap.Doc.DocType)
 	}
-	if strings.TrimSpace(wrap.Doc.Content) == "" {
-		t.Fatal("导入文档正文不应为空")
+	var ref struct {
+		Kind string `json:"kind"`
+		URL  string `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(wrap.Doc.Content), &ref); err != nil {
+		t.Fatalf("正文应为 WebRef JSON: %s", wrap.Doc.Content)
+	}
+	if ref.Kind != "url" {
+		t.Fatalf("kind 应为 url, got %q", ref.Kind)
+	}
+	if ref.URL != "https://"+raw {
+		t.Fatalf("网址应原样保存（补协议）: got %q", ref.URL)
 	}
 	// 目录树里能看到它
 	tree := qaTree(t, r, token, bookID)

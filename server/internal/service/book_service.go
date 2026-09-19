@@ -293,6 +293,63 @@ func canWriteDoc(book *model.Book, uid uint64) bool {
 	return book.OwnerID == uid || (book.Visibility == "members" && uid > 0) || isTeamWriter(book, uid)
 }
 
+// SetDocPublicEdit 设置公司文库文档的「所有人可编辑」标记。
+//
+// 谁能改：仅**管理员**或该知识库的 owner（需求语境是公司文库管理）。
+// 限定公司文库：个人/团队库开启会把库级权限体系撕开口子，这里直接拒绝。
+func (s *DocService) SetDocPublicEdit(uid, docID uint64, enabled bool) (*model.Doc, error) {
+	doc, err := repository.FindDocByID(docID)
+	if err != nil {
+		return nil, hkerr.NotFound("文档不存在")
+	}
+	book, err := repository.FindBookByID(doc.BookID)
+	if err != nil {
+		return nil, hkerr.NotFound("所属知识库不存在")
+	}
+	if !book.IsCompanyKB {
+		return nil, hkerr.Param("仅公司知识库可设置「所有人可编辑」")
+	}
+	if !(repository.IsAdmin(uid) || book.OwnerID == uid) {
+		return nil, hkerr.Forbidden()
+	}
+	if doc.PublicEdit == enabled {
+		return doc, nil
+	}
+	if err := repository.UpdateDocPublicEdit(docID, enabled); err != nil {
+		return nil, hkerr.Internal("设置失败")
+	}
+	doc.PublicEdit = enabled
+	return doc, nil
+}
+
+// CanWriteDocFor 供 handler 计算「当前用户能否编辑这篇文档」（响应给前端决定是否开编辑器）。
+func (s *DocService) CanWriteDocFor(uid, docID uint64) bool {
+	doc, err := repository.FindDocByID(docID)
+	if err != nil {
+		return false
+	}
+	book, err := repository.FindBookByID(doc.BookID)
+	if err != nil {
+		return false
+	}
+	return CanWriteDoc(doc, book, uid)
+}
+
+// CanWriteDoc 文档级写权限（唯一口径）：库级写权限 → 文档协作者 → 「所有人可编辑」。
+//
+// 为什么要有它：公司文库默认是全员只读，但管理员可以把个别文档（如「意见建议」「bug 反馈」）
+// 标成所有人可编辑，用来收集反馈。这个标记是**文档级**的，与库级写权限是两套维度，
+// 所以必须有一个同时看两者的入口，否则会出现「文档说可编辑、保存时 403」的割裂。
+func CanWriteDoc(doc *model.Doc, book *model.Book, uid uint64) bool {
+	if uid == 0 {
+		return false
+	}
+	if canWriteDoc(book, uid) || isDocCollaborator(doc.ID, uid) {
+		return true
+	}
+	return doc.PublicEdit && book.IsCompanyKB
+}
+
 // CanWriteBook 导出给 handler 等包外使用的写权限判定（团队文库权限已含）。
 func CanWriteBook(book *model.Book, uid uint64) bool {
 	return canWriteDoc(book, uid)
@@ -318,7 +375,7 @@ func (s *DocService) loadDocForAccess(docID, uid uint64, write bool) (*model.Doc
 		return nil, nil, hkerr.NotFound("所属知识库不存在")
 	}
 	if write {
-		if !canWriteDoc(book, uid) && !isDocCollaborator(docID, uid) {
+		if !CanWriteDoc(doc, book, uid) {
 			return nil, nil, hkerr.Forbidden()
 		}
 	} else {

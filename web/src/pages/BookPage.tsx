@@ -35,7 +35,7 @@ import ExportDialog, { type ExportTarget } from '../components/export/ExportDial
 import CollaboratorModal from '../components/collab/CollaboratorModal'
 import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
 import { getBook, setBookVisibility, updateBook, deleteBook, listBooks, createBook } from '../api/books'
-import { getDoc, createDoc, getTree, copyDoc, moveDoc, moveDocToBook, pinDoc } from '../api/docs'
+import { getDoc, createDoc, getTree, copyDoc, moveDoc, moveDocToBook, pinDoc, setDocPublicEdit } from '../api/docs'
 import { useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNode, type DocType, type Visibility } from '../types'
@@ -165,6 +165,8 @@ export default function BookPage() {
     bookId: 0,
     parentId: 0,
   })
+  // 文档级写权限（后端计算）；null=未拿到，回退到库级 canWrite
+  const [docCanWrite, setDocCanWrite] = useState<boolean | null>(null)
   const [urlImport, setUrlImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
     open: false,
     bookId: 0,
@@ -302,6 +304,9 @@ export default function BookPage() {
     getDoc(docIdParam)
       .then((res) => {
         setDoc(res.doc)
+        // 文档级写权限：公司文库下它可以与库级权限不一致（库只读 + 文档可编辑），
+        // 因此以后端算好的这份为准，undefined 表示老服务端未下发，回退库级判定
+        setDocCanWrite(res.can_write ?? null)
         contentKeyRef.current += 1
         setTocContainer(null)
         setTocCount(0) // 切换文档需重置大纲，避免上一文档的条目残留
@@ -489,6 +494,22 @@ export default function BookPage() {
     }
   }
 
+  /** 公司文库：把单篇文档设为「所有人可编辑」（管理员 / 库 owner） */
+  async function handleTogglePublicEdit(bookId: number, node: DocNode) {
+    try {
+      const res = await setDocPublicEdit(node.id, !node.public_edit)
+      message.success(res.public_edit ? '已设为「所有人可编辑」' : '已取消「所有人可编辑」')
+      afterImport(bookId)
+      // 正在看的这篇就是它：同步页面状态，让顶栏标记与编辑按钮即时生效
+      if (doc?.id === node.id) {
+        setDoc({ ...doc, public_edit: res.public_edit })
+        setDocCanWrite(res.public_edit ? true : docCanWrite)
+      }
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
   /** 可作为移动/复制目标的候选知识库：我有写权限的（含当前库——同库换目录是最常见的操作） */
   async function loadWritableBooks(): Promise<Book[]> {
     const shelf = await listBooks()
@@ -589,7 +610,9 @@ export default function BookPage() {
   // 写权限：owner 恒可写；members 库所有登录用户可写；公司知识库以后端实时计算的
   // can_write 为准（管理员 + 被授权用户可写，其余全员只读）；普通库 can_write 同样可信，
   // 此处以 OR 兜底，兼容旧服务端未下发该字段的情况。
-  const canWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
+  const bookCanWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
+  // 文档级权限优先：公司文库里「库只读 + 文档所有人可编辑」是合法组合
+  const canWrite = docCanWrite ?? bookCanWrite
   // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
@@ -767,6 +790,7 @@ export default function BookPage() {
                   selectedBookId={bookID}
                   selectedDocId={docIdParam || undefined}
                   isAdmin={!!isAdmin}
+                  currentUserId={user?.id}
                   onOpenBook={(id) => navigate(`/books/${id}`)}
                   onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
                   onNewDoc={(bid, pid, kind) => void openNewDoc(bid, pid, kind)}
@@ -794,6 +818,7 @@ export default function BookPage() {
                   onShareDoc={(_bid, d) => openShare(d)}
                   onExportDoc={(_bid, d) => openExportDoc(d)}
                   onCollaborators={(_bid, d) => openCollaborators(d)}
+                  onTogglePublicEdit={(_bid, d) => void handleTogglePublicEdit(_bid, d)}
                   reloadBookId={reloadBookId}
                   reloadNonce={reloadNonce}
                 />
@@ -864,6 +889,14 @@ export default function BookPage() {
             <div style={{ flex: 1, textAlign: 'center', color: '#5f6672', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {doc?.title ?? ''}
             </div>
+
+            {doc?.public_edit && (
+              <Tooltip title="公司文库：所有登录用户都可编辑这篇文档，用于提建议、意见与 bug 报告">
+                <Tag color="purple" style={{ marginInlineEnd: 0, cursor: 'default' }}>
+                  所有人可编辑
+                </Tag>
+              </Tooltip>
+            )}
 
             {docIdParam && doc && !docLoading && canWrite && !isFolderDoc && (
               <Tooltip title="邀请其他用户共同编辑这篇文档">

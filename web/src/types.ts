@@ -59,6 +59,11 @@ export interface DocNode {
   /** 置顶时间（null=未置顶；同级内置顶排最前） */
   pinned_at: string | null
   updated_at: string
+  /**
+   * 公司文库「所有人可编辑」标记：开启后任何登录用户都能直接改这篇文档，
+   * 用于收集员工的建议、意见与 bug 报告。仅在公司知识库生效。
+   */
+  public_edit?: boolean
 }
 
 export interface DocDetail extends DocNode {
@@ -69,6 +74,11 @@ export interface DocDetail extends DocNode {
 export interface DocWithBook {
   doc: DocDetail
   book: { id: number; name: string; visibility: Visibility; owner_id: number }
+  /**
+   * 文档级写权限：库级权限 + 协作者 + 「所有人可编辑」标记的合成结果。
+   * 公司文库里它与 book 级权限会不一致（库只读 + 文档可编辑），前端必须以它为准。
+   */
+  can_write?: boolean
 }
 
 export interface VersionMeta {

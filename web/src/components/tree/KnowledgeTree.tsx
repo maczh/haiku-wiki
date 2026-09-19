@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Tree, Dropdown, Empty, Modal, Input, message } from 'antd'
+import { Tree, Dropdown, Empty, Modal, Input, Tooltip, message } from 'antd'
 import type { TreeProps } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
@@ -19,6 +19,7 @@ import {
   PushpinFilled,
   SafetyCertificateOutlined,
   ShareAltOutlined,
+  TeamOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
 import type { BookWithCount, Bookshelf, DocNode } from '../../types'
@@ -90,6 +91,13 @@ interface Props {
   onExportDoc?: (bookId: number, doc: DocNode) => void
   /** 右键/菜单：邀请协作 */
   onCollaborators?: (bookId: number, doc: DocNode) => void
+  /** 当前登录用户 id；用于判定「知识库归属」，配合公司文库的「所有人可编辑」菜单可见性 */
+  currentUserId?: number
+  /**
+   * 右键/菜单：切换公司文库文档的「所有人可编辑」。
+   * 仅在公司知识库且当前用户是管理员或该库 owner 时由组件渲染入口。
+   */
+  onTogglePublicEdit?: (bookId: number, doc: DocNode) => void
 }
 
 const CAT_LABEL: Record<'private' | 'team' | 'company', string> = {
@@ -313,6 +321,19 @@ export default function KnowledgeTree(p: Props) {
         onClick: () => p.onPinDoc!(bookId, doc),
       })
     }
+    if (p.onTogglePublicEdit && !isFolder) {
+      // 公司文库专属：管理员 / 库 owner 可以把单篇文档开放给全员编辑（收集建议、意见、bug）
+      const bk = bookMap.get(bookId)
+      const manageable = bk?.is_company_kb === true && (isAdmin || (p.currentUserId != null && bk.owner_id === p.currentUserId))
+      if (manageable) {
+        items.push({
+          key: 'publicEdit',
+          icon: <TeamOutlined style={{ color: doc.public_edit ? '#722ed1' : undefined }} />,
+          label: doc.public_edit ? '取消「所有人可编辑」' : '设为「所有人可编辑」',
+          onClick: () => p.onTogglePublicEdit!(bookId, doc),
+        })
+      }
+    }
     items.push({ type: 'divider' as const }, {
       key: 'delete',
       icon: <DeleteOutlined />,
@@ -325,6 +346,11 @@ export default function KnowledgeTree(p: Props) {
       <Dropdown menu={{ items }} trigger={['contextMenu']}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, width: '100%' }}>
           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.title as ReactNode}</span>
+          {doc.public_edit && (
+            <Tooltip title="公司文库：全员可编辑，用于提建议 / 意见 / bug">
+              <TeamOutlined style={{ color: '#722ed1', flexShrink: 0 }} />
+            </Tooltip>
+          )}
         </span>
       </Dropdown>
     )

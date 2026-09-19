@@ -77,6 +77,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			// 目录树拖拽/右键菜单：移动（可指定目标父节点）与递归复制（可跨库、可指定目标父节点）
 			docs.POST("/copy", handler.CopyDoc)
 			docs.PATCH("/pin", handler.PinDoc)
+			// 公司文库：管理员把个别文档设为「所有人可编辑」，用于收集建议 / bug 反馈
+			docs.PATCH("/public-edit", handler.SetDocPublicEdit)
 			docs.GET("/versions", handler.ListVersions)
 			docs.GET("/versions/:vid", handler.GetVersion)
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)

@@ -80,7 +80,13 @@ func GetDoc(c *gin.Context) {
 		resp.Error(c, err)
 		return
 	}
-	resp.OK(c, gin.H{"doc": doc, "book": gin.H{"id": book.ID, "name": book.Name, "visibility": book.Visibility, "owner_id": book.OwnerID}})
+	resp.OK(c, gin.H{
+		"doc": doc,
+		// 文档级写权限：库级权限 + 协作者 + 「所有人可编辑」标记，
+		// 前端据此决定是否开放编辑器（不能只看 book.can_write，公司文库下两者会不一致）
+		"can_write": docService.CanWriteDocFor(middleware.UID(c), id),
+		"book":      gin.H{"id": book.ID, "name": book.Name, "visibility": book.Visibility, "owner_id": book.OwnerID},
+	})
 }
 
 type patchDocReq struct {
@@ -237,4 +243,26 @@ func PinDoc(c *gin.Context) {
 		return
 	}
 	resp.OK(c, doc)
+}
+
+// SetDocPublicEdit PATCH /api/docs/:id/public-edit —— 公司文库「所有人可编辑」开关（管理员/库 owner）。
+func SetDocPublicEdit(c *gin.Context) {
+	id, ok := docIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的文档 ID"))
+		return
+	}
+	var in struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		resp.Error(c, paramMsg("请求体解析失败"))
+		return
+	}
+	doc, err := docService.SetDocPublicEdit(middleware.UID(c), id, in.Enabled)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"doc_id": doc.ID, "public_edit": doc.PublicEdit})
 }
