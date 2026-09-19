@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Gantt, Willow } from '@svar-ui/react-gantt'
 import type { IApi, IColumnConfig, IScaleConfig } from '@svar-ui/react-gantt'
 import '@svar-ui/react-gantt/style.css'
@@ -199,6 +199,10 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
   const [tip, setTip] = useState<TipState | null>(null)
   // 当前悬停的 bar id（同一条内移动只更新位置、不重算任务，避免抖动）
   const tipBarRef = useRef<string | null>(null)
+  // 根容器（.hk-gantt）与气泡定位内层容器（position:relative）的 ref：
+  // 悬停监听挂在 document 捕获阶段，需要这两个节点做「矩形命中测试」与「气泡坐标基准」
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
 
   /** 任务 id → 优先级：驱动进度条上下「优先级外框」的样式注入（数据变更时同步刷新） */
   const [priorityMap, setPriorityMap] = useState<Record<string, number>>(() => {
@@ -274,61 +278,96 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
 
   /**
    * 悬停任务条 → 描述/负责人气泡。
-   * 用 onMouseMove + onMouseLeave（而非 onMouseOver/onMouseOut）实现：
-   * 跨任务移动时 mouseout/mouseover 会交错触发、互相清掉对方的 setTip，
-   * 导致除第一个任务外气泡都不弹；mousemove 连续、只在「进入新 bar」时重算任务，
-   * 同一 bar 内只跟随光标更新位置，稳定且顺滑。无附加信息不打扰。
+   *
+   * 关键坑（真实浏览器探针复现）：光标正下方的「顶层元素」常常不是 .wx-bar 的子节点，
+   * 而是 gantt 的祖先容器（探针实测：部分任务 bar 中心的 elementFromPoint 命中了 .hk-gantt 的父级 DIV）。
+   * 若用 React 的 onMouseMove（冒泡监听在 wrapper 上），事件目标在 wrapper 的祖先之上时只向上冒泡、
+   * 根本到不了 wrapper 的监听器 → 这些任务悬停永远弹不出气泡（表现为「只有最顶部/部分任务能弹」）。
+   *
+   * 修法：监听器挂到 document 的【捕获阶段】（事件从 document 向下派发，无论光标正下方是谁都必触发），
+   * 命中测试改用【矩形包容】——指针坐标落在哪个 .wx-bar 的 getBoundingClientRect 内就命中哪个，
+   * 与「顶层元素是不是 bar 子节点 / 事件是否冒泡到 wrapper」彻底解耦，任何任务都稳定生效。
+   * 用 tipBarRef 记录当前 bar：同一 bar 内移动只跟随光标、不重算任务，避免抖动。无附加信息不打扰。
    */
-  const onBarMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const el = e.target as HTMLElement
-    const bar = el.closest?.('.wx-bar') as HTMLElement | null
-    if (!bar || bar.classList.contains('wx-summary')) {
-      if (tipBarRef.current !== null) {
+  useEffect(() => {
+    const root = rootRef.current
+    const wrap = wrapRef.current
+    if (!root || !wrap) return
+    const onMove = (e: MouseEvent) => {
+      // 快速排除：指针明显在 gantt 之外时，直接清气泡（已在 gantt 外且无气泡则跳过整段命中测试）
+      const rootRect = root.getBoundingClientRect()
+      const far =
+        e.clientX < rootRect.left - 40 ||
+        e.clientX > rootRect.right + 40 ||
+        e.clientY < rootRect.top - 40 ||
+        e.clientY > rootRect.bottom + 40
+      if (far) {
+        if (tipBarRef.current !== null) {
+          tipBarRef.current = null
+          setTip(null)
+        }
+        return
+      }
+      // 矩形命中测试：指针落在哪个 bar 的可见矩形内就命中哪个，不依赖 e.target
+      let bar: HTMLElement | null = null
+      const bars = root.querySelectorAll<HTMLElement>('.wx-bar')
+      for (const b of bars) {
+        const r = b.getBoundingClientRect()
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          bar = b
+          break
+        }
+      }
+      if (!bar || bar.classList.contains('wx-summary')) {
+        if (tipBarRef.current !== null) {
+          tipBarRef.current = null
+          setTip(null)
+        }
+        return
+      }
+      const id = bar.getAttribute('data-id')
+      const api = apiRef.current
+      if (!id || !api) {
         tipBarRef.current = null
         setTip(null)
+        return
       }
-      return
+      // 同一任务条内移动：只跟随光标，不重算任务
+      if (tipBarRef.current === id) {
+        const rect = wrap.getBoundingClientRect()
+        setTip((prev) =>
+          prev ? { ...prev, x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16 } : prev,
+        )
+        return
+      }
+      // data-id 是字符串，store 里存的是数字 id，必须走兼容解析
+      const task = resolveSvarTask(api, id)
+      if (!task) {
+        tipBarRef.current = null
+        setTip(null)
+        return
+      }
+      const details = typeof task.details === 'string' ? task.details.trim() : ''
+      const assignees = Array.isArray(task.assignees)
+        ? (task.assignees as unknown[]).filter((a) => typeof a === 'string' && a)
+        : []
+      if (!details && assignees.length === 0) {
+        tipBarRef.current = null
+        setTip(null)
+        return
+      }
+      tipBarRef.current = id
+      const rect = wrap.getBoundingClientRect()
+      setTip({ x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16, task })
     }
-    const id = bar.getAttribute('data-id')
-    const api = apiRef.current
-    if (!id || !api) {
-      tipBarRef.current = null
-      setTip(null)
-      return
-    }
-    // 同一任务条内移动：只跟随光标，不重算
-    if (tipBarRef.current === id) {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      setTip((prev) =>
-        prev ? { ...prev, x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16 } : prev,
-      )
-      return
-    }
-    // data-id 是字符串，store 里存的是数字 id，必须走兼容解析
-    const task = resolveSvarTask(api, id)
-    if (!task) {
-      tipBarRef.current = null
-      setTip(null)
-      return
-    }
-    const details = typeof task.details === 'string' ? task.details.trim() : ''
-    const assignees = Array.isArray(task.assignees)
-      ? (task.assignees as unknown[]).filter((a) => typeof a === 'string' && a)
-      : []
-    if (!details && assignees.length === 0) {
-      tipBarRef.current = null
-      setTip(null)
-      return
-    }
-    tipBarRef.current = id
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setTip({ x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16, task })
+    document.addEventListener('mousemove', onMove, true)
+    return () => document.removeEventListener('mousemove', onMove, true)
   }, [])
 
   return (
-    <div className={`hk-gantt${mode === 'progress' ? ' hk-gantt-progress' : ''}`}>
+    <div ref={rootRef} className={`hk-gantt${mode === 'progress' ? ' hk-gantt-progress' : ''}`}>
       {priorityFrameCss && <style>{priorityFrameCss}</style>}
-      <div style={{ position: 'relative', height: '100%' }} onMouseMove={onBarMove} onMouseLeave={() => { tipBarRef.current = null; setTip(null) }}>
+      <div ref={wrapRef} style={{ position: 'relative', height: '100%' }}>
         <GanttBody seed={seed} mode={mode} init={init} />
         {tip && (
           <div
