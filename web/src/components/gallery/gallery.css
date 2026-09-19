@@ -1,0 +1,127 @@
+/* 图片库（电子相册）样式：网格卡片 + 灯箱入口 + 降级占位卡。
+   由 GalleryView / GalleryEditor 组件自己 import（随组件懒加载，不进入口 CSS）。 */
+
+.hk-album {
+  padding: 4px 0 24px;
+}
+
+.hk-album-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.hk-album-count {
+  color: #8a919f;
+  font-size: 13px;
+}
+
+.hk-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.hk-album-card {
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.18s ease;
+}
+
+.hk-album-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09);
+}
+
+/* 缩略图区：固定高度 + cover 裁切，保证不同比例的图片网格看起来是整齐的 */
+.hk-album-thumb {
+  position: relative;
+  height: 140px;
+  background: #f5f6f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.hk-album-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 降级占位：没有预览图时用大号文件图标 + 扩展名，明确告诉用户「原件还在，可下载」 */
+.hk-album-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #8a919f;
+  background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 10px, #f2f4f7 10px, #f2f4f7 20px);
+}
+
+.hk-album-placeholder .hk-album-ext {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 操作按钮浮在缩略图右上角：antd 的预览遮罩占中间，两者不能抢同一块地方 */
+.hk-album-hover {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.hk-album-card:hover .hk-album-hover {
+  opacity: 1;
+}
+
+.hk-album-meta {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hk-album-name {
+  font-size: 13px;
+  color: #1f2329;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hk-album-sub {
+  font-size: 12px;
+  color: #8a919f;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hk-album-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 8px;
+}

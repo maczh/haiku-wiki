@@ -1,0 +1,193 @@
+package service
+
+import (
+	"archive/zip"
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
+	"strings"
+	"testing"
+
+	"haiku-wiki/server/internal/model"
+	"haiku-wiki/server/internal/repository"
+)
+
+// mkProtoDoc 造一个需求原型文档（doc_type=prototype）。
+func mkProtoDoc(t *testing.T, book *model.Book, uid, parentID uint64, title string) *model.Doc {
+	t.Helper()
+	d, err := (&DocService{}).CreateDocWithContent(book, uid, parentID, title, "prototype", "")
+	if err != nil {
+		t.Fatalf("创建原型文档失败: %v", err)
+	}
+	return d
+}
+
+// ---------- 夹具 ----------
+
+func pngFixture(w, h int, c color.RGBA) []byte {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
+func htmlZipBytes(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	_ = zw.Close()
+	zw2 := zip.NewWriter(&buf)
+	w, _ := zw2.Create("index.html")
+	_, _ = w.Write([]byte("<html><body>proto</body></html>"))
+	_ = zw2.Close()
+	return buf.Bytes()
+}
+
+// ---------- 用例 ----------
+
+func TestPrototypeAddImage(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "po@hk.io", "pwd", "admin")
+	book := mkBook(t, owner.ID, "产品库", "private")
+	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
+
+	added, rej, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "screen.png", Data: pngFixture(800, 600, color.RGBA{R: 10, G: 20, B: 30, A: 255}), Title: "登录页", Desc: "新版登录交互"},
+	})
+	if err != nil {
+		t.Fatalf("加图片原型失败: %v", err)
+	}
+	if len(added) != 1 || len(rej) != 0 {
+		t.Fatalf("应成功 1 条，rejected=%+v", rej)
+	}
+	it := added[0]
+	if it.Kind != "image" {
+		t.Fatalf("png 应识别为 image, got %q", it.Kind)
+	}
+	if it.Title != "登录页" || it.Desc != "新版登录交互" {
+		t.Fatalf("标题/描述未保留: %+v", it)
+	}
+	if it.URL == "" {
+		t.Fatal("原件 URL 不应为空")
+	}
+	if it.Preview == "" || it.Thumb == "" {
+		t.Fatal("原生 png 应生成预览图与缩略图")
+	}
+	if it.ID == "" {
+		t.Fatal("item ID 不应为空")
+	}
+}
+
+func TestPrototypeAddHTMLAndZip(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "ph@hk.io", "pwd", "admin")
+	book := mkBook(t, owner.ID, "产品库", "private")
+	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
+
+	// 单页 HTML → 直接嵌入
+	added, _, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "page.html", Data: []byte("<html><body>x</body></html>"), Title: "落地页"},
+	})
+	if err != nil {
+		t.Fatalf("加 html 原型失败: %v", err)
+	}
+	if added[0].Kind != "html" || added[0].Entry == "" {
+		t.Fatalf("单页 html 应 kind=html 且带 entry: %+v", added[0])
+	}
+
+	// Axure 导出的 zip 包 → 解压后嵌入入口页
+	added, _, err = (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "axure.zip", Data: htmlZipBytes(t), Title: "会员中心原型"},
+	})
+	if err != nil {
+		t.Fatalf("加 zip 原型失败: %v", err)
+	}
+	if added[0].Kind != "html" || !strings.Contains(added[0].Entry, "index.html") {
+		t.Fatalf("zip 应解压并嵌入入口页: %+v", added[0])
+	}
+}
+
+func TestPrototypeAddProjectFileDegrades(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "pp@hk.io", "pwd", "admin")
+	book := mkBook(t, owner.ID, "产品库", "private")
+	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
+
+	// .rp 工程文件：服务端无法渲染 → 降级（保原件、可下载）
+	added, _, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "flow.rp", Data: []byte("not a real rp, just bytes"), Title: "流程图工程"},
+	})
+	if err != nil {
+		t.Fatalf("加 .rp 失败: %v", err)
+	}
+	it := added[0]
+	if it.Kind != "other" || !it.Degraded {
+		t.Fatalf(".rp 应降级为 other+Degraded: %+v", it)
+	}
+	if it.URL == "" {
+		t.Fatal("降级也应保留原件 URL")
+	}
+}
+
+func TestPrototypeRejectsMissingTitle(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "pt@hk.io", "pwd", "admin")
+	book := mkBook(t, owner.ID, "产品库", "private")
+	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
+
+	_, rej, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R:0,G:0,B:0,A:255}), Title: ""},
+	})
+	if err != nil {
+		t.Fatalf("不应返回错误: %v", err)
+	}
+	if len(rej) != 1 || !strings.Contains(rej[0].Reason, "标题") {
+		t.Fatalf("缺标题应被拒绝: %+v", rej)
+	}
+}
+
+func TestPrototypeUpdateAndRemove(t *testing.T) {
+	newEnv(t)
+	owner := mkUser(t, "pu@hk.io", "pwd", "admin")
+	book := mkBook(t, owner.ID, "产品库", "private")
+	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
+	added, _, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
+		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R:0,G:0,B:0,A:255}), Title: "初稿", Desc: "old"},
+	})
+	if err != nil {
+		t.Fatalf("加原型失败: %v", err)
+	}
+	id := added[0].ID
+
+	if err := (&DocService{}).UpdatePrototypeItem(owner.ID, doc.ID, id, "终稿", "new desc"); err != nil {
+		t.Fatalf("更新说明失败: %v", err)
+	}
+	got := parsePrototypeContent(docAfter(t, owner.ID, doc.ID).Content)
+	if got.Items[0].Title != "终稿" || got.Items[0].Desc != "new desc" {
+		t.Fatalf("更新未生效: %+v", got.Items[0])
+	}
+
+	if err := (&DocService{}).RemovePrototypeItem(owner.ID, doc.ID, id); err != nil {
+		t.Fatalf("删除原型失败: %v", err)
+	}
+	got = parsePrototypeContent(docAfter(t, owner.ID, doc.ID).Content)
+	if len(got.Items) != 0 {
+		t.Fatalf("删除后应无原型, got %+v", got.Items)
+	}
+}
+
+// docAfter 重新从库里读出文档（Add/Update/Remove 改的是传入指针，这里拿最新持久化状态）。
+func docAfter(t *testing.T, uid, docID uint64) *model.Doc {
+	t.Helper()
+	d, err := repository.FindDocByID(docID)
+	if err != nil {
+		t.Fatalf("读文档失败: %v", err)
+	}
+	return d
+}

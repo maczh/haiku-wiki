@@ -1,0 +1,127 @@
+/* 需求原型：阅读态（卡片网格）与编辑态（上传 + 列表）共用 */
+.hk-proto {
+  padding: 4px 0;
+}
+
+.hk-proto-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.hk-proto-count {
+  color: #8a919f;
+  font-size: 13px;
+}
+
+/* ---------- 阅读态：卡片网格 ---------- */
+.hk-proto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.hk-proto-card {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.hk-proto-thumb {
+  position: relative;
+  height: 160px;
+  background: #f3f5f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hk-proto-thumb-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #9aa3af;
+  font-size: 13px;
+}
+
+.hk-proto-thumb-placeholder .anticon {
+  font-size: 32px;
+}
+
+.hk-proto-kind {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+.hk-proto-body {
+  padding: 12px 14px;
+}
+
+.hk-proto-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1f2329;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-proto-desc {
+  margin-top: 6px;
+  color: #5f6672;
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hk-proto-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.hk-proto-frame {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+/* ---------- 编辑态：列表 ---------- */
+.hk-proto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hk-proto-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+}
+
+.hk-proto-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.hk-proto-row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.hk-proto-sub {
+  margin-top: 4px;
+  color: #9aa3af;
+  font-size: 12px;
+}

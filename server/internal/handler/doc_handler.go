@@ -32,10 +32,13 @@ type createDocReq struct {
 // gantt：甘特图，正文 {version,tasks:[…],links:[…]}，可导出 xlsx/md/json。
 // folder：目录（文件夹）节点，正文恒为空，只用于给文档分组分层；
 // 它可以有子文档/子目录，不参与搜索、导出与「最近更新」，也不能作为分享对象。
+// web：网页型文档（外部网址 / 导入的 HTML 包），嵌入展示，无编辑模式。
+// gallery：图片库（电子相册），正文 {version,images:[…]}，每张图带原件 + 预览图 + 缩略图。
+// prototype：需求原型，正文 {version,items:[…]}，每个原型带标题、需求描述、原件与预览图。
 var validDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
 	"file": true, "drawing": true, "todo": true, "calendar": true, "gantt": true, "api": true,
-	"folder": true,
+	"folder": true, "web": true, "gallery": true, "prototype": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。

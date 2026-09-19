@@ -23,9 +23,11 @@ import {
   FileWordOutlined,
   FileZipOutlined,
   FolderOutlined,
+  GlobalOutlined,
   NodeIndexOutlined,
   PaperClipOutlined,
   PartitionOutlined,
+  SkinOutlined,
   TableOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons'
@@ -167,6 +169,12 @@ export function iconForDocType(docType: DocType, name?: string): IconSpec {
       return { icon: <ApiOutlined />, color: '#13c2c2' }
     case 'file':
       return iconForAttachment(name ?? '')
+    case 'web':
+      return { icon: <GlobalOutlined />, color: '#1677ff' }
+    case 'gallery':
+      return { icon: <FileImageOutlined />, color: '#eb2f96' }
+    case 'prototype':
+      return { icon: <SkinOutlined />, color: '#722ed1' }
     default:
       return { icon: <FileTextOutlined />, color: '#8a919f' }
   }

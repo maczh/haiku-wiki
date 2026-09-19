@@ -57,6 +57,8 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   file: '未命名附件',
   folder: '未命名目录',
   web: '未命名网页',
+  gallery: '未命名图片库',
+  prototype: '未命名需求原型',
 }
 
 /**

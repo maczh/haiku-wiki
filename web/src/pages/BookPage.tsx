@@ -58,6 +58,10 @@ const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
 const ImportDialog = lazy(() => import('../components/import/ImportDialog'))
 const UrlImportDialog = lazy(() => import('../components/import/UrlImportDialog'))
 const HtmlImportDialog = lazy(() => import('../components/import/HtmlImportDialog'))
+// 图片库：相册网格与批量上传（含 antd Image 灯箱），同样只在打开图片库时才需要
+const GalleryEditor = lazy(() => import('../components/gallery/GalleryEditor'))
+// 需求原型：批量上传（每文件带标题+需求描述）与列表编辑
+const PrototypeEditor = lazy(() => import('../components/prototype/PrototypeEditor'))
 
 const visIcon = { private: <LockOutlined />, members: <TeamOutlined />, public: <GlobalOutlined /> }
 
@@ -167,6 +171,9 @@ export default function BookPage() {
   })
   // 文档级写权限（后端计算）；null=未拿到，回退到库级 canWrite
   const [docCanWrite, setDocCanWrite] = useState<boolean | null>(null)
+  /** 图片库增删图片后自增，触发重新拉取文档（正文就是图片清单，必须回读才看得到变化） */
+  const [docNonce, setDocNonce] = useState(0)
+  const refreshDoc = useCallback(() => setDocNonce((n) => n + 1), [])
   const [urlImport, setUrlImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
     open: false,
     bookId: 0,
@@ -313,7 +320,7 @@ export default function BookPage() {
       })
       .catch(() => setParams({ docId: 0 }))
       .finally(() => setDocLoading(false))
-  }, [docIdParam, tab])
+  }, [docIdParam, tab, docNonce])
 
   /**
    * markdown 正文渲染完成回调：记录大纲提取容器，并统计标题数量。
@@ -623,8 +630,9 @@ export default function BookPage() {
   const isMarkdownDoc = docTypeNow === 'markdown'
   // 绘图文档（内嵌 draw.io）在编辑态由 iframe 撑满，不需要页面再给内边距
   const isDrawingDoc = docTypeNow === 'drawing'
-  // 需要更宽阅读栏的类型：绘图要横向空间，工作日历是 7 列网格，780 宽会挤成两行
-  const isWideDoc = isDrawingDoc || docTypeNow === 'calendar'
+  // 需要更宽阅读栏的类型：绘图要横向空间，工作日历是 7 列网格，780 宽会挤成两行；
+  // 图片库相册网格同理，窄栏下每张卡片会被压得没法看
+  const isWideDoc = isDrawingDoc || docTypeNow === 'calendar' || docTypeNow === 'gallery' || docTypeNow === 'prototype'
   // 大纲浮动层：仅 markdown 且确实提取到标题、用户未收起时显示
   const showTocFloat = isMarkdownDoc && tocOpen && tocCount > 0 && !docLoading
   const shareLink = book?.visibility === 'public' && book.share_slug ? `${window.location.origin}/share/${book.share_slug}` : null
@@ -961,6 +969,16 @@ export default function BookPage() {
                           前往阅读
                         </Button>
                       </Empty>
+                    ) : docTypeNow === 'gallery' ? (
+                      // 图片库：正文就是图片清单，编辑器自己管上传与增删，不走正文编辑器
+                      <LazyBoundary tip="正在加载图片库…">
+                        <GalleryEditor key={doc.id} docId={doc.id} content={doc.content} onChanged={refreshDoc} />
+                      </LazyBoundary>
+                    ) : docTypeNow === 'prototype' ? (
+                      // 需求原型：正文就是原型清单，编辑器自己管上传（标题+需求描述）与增删
+                      <LazyBoundary tip="正在加载需求原型…">
+                        <PrototypeEditor key={doc.id} docId={doc.id} content={doc.content} onChanged={refreshDoc} />
+                      </LazyBoundary>
                     ) : (
                       <LazyBoundary tip="正在加载编辑器…">
                         {docTypeNow === 'markdown' && (

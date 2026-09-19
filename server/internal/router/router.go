@@ -79,6 +79,14 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.PATCH("/pin", handler.PinDoc)
 			// 公司文库：管理员把个别文档设为「所有人可编辑」，用于收集建议 / bug 反馈
 			docs.PATCH("/public-edit", handler.SetDocPublicEdit)
+			// 图片库：批量加图 / 删图 / 改显示名
+			docs.POST("/gallery/images", handler.GalleryAddImages)
+			docs.DELETE("/gallery/images/:imageId", handler.GalleryRemoveImage)
+			docs.PATCH("/gallery/images/:imageId", handler.GalleryRenameImage)
+			// 需求原型：批量加原型（每文件带标题+需求描述）/ 改说明 / 删原型
+			docs.POST("/prototype/items", handler.PrototypeAddItems)
+			docs.PATCH("/prototype/items/:itemId", handler.PrototypeUpdateItem)
+			docs.DELETE("/prototype/items/:itemId", handler.PrototypeRemoveItem)
 			docs.GET("/versions", handler.ListVersions)
 			docs.GET("/versions/:vid", handler.GetVersion)
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)
@@ -101,6 +109,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		// PPTX 外链图片本地化（历史文件补做；幂等）
 		jwt.POST("/attachments/pptx-localize", handler.LocalizePptx)
 		jwt.GET("/cad/converter", handler.CadConverterStatus)
+		// 图片库：本机图片转换能力（缺转换器时提示前端哪些格式会降级）
+		jwt.GET("/images/converter", handler.ImageConverterStatus)
 		// 思维导图导入：.smm/.km/.xmind/.mm → 内置 .smm 正文（.xmind 是 zip，放服务端解析）
 		jwt.POST("/mindmap/parse", handler.ParseMindmap)
 		jwt.GET("/trash", handler.ListTrash)

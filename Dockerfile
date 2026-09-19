@@ -87,7 +87,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-w
 #   · 即使 EXPORT_FONT_PATH 指向了渲染器不能用的字体，LoadFont 也会告警并回退自动探测，
 #     不会重演「LoadFont 成功、BuildPDF 全线失败」（BUG-R6-02）。
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei && adduser -D -u 10001 haiku
+# 图片库需要把 HEIC/PSD/CDR/AI 转成预览图：ImageMagick 负责通用位图，
+# libheif-tools 的 heif-convert 是 HEIC 的官方解码器（Alpine 的 ImageMagick 常未编 heif delegate）。
+# 两者都在 community 仓库（与 font-wqy-zenhei 同源），故显式指定仓库。
+# 装不上**不阻断镜像**：运行期按降级处理（只保存原件、不生成预览图），
+# 并在 GET /api/images/converter 里如实报告，不会让服务起不来。
+RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei \
+      --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
+      imagemagick libheif-tools \
+    || apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei
+RUN adduser -D -u 10001 haiku
 WORKDIR /app
 COPY --from=server-builder /bin/haiku-wiki /app/haiku-wiki
 # dwg2dxf / dwgread（libredwg 构建失败时为空目录，不影响启动）

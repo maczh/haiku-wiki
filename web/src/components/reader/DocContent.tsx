@@ -18,6 +18,8 @@ const CalendarView = lazy(() => import('./CalendarView'))
 const GanttView = lazy(() => import('./GanttView'))
 const ApiView = lazy(() => import('./ApiView'))
 const WebView = lazy(() => import('./WebView'))
+const GalleryView = lazy(() => import('../gallery/GalleryView'))
+const PrototypeView = lazy(() => import('../prototype/PrototypeView'))
 
 interface Props {
   docType: DocType
@@ -48,6 +50,8 @@ const TIP: Record<string, string> = {
   api: '正在加载接口文档…',
   file: '正在加载附件预览器…',
   web: '正在加载网页…',
+  gallery: '正在加载图片库…',
+  prototype: '正在加载需求原型…',
 }
 
 /**
@@ -138,6 +142,20 @@ export default function DocContent({
         <WebView content={content} />
       </LazyBoundary>
     )
+  } else if (docType === 'gallery') {
+    // 图片库：相册网格用缩略图，点开看预览图，下载给原件
+    body = (
+      <LazyBoundary tip={TIP.gallery}>
+        <GalleryView content={content} />
+      </LazyBoundary>
+    )
+  } else if (docType === 'prototype') {
+    // 需求原型：卡片 = 一个原型（一份需求说明 + 它的载体），见 PrototypeView
+    body = (
+      <LazyBoundary tip={TIP.prototype}>
+        <PrototypeView content={content} />
+      </LazyBoundary>
+    )
   } else if (docType === 'folder') {
     // 目录（doc_type=folder）：不承载正文，占位提示如何在其下继续建内容。
     // 这里刻意不懒加载任何渲染器 —— 目录没有正文，加载 Vditor/Luckysheet 是纯浪费。
@@ -161,9 +179,9 @@ export default function DocContent({
     )
   }
 
-  // 甘特图要横向铺满（时间轴在窄栏下没法看），其余类型沿用阅读宽度偏好
-  // 甘特图要横向铺满；网页 iframe 同样需要整幅宽度（原型页常按固定画布宽度设计）
-  const fullWidth = docType === 'gantt' || docType === 'web'
+  // 甘特图要横向铺满；网页 iframe 同样需要整幅宽度（原型页常按固定画布宽度设计）；
+  // 图片库/需求原型的网格在窄栏下也会被压得没法看
+  const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype'
   // 目录没有正文，宽度调节器无意义
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
   return (

@@ -169,11 +169,25 @@ export type DocType =
   | 'file'
   | 'folder'
   | 'web'
+  | 'gallery'
+  | 'prototype'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
  *  folder（目录）由「新建目录」入口产生，不参与「新建文档」的类型选择。 */
-export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar', 'gantt', 'api']
+export const DOC_TYPES: DocType[] = [
+  'markdown',
+  'sheet',
+  'mindmap',
+  'flowchart',
+  'drawing',
+  'todo',
+  'calendar',
+  'gantt',
+  'api',
+  'gallery',
+  'prototype',
+]
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
@@ -188,6 +202,8 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   file: '附件',
   folder: '目录',
   web: '网页',
+  gallery: '图片库',
+  prototype: '需求原型',
 }
 
 /**
@@ -207,9 +223,68 @@ export interface WebRef {
   note?: string
 }
 
-/** 附件型文档（doc_type=file）content 结构，与后端 exportx.FileRef 对应 */
-export interface FileAttachment {
+/**
+ * 图片库（doc_type=gallery）里的一张图，与后端 service.GalleryImage 对应。
+ *
+ * 三份文件：原件（url，永远保留、可下载）+ 预览图（preview，灯箱用，最长边 1600）
+ * + 缩略图（thumb，网格用，最长边 400）。SVG 是矢量，preview/thumb 直接等于 url
+ * ——浏览器按容器缩放，既省一次栅格化又不失真。
+ */
+export interface GalleryImage {
+  id: string
+  name: string
   url: string
+  preview: string
+  thumb: string
+  size: number
+  width: number
+  height: number
+  ext: string
+  /** 没能生成预览图（如缺外部转换器），只能展示占位卡 + 下载原件 */
+  degraded: boolean
+  note: string
+  added_at: string
+}
+
+/** 图片库正文，与后端 service.GalleryContent 对应 */
+export interface GalleryContent {
+  version: number
+  images: GalleryImage[]
+}
+
+/**
+ * 需求原型（doc_type=prototype）里的一条，与后端 service.PrototypeItem 对应。
+ * kind=html 的原型直接嵌入展示（Axure/Mockplus 导出的网页包），其余生成预览图 + 原件下载。
+ */
+export interface PrototypeItem {
+  id: string
+  /** 原型标题（上传时必填） */
+  title: string
+  /** 需求描述（上传时填写，说明这块原型要做什么） */
+  desc: string
+  kind: 'html' | 'image' | 'other'
+  /** 原件下载地址 */
+  url: string
+  filename: string
+  size: number
+  ext: string
+  /** kind=html 时：入口页面访问路径（iframe src） */
+  entry?: string
+  preview?: string
+  thumb?: string
+  degraded: boolean
+  note: string
+  added_at: string
+}
+
+/** 需求原型正文，与后端 service.PrototypeContent 对应 */
+export interface PrototypeContent {
+  version: number
+  items: PrototypeItem[]
+}
+
+/** 附件型文档（doc_type=file）content 结构，与后端 exportx.FileRef 对应 */
+export interface FileAttachment {  url: string
   filename: string
   size: number
   ext: string
