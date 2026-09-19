@@ -31,8 +31,8 @@ type ApiEndpoint struct {
 
 // ApiGroup 接口分组。
 type ApiGroup struct {
-	ID    string       `json:"id"`
-	Name  string       `json:"name"`
+	ID    string        `json:"id"`
+	Name  string        `json:"name"`
 	Items []ApiEndpoint `json:"items"`
 }
 

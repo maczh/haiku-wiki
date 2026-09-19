@@ -51,6 +51,12 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   Vite dev server 由自己的静态中间件服务、不复现，**只能靠生产形态复验发现**。
 - `agent-browser` 的 ref 与页面状态**不跨 Bash 调用保留**（下一次调用页会变 `about:blank`）→
   所有浏览器步骤必须封进同一个脚本；上传隐藏的 `input[type=file]` 只能页面内构造 `File`+`DataTransfer`+`change`。
+  另：同 IP **注册限频 60s**（`allowRegister`，内存计数）—— 脚本里要连注册两个账号得等窗口过去。
+- 本机 pandoc 是 **2.17.1.1**，**没有 `--embed-resources`**（会报 unknown option）→ 用 `--self-contained`；
+  PDF 走 `google-chrome --headless=new --no-pdf-header-footer --print-to-pdf`（脚本
+  `/home/macro/.workbuddy/tmp/build-guide-pdf.sh`，样式 `docs/.guide-style.css`）。
+- 中文字体：正文/字幕首选 `/usr/share/fonts/opentype/noto/NotoSansCJK-{Regular,Bold}.ttc`；
+  `winfonts/NotoSansSC-VF.ttf` 是可变字体，drawtext 渲染偏细且字距异常，别用。
 
 ## 架构约定
 - 后端是**导出/转换的唯一事实来源**：前端只下载，格式清单从 `/api/export/docs/:id/formats` 拉。
@@ -59,18 +65,51 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - markdown 渲染统一 `MarkdownView`（Vditor preview + DOMPurify）；非 markdown 内容绝不进该管线。
 - 自动保存统一 3s 防抖，切换文档/卸载前 fire-and-forget 落库。
 - **按需加载是本项目的硬约束，分三层，三层都要维持**（详见技能 `haiku-wiki-build-verify` §3.6）：
-  1. **库级**：Vditor、simple-mind-map（含 katex）、x-data-spreadsheet、pdf.js、mermaid 必须经
+  1. **库级**：Vditor、simple-mind-map（含 katex）、Luckysheet、pdf.js、mermaid 必须经
      `React.lazy` + `components/common/LazyBoundary` 引入（入口：`DocContent` 阅读、
      `BookPage` 编辑、`SharePage` 公开预览）。新增同量级的库沿用同一模式。
   2. **路由级**：`App.tsx` 内页面全部 `lazy()` + `<LazyBoundary fill>`；
      **布局（AppLayout / BlankLayout）保持静态**（外壳先出现，避免二次闪白）。
   3. **静态依赖不得漏网**：`React.lazy` 只隔离被 lazy 的那个模块，它**静态 import 的兄弟会被一起拉走**。
-     已修的两处：`VersionDrawer` 内的 `MarkdownView`、`DocTree` 内的 `ImportDialog`。
+     已修的两处：`VersionDrawer` 内的 `MarkdownView`、`DocTree` 内的 `ImportDialog`
+     （后者同时改为「只在 `importOpen` 为真时挂载」，所以知识库页上**不再有隐藏的 `input[type=file]`**）。
      新增「被多个编辑器共用的抽屉/弹窗」时，务必检查它是否静态引入了重量级渲染器。
 - 走 Vditor 的 CSS（`vditor/dist/index.css`）随 `MarkdownView` / `VditorEditor` 懒加载，
   **不要放回 `main.tsx`**（否则入口 CSS 多 40 KB）。判定：`grep -c vditor` 入口 CSS 应为 0。
 - 实测收益：入口 chunk 3819 KB → **649 KB**（gzip 213 KB），入口 CSS 43 KB → **3.0 KB**，
-  `BookPage` chunk 623 KB → **216 KB**。
+  `BookPage` chunk 623 KB → **216 KB**；首页改版后入口 755 KB / 251 KB gzip、CSS 4.0 KB。
+
+## 首页 Dashboard（`/`，2026-09-19 起）
+- `pages/DashboardPage.tsx` 取代原 `BookshelfPage.tsx`（已删）；书架能力抽到 `components/book/BookshelfSection.tsx`。
+  区块顺序：欢迎条 → 8 个快捷操作 → 新手向导｜视频介绍 → 最近更新｜团队速览 → 书架。
+- 「最近更新」走 `GET /api/recent-docs?limit=N`（默认 12、上限 50）：仓库层粗筛可读库 id 集合 +
+  JOIN `doc_collaborators`，服务层合并去重、按 `updated_at` 倒序后**逐条复核** `canReadBook||isDocCollaborator`
+  再附 `can_write` —— 新增跨库聚合类接口时保持这个「SQL 粗筛 + 业务规则复核」的双层结构。
+- 向导与视频的关闭记忆用两个 localStorage 键：`hk_onboard_dismissed`、`hk_intro_video_dismissed`；
+  首次渲染即读标志位，避免「先闪后消」；欢迎条开关可重新打开并清键。
+- 直达导入：`/books/:id?import=file|url` 打开对应导入框后**立刻** `setSearchParams(replace)` 清掉参数。
+- 组件：`components/dashboard/{OnboardingGuide,IntroVideo,RecentDocsCard,QuickActions,QuickStartModal}.tsx` + `dashboard.css`；
+  纯逻辑在 `web/src/lib/dashboard.ts`，由 `npm run verify:dashboard`（40 项）覆盖。
+- 快捷操作按钮的 `data-testid` 生成规则：`hk-quick-${key.replace(/^on/,'').toLowerCase()}`
+  → `onCreateDoc` 对应 `hk-quick-createdoc`。
+
+## 操作演示视频（首页「视频介绍」卡片）
+- 资源随前端分发：`web/public/onboarding/haiku-wiki-guide.mp4` + `-poster.jpg`；
+  缺失时 `IntroVideo` 捕获 `onError` 降级成指向功能指南的说明。
+- 生成流水线在 `tools/video/`（`seed-demo.py` → `capture-shots.sh` → `build-guide-video.py`，见该目录 README）。
+  旁白用 edge-tts（需联网），字幕/章节标签用 ffmpeg drawtext，
+  中文**必须**用 `/usr/share/fonts/opentype/noto/NotoSansCJK-{Regular,Bold}.ttc`。
+- **改了视频必须同步** `DashboardPage.tsx` 的 `INTRO_CHAPTERS`（章节秒数）与 `INTRO_SECONDS`（卡片上的「约 N 分钟」）。
+- 采集截图的三个坑见 `tools/video/capture-shots.sh` 头部：树懒加载要逐个展开、文档右键要派发到
+  `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
+
+## 接口契约速查（写测试脚本时最容易记错）
+- `POST /api/auth/login` → `{"account","password"}`，`account` 可以是用户名/手机号/邮箱（**不是 `email`**）。
+- `POST /api/auth/register` → `{"username","name","email","password"}`（`username`/`email`/`password` 必填），**没有 `nickname`**。
+- `GET /api/docs/:id` → 正文在 **`.data.doc.content`**。
+- 表格内容契约 **v3**：`{"version":3,"sheets":[{…,"celldata":[{r,c,v}]}]}`（`web/src/lib/sheet.ts`），
+  旧的 v1/v2（`.cells["r-c"].text`）读取时自动迁移；渲染器是 **Luckysheet**（`.luckysheet-cell-main`，单元格在 canvas 上）。
+- 弹窗 vs 抽屉：`ImportDialog` 是 **Drawer**（标题「导入文档」），`UrlImportDialog` 是 **Modal**。
 
 ## 甘特图文档（doc_type=gantt）
 - 组件选型：`vxe-gantt` 是 **Vue 3 专用**，React18 项目用不了 → 已改用 **SVAR React Gantt**

@@ -1,0 +1,145 @@
+/* 寄海文库功能指南 · 打印排版样式（供 Chrome headless --print-to-pdf 使用） */
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 18mm 16mm;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 10.5pt; }
+
+body {
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Source Han Sans SC", sans-serif;
+  color: #1f2328;
+  line-height: 1.75;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== 封面 ===== */
+header#title-block-header {
+  page-break-after: always;
+  text-align: center;
+  padding: 62mm 0 0;
+  border-bottom: none;
+}
+header#title-block-header::before {
+  content: "寄海文库";
+  display: block;
+  font-size: 13pt;
+  letter-spacing: .5em;
+  color: #2f54eb;
+  margin-bottom: 14mm;
+  padding-left: .5em;
+}
+h1.title {
+  font-size: 30pt;
+  line-height: 1.35;
+  margin: 0 0 8mm;
+  color: #101418;
+  font-weight: 700;
+  border: none;
+  padding: 0;
+}
+header#title-block-header::after {
+  content: "企业知识库与文档协作平台 · 功能指南";
+  display: block;
+  font-size: 11.5pt;
+  color: #6b7280;
+  letter-spacing: .12em;
+}
+
+/* ===== 标题层级 ===== */
+h1, h2, h3, h4 {
+  font-weight: 700;
+  line-height: 1.4;
+  color: #101418;
+  page-break-after: avoid;
+}
+h2 {
+  font-size: 17pt;
+  margin: 14mm 0 4mm;
+  padding: 0 0 2.5mm;
+  border-bottom: 1.5pt solid #2f54eb;
+  page-break-before: always;
+}
+/* 首个二级标题（目录）不另起页 */
+h2:first-of-type { page-break-before: avoid; }
+h3 {
+  font-size: 13pt;
+  margin: 8mm 0 3mm;
+  color: #1d4ed8;
+}
+h4 { font-size: 11.5pt; margin: 6mm 0 2mm; color: #374151; }
+
+p { margin: 0 0 3mm; text-align: justify; }
+
+/* ===== 列表 ===== */
+ul, ol { margin: 0 0 3.5mm; padding-left: 6.5mm; }
+li { margin: 0 0 1.4mm; }
+li > ul, li > ol { margin-top: 1.4mm; }
+
+/* ===== 表格 ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 3mm 0 5mm;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+thead { background: #f3f6fd; }
+th, td {
+  border: .6pt solid #d7dce5;
+  padding: 2mm 2.6mm;
+  text-align: left;
+  vertical-align: top;
+}
+th { font-weight: 700; color: #1d4ed8; white-space: nowrap; }
+tbody tr:nth-child(even) { background: #fafbfe; }
+
+/* ===== 引用 / 提示 ===== */
+blockquote {
+  margin: 3mm 0 4mm;
+  padding: 2.6mm 4mm;
+  background: #fff9ec;
+  border-left: 3pt solid #f0a020;
+  color: #6b4b00;
+  font-size: 9.8pt;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+/* ===== 代码 ===== */
+code {
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  font-size: 9pt;
+  background: #f2f4f8;
+  padding: .4mm 1.2mm;
+  border-radius: 2px;
+  color: #b02a37;
+}
+pre {
+  background: #f7f8fb;
+  border: .6pt solid #e3e7ee;
+  border-radius: 3px;
+  padding: 3mm 3.5mm;
+  overflow-x: auto;
+  page-break-inside: avoid;
+}
+pre code { background: none; color: #1f2328; padding: 0; font-size: 9pt; }
+
+/* ===== 链接 ===== */
+a { color: #1d4ed8; text-decoration: none; }
+
+/* ===== 分隔线 ===== */
+hr { border: none; border-top: .6pt solid #e3e7ee; margin: 7mm 0; }
+
+/* ===== 强调 ===== */
+strong { color: #0f172a; }
+
+/* 目录列表紧凑一些 */
+h2:first-of-type + ol { columns: 2; column-gap: 10mm; }
+h2:first-of-type + ol li { break-inside: avoid; }
+
+/* 避免孤立行 */
+p, li, blockquote { orphans: 3; widows: 3; }

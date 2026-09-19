@@ -15,7 +15,7 @@ import { useAuthStore } from './stores/authStore'
  * 布局（AppLayout / BlankLayout）保持静态：它们是每个路由的外壳，
  * 静态引入可让侧栏/顶栏先出现、内容区再补，避免登录后二次闪白。
  */
-const BookshelfPage = lazy(() => import('./pages/BookshelfPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const BookPage = lazy(() => import('./pages/BookPage'))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
 const SharePage = lazy(() => import('./pages/SharePage'))
@@ -77,8 +77,8 @@ export default function App() {
         <Route
           path="/"
           element={
-            <LazyBoundary fill tip="正在加载书架…">
-              <BookshelfPage />
+            <LazyBoundary fill tip="正在加载首页…">
+              <DashboardPage />
             </LazyBoundary>
           }
         />

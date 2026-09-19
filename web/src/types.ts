@@ -326,3 +326,17 @@ export interface BookWriterView {
   email: string
   nickname: string
 }
+
+// ---------- 首页 Dashboard ----------
+
+/** 最近更新文档条目（GET /api/recent-docs） */
+export interface RecentDocItem {
+  id: number
+  title: string
+  doc_type: DocType
+  book_id: number
+  book_name: string
+  /** RFC3339 时间串 */
+  updated_at: string
+  can_write: boolean
+}

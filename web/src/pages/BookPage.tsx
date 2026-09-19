@@ -245,6 +245,22 @@ export default function BookPage() {
     [searchParams, setSearchParams],
   )
 
+  /**
+   * 首页快捷操作「导入文件 / 导入网页」直达：
+   * 带 ?import=file|url 进入本页时自动打开对应导入对话框，并立刻清掉该参数
+   * ——保留参数会让刷新/后退反复弹出对话框。
+   */
+  useEffect(() => {
+    const kind = searchParams.get('import')
+    if (!kind || !bookID) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('import')
+    setSearchParams(next, { replace: true })
+    if (kind === 'url') setUrlImport({ open: true, bookId: bookID, parentId: 0 })
+    else setFileImport({ open: true, bookId: bookID, parentId: 0 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookID, searchParams])
+
   useEffect(() => {
     getBook(bookID)
       .then((b) => {

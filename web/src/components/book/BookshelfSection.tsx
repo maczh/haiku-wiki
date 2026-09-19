@@ -1,25 +1,36 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Spin, message } from 'antd'
+import { Button, Col, Empty, Form, Input, Modal, Popconfirm, Row, Select, Skeleton, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
-import { listBooks, createBook, deleteBook, updateBook } from '../api/books'
-import BookCard from '../components/book/BookCard'
-import type { BookWithCount, Visibility } from '../types'
-import { COVER_COLORS, VISIBILITY_LABEL } from '../types'
+import { listBooks, createBook, deleteBook, updateBook } from '../../api/books'
+import BookCard from './BookCard'
+import type { BookWithCount, Bookshelf, Visibility } from '../../types'
+import { COVER_COLORS, VISIBILITY_LABEL } from '../../types'
 
 interface EditState {
   mode: 'create' | 'edit'
   book?: BookWithCount
 }
 
-/** 书架页：我的知识库、团队知识库、公司知识库三类入口。 */
-export default function BookshelfPage() {
-  const navigate = useNavigate()
-  const [data, setData] = useState<{
-    mine: BookWithCount[]
-    visible: BookWithCount[]
-    teams: BookWithCount[]
-  } | null>(null)
+interface Props {
+  /** 数据加载完成回调（首页用它做统计、给快捷新建提供候选知识库） */
+  onLoaded?: (data: Bookshelf) => void
+  /**
+   * 外部触发新建知识库：数字自增即打开新建弹窗。
+   * 用「信号」而不是回调，是为了让首页快捷操作与书架内部的按钮完全等价
+   * （同一套表单与校验，不会出现两条创建路径行为不一致）。
+   */
+  createSignal?: number
+}
+
+/**
+ * 书架分区：我的知识库 / 团队知识库 / 公司知识库三类入口。
+ *
+ * 从原 BookshelfPage 抽出，供首页 Dashboard 复用 —— 首页不再是一个独立页面，
+ * 而是「欢迎 + 快捷操作 + 向导/视频 + 最近更新 + 书架」的组合，
+ * 书架的数据加载与增删改逻辑仍集中在这一处。
+ */
+export default function BookshelfSection({ onLoaded, createSignal = 0 }: Props) {
+  const [data, setData] = useState<Bookshelf | null>(null)
   const [loading, setLoading] = useState(true)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [form] = Form.useForm()
@@ -30,7 +41,9 @@ export default function BookshelfPage() {
     setLoading(true)
     try {
       const res = await listBooks()
-      setData({ mine: res.mine || [], visible: res.visible || [], teams: res.teams || [] })
+      const next: Bookshelf = { mine: res.mine || [], visible: res.visible || [], teams: res.teams || [] }
+      setData(next)
+      onLoaded?.(next)
     } finally {
       setLoading(false)
     }
@@ -38,7 +51,14 @@ export default function BookshelfPage() {
 
   useEffect(() => {
     void refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 首页快捷操作「新建知识库」：信号变化即打开同一套新建弹窗
+  useEffect(() => {
+    if (createSignal > 0) openCreate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createSignal])
 
   function openCreate() {
     setEdit({ mode: 'create' })
@@ -75,79 +95,74 @@ export default function BookshelfPage() {
 
   async function handleDelete(book: BookWithCount) {
     await deleteBook(book.id)
-    message.success('知识库已删除（其下文档移入回收站逻辑归属库删除）')
+    message.success('知识库已删除（其下文档一并移入回收站）')
     await refresh()
   }
 
   const filterFn = (b: BookWithCount) => !keyword || b.name.includes(keyword)
+  const groups: { key: string; title: string; list: BookWithCount[]; mine: boolean }[] = data
+    ? [
+        { key: 'mine', title: '我的知识库', list: data.mine.filter(filterFn), mine: true },
+        { key: 'teams', title: '团队知识库', list: data.teams.filter(filterFn), mine: false },
+        { key: 'visible', title: '公司知识库', list: data.visible.filter(filterFn), mine: false },
+      ]
+    : []
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>书架</h2>
+    <div data-testid="hk-bookshelf">
+      <div className="hk-dash-section-head">
+        <h3 className="hk-dash-section-title">书架</h3>
         <Input.Search
           placeholder="按名称过滤"
           allowClear
-          style={{ width: 220 }}
+          size="small"
+          style={{ width: 200, marginLeft: 8 }}
           onChange={(e) => setKeyword(e.target.value)}
         />
-        <div style={{ flex: 1 }} />
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          新建知识库
-        </Button>
+        <div className="hk-dash-section-extra" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button size="small" type="primary" icon={<PlusOutlined />} data-testid="hk-bookshelf-create" onClick={openCreate}>
+            新建知识库
+          </Button>
+        </div>
       </div>
 
-      {loading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
+      {loading && <Skeleton active paragraph={{ rows: 3 }} />}
 
-      {!loading && data && (
-        <>
-          <h3 style={{ color: '#5f6672', fontSize: 14 }}>我的知识库</h3>
-          {data.mine.filter(filterFn).length === 0 ? (
-            <Empty description="还没有知识库，点击右上角新建" style={{ margin: '32px 0' }} />
-          ) : (
-            <Row gutter={[16, 16]}>
-              {data.mine.filter(filterFn).map((b) => (
-                <Col key={b.id} xs={24} sm={12} md={8} lg={6} xl={6}>
-                  <div
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      openEdit(b)
-                    }}
-                  >
-                    <BookCard book={b} mine />
-                  </div>
-                </Col>
-              ))}
-            </Row>
-          )}
-
-          {data.teams.filter(filterFn).length > 0 && (
-            <>
-              <h3 style={{ color: '#5f6672', fontSize: 14, marginTop: 32 }}>团队知识库</h3>
+      {!loading &&
+        groups.map((g) => (
+          <div key={g.key} style={{ marginBottom: 20 }}>
+            <h4 style={{ color: '#5f6672', fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>
+              {g.title}
+              <span style={{ marginLeft: 6, color: '#b6bcc8', fontWeight: 400 }}>{g.list.length}</span>
+            </h4>
+            {g.list.length === 0 ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <span style={{ fontSize: 12, color: '#8a919f' }}>
+                    {g.key === 'mine' ? '还没有知识库，点击右上角新建' : '暂时没有这一类知识库'}
+                  </span>
+                }
+                style={{ margin: '12px 0' }}
+              />
+            ) : (
               <Row gutter={[16, 16]}>
-                {data.teams.filter(filterFn).map((b) => (
+                {g.list.map((b) => (
                   <Col key={b.id} xs={24} sm={12} md={8} lg={6} xl={6}>
-                    <BookCard book={b} mine={false} />
+                    <div
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        openEdit(b)
+                      }}
+                    >
+                      <BookCard book={b} mine={g.mine} />
+                    </div>
                   </Col>
                 ))}
               </Row>
-            </>
-          )}
-
-          {data.visible.filter(filterFn).length > 0 && (
-            <>
-              <h3 style={{ color: '#5f6672', fontSize: 14, marginTop: 32 }}>公司知识库</h3>
-              <Row gutter={[16, 16]}>
-                {data.visible.filter(filterFn).map((b) => (
-                  <Col key={b.id} xs={24} sm={12} md={8} lg={6} xl={6}>
-                    <BookCard book={b} mine={false} />
-                  </Col>
-                ))}
-              </Row>
-            </>
-          )}
-        </>
-      )}
+            )}
+          </div>
+        ))}
 
       {/* 新建 / 编辑弹窗 */}
       <Modal
