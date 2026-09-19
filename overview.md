@@ -265,8 +265,14 @@ tools/verify/   14 个套件（全部登记进 run-all）+ run-all.sh
 （skip 生效，套件仍 `ALL_SUITES_PASS`）。
 
 清理清单（分档 + 可直接粘的命令 + 回滚说明）：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`。
-**未删除任何文件** —— 其中 `haiku-wiki`、`vendor/lr/`、`gotmp`、`xdg`、`agent-browser-chrome-*`、
-`regress` 这六项是工具链依赖，不能删。
+清单里 `haiku-wiki`、`vendor/lr/`、`gotmp`、`xdg`、`agent-browser-chrome-*`、`regress` 六项是
+工具链依赖，不能删。
+
+**清理已执行（全程只 `mv`，未删除任何文件）**：**500 项 / 6.1 GB** 进入 `tmp/_trash-20260919/`，
+`tmp` 自身由 **6.9 GB → 822 MB**（剩下的主要是 `vendor/lr` 553 MB + `haiku-wiki` 101 MB）；
+搬完后复跑 **12 套 ✅=274 ❌=0 `ALL_SUITES_PASS`**，并单独复验了 `embed-prod-check`（17/17，
+覆盖 `vendor/lr` 里的 DWG 转换器与一次完整 `go build`）与 `gantt-api-check`（21/21，覆盖 `gotmp`）。
+最后一步 `rm -rf _trash-20260919` 留给确认后执行 —— 在那之前随时能挪回来。
 
 ---
 
@@ -274,11 +280,13 @@ tools/verify/   14 个套件（全部登记进 run-all）+ run-all.sh
 
 - **`git push` 未执行**：本机没有任何 GitHub 凭据，需要你自己推。
 - **本机没有 Docker**：`Dockerfile` 未真实构建，只能陈述 `go build` 与 embed 产物的实测数字。
-- `/home/macro/.workbuddy/tmp` 下累积的构建备份与截图目录（6.9 GB / 506 项）**尚未清理**，
-  但已出好清单：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`
-  （分「必须保留 / 可直接删 / 重建才需重下 / 需你确认」四档，附可粘贴的命令与回滚说明）。
-  **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必担心弄丢验证手段；
-  唯一要记住的是那六项工具链依赖（见上一节末）。
+- `/home/macro/.workbuddy/tmp` 的清理**已执行第 ①② 步**（只 `mv`，未删）：500 项 / 6.1 GB 进入
+  `_trash-20260919/`，tmp 自身 6.9 GB → 822 MB，搬完 12 套回归全绿。
+  **只剩最后一步 `rm -rf _trash-20260919`** 等你确认（在那之前随时可挪回）。
+  清单：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`。
+  另外 `naotu-verify`、`mindmap-server`（都属于 cloud-naotu 那个仓库）按清单第四档**没有动**。
+  **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必担心弄丢验证手段；唯一要记住的是
+  那六项工具链依赖（见上一节末）。
 - **「目录」当前刻意不支持**：跨库挂载、拖拽移动、目录级分享/权限继承。
   如果后续要做「目录权限继承」，`services/book_service.go` 的可读性判定需要按祖先链向上回溯，
   这是唯一一处会牵动权限模型的地方。
