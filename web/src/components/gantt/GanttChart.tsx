@@ -203,6 +203,9 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
   // 悬停监听挂在 document 捕获阶段，需要这两个节点做「矩形命中测试」与「气泡坐标基准」
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  // 左表格 / 右时间轴 折叠状态（同一时刻至少保留一个面板可见，避免整图空白）
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
 
   /** 任务 id → 优先级：驱动进度条上下「优先级外框」的样式注入（数据变更时同步刷新） */
   const [priorityMap, setPriorityMap] = useState<Record<string, number>>(() => {
@@ -365,7 +368,12 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
   }, [])
 
   return (
-    <div ref={rootRef} className={`hk-gantt${mode === 'progress' ? ' hk-gantt-progress' : ''}`}>
+    <div
+      ref={rootRef}
+      className={`hk-gantt${mode === 'progress' ? ' hk-gantt-progress' : ''}${
+        leftCollapsed ? ' hk-gantt-left-collapsed' : ''
+      }${rightCollapsed ? ' hk-gantt-right-collapsed' : ''}`}
+    >
       {priorityFrameCss && <style>{priorityFrameCss}</style>}
       <div ref={wrapRef} style={{ position: 'relative', height: '100%' }}>
         <GanttBody seed={seed} mode={mode} init={init} />
@@ -405,6 +413,51 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
               </div>
             )}
           </div>
+        )}
+        {/* 左表格 / 右时间轴 折叠控制：同一时刻至少保留一个面板可见 */}
+        {!leftCollapsed && !rightCollapsed && (
+          <button
+            type="button"
+            className="hk-gantt-fold hk-gantt-fold-left"
+            title="隐藏左侧表格"
+            aria-label="隐藏左侧表格"
+            onClick={() => setLeftCollapsed(true)}
+          >
+            ‹
+          </button>
+        )}
+        {!rightCollapsed && !leftCollapsed && (
+          <button
+            type="button"
+            className="hk-gantt-fold hk-gantt-fold-right"
+            title="隐藏右侧时间轴"
+            aria-label="隐藏右侧时间轴"
+            onClick={() => setRightCollapsed(true)}
+          >
+            ›
+          </button>
+        )}
+        {leftCollapsed && (
+          <button
+            type="button"
+            className="hk-gantt-reopen hk-gantt-reopen-left"
+            title="展开左侧表格"
+            aria-label="展开左侧表格"
+            onClick={() => setLeftCollapsed(false)}
+          >
+            ›
+          </button>
+        )}
+        {rightCollapsed && (
+          <button
+            type="button"
+            className="hk-gantt-reopen hk-gantt-reopen-right"
+            title="展开右侧时间轴"
+            aria-label="展开右侧时间轴"
+            onClick={() => setRightCollapsed(false)}
+          >
+            ‹
+          </button>
         )}
       </div>
     </div>

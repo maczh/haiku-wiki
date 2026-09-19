@@ -117,3 +117,66 @@
   overflow: hidden;
 }
 
+/* ===== 左表格 / 右时间轴 折叠 =====
+ * 分隔容器是 .wx-layout（display:flex; flex-direction:row），三个直接子项：
+ *   .wx-table-container（左表格面板, flex:0 0 <gridWidth>）
+ *   .wx-resizer（中间分隔条, 4px）
+ *   .wx-content（右时间轴面板, flex:0 1 auto, 内含 .wx-area）
+ * 折叠某侧：隐藏该面板 + 隐藏分隔条 + 让另一侧 flex:1 1 auto 填满剩余宽度。 */
+.hk-gantt-left-collapsed .wx-layout > .wx-table-container {
+  display: none !important;
+}
+.hk-gantt-left-collapsed .wx-layout > .wx-resizer {
+  display: none !important;
+}
+.hk-gantt-left-collapsed .wx-layout > .wx-content {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.hk-gantt-right-collapsed .wx-layout > .wx-content {
+  display: none !important;
+}
+.hk-gantt-right-collapsed .wx-layout > .wx-resizer {
+  display: none !important;
+}
+.hk-gantt-right-collapsed .wx-layout > .wx-table-container {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+/* 折叠 / 展开 控制按钮：浮在甘特图四角，z 高于气泡 */
+.hk-gantt-fold,
+.hk-gantt-reopen {
+  position: absolute;
+  top: 6px;
+  z-index: 60;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #595959;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  user-select: none;
+}
+.hk-gantt-fold:hover,
+.hk-gantt-reopen:hover {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+.hk-gantt-fold-left,
+.hk-gantt-reopen-left {
+  left: 6px;
+}
+.hk-gantt-fold-right,
+.hk-gantt-reopen-right {
+  right: 6px;
+}
+
