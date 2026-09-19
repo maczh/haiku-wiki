@@ -7,15 +7,15 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT:-8080}:8080"
-    environment:
-      - PORT=8080
-      - CONF_DIR=/app/conf
-      - GIN_MODE=release
-      - JWT_SECRET=${JWT_SECRET:-haiku-wiki-dev-secret-change-me}
-      # 以下三项只作兜底：正式配置写在 ./conf/application.yml 里
-      - DB_DRIVER=${DB_DRIVER:-sqlite}
-      - DB_DSN=${DB_DSN:-}
-      - DATA_DIR=/app/data
+    # environment:
+    #   - PORT=8080
+    #   - CONF_DIR=/app/conf
+    #   - GIN_MODE=release
+    #   - JWT_SECRET=${JWT_SECRET:-haiku-wiki-dev-secret-change-me}
+    #   # 以下三项只作兜底：正式配置写在 ./conf/application.yml 里
+    #   - DB_DRIVER=${DB_DRIVER:-sqlite}
+    #   - DB_DSN=${DB_DSN:-}
+    #   - DATA_DIR=/app/data
     volumes:
       # 配置卷：conf/application.yml（数据库 / 存储 / S3 / 上传上限）。
       # 首次启动前请把仓库根的 conf/application.yml 复制到这里的 ./conf 目录再改；

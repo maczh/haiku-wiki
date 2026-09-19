@@ -16,24 +16,24 @@ jwt:
 
 database:
   # sqlite | mysql
-  driver: sqlite
+  driver: mysql
   # 留空时：sqlite 自动落在 storage.local.dir 下的 haiku.db
   dsn: ""
   # MySQL 可直接给 dsn：
   # dsn: "haiku:Jihai2026@tcp(192.168.2.9:3306)/haiku_wiki?charset=utf8mb4&parseTime=True&loc=Local"
   # 也可拆成下面这些字段，由程序拼装（dsn 为空时生效；迁移功能按字段改写）
-  host: 192.168.2.9
+  host: 192.168.31.247
   port: 3306
   user: haiku
   password: "Jihai2026"
-  name: haiku_wiki
+  name: haiku
 
 storage:
   # local | s3
   type: local
   local:
     # 本地存储根目录（上传文件落在 <dir>/uploads/）；Docker 部署由 DATA_DIR=/app/data 覆盖
-    dir: ./data
+    dir: /app/data
 
 # storage.type 为 s3 时生效（兼容 MinIO / Ceph RGW / 腾讯云 COS 等）
 s3:

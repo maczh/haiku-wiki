@@ -63,7 +63,7 @@ COPY web/ ./
 RUN npm run build
 
 # 阶段 2：构建后端（纯 Go，免 CGO，嵌入前端产物）
-FROM golang:1.23-alpine AS server-builder
+FROM golang:1.25-alpine AS server-builder
 WORKDIR /app/server
 COPY server/go.mod server/go.sum* ./
 RUN GOPROXY=https://goproxy.cn go mod download
