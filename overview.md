@@ -253,16 +253,32 @@ tools/verify/   14 个套件（全部登记进 run-all）+ run-all.sh
 > 直接交给 `python3 -c "json.loads(...)"` 会解析失败、断言莫名变红。已改成让 JS 返回 `总数|缺项;缺项`
 > 这种不含引号的裸串，并记进 `tools/verify/README.md` 的「已知坑」第 6 条。
 
+### 顺带的收获：清理扫描揪出三处「验证依赖还在 tmp」的残留
+
+准备清理 `/home/macro/.workbuddy/tmp`（**6.9 GB / 506 项**）时发现：套件仍依赖那个「会被清理的目录」
+里的文件 —— `e2e-dashboard` 用的 `seed-demo.py` **从未入库**、`e2e-folder-dir` 调的是 tmp 里的
+**旧副本** `gen-upload-js.py`、`embed-prod-check` 硬编码 `$TMP/vendor/lr/...` 的 DWG 转换器
+（转换器不在时那条断言会报**假红**）。三处都已收回仓库 / 参数化（缺转换器时明确 skip）。
+
+验证方式是把 tmp 里的副本**真的挪走**再跑：`embed-prod-check` / `e2e-dashboard` / `e2e-folder-dir`
+→ **17 / 40 / 49 全绿**；再把 `tmp/vendor/lr` 临时改名 → `embed-prod-check` **16 通过 0 失败**
+（skip 生效，套件仍 `ALL_SUITES_PASS`）。
+
+清理清单（分档 + 可直接粘的命令 + 回滚说明）：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`。
+**未删除任何文件** —— 其中 `haiku-wiki`、`vendor/lr/`、`gotmp`、`xdg`、`agent-browser-chrome-*`、
+`regress` 这六项是工具链依赖，不能删。
+
 ---
 
 ## 七、遗留事项
 
 - **`git push` 未执行**：本机没有任何 GitHub 凭据，需要你自己推。
 - **本机没有 Docker**：`Dockerfile` 未真实构建，只能陈述 `go build` 与 embed 产物的实测数字。
-- `/home/macro/.workbuddy/tmp` 下累积的构建备份与截图目录（数 GB）未清理，需要时按目录逐个删。
-  **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必再担心弄丢验证手段。
-  注意 tmp 里还留着本轮之前那些**一次性排查脚本**（`gantt-*-probe.sh`、`gantt-diag*.sh`、`ui-diag.sh` 等），
-  它们是排查过程的临时产物、没有再跑过，清理属于预期损失。
+- `/home/macro/.workbuddy/tmp` 下累积的构建备份与截图目录（6.9 GB / 506 项）**尚未清理**，
+  但已出好清单：`/home/macro/.workbuddy/tmp-cleanup-plan-2026-09-19.md`
+  （分「必须保留 / 可直接删 / 重建才需重下 / 需你确认」四档，附可粘贴的命令与回滚说明）。
+  **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必担心弄丢验证手段；
+  唯一要记住的是那六项工具链依赖（见上一节末）。
 - **「目录」当前刻意不支持**：跨库挂载、拖拽移动、目录级分享/权限继承。
   如果后续要做「目录权限继承」，`services/book_service.go` 的可读性判定需要按祖先链向上回溯，
   这是唯一一处会牵动权限模型的地方。
