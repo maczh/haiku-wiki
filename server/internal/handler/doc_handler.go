@@ -30,9 +30,12 @@ type createDocReq struct {
 // todo：待办清单，正文 {version,items:[…]}，可导出 xlsx/md。
 // calendar：工作日历，正文 {version,tasks:[…]}，可导出 xlsx/ics。
 // gantt：甘特图，正文 {version,tasks:[…],links:[…]}，可导出 xlsx/md/json。
+// folder：目录（文件夹）节点，正文恒为空，只用于给文档分组分层；
+// 它可以有子文档/子目录，不参与搜索、导出与「最近更新」，也不能作为分享对象。
 var validDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
 	"file": true, "drawing": true, "todo": true, "calendar": true, "gantt": true, "api": true,
+	"folder": true,
 }
 
 // TreeDocs GET /api/books/:id/docs —— 目录树平铺列表。

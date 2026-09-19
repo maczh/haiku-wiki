@@ -141,6 +141,7 @@ export const DOC_TYPE_DEFAULT_TITLE: Record<string, string> = {
   calendar: '未命名工作日历',
   gantt: '未命名甘特图',
   api: '未命名接口文档',
+  folder: '未命名目录',
 }
 
 /** 取某类型的默认文档名（未知类型回退「未命名文档」）。 */

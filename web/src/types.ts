@@ -145,10 +145,22 @@ export const COVER_COLORS = [
 
 // ---------- 增量：多文档类型 ----------
 
-export type DocType = 'markdown' | 'sheet' | 'mindmap' | 'flowchart' | 'drawing' | 'todo' | 'calendar' | 'gantt' | 'api' | 'file'
+export type DocType =
+  | 'markdown'
+  | 'sheet'
+  | 'mindmap'
+  | 'flowchart'
+  | 'drawing'
+  | 'todo'
+  | 'calendar'
+  | 'gantt'
+  | 'api'
+  | 'file'
+  | 'folder'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
- *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。 */
+ *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
+ *  folder（目录）由「新建目录」入口产生，不参与「新建文档」的类型选择。 */
 export const DOC_TYPES: DocType[] = ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar', 'gantt', 'api']
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
@@ -162,6 +174,7 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   gantt: '甘特图',
   api: '接口',
   file: '附件',
+  folder: '目录',
 }
 
 /** 附件型文档（doc_type=file）content 结构，与后端 exportx.FileRef 对应 */

@@ -9,6 +9,7 @@ import {
   EditOutlined,
   EyeOutlined,
   FileAddOutlined,
+  FolderAddOutlined,
   GlobalOutlined,
   ImportOutlined,
   LockOutlined,
@@ -33,11 +34,12 @@ import CollaboratorModal from '../components/collab/CollaboratorModal'
 import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
 import { getBook, setBookVisibility, updateBook, deleteBook, listBooks, createBook } from '../api/books'
 import { getDoc, createDoc, getTree, duplicateDoc, moveDoc, moveDocToBook, pinDoc } from '../api/docs'
-import { buildChildrenMap, useDocTreeStore } from '../stores/docTreeStore'
+import { useDocTreeStore } from '../stores/docTreeStore'
 import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNode, type DocType, type Visibility } from '../types'
 import { COVER_COLORS, DOC_TYPES, DOC_TYPE_LABEL } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
+import { ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../lib/dirOptions'
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
@@ -61,19 +63,9 @@ interface BookEditState {
   book?: Book
 }
 
-/** 把知识库文档平铺成"目录"下拉选项（含层级缩进） */
-function flattenDocs(docs: DocNode[]): { id: number; label: string }[] {
-  const map = buildChildrenMap(docs)
-  const out: { id: number; label: string }[] = []
-  const walk = (parentId: number, depth: number) => {
-    for (const d of map.get(parentId) || []) {
-      out.push({ id: d.id, label: '　'.repeat(depth) + (d.title || '未命名') })
-      walk(d.id, depth + 1)
-    }
-  }
-  walk(0, 0)
-  return out
-}
+// 新建/导入的「存放位置（目录）」下拉：选项形状与根目录哨兵值统一放在 lib/dirOptions，
+// 那里有契约注释与单测兜底（历史上这里的 {id,label} 让控件把原始值 0 当文本显示，
+// 且无论选哪一项最终都落成 parent_id=0）。
 
 // 左栏宽度 / 折叠态、大纲浮动层开关均持久化到 localStorage（本地偏好）
 const LS_SIDEBAR_W = 'hk.sidebar.width'
@@ -150,19 +142,20 @@ export default function BookPage() {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
 
-  // 新建文档：两步（先选知识库+目录，再填类型与名称）
+  // 新建：两步（先选知识库+目录，再填类型与名称）；kind='folder' 时第二步不选类型
   const [newDocStep, setNewDocStep] = useState(0)
   const [newDocBookId, setNewDocBookId] = useState<number | null>(null)
-  const [newDocParentId, setNewDocParentId] = useState(0)
+  const [newDocParentId, setNewDocParentId] = useState<number>(ROOT_DIR_VALUE)
+  const [newDocKind, setNewDocKind] = useState<'doc' | 'folder'>('doc')
   const [newDocType, setNewDocType] = useState<DocType>('markdown')
   const [newDocName, setNewDocName] = useState('')
-  const [dirOptions, setDirOptions] = useState<{ id: number; label: string }[]>([])
+  const [dirOptions, setDirOptions] = useState<DirOption[]>([])
   const [dirLoading, setDirLoading] = useState(false)
 
   // 导入：两步（先选知识库+目录，再选方式）
   const [importStep, setImportStep] = useState(0)
   const [importBookId, setImportBookId] = useState<number | null>(null)
-  const [importParentId, setImportParentId] = useState(0)
+  const [importParentId, setImportParentId] = useState<number>(ROOT_DIR_VALUE)
   const [importMode, setImportMode] = useState<'file' | 'url'>('file')
   const [fileImport, setFileImport] = useState<{ open: boolean; bookId: number; parentId: number }>({
     open: false,
@@ -246,18 +239,22 @@ export default function BookPage() {
   )
 
   /**
-   * 首页快捷操作「导入文件 / 导入网页」直达：
-   * 带 ?import=file|url 进入本页时自动打开对应导入对话框，并立刻清掉该参数
+   * 首页快捷操作「新建文档 / 导入文件 / 导入网页」直达：
+   * 带 ?import=file|url(&parent=目录id) 进入本页时自动打开对应导入对话框，并立刻清掉这些参数
    * ——保留参数会让刷新/后退反复弹出对话框。
+   * parent 缺省/非法时回落根目录（后端 parent_id=0 即知识库顶层）。
    */
   useEffect(() => {
     const kind = searchParams.get('import')
     if (!kind || !bookID) return
+    const rawParent = Number(searchParams.get('parent') ?? '')
+    const parentId = Number.isInteger(rawParent) && rawParent > 0 ? rawParent : ROOT_DIR_VALUE
     const next = new URLSearchParams(searchParams)
     next.delete('import')
+    next.delete('parent')
     setSearchParams(next, { replace: true })
-    if (kind === 'url') setUrlImport({ open: true, bookId: bookID, parentId: 0 })
-    else setFileImport({ open: true, bookId: bookID, parentId: 0 })
+    if (kind === 'url') setUrlImport({ open: true, bookId: bookID, parentId })
+    else setFileImport({ open: true, bookId: bookID, parentId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookID, searchParams])
 
@@ -379,18 +376,19 @@ export default function BookPage() {
     setDirLoading(true)
     try {
       const docs = await getTree(bookId)
-      setDirOptions([{ id: 0, label: '根目录（知识库顶层）' }, ...flattenDocs(docs)])
+      setDirOptions(withRootDir(buildDirOptions(docs)))
     } catch {
-      setDirOptions([{ id: 0, label: '根目录（知识库顶层）' }])
+      setDirOptions(withRootDir([]))
     } finally {
       setDirLoading(false)
     }
   }
 
-  async function openNewDoc(bookId?: number, parentId?: number) {
+  async function openNewDoc(bookId?: number, parentId?: number, kind: 'doc' | 'folder' = 'doc') {
     setNewDocStep(1)
     setNewDocBookId(bookId ?? null)
-    setNewDocParentId(parentId ?? 0)
+    setNewDocParentId(parentId ?? ROOT_DIR_VALUE)
+    setNewDocKind(kind)
     setNewDocType('markdown')
     setNewDocName('')
     if (bookId != null) {
@@ -402,20 +400,23 @@ export default function BookPage() {
 
   async function onNewDocBookChange(bookId: number) {
     setNewDocBookId(bookId)
-    setNewDocParentId(0)
+    setNewDocParentId(ROOT_DIR_VALUE)
     await loadDirOptions(bookId)
   }
 
   async function submitNewDoc() {
     if (newDocBookId == null) return
     const name = newDocName.trim()
+    // 目录：doc_type=folder，不选类型，正文恒为空
+    const docType: DocType = newDocKind === 'folder' ? 'folder' : newDocType
     try {
-      const d = await createDoc(newDocBookId, newDocParentId, name, newDocType)
+      const d = await createDoc(newDocBookId, newDocParentId, name, docType)
       setNewDocStep(0)
-      message.success('文档已创建')
+      message.success(newDocKind === 'folder' ? '目录已创建' : '文档已创建')
       setReloadBookId(newDocBookId)
       setReloadNonce((n) => n + 1)
-      navigate(`/books/${newDocBookId}?docId=${d.id}&tab=edit`)
+      // 目录没有正文，落到编辑页只会看到「不可编辑」；统一进阅读态（显示目录说明）
+      navigate(`/books/${newDocBookId}?docId=${d.id}&tab=${newDocKind === 'folder' ? 'read' : 'edit'}`)
     } catch {
       /* 拦截器已提示 */
     }
@@ -424,7 +425,7 @@ export default function BookPage() {
   async function openImport(bookId?: number, parentId?: number) {
     setImportStep(1)
     setImportBookId(bookId ?? null)
-    setImportParentId(parentId ?? 0)
+    setImportParentId(parentId ?? ROOT_DIR_VALUE)
     setImportMode('file')
     if (bookId != null) {
       await loadDirOptions(bookId)
@@ -435,7 +436,7 @@ export default function BookPage() {
 
   async function onImportBookChange(bookId: number) {
     setImportBookId(bookId)
-    setImportParentId(0)
+    setImportParentId(ROOT_DIR_VALUE)
     await loadDirOptions(bookId)
   }
 
@@ -532,6 +533,8 @@ export default function BookPage() {
   // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
+  // 目录（doc_type=folder）：不承载正文，只能读占位提示，不能编辑/分享/协作
+  const isFolderDoc = docTypeNow === 'folder'
   const isMarkdownDoc = docTypeNow === 'markdown'
   // 绘图文档（内嵌 draw.io）在编辑态由 iframe 撑满，不需要页面再给内边距
   const isDrawingDoc = docTypeNow === 'drawing'
@@ -588,17 +591,19 @@ export default function BookPage() {
     })
   }
 
-  /** 顶栏书头右键菜单：新建文档 / 重命名 / 修改可见性 / 导出 / 删除 */
+  /** 顶栏书头右键菜单：新建文档 / 新建目录 / 重命名 / 修改可见性 / 导出 / 删除 */
   const bookMenu = {
     items: [
       { key: 'create', icon: <FileAddOutlined />, label: '新建文档', disabled: !canWrite },
+      { key: 'createFolder', icon: <FolderAddOutlined />, label: '新建目录', disabled: !canWrite },
       { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !isOwner },
       { key: 'visibility', icon: <GlobalOutlined />, label: '修改可见性', disabled: !isOwner },
       { key: 'export', icon: <DownloadOutlined />, label: '导出' },
       { key: 'delete', icon: <DeleteOutlined />, label: '删除知识库', danger: true, disabled: !isOwner },
     ],
     onClick: ({ key }: { key: string }) => {
-      if (key === 'create') openNewDoc(bookID, 0)
+      if (key === 'create') openNewDoc(bookID, 0, 'doc')
+      if (key === 'createFolder') openNewDoc(bookID, 0, 'folder')
       if (key === 'rename') {
         setRenameBookValue(book?.name ?? '')
         setRenameModalOpen(true)
@@ -702,7 +707,7 @@ export default function BookPage() {
                   isAdmin={!!isAdmin}
                   onOpenBook={(id) => navigate(`/books/${id}`)}
                   onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
-                  onNewDoc={(bid, pid) => void openNewDoc(bid, pid)}
+                  onNewDoc={(bid, pid, kind) => void openNewDoc(bid, pid, kind)}
                   onImport={(bid, pid) => void openImport(bid, pid)}
                   onNewBook={(cat) => openCreateBook(cat)}
                   onEditBook={(b) => openEditBook(b)}
@@ -763,12 +768,12 @@ export default function BookPage() {
               >
                 阅读
               </Button>
-              <Tooltip title={isAttachmentDoc ? '附件型文档按原文件保存，不可编辑' : ''}>
+              <Tooltip title={isAttachmentDoc ? '附件型文档按原文件保存，不可编辑' : isFolderDoc ? '目录不承载正文，无需编辑' : ''}>
                 <Button
                   size="small"
                   type={tab === 'edit' ? 'primary' : 'default'}
                   icon={<EditOutlined />}
-                  disabled={!canWrite || isAttachmentDoc}
+                  disabled={!canWrite || isAttachmentDoc || isFolderDoc}
                   onClick={() => setParams({ tab: 'edit' })}
                 >
                   编辑
@@ -780,7 +785,7 @@ export default function BookPage() {
               {doc?.title ?? ''}
             </div>
 
-            {docIdParam && doc && !docLoading && canWrite && (
+            {docIdParam && doc && !docLoading && canWrite && !isFolderDoc && (
               <Tooltip title="邀请其他用户共同编辑这篇文档">
                 <Button size="small" icon={<UserAddOutlined />} onClick={() => openCollaborators(doc)}>
                   协作
@@ -794,7 +799,7 @@ export default function BookPage() {
                 </Button>
               </Tooltip>
             )}
-            {docIdParam && doc && !docLoading && (
+            {docIdParam && doc && !docLoading && !isFolderDoc && (
               <Tooltip title="分享到微信 / 生成免登录阅读链接">
                 <Button size="small" icon={<ShareAltOutlined />} onClick={() => setWeChatOpen(true)}>
                   分享
@@ -818,7 +823,9 @@ export default function BookPage() {
                         {canWrite && (
                           <>
                             {' '}
-                            或 <a onClick={() => void openNewDoc(bookID, 0)}>新建文档</a>
+                            或 <a onClick={() => void openNewDoc(bookID, 0, 'doc')}>新建文档</a>
+                            {' '}
+                            / <a onClick={() => void openNewDoc(bookID, 0, 'folder')}>新建目录</a>
                           </>
                         )}
                       </span>
@@ -831,6 +838,15 @@ export default function BookPage() {
                     {isAttachmentDoc ? (
                       <Empty
                         description="附件型文档按原文件保存、不可编辑，请切换到阅读模式查看"
+                        style={{ marginTop: 80 }}
+                      >
+                        <Button type="primary" onClick={() => setParams({ tab: 'read' })}>
+                          前往阅读
+                        </Button>
+                      </Empty>
+                    ) : isFolderDoc ? (
+                      <Empty
+                        description="目录不承载正文、无法编辑，请切换到阅读模式查看说明"
                         style={{ marginTop: 80 }}
                       >
                         <Button type="primary" onClick={() => setParams({ tab: 'read' })}>
@@ -1128,9 +1144,9 @@ export default function BookPage() {
         </Form>
       </Modal>
 
-      {/* 新建文档：第一步 选择知识库 + 目录 */}
+      {/* 新建：第一步 选择知识库 + 目录（文档与目录共用；kind 决定第二步是否选类型） */}
       <Modal
-        title="新建文档 · 选择位置"
+        title={newDocKind === 'folder' ? '新建目录 · 选择位置' : '新建文档 · 选择位置'}
         open={newDocStep === 1}
         onCancel={() => setNewDocStep(0)}
         okText="下一步"
@@ -1147,6 +1163,8 @@ export default function BookPage() {
             value={newDocBookId ?? undefined}
             onChange={(v) => void onNewDocBookChange(v)}
             options={bookOptions}
+            showSearch
+            optionFilterProp="label"
           />
         </div>
         <div>
@@ -1156,40 +1174,47 @@ export default function BookPage() {
           ) : (
             <Select
               style={{ width: '100%' }}
-              placeholder="选择目录"
-              value={newDocParentId}
-              onChange={setNewDocParentId}
+              placeholder={newDocBookId == null ? '请先选择知识库' : '选择目录（默认根目录）'}
+              value={newDocBookId == null ? undefined : newDocParentId}
+              onChange={(v: number) => setNewDocParentId(v)}
               options={dirOptions}
+              disabled={newDocBookId == null}
+              showSearch
+              optionFilterProp="label"
             />
           )}
         </div>
-        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>未选择子目录时，文档将创建在知识库根目录。</div>
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
+          保持「根目录」即在知识库顶层创建；展开下拉可选中任意层级的目录或文档作为存放位置。
+        </div>
       </Modal>
 
-      {/* 新建文档：第二步 类型与名称 */}
+      {/* 新建：第二步 类型与名称（目录只需名称） */}
       <Modal
-        title="新建文档 · 填写信息"
+        title={newDocKind === 'folder' ? '新建目录 · 填写信息' : '新建文档 · 填写信息'}
         open={newDocStep === 2}
         onCancel={() => setNewDocStep(0)}
-        okText="创建"
+        okText={newDocKind === 'folder' ? '创建目录' : '创建'}
         cancelText="取消"
         onOk={() => void submitNewDoc()}
         destroyOnClose
       >
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
-          <Select
-            style={{ width: '100%' }}
-            value={newDocType}
-            onChange={setNewDocType}
-            options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
-          />
-        </div>
+        {newDocKind === 'doc' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
+            <Select
+              style={{ width: '100%' }}
+              value={newDocType}
+              onChange={setNewDocType}
+              options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
+            />
+          </div>
+        )}
         <div>
-          <div style={{ marginBottom: 4, color: '#5f6672' }}>文档名称</div>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>{newDocKind === 'folder' ? '目录名称' : '文档名称'}</div>
           <Input
             autoFocus
-            placeholder="请输入文档名称"
+            placeholder={newDocKind === 'folder' ? '请输入目录名称，例如：项目资料' : '请输入文档名称'}
             value={newDocName}
             onChange={(e) => setNewDocName(e.target.value)}
             onPressEnter={() => void submitNewDoc()}
@@ -1216,6 +1241,8 @@ export default function BookPage() {
             value={importBookId ?? undefined}
             onChange={(v) => void onImportBookChange(v)}
             options={bookOptions}
+            showSearch
+            optionFilterProp="label"
           />
         </div>
         <div>
@@ -1225,14 +1252,19 @@ export default function BookPage() {
           ) : (
             <Select
               style={{ width: '100%' }}
-              placeholder="选择目录"
-              value={importParentId}
-              onChange={setImportParentId}
+              placeholder={importBookId == null ? '请先选择知识库' : '选择目录（默认根目录）'}
+              value={importBookId == null ? undefined : importParentId}
+              onChange={(v: number) => setImportParentId(v)}
               options={dirOptions}
+              disabled={importBookId == null}
+              showSearch
+              optionFilterProp="label"
             />
           )}
         </div>
-        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>导入的文档将落入所选知识库的该目录。</div>
+        <div style={{ marginTop: 12, color: '#8a919f', fontSize: 12 }}>
+          导入的文档将落入所选知识库的该目录；选中子目录或子文档即可直接导入到对应层级。
+        </div>
       </Modal>
 
       {/* 导入：第二步 选择方式 */}

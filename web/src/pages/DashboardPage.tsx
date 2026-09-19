@@ -320,8 +320,9 @@ export default function DashboardPage() {
           books={allBooks}
           onClose={() => setQuickModal(null)}
           onCreated={(bookId, docId) => navigate(`/books/${bookId}?docId=${docId}&tab=edit`)}
-          onPickBook={(bookId) =>
-            navigate(`/books/${bookId}?import=${quickModal === 'import-url' ? 'url' : 'file'}`)
+          onPickBook={(bookId, parentId) =>
+            // 目录层级经 URL 传给知识库页，由它打开导入对话框时作为初始存放位置
+            navigate(`/books/${bookId}?import=${quickModal === 'import-url' ? 'url' : 'file'}${parentId ? `&parent=${parentId}` : ''}`)
           }
         />
       )}

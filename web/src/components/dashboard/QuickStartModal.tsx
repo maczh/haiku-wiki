@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, Modal, Select, Typography, message } from 'antd'
-import { createDoc } from '../../api/docs'
+import { createDoc, getTree } from '../../api/docs'
 import { defaultTitleOf, firstWritableBook } from '../../lib/dashboard'
+import { PICK_BOOK_FIRST, ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../../lib/dirOptions'
 import { DOC_TYPE_LABEL, DOC_TYPES, type BookWithCount, type DocType } from '../../types'
 
 export type QuickStartMode = 'doc' | 'import-file' | 'import-url'
@@ -15,8 +16,8 @@ interface Props {
   onClose: () => void
   /** mode='doc'：创建成功后回调 */
   onCreated: (bookId: number, docId: number) => void
-  /** mode='import-*'：选好目标知识库后回调 */
-  onPickBook: (bookId: number) => void
+  /** mode='import-*'：选好目标知识库与目录后回调（parentId=0 表示知识库顶层） */
+  onPickBook: (bookId: number, parentId: number) => void
 }
 
 const TITLE: Record<QuickStartMode, string> = {
@@ -26,15 +27,15 @@ const TITLE: Record<QuickStartMode, string> = {
 }
 
 const HINT: Record<QuickStartMode, string> = {
-  doc: '选好知识库与类型，创建后会直接进入编辑页。',
-  'import-file': '文件将导入到所选知识库的根目录，随后可自由拖动层级。',
+  doc: '选好知识库、目录与类型，创建后会直接进入编辑页。',
+  'import-file': '文件将导入到所选目录，随后可自由拖动层级。',
   'import-url': '服务端抓取网页正文并转为 Markdown 文档（带 SSRF 防护，不能抓内网地址）。',
 }
 
 /**
  * 首页快捷操作的统一弹窗：
- *  · mode='doc'        —— 选库 + 类型 + 标题，直接创建并跳转编辑；
- *  · mode='import-*'   —— 只选目标知识库，确定后由父组件带参数跳转到知识库页并自动打开导入对话框。
+ *  · mode='doc'        —— 选库 + 目录 + 类型 + 标题，直接创建并跳转编辑；
+ *  · mode='import-*'   —— 只选目标知识库与目录，确定后由父组件带参数跳转到知识库页并自动打开导入对话框。
  *
  * 默认目标库用 firstWritableBook 挑选（首选可写、避开默认只读的公司知识库），
  * 避免用户点「新建文档」落到一个自己没有写权限的库里再被后端拒绝。
@@ -50,6 +51,10 @@ export default function QuickStartModal({
 }: Props) {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
+  // 目录下拉在选中知识库后才有内容；切换知识库要重新拉树并回落根目录
+  const [dirOptions, setDirOptions] = useState<DirOption[]>([])
+  const [dirLoading, setDirLoading] = useState(false)
+  const [dirDisabled, setDirDisabled] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -58,8 +63,40 @@ export default function QuickStartModal({
       book_id: preferred,
       doc_type: 'markdown' as DocType,
       title: defaultTitleOf('markdown'),
+      parent_id: ROOT_DIR_VALUE,
     })
   }, [open, defaultBookId, books, form])
+
+  // 打开时若已预选知识库，目录下拉也要跟上（否则用户看到的是禁用空框）
+  useEffect(() => {
+    if (!open) return
+    const preferred = form.getFieldValue('book_id') as number | undefined
+    if (preferred) void loadDirs(preferred)
+    else {
+      setDirOptions(withRootDir([]))
+      setDirDisabled(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  async function loadDirs(bookId: number) {
+    setDirDisabled(false)
+    setDirLoading(true)
+    try {
+      const docs = await getTree(bookId)
+      setDirOptions(withRootDir(buildDirOptions(docs)))
+    } catch {
+      setDirOptions(withRootDir([]))
+    } finally {
+      setDirLoading(false)
+    }
+  }
+
+  function onBookChange(bookId: number) {
+    // 换库后原来的 parent_id 一定无效，必须回落根目录
+    form.setFieldsValue({ parent_id: ROOT_DIR_VALUE })
+    void loadDirs(bookId)
+  }
 
   const options = books.map((b) => ({
     value: b.id,
@@ -68,14 +105,20 @@ export default function QuickStartModal({
 
   async function submit() {
     const values = await form.validateFields()
+    const parentId = (values.parent_id as number) || ROOT_DIR_VALUE
     if (mode !== 'doc') {
-      onPickBook(values.book_id as number)
+      onPickBook(values.book_id as number, parentId)
       onClose()
       return
     }
     setSaving(true)
     try {
-      const doc = await createDoc(values.book_id as number, 0, (values.title as string)?.trim() || defaultTitleOf(values.doc_type), values.doc_type)
+      const doc = await createDoc(
+        values.book_id as number,
+        parentId,
+        (values.title as string)?.trim() || defaultTitleOf(values.doc_type),
+        values.doc_type,
+      )
       message.success('文档已创建')
       onClose()
       onCreated(values.book_id as number, doc.id)
@@ -106,6 +149,19 @@ export default function QuickStartModal({
             placeholder={options.length === 0 ? '还没有知识库，请先新建' : '请选择知识库'}
             options={options}
             disabled={options.length === 0}
+            onChange={onBookChange}
+            showSearch
+            optionFilterProp="label"
+          />
+        </Form.Item>
+
+        <Form.Item label="目录（存放位置）" name="parent_id">
+          <Select
+            data-testid="hk-quick-parent"
+            placeholder={dirDisabled ? PICK_BOOK_FIRST : '根目录（知识库顶层）'}
+            options={dirOptions}
+            disabled={dirDisabled}
+            loading={dirLoading}
             showSearch
             optionFilterProp="label"
           />

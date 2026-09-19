@@ -194,8 +194,54 @@ async function main() {
     check('gantt → 未命名甘特图', defaultTitleOf('gantt') === '未命名甘特图')
     check('未知类型回退未命名文档', defaultTitleOf('nope') === '未命名文档')
     check('九种可新建类型都有默认名', ['markdown', 'sheet', 'mindmap', 'flowchart', 'drawing', 'todo', 'calendar', 'gantt', 'api'].every((t) => !!DOC_TYPE_DEFAULT_TITLE[t]))
+    check('folder 有默认名', defaultTitleOf('folder') === '未命名目录')
   } finally {
     await dash.cleanup()
+  }
+
+  // ---------- ⑧ 目录下拉选项契约（lib/dirOptions）----------
+  // 这是本轮修复的核心：选项必须是 {value,label}，否则 AntD Select 会显示原始值 0
+  // 且选了没效果（历史 bug）。
+  const dirs = await loadModule('src/lib/dirOptions.ts', 'dirOptions')
+  try {
+    const { buildDirOptions, withRootDir, ROOT_DIR_VALUE, ROOT_DIR_LABEL, PICK_BOOK_FIRST } = dirs.mod
+    console.log('\n⑧ 目录下拉选项（lib/dirOptions）')
+
+    const node = (id, parent_id, title, doc_type = 'markdown', pos = 'a', pinned_at = null) => ({
+      id, book_id: 1, parent_id, title, doc_type, pos, pinned_at, updated_at: '2026-09-19T00:00:00Z',
+    })
+    // 结构：RIS项目(目录) ├ 需求说明 ├ IOT项目(目录) └ 子目录(目录)
+    const docs = [
+      node(10, 0, 'RIS项目', 'folder', 'a'),
+      node(11, 10, '需求说明', 'markdown', 'a'),
+      node(12, 0, 'IOT项目', 'folder', 'b'),
+      node(13, 10, '子目录', 'folder', 'b'),
+      node(14, 11, '深层文档', 'markdown', 'a'),
+    ]
+    const opts = buildDirOptions(docs)
+
+    check('每项都有 value 字段（AntD 契约）', opts.every((o) => typeof o.value === 'number'))
+    check('每项都有 label 字段', opts.every((o) => typeof o.label === 'string' && o.label.length > 0))
+    check('没有遗留的 id 字段', opts.every((o) => !('id' in o)))
+    check('cover 全部节点（任意层级都可选）', opts.length === 5)
+    check('深度优先顺序：RIS → 需求说明 → 深层文档 → 子目录 → IOT', opts.map((o) => o.value).join(',') === '10,11,14,13,12')
+    check('顶层无缩进', opts[0].label === 'RIS项目（目录）')
+    check('子节点按层级缩进', opts[1].label.startsWith('　') && !opts[1].label.slice(0, 1).trim())
+    check('二级缩进更深', opts[2].label.startsWith('　　'))
+    check('目录带（目录）后缀，普通文档不带', opts[2].label.endsWith('深层文档') && opts[0].label.endsWith('（目录）'))
+    check('空文档列表 → 空数组', buildDirOptions([]).length === 0)
+
+    const rooted = withRootDir(opts)
+    check('补根目录后第一项是根目录', rooted[0].value === ROOT_DIR_VALUE && rooted[0].label === ROOT_DIR_LABEL)
+    check('根目录 value 为 0（后端 parent_id=0 约定）', ROOT_DIR_VALUE === 0)
+    check('withRootDir 不改动入参', opts.length === 5)
+
+    // 置顶优先：与目录树展示顺序一致，否则下拉里的顺序会和左侧树对不上
+    const pinned = buildDirOptions([node(20, 0, 'B', 'markdown', 'a'), node(21, 0, 'A', 'markdown', 'b', '2026-01-01T00:00:00Z')])
+    check('置顶节点排在前面（与树一致）', pinned[0].value === 21)
+    check('未选知识库提示文案存在', typeof PICK_BOOK_FIRST === 'string' && PICK_BOOK_FIRST.length > 0)
+  } finally {
+    await dirs.cleanup()
   }
 
   console.log(`\nRESULT: PASS=${failed === 0 ? 'all' : 'partial'} FAIL=${failed}`)

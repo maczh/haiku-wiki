@@ -143,6 +143,13 @@ func TestFormatsForDocType(t *testing.T) {
 	if _, _, err := Convert("sheet", "pdf", "x", "t"); err == nil {
 		t.Fatal("sheet→pdf 应当报错")
 	}
+	// folder（目录）不承载正文：不能有可导出格式，也不能像未知类型那样回退成 markdown 的格式表
+	if got := FormatsForDocType("folder"); len(got) != 0 {
+		t.Fatalf("folder 不应有可导出格式，实际 %d 个", len(got))
+	}
+	if _, _, err := Convert("folder", "md", "", "目录"); err == nil {
+		t.Fatal("folder 导出应当报错")
+	}
 }
 
 func TestParseMarkdownBlocks(t *testing.T) {
@@ -464,6 +471,7 @@ func TestNormalizeDocType(t *testing.T) {
 		"todolist":  "todo",
 		"calendar":  "calendar",
 		"file":      "file",
+		"folder":    "folder",
 		"unknown":   "markdown",
 	}
 	for in, want := range cases {

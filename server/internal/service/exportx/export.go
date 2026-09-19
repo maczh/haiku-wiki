@@ -128,15 +128,18 @@ func NormalizeDocType(docType string) string {
 		return "api"
 	case "file":
 		return "file"
+	case "folder":
+		return "folder"
 	default:
 		return "markdown"
 	}
 }
 
 // FormatsForDocType 返回文档类型支持的导出格式列表。
+// folder（目录）不承载正文，与 file 一样返回 nil 表示「无可导出格式」。
 func FormatsForDocType(docType string) []FormatSpec {
 	t := NormalizeDocType(docType)
-	if t == "file" {
+	if t == "file" || t == "folder" {
 		return nil
 	}
 	out := formatsByDocType[t]
@@ -172,13 +175,18 @@ func DefaultFormat(docType string) FormatSpec {
 // title 为文档标题（用于文件名、PDF 元信息与图片文件名）。
 func Convert(docType, format, content, title string) ([]byte, FormatSpec, error) {
 	t := NormalizeDocType(docType)
+	// file / folder 没有可导出格式，LookupFormat 会因「无格式列表」而报含糊的错，
+	// 这里先给出可读的原因（folder 落到此处说明有人在 UI 上漏禁了导出入口）。
+	if t == "folder" {
+		return nil, FormatSpec{}, fmt.Errorf("目录不承载正文，无法导出，请导出目录下的文档")
+	}
+	if t == "file" {
+		return nil, FormatSpec{}, fmt.Errorf("附件型文档请直接下载原文件")
+	}
 	spec, ok := LookupFormat(t, format)
 	if !ok {
 		return nil, FormatSpec{}, fmt.Errorf("不支持的导出格式：%s（%s 类型支持 %s）",
 			format, t, strings.Join(formatValues(t), "、"))
-	}
-	if t == "file" {
-		return nil, spec, fmt.Errorf("附件型文档请直接下载原文件")
 	}
 
 	switch t {

@@ -45,6 +45,11 @@ func ListReadableBookIDs(uid uint64) ([]uint64, error) {
 const recentDocSelect = "docs.id AS id, docs.title AS title, docs.doc_type AS doc_type, " +
 	"docs.book_id AS book_id, books.name AS book_name, docs.updated_at AS updated_at"
 
+// recentDocFilter 最近更新的公共过滤条件。
+// 目录（doc_type=folder）不承载正文，出现在「最近更新」里只会挤掉真正有内容的文档，
+// 因此在 SQL 层就排除（新增目录会被其它文档的更新「顶」出去，属预期行为）。
+const recentDocFilter = "docs.deleted_at IS NULL AND docs.doc_type <> 'folder'"
+
 // ListRecentDocsInBooks 在给定知识库集合内按更新时间倒序取前 limit 篇。
 func ListRecentDocsInBooks(bookIDs []uint64, limit int) ([]RecentDocItem, error) {
 	if len(bookIDs) == 0 || limit <= 0 {
@@ -54,7 +59,7 @@ func ListRecentDocsInBooks(bookIDs []uint64, limit int) ([]RecentDocItem, error)
 	err := db.Table("docs").
 		Select(recentDocSelect).
 		Joins("JOIN books ON books.id = docs.book_id").
-		Where("docs.deleted_at IS NULL AND docs.book_id IN ?", bookIDs).
+		Where(recentDocFilter+" AND docs.book_id IN ?", bookIDs).
 		Order("docs.updated_at DESC").
 		Limit(limit).
 		Find(&out).Error
@@ -71,7 +76,7 @@ func ListRecentCollaboratorDocs(uid uint64, limit int) ([]RecentDocItem, error) 
 		Select(recentDocSelect).
 		Joins("JOIN books ON books.id = docs.book_id").
 		Joins("JOIN doc_collaborators dc ON dc.doc_id = docs.id").
-		Where("docs.deleted_at IS NULL AND dc.user_id = ?", uid).
+		Where(recentDocFilter+" AND dc.user_id = ?", uid).
 		Order("docs.updated_at DESC").
 		Limit(limit).
 		Find(&out).Error

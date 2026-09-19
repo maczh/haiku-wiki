@@ -1,4 +1,5 @@
 import { lazy } from 'react'
+import { FolderOutlined } from '@ant-design/icons'
 import LazyBoundary from '../common/LazyBoundary'
 import WidthControl from './WidthControl'
 import { useReaderWidth } from '../../lib/readerWidth'
@@ -129,6 +130,20 @@ export default function DocContent({
         <ApiView content={content} />
       </LazyBoundary>
     )
+  } else if (docType === 'folder') {
+    // 目录（doc_type=folder）：不承载正文，占位提示如何在其下继续建内容。
+    // 这里刻意不懒加载任何渲染器 —— 目录没有正文，加载 Vditor/Luckysheet 是纯浪费。
+    body = (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '96px 24px', textAlign: 'center' }}>
+        <FolderOutlined style={{ fontSize: 56, color: '#faad14' }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#1f2329' }}>这是一个目录</div>
+        <div style={{ fontSize: 13, lineHeight: 1.9, color: '#8a919f', maxWidth: 460 }}>
+          目录本身不存放正文，只用来给文档分组分层。
+          <br />
+          在左侧目录树中右键本目录，即可新建子文档或子目录；也可以把已有文档移动进来。
+        </div>
+      </div>
+    )
   } else {
     // 未知类型兜底：纯文本，不进任何渲染管线
     body = (
@@ -140,9 +155,11 @@ export default function DocContent({
 
   // 甘特图要横向铺满（时间轴在窄栏下没法看），其余类型沿用阅读宽度偏好
   const fullWidth = docType === 'gantt'
+  // 目录没有正文，宽度调节器无意义
+  const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
   return (
     <div style={{ maxWidth: fullWidth ? undefined : (maxWidth ?? undefined), margin: '0 auto', width: '100%' }}>
-      {widthEditable && !fullWidth && <WidthControl compact />}
+      {showWidthControl && <WidthControl compact />}
       {body}
     </div>
   )

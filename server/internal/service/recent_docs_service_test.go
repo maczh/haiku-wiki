@@ -134,6 +134,76 @@ func TestRecentDocsCollaboratorVisible(t *testing.T) {
 	}
 }
 
+// TestRecentDocsExcludeFolder 目录（doc_type=folder）不承载正文，
+// 不应占用「最近更新」的名额——否则新建几个目录就会把真正有内容的文档挤出去。
+func TestRecentDocsExcludeFolder(t *testing.T) {
+	newEnv(t)
+	u := mkUser(t, "recent-folder@x.com", "pass123", "member")
+	book := mkBook(t, u.ID, "目录库", "private")
+
+	doc := mkDoc(t, book, u.ID, 0, "有内容的文档")
+	folder, err := (&DocService{}).CreateDoc(book, u.ID, 0, "项目资料", "folder")
+	if err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	// 目录最后创建，updated_at 最新：若未在 SQL 层排除，它会排在第一条
+	got, err := (&DocService{}).RecentDocs(u.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range got {
+		if it.ID == folder.ID {
+			t.Fatalf("目录（id=%d）不应出现在最近更新里", folder.ID)
+		}
+	}
+	if len(got) == 0 || got[0].ID != doc.ID {
+		t.Fatalf("最近更新第一条应为文档 %d，实际 %+v", doc.ID, got)
+	}
+}
+
+// TestFolderDocAsParent 目录可以直接作为父节点：目录下的文档落在目录里而不是根上。
+func TestFolderDocAsParent(t *testing.T) {
+	newEnv(t)
+	u := mkUser(t, "folder-parent@x.com", "pass123", "member")
+	book := mkBook(t, u.ID, "分层库", "private")
+
+	folder, err := (&DocService{}).CreateDoc(book, u.ID, 0, "RIS项目", "folder")
+	if err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+	if folder.DocType != "folder" {
+		t.Fatalf("目录类型应为 folder，实际 %s", folder.DocType)
+	}
+	sub, err := (&DocService{}).CreateDoc(book, u.ID, folder.ID, "需求说明", "markdown")
+	if err != nil {
+		t.Fatalf("在目录下建文档失败: %v", err)
+	}
+	if sub.ParentID != folder.ID {
+		t.Fatalf("子文档 parent_id 应为目录 %d，实际 %d", folder.ID, sub.ParentID)
+	}
+	// 目录下再建子目录（用户诉求：新建/导入都能选到子目录）
+	nested, err := (&DocService{}).CreateDoc(book, u.ID, folder.ID, "子目录", "folder")
+	if err != nil {
+		t.Fatalf("在目录下建子目录失败: %v", err)
+	}
+	tree, err := (&DocService{}).Tree(book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parents := map[uint64]uint64{}
+	for _, d := range tree {
+		parents[d.ID] = d.ParentID
+	}
+	if parents[nested.ID] != folder.ID {
+		t.Fatalf("子目录 parent_id 应为 %d，实际 %d", folder.ID, parents[nested.ID])
+	}
+	// 跨知识库挂父节点必须被拒绝（防止目录下拉串库）
+	other := mkBook(t, u.ID, "另一个库", "private")
+	if _, err := (&DocService{}).CreateDoc(other, u.ID, folder.ID, "串库文档", "markdown"); err == nil {
+		t.Fatal("父节点属于其它知识库时应报错")
+	}
+}
+
 // TestRecentDocsOrderAndLimit 按更新时间倒序且 limit 生效。
 func TestRecentDocsOrderAndLimit(t *testing.T) {
 	newEnv(t)

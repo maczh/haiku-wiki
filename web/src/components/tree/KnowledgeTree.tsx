@@ -10,6 +10,7 @@ import {
   FileAddOutlined,
   FileTextOutlined,
   FolderOutlined,
+  FolderAddOutlined,
   FolderOpenOutlined,
   ImportOutlined,
   MoreOutlined,
@@ -48,8 +49,9 @@ interface Props {
   onOpenBook: (bookId: number) => void
   /** 点击文档 → 打开文档 */
   onOpenDoc: (bookId: number, docId: number) => void
-  /** 新建文档（可预选书籍与目录；目录=父文档 id，0=根目录） */
-  onNewDoc: (bookId?: number, parentId?: number) => void
+  /** 新建节点（可预选书籍与目录；parentId=父文档 id，0=根目录）。
+   *  kind='doc' 新建文档（走类型选择），kind='folder' 新建目录（doc_type=folder）。 */
+  onNewDoc: (bookId?: number, parentId?: number, kind?: 'doc' | 'folder') => void
   /** 导入（可预选书籍与目录） */
   onImport: (bookId?: number, parentId?: number) => void
   /** 新建知识库（可选预选分类） */
@@ -101,11 +103,14 @@ function buildDocNodes(bookId: number, childrenMap: Map<number, DocNode[]>, pare
   return list.map((d) => {
     const kids = childrenMap.get(d.id) || []
     const hasKids = kids.length > 0
+    // 目录（doc_type=folder）始终显示文件夹图标；普通文档只在「有子节点」时才显示成文件夹
+    const isFolder = d.doc_type === 'folder'
     const spec = iconForDocType(d.doc_type, d.title)
     return {
       key: `doc:${bookId}:${d.id}`,
       title: d.title || '未命名',
-      icon: hasKids ? <FolderOutlined style={{ color: '#faad14' }} /> : <span style={{ color: spec.color }}>{spec.icon}</span>,
+      icon: isFolder || hasKids ? <FolderOutlined style={{ color: '#faad14' }} /> : <span style={{ color: spec.color }}>{spec.icon}</span>,
+      // 空目录也保留展开箭头位置一致；无子节点时它仍是叶子（点开只是显示占位）
       isLeaf: !hasKids,
       children: hasKids ? buildDocNodes(bookId, childrenMap, d.id) : undefined,
       raw: { kind: 'doc', bookId, docId: d.id, doc: d },
@@ -225,7 +230,8 @@ export default function KnowledgeTree(p: Props) {
 
   function bookMenu(book: BookWithCount): ReactNode {
     const items: { key: string; icon: ReactNode; label: ReactNode; onClick: () => void; danger?: boolean }[] = [
-      { key: 'new', icon: <FileAddOutlined />, label: '新建文档', onClick: () => p.onNewDoc(book.id, 0) },
+      { key: 'new', icon: <FileAddOutlined />, label: '新建文档', onClick: () => p.onNewDoc(book.id, 0, 'doc') },
+      { key: 'newFolder', icon: <FolderAddOutlined />, label: '新建目录', onClick: () => p.onNewDoc(book.id, 0, 'folder') },
       { key: 'import', icon: <ImportOutlined />, label: '导入', onClick: () => p.onImport(book.id, 0) },
       { key: 'edit', icon: <EditOutlined />, label: '设置', onClick: () => p.onEditBook(book) },
     ]
@@ -255,6 +261,8 @@ export default function KnowledgeTree(p: Props) {
     const bookId = node.raw.bookId!
     const doc = node.raw.doc!
     const canWrite = canWriteFor(bookId, doc)
+    // 目录（folder）不承载正文：不能编辑、导出、分享、复制（复制不级联子节点，只会得到空目录）
+    const isFolder = doc.doc_type === 'folder'
     const items: any[] = [
       { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
     ]
@@ -263,24 +271,25 @@ export default function KnowledgeTree(p: Props) {
         key: 'edit',
         icon: <FileTextOutlined />,
         label: '编辑文档',
-        disabled: !canWrite || doc.doc_type === 'file',
+        disabled: !canWrite || doc.doc_type === 'file' || isFolder,
         onClick: () => p.onEditDoc!(bookId, doc),
       })
     }
     items.push(
-      { key: 'newChild', icon: <FileAddOutlined />, label: '新建子文档', disabled: !canWrite, onClick: () => p.onNewDoc(bookId, doc.id) },
+      { key: 'newChild', icon: <FileAddOutlined />, label: '新建子文档', disabled: !canWrite, onClick: () => p.onNewDoc(bookId, doc.id, 'doc') },
+      { key: 'newChildFolder', icon: <FolderAddOutlined />, label: '新建子目录', disabled: !canWrite, onClick: () => p.onNewDoc(bookId, doc.id, 'folder') },
       { key: 'rename', icon: <EditOutlined />, label: '重命名', disabled: !canWrite, onClick: () => beginRename(bookId, doc) },
     )
     if (p.onDuplicateDoc) {
-      items.push({ key: 'duplicate', icon: <CopyOutlined />, label: '复制', disabled: !canWrite, onClick: () => p.onDuplicateDoc!(bookId, doc) })
+      items.push({ key: 'duplicate', icon: <CopyOutlined />, label: '复制', disabled: !canWrite || isFolder, onClick: () => p.onDuplicateDoc!(bookId, doc) })
     }
     if (p.onMoveDoc) {
       items.push({ key: 'move', icon: <FolderOpenOutlined />, label: '移动到其他知识库', disabled: !canWrite, onClick: () => p.onMoveDoc!(bookId, doc) })
     }
-    if (p.onExportDoc) {
+    if (p.onExportDoc && !isFolder) {
       items.push({ key: 'export', icon: <DownloadOutlined />, label: '导出', onClick: () => p.onExportDoc!(bookId, doc) })
     }
-    if (p.onShareDoc) {
+    if (p.onShareDoc && !isFolder) {
       items.push({ key: 'share', icon: <ShareAltOutlined />, label: '分享', onClick: () => p.onShareDoc!(bookId, doc) })
     }
     if (p.onCollaborators) {

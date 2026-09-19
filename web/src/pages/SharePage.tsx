@@ -101,7 +101,7 @@ export default function SharePage() {
             >
               {children.length > 0 ? (isOpen ? <CaretDownOutlined /> : <CaretRightOutlined />) : null}
             </span>
-            {children.length > 0 ? <FolderOutlined style={{ color: '#faad14' }} /> : <FileTextOutlined style={{ color: '#8a919f' }} />}
+            {children.length > 0 || n.doc_type === 'folder' ? <FolderOutlined style={{ color: '#faad14' }} /> : <FileTextOutlined style={{ color: '#8a919f' }} />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{n.title}</span>
           </div>
           {isOpen && children.length > 0 && renderRows(children, depth + 1)}

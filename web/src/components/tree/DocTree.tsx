@@ -43,7 +43,7 @@ import UrlImportDialog from '../import/UrlImportDialog'
 // 静态引入会让「打开知识库」就下载 ~400KB 的导入解析代码（即使用户从不导入）。
 const ImportDialog = lazy(() => import('../import/ImportDialog'))
 
-/** 新建文档按类型的默认名（R2）；file（导入的附件）不支持手工新建 */
+/** 新建文档按类型的默认名（R2）；file（导入的附件）与 folder（目录）不在此入口新建 */
 const DEFAULT_NAMES: Record<DocType, string> = {
   markdown: '未命名文档',
   sheet: '未命名表格',
@@ -55,6 +55,7 @@ const DEFAULT_NAMES: Record<DocType, string> = {
   gantt: '未命名甘特图',
   api: '未命名接口',
   file: '未命名附件',
+  folder: '未命名目录',
 }
 
 /**

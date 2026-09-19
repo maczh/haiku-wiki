@@ -93,6 +93,28 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - 快捷操作按钮的 `data-testid` 生成规则：`hk-quick-${key.replace(/^on/,'').toLowerCase()}`
   → `onCreateDoc` 对应 `hk-quick-createdoc`。
 
+## 目录（doc_type=folder，2026-09-19 起）
+- **容器类型，不承载正文**：content 恒空；可挂子文档与子目录；**不参与**搜索、导出、分享、协作、
+  「最近更新」（`recentDocRepo` 的 `recentDocFilter` 在 SQL 层排除）；删除/恢复走既有
+  `SoftDelete` + `ListDescendantIDs` **整棵子树级联**。
+- 新增一个 `doc_type` 的改动面（漏一处就静默失效，清单见技能 §6.1）：
+  `handler` 的 `validDocTypes`（**不在表里会被归一化成 markdown 落库、不报错**）→
+  `exportx` 的 `NormalizeDocType`/`FormatsForDocType`/`Convert` → 前端 `DocType` 联合类型
+  （`Record<DocType,…>` 由 tsc 强制补全）→ `iconForDocType` → `DocContent` 渲染分发 →
+  `recent_docs` 聚合排除。`DOC_TYPES` 是「可选文档类型」列表，容器类型**不要**加进去。
+- 三个入口：知识库标题三横菜单「新建目录」/ 节点右键「新建子目录」/ 正文空态链接。
+- 目录不提供编辑、导出、分享、协作入口（`KnowledgeTree` 里直接不渲染这些菜单项）。
+
+## 目录（存放位置）下拉：AntD `options` 只认 `{value,label}`（易复发）
+- **症状**：下拉显示一个裸数字（`0`），选任何一项最后都落成 `parent_id=0`。
+- **根因**：`options` 写成 `{id, label}` → 每项 `value` 为 `undefined` → 控件匹配不到选项就
+  **回退显示原始受控值**，`onChange` 也收到 `undefined`。「显示错」和「保存错」是同一个根因。
+- **约束**：目录选项一律经 `web/src/lib/dirOptions.ts`（`buildDirOptions(docs)` + `withRootDir(...)`）
+  构造，`DirOption = {value:number, label:string}`，根目录恒为 `value:0`；
+  `buildChildrenMap` 在 `lib/docTree.ts`（纯函数，别放 store 里以免把 zustand 拉进入口 chunk）。
+  `npm run verify:dashboard` 第 ⑧ 组 15 条断言锁住该契约（含「不得残留 `id` 字段」）。
+- 首页快捷操作把目标目录经 URL 传出：`/books/:id?import=file|url&parent=<id>`。
+
 ## 操作演示视频（首页「视频介绍」卡片）
 - 资源随前端分发：`web/public/onboarding/haiku-wiki-guide.mp4` + `-poster.jpg`；
   缺失时 `IntroVideo` 捕获 `onError` 降级成指向功能指南的说明。

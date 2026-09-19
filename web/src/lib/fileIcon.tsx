@@ -22,6 +22,7 @@ import {
   FileUnknownOutlined,
   FileWordOutlined,
   FileZipOutlined,
+  FolderOutlined,
   NodeIndexOutlined,
   PaperClipOutlined,
   PartitionOutlined,
@@ -118,6 +119,8 @@ const EXT_ICONS: Record<string, IconSpec> = {
 const FALLBACK: IconSpec = { icon: <FileUnknownOutlined />, color: '#8a919f' }
 /** 附件（取不到扩展名时）的兜底图标 */
 const ATTACHMENT_FALLBACK: IconSpec = { icon: <PaperClipOutlined />, color: '#2f54eb' }
+/** 目录（doc_type=folder）配色：与树里「有子节点的文档」保持一致 */
+export const FOLDER_COLOR = '#faad14'
 
 /** 按扩展名取图标（未知返回文件兜底图标） */
 export function iconForExt(ext: string): IconSpec {
@@ -140,9 +143,12 @@ export function iconForAttachment(name: string): IconSpec {
 /**
  * 按文档类型取图标（目录树、新建下拉共用）。
  * file（附件）额外传入文件名以便按扩展名区分 pdf / xlsx / dwg …
+ * folder（目录）固定用文件夹图标，与树里「有子节点的文档」显示一致。
  */
 export function iconForDocType(docType: DocType, name?: string): IconSpec {
   switch (docType) {
+    case 'folder':
+      return { icon: <FolderOutlined />, color: FOLDER_COLOR }
     case 'sheet':
       return { icon: <TableOutlined />, color: '#13c2c2' }
     case 'mindmap':
