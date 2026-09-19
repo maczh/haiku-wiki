@@ -148,6 +148,9 @@ interface TipState {
   task: GanttSvarTask
 }
 
+/** 面板显示模式：SVAR 原生 displayMode，见组件内 fold 状态注释 */
+type FoldMode = 'all' | 'grid' | 'chart'
+
 /**
  * 甘特画布本体（memo 包裹）。
  * 悬停气泡的 setTip 由外层容器在 onMouseMove 里频繁触发，若甘特本体也跟着重渲染，
@@ -203,9 +206,22 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
   // 悬停监听挂在 document 捕获阶段，需要这两个节点做「矩形命中测试」与「气泡坐标基准」
   const rootRef = useRef<HTMLDivElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  // 左表格 / 右时间轴 折叠状态（同一时刻至少保留一个面板可见，避免整图空白）
-  const [leftCollapsed, setLeftCollapsed] = useState(false)
-  const [rightCollapsed, setRightCollapsed] = useState(false)
+  /**
+   * 左表格 / 右时间轴 折叠状态。
+   *
+   * ⚠️ 必须走 SVAR 原生的 displayMode，**不能**用 CSS 把面板 display:none 藏起来：
+   * 左侧表格的行并不是自己虚拟化的，而是「按右侧时间轴的可见区切片」渲染的
+   * （组件内部 `tasks.slice(area.start, area.end)`，area 由时间轴测量得到）。
+   * 一旦把时间轴 display:none，测量高度变 0 → area 收缩 → 左表格只剩 2 行
+   * （实测 12 行 → 2 行）。改用 displayMode 后，被折叠的面板是被压成 0 宽/0 高
+   * 但仍参与布局与测量，行数据完整。
+   *   all   = 左右并排
+   *   grid  = 隐藏右侧时间轴（左表格铺满）
+   *   chart = 隐藏左侧表格（时间轴铺满）
+   */
+  const [fold, setFold] = useState<FoldMode>('all')
+  const leftCollapsed = fold === 'chart'
+  const rightCollapsed = fold === 'grid'
 
   /** 任务 id → 优先级：驱动进度条上下「优先级外框」的样式注入（数据变更时同步刷新） */
   const [priorityMap, setPriorityMap] = useState<Record<string, number>>(() => {
@@ -234,6 +250,13 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
 
       // 左侧表格列宽固定：禁止拖动表头分隔线调整各列宽度（resize-column 走手动拖拽）
       api.intercept('resize-column', () => false)
+
+      // 面板折叠状态的双向同步：SVAR 自带的 resizer 展开箭头也会派发 set-display-mode，
+      // 这里回读成 React 状态，保证四角按钮与被折叠的面板始终一致。
+      api.on('set-display-mode', (ev) => {
+        const m = (ev as { mode?: FoldMode } | undefined)?.mode
+        if (m === 'all' || m === 'grid' || m === 'chart') setFold(m)
+      })
 
       if (mode === 'progress') {
         // 阅读态（有写权限）：只放行「改进度」
@@ -367,6 +390,18 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
     return () => document.removeEventListener('mousemove', onMove, true)
   }, [])
 
+  /**
+   * 切换面板显示模式（折叠/展开左表格或右时间轴）。
+   * 折叠交给 SVAR 的 displayMode —— 它只改变两面板的宽度分配，被折叠的面板仍在布局与测量中，
+   * 因此左表格的行数据不受影响（这也是本文件顶部 fold 注释里那个「越折越少行」缺陷的修法）。
+   */
+  const setDisplayMode = useCallback((next: FoldMode) => {
+    const api = apiRef.current
+    if (!api) return
+    api.exec('set-display-mode', { mode: next })
+    setFold(next)
+  }, [])
+
   return (
     <div
       ref={rootRef}
@@ -415,24 +450,24 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
           </div>
         )}
         {/* 左表格 / 右时间轴 折叠控制：同一时刻至少保留一个面板可见 */}
-        {!leftCollapsed && !rightCollapsed && (
+        {fold === 'all' && (
           <button
             type="button"
             className="hk-gantt-fold hk-gantt-fold-left"
             title="隐藏左侧表格"
             aria-label="隐藏左侧表格"
-            onClick={() => setLeftCollapsed(true)}
+            onClick={() => setDisplayMode('chart')}
           >
             ‹
           </button>
         )}
-        {!rightCollapsed && !leftCollapsed && (
+        {fold === 'all' && (
           <button
             type="button"
             className="hk-gantt-fold hk-gantt-fold-right"
             title="隐藏右侧时间轴"
             aria-label="隐藏右侧时间轴"
-            onClick={() => setRightCollapsed(true)}
+            onClick={() => setDisplayMode('grid')}
           >
             ›
           </button>
@@ -443,7 +478,7 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             className="hk-gantt-reopen hk-gantt-reopen-left"
             title="展开左侧表格"
             aria-label="展开左侧表格"
-            onClick={() => setLeftCollapsed(false)}
+            onClick={() => setDisplayMode('all')}
           >
             ›
           </button>
@@ -454,7 +489,7 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             className="hk-gantt-reopen hk-gantt-reopen-right"
             title="展开右侧时间轴"
             aria-label="展开右侧时间轴"
-            onClick={() => setRightCollapsed(false)}
+            onClick={() => setDisplayMode('all')}
           >
             ‹
           </button>

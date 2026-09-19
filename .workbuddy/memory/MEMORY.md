@@ -87,6 +87,13 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - 甘特代码在独立 chunk（`GanttChart-*.js`/`GanttChart-*.css`），入口 `wx-gantt/svar/GanttChart/vxe` 计数必须为 0。
 - 状态灯/优先级规则前后端各一份且须同步：`web/src/lib/gantt.ts` 与 `server/internal/service/exportx/gantt.go`。
   判定序：已结束→已超期→未开始→进度拖延→正常；优先级外框 alpha 0.16(P1)→0.72(P10)，紫罗兰 `rgba(114,46,209,a)`。
+- **左右面板折叠必须走 SVAR 原生 `displayMode`（`all|grid|chart`）+ `api.exec('set-display-mode')`，
+  绝不能用 CSS `display:none` 藏面板** —— 左表格的行是按右侧时间轴可见区切片渲染的
+  （组件内 `tasks.slice(area.start, area.end)`），把时间轴藏掉会让它测量归零、左表格只剩 2 行。
+  `GanttChart.tsx` 的 `init` 内须 `api.on('set-display-mode')` 回读状态（SVAR resizer 自带箭头也派发该 action）。
+- `.hk-gantt .wx-theme{height:100%;min-height:0}` **必须保留**：Willow 渲染的主题包装层在 SVAR 全部 CSS 里
+  没有任何规则，缺它则 `.wx-gantt{height:100%;overflow-y:auto}` 的 100% 退化为 auto ——
+  行数多时图表撑破外层固定高度容器，下侧行看不到也滚不动。
 
 ## CAD / DWG 约定
 - **DWG 两级策略**：① 外部转换器（`dwg2dxf` / `dwgread` / `ODAFileConverter`）转 DXF → 自研渲染器出

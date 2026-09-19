@@ -37,6 +37,16 @@
   min-height: 0;
 }
 
+/* 主题包装层补高度链。
+ * Willow 会渲染两层 <div class="wx-theme wx-willow-theme">，而 SVAR 全部 CSS 里都没有它的样式规则
+ * → 高度链断在这里：.wx-gantt 的 height:100% 退化为 auto，图表按内容高度撑开
+ * （实测 30 行 = 1092px）溢出我们的固定高度容器，下侧任务行被裁掉且滚动失效
+ * （.wx-gantt 自带 overflow-y:auto，本该由它承担纵向滚动）。补 height:100% 后滚动条回到 .wx-gantt 上。 */
+.hk-gantt .wx-theme {
+  height: 100%;
+  min-height: 0;
+}
+
 /* SVG 图标字体缺失的兜底：只补甘特图真正会渲染的几个图标 */
 .hk-gantt .wxi-angle-down::before,
 .hk-gantt .wxi-angle-up::before,
@@ -47,7 +57,9 @@
 .hk-gantt .wxi-drag::before,
 .hk-gantt .wxi-eye::before,
 .hk-gantt .wxi-delete::before,
-.hk-gantt .wxi-edit::before {
+.hk-gantt .wxi-edit::before,
+.hk-gantt .wxi-menu-left::before,
+.hk-gantt .wxi-menu-right::before {
   display: block;
   font-family: var(--wx-font-family);
   font-style: normal;
@@ -65,6 +77,9 @@
 .hk-gantt .wxi-eye::before { content: '\25CF'; }
 .hk-gantt .wxi-delete::before { content: '\00D7'; }
 .hk-gantt .wxi-edit::before { content: '\270E'; }
+/* resizer 自带的「展开左表格 / 展开右时间轴」箭头（折叠后悬停分隔条时出现） */
+.hk-gantt .wxi-menu-left::before { content: '\2039'; }
+.hk-gantt .wxi-menu-right::before { content: '\203A'; }
 
 /* 阅读态只改进度：把条形上的依赖拖柄藏掉，避免误触 */
 .hk-gantt-progress .wx-link,
@@ -118,30 +133,21 @@
 }
 
 /* ===== 左表格 / 右时间轴 折叠 =====
- * 分隔容器是 .wx-layout（display:flex; flex-direction:row），三个直接子项：
- *   .wx-table-container（左表格面板, flex:0 0 <gridWidth>）
- *   .wx-resizer（中间分隔条, 4px）
- *   .wx-content（右时间轴面板, flex:0 1 auto, 内含 .wx-area）
- * 折叠某侧：隐藏该面板 + 隐藏分隔条 + 让另一侧 flex:1 1 auto 填满剩余宽度。 */
+ * 折叠本身由 SVAR 原生 displayMode 驱动（all / grid / chart），**不再用 display:none 隐藏面板**。
+ * 原因：左表格的行不是自己虚拟化的，而是按右侧时间轴的可见区切片渲染（组件内 tasks.slice(area.start, area.end)），
+ * 把时间轴 display:none 会让它的高度测量归零 → area 收缩 → 左表格只剩 2 行（实测 12 行 → 2 行）。
+ * displayMode 只改两个面板的宽度分配（表格 0 宽 / calc(100% - 4px)），被折叠面板仍在布局与测量中。
+ *
+ * 本文件只做两件收尾：
+ * ① 折叠左表格时，把编辑态被 SVAR 保留的「+」列（add-task，37px）也收干净，
+ *    否则会留一条 37px 的窄条（新增任务入口在顶部工具栏，不受影响）；
+ * ② 补上 SVAR resizer 自带展开箭头（wxi-menu-left/right）的字形兜底 —— 图标字体未随包发布，
+ *    不补就是「悬停出现一个点不动的空框」。 */
 .hk-gantt-left-collapsed .wx-layout > .wx-table-container {
-  display: none !important;
-}
-.hk-gantt-left-collapsed .wx-layout > .wx-resizer {
-  display: none !important;
-}
-.hk-gantt-left-collapsed .wx-layout > .wx-content {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-}
-.hk-gantt-right-collapsed .wx-layout > .wx-content {
-  display: none !important;
-}
-.hk-gantt-right-collapsed .wx-layout > .wx-resizer {
-  display: none !important;
-}
-.hk-gantt-right-collapsed .wx-layout > .wx-table-container {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
+  flex: 0 0 0 !important;
+  width: 0 !important;
+  border-right: none !important;
+  overflow: hidden !important;
 }
 
 /* 折叠 / 展开 控制按钮：浮在甘特图四角，z 高于气泡 */
