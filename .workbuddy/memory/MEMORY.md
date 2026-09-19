@@ -54,7 +54,7 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   另：同 IP **注册限频 60s**（`allowRegister`，内存计数）—— 脚本里要连注册两个账号得等窗口过去。
 - 本机 pandoc 是 **2.17.1.1**，**没有 `--embed-resources`**（会报 unknown option）→ 用 `--self-contained`；
   PDF 走 `google-chrome --headless=new --no-pdf-header-footer --print-to-pdf`（脚本
-  `/home/macro/.workbuddy/tmp/build-guide-pdf.sh`，样式 `docs/.guide-style.css`）。
+  `tools/build/build-guide-pdf.sh`，样式 `docs/.guide-style.css`）。
 - 中文字体：正文/字幕首选 `/usr/share/fonts/opentype/noto/NotoSansCJK-{Regular,Bold}.ttc`；
   `winfonts/NotoSansSC-VF.ttf` 是可变字体，drawtext 渲染偏细且字距异常，别用。
 
@@ -126,7 +126,8 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
 
 ## 回归套件与构建脚本（tools/，2026-09-19 起收进仓库）
-- **浏览器/接口端到端套件在 `tools/verify/`**（11 套 + `run-all.sh` + README，含端口表与夹具说明）。
+- **浏览器/接口端到端套件在 `tools/verify/`**（13 个脚本，其中 `gantt-ui-check.sh` 已停用未登记；
+  `run-all.sh` + README 含端口表与夹具说明）。
   这些原先散在 `/home/macro/.workbuddy/tmp/*.sh`，**那个目录会被清理**，所以已入库。
   改完前端**必须先** `bash tools/build/build-embed.sh`（产出 `$TMPDIR/haiku-wiki`），否则套件测的是旧产物；
   跑法：单跑 `bash tools/verify/<suite>.sh`，全跑 `bash tools/verify/run-all.sh`（`SUITES="a b"` 取子集）。

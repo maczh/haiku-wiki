@@ -65,7 +65,7 @@
 
 ## 验证（本地生产形态：前端构建 → embed → go build → 浏览器端到端）
 
-`bash /home/macro/.workbuddy/tmp/gantt-fold-check.sh` — **30/30 绿**（夹具 23 个任务、含 4 个展开的汇总父）
+`bash tools/verify/gantt-fold-check.sh` — **30/30 绿**（夹具 23 个任务、含 4 个展开的汇总父）
 
 | 断言（节选） | 实测 |
 | --- | --- |
@@ -91,7 +91,7 @@
 
 * `web/src/components/gantt/GanttChart.tsx`：折叠改走 `displayMode`（`set-display-mode` + 状态同步）
 * `web/src/components/gantt/gantt.css`：删除 `display:none` 折叠规则、新增「+」列收尾、resizer 箭头字形兜底、主题层高度链
-* `/home/macro/.workbuddy/tmp/gantt-fold-check.sh`：验证脚本升级为 v8（相对不变量 + 滚动 + 折叠态气泡）
+* `tools/verify/gantt-fold-check.sh`：验证脚本升级为 v8（相对不变量 + 滚动 + 折叠态气泡）
 * 新增探针：`gantt-rowloss-probe.sh`（丢行根因）、`gantt-scroll-probe.sh`（滚动容器）、`gantt-layout-probe.sh`（三面板几何）
 
 ## 通用教训
@@ -104,7 +104,7 @@
 
 ## 补充验证：只读态（公开分享页）与两个边界场景
 
-`bash /home/macro/.workbuddy/tmp/gantt-fold-edge-check.sh` — **22/22 绿**
+`bash tools/verify/gantt-fold-edge-check.sh` — **22/22 绿**
 （走真实公开分享链路：`PUT /api/docs/:id/share` 建分享 → 清掉 localStorage 登录态 → 匿名打开 `/doc-share/:slug`，
 该页经 `DocContent` 渲染 `GanttView` 且 `progressEditable=false` → `mode='readonly'`）
 

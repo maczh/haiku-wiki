@@ -40,7 +40,7 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | --- | --- |
 | `E2E_DATA` | 指定数据目录（默认：从 `fixtures/e2e-data` 复制一份临时副本，服务端只写副本） |
 | `HAIKU_BIN` | 指定后端二进制（`e2e-import` / `e2e_export` 支持；其余读 `$TMPDIR/haiku-wiki`） |
-| `PORT` | 换端口（`e2e-import` 默认 18081、`e2e_export` 默认 18080）——**端口被幽灵实例占用时用它重跑** |
+| `PORT` | 换端口（`e2e-import` 默认 18081、`e2e_export` 默认 18080、`gantt-*` 同理）——**端口被幽灵实例占用时用它重跑** |
 | `TMPDIR` | 输出（日志、截图）与二进制的落点，默认 `/home/macro/.workbuddy/tmp` |
 | `OUT` | `run-all.sh` 的汇总日志与各套 stdout |
 | `SUITES` | `run-all.sh` 的子集 |
@@ -59,12 +59,29 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | `e2e_export.sh` | — | 18080 | 导出双通道：服务端逐格式响应头/字节校验 |
 | `ui-doc-types.sh` | 18 | 8080 | markdown / sheet / mindmap / flowchart / file 的读写渲染 |
 | `gantt-fold-check.sh` | 30 | 8112 | 甘特折叠右时间轴后左表格**不得丢行**、只读态拦截 |
+| `gantt-fold-edge-check.sh` | 22 | 8131 | 折叠的边界态（相对不变量、滚动、折叠态气泡） |
+| `gantt-api-check.sh` | — | 8098 | `doc_type=gantt` 未被静默降级、正文回读、导出 md/xlsx |
+| `gantt-ui-check.sh` | 11/9 ⚠️ | 8097 | **已停用**（见下）：甘特界面冒烟：编辑态增删任务、阅读态仅可拖进度、数据落库、按需加载 |
 | `check-lazy-routes.sh` | 14 | 8080 | 按需加载的**实证**：`/login` 不下载知识库页 chunk |
 | `check-route-fallback.sh` | 14 | 8080 | 有/无布局壳的路由在 `LazyBoundary fill` 下都正常落位、不卡占位 |
 | `ui-shot.sh` | 截图 | 8080 | 各页面截图留证 |
 | `sim-docker-web.sh` | — | — | 无 docker 时逐字复现 `Dockerfile` 的 web-builder 阶段（证明 prebuild 能在干净上下文生成 Vditor 资源）。**要跑一次完整 `npm build`，约 11 分钟** |
 
 `run-all.sh` 会打印每套的实际 ✅/❌，上表项数是 2026-09-19 那次全绿的基线。
+
+### 已停用（待修）：`gantt-ui-check.sh`
+
+`tools/verify/` 里唯一**不在 `run-all.sh` 默认列表**的脚本。2026-09-19 实测 11 ✓ / 9 ✗，
+排查后确认是**脚本与产品交互漂移**，不是产品缺陷：
+
+1. 「新建文档」入口已改到知识库菜单（`DocTree.tsx` 的 `Dropdown.Button`），脚本找按钮的方式失效；
+2. 编辑态「新增任务 / 新增子任务」现在走**弹窗表单**（`GanttEditor.tsx` 的 `openTaskModal` → Modal 标题
+   「新增任务」，只需填「任务名称」，页脚按钮是「新增」），脚本还在假设点一下就直接插入任务；
+3. 第 4/5 段读正文的 curl 拿回空响应（而 `server.log` 里全是正常 200，原因未定位）。
+
+修的方向写在文件头注释里。**因此「编辑态增删任务的 UI 链路」目前没有自动化覆盖** ——
+相关能力由 `gantt-fold-check`（折叠/只读态/落库）、`gantt-fold-edge-check`（分享页只读）、
+`gantt-api-check`（类型/回读/导出）间接覆盖，但交互本身要手动验。
 
 ## 夹具（`fixtures/`）
 
@@ -97,7 +114,7 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
    **症状极具误导性**：套件自己的服务起不来（`server.log` 里 `bind: address already in use`），
    于是它连上**别人的**服务、在别人的库里注册用户 → 报「注册失败」，很容易被误读成产品缺陷
    （2026-09-19 全套回归里 `e2e-import` 就是这么「假失败」的）。
-   现在 `e2e-import` / `e2e_export` 有**端口预检**：占用时直接报错并提示用 `PORT=<空闲端口>` 重跑；
+   现在 `e2e-import` / `e2e_export` / `gantt-*` 都带**端口预检 + `PORT` 覆盖**：占用时直接报错并提示换端口重跑；
    其余套件若表现异常，先 `curl --noproxy '*' -s -o /dev/null -w '%{http_code}' http://127.0.0.1:<端口>/`
    确认是 `000`（空闲）。本会话自己起的服务可以用任务管理回收，别的会话留下的只能换端口。
 

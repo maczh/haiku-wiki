@@ -219,10 +219,27 @@ cd web && npm run build          # tsc --noEmit + vite build
 npm run verify:import            # HTML 导入清洗（20 项断言，直接转译产品源码）
 npm run verify:drawio            # draw.io 静态资源体检（16 项）
 npm run verify:sheet             # 表格存储契约 + 导出扩展名映射（42 项）
+npm run verify:dashboard         # 首页纯逻辑 + 目录下拉 {value,label} 契约
 ```
 
-这三个脚本用 esbuild 现场把产品源码（`src/lib/import/htmlClean.ts`、`src/lib/sheet.ts` 等）
-转译成 ESM 后 import 再断言，**改了产品逻辑这里会立刻失败**，不是复刻品，可放心作为回归依据。
+这四个脚本用 esbuild 现场把产品源码（`src/lib/import/htmlClean.ts`、`src/lib/sheet.ts`、
+`src/lib/dashboard.ts`、`src/lib/dirOptions.ts` 等）转译成 ESM 后 import 再断言，
+**改了产品逻辑这里会立刻失败**，不是复刻品，可放心作为回归依据。
+
+### 浏览器端到端套件（`tools/verify/`）
+
+上面两节是「不启浏览器」的回归。真正操作界面、并用 API 回查落库结果的套件在 **`tools/verify/`**
+（12 套 + `run-all.sh`，含端口表、数据夹具与已知坑说明）：
+
+```bash
+bash tools/build/build-embed.sh                    # 必须先跑：产出生产形态二进制 $TMPDIR/haiku-wiki
+bash tools/verify/run-all.sh                       # 全套，逐套 ✅/❌ 汇总（约 20 分钟）
+SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑子集
+```
+
+覆盖：embed 完整性与 SPA 兜底、新建/导入的存放位置、首页 Dashboard、导入导出双通道、
+文档类型读写、甘特图（折叠丢行 / 边界态 / API / 界面冒烟）、按需加载与路由占位、Dockerfile 两个阶段模拟。
+**改了前端不重跑 `build-embed.sh`，套件测的就是旧产物** —— 这是最容易自欺的一点。
 
 ## 功能清单
 

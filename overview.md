@@ -160,7 +160,7 @@ vditor / simple-mind-map / mermaid / pdfjs` 在入口 chunk 计数**全为 0**�
 
 ```
 tools/build/    build-embed.sh（前端 → embed → go build）、build-guide-pdf.sh（指南 → PDF）+ README
-tools/verify/   11 套回归 + run-all.sh + README（端口表/夹具/已知坑/新增规范）
+tools/verify/   13 个套件（12 个登记进 run-all）+ run-all.sh + README（端口表/夹具/已知坑/新增规范）
                 fixtures/e2e-data/        种子库快照（book 1 固定 1=md 2=sheet 3=mindmap 4=flowchart 5=file）
                 fixtures/import-fixtures/ xlsx（含空表）/docx/pdf + 重生成脚本
                 gen-upload-js.py          夹具 → 页面注入 JS（agent-browser upload 静默失效的替代）
@@ -186,9 +186,27 @@ tools/verify/   11 套回归 + run-all.sh + README（端口表/夹具/已知坑/
 ### 仓库内脚本的全套结果
 
 `embed-prod-check` 17 · `e2e-folder-dir` 49 · `e2e-dashboard` 40 · `e2e-import` 10（换端口后）·
-`e2e_export` 15 · `ui-doc-types` 18 · `gantt-fold-check` 30 · `check-lazy-routes` 14 ·
-`check-route-fallback` 14 · `ui-shot` 截图 · `sim-docker-web` OK（耗时 668s，内含一次完整 `npm build`）。
-全套约 20 分钟。
+`e2e_export` 15 · `ui-doc-types` 18 · `gantt-fold-check` 30 · `gantt-fold-edge-check` 22 ·
+`gantt-api-check` 21 · `check-lazy-routes` 14 · `check-route-fallback` 14 · `ui-shot` 截图 ·
+`sim-docker-web` OK（耗时 668s，内含一次完整 `npm build`）。全套约 20 分钟。
+
+### 一套被判定为「脚本过期」的旧套件（诚实记录）
+
+补入甘特套件时一并收了 `gantt-ui-check.sh`（编辑态增删任务的界面冒烟），**实测 11 ✓ / 9 ✗**。
+逐条排查后确认是**脚本与产品交互漂移**，不是产品缺陷：
+
+1. 「新建文档」入口已改到知识库菜单；
+2. 编辑态新增任务现在走**弹窗表单**（填「任务名称」→ 页脚「新增」），脚本还在假设点一下就直接插入；
+3. 第 4/5 段读正文的 curl 拿回空响应（而 `server.log` 里全是正常 200，原因未定位）。
+
+处理方式：**停用**（不登记进 `run-all`）+ 把三处漂移与修复方向写在该脚本头注释里 +
+README 单列「已停用（待修）」小节。**遗留缺口：「编辑态增删任务的 UI 链路」目前没有自动化覆盖**
+（折叠/只读态/落库由 `gantt-fold-check` 覆盖，分享页只读由 `gantt-fold-edge-check` 覆盖，
+类型与导出由 `gantt-api-check` 覆盖），这条交互目前只能手动验。
+
+> 顺带确立一条纪律：**收录旧套件前必须先单独跑一遍**。产品交互一演进，整套断言会集体失效；
+> 这时要么修好再登记，要么停用并写清原因 —— 千万别把一个红的套件塞进默认回归，
+> 红了会被当成噪音，久了整套回归就没人看了。
 
 ---
 

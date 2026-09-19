@@ -28,6 +28,9 @@ DEFAULT_SUITES=(
   e2e_export
   ui-doc-types
   gantt-fold-check
+  gantt-fold-edge-check
+  gantt-api-check
+  # gantt-ui-check 已停用（脚本交互漂移未修，见该文件头注释），修好后再登记回来
   check-lazy-routes
   check-route-fallback
   ui-shot
@@ -47,6 +50,9 @@ declare -A PORT_OF=(
   [e2e_export]=18080
   [ui-doc-types]=8080
   [gantt-fold-check]=8112
+  [gantt-fold-edge-check]=8131
+  [gantt-api-check]=8098
+  [gantt-ui-check]=8097
   [check-lazy-routes]=8080
   [check-route-fallback]=8080
   [ui-shot]=8080
