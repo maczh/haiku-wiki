@@ -126,8 +126,8 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
 
 ## 回归套件与构建脚本（tools/，2026-09-19 起收进仓库）
-- **浏览器/接口端到端套件在 `tools/verify/`**（14 个套件，其中 `gantt-ui-check.sh` 停用、未登记进
-  `run-all`；含 `run-all.sh` 与 README 的端口表、夹具说明）。
+- **浏览器/接口端到端套件在 `tools/verify/`**（14 个套件全部登记进 `run-all.sh`；
+  含端口表、夹具说明与已知坑）。
   这些原先散在 `/home/macro/.workbuddy/tmp/*.sh`，**那个目录会被清理**，所以已入库。
   改完前端**必须先** `bash tools/build/build-embed.sh`（产出 `$TMPDIR/haiku-wiki`），否则套件测的是旧产物；
   跑法：单跑 `bash tools/verify/<suite>.sh`，全跑 `bash tools/verify/run-all.sh`（`SUITES="a b"` 取子集）。
@@ -172,6 +172,15 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - `.hk-gantt .wx-theme{height:100%;min-height:0}` **必须保留**：Willow 渲染的主题包装层在 SVAR 全部 CSS 里
   没有任何规则，缺它则 `.wx-gantt{height:100%;overflow-y:auto}` 的 100% 退化为 auto ——
   行数多时图表撑破外层固定高度容器，下侧行看不到也滚不动。
+- **写甘特断言的两个陷阱**（2026-09-19 修 `gantt-ui-check` 时定位，技能 §3.3.5）：
+  ① **汇总条（`type:'summary'`）上也有 `.wx-progress-marker`**，但它的进度由子任务派生、拖了不会变
+     → 拖拽/进度断言必须选**叶子任务**（`type=='task'` 且 `id ∉ 所有 parent`）；
+  ② 界面**新增的任务**落库 id 形如 `temp://1789819763453`（SVAR `add-task` 的临时 id 被原样持久化），
+     DOM 里渲染成 **`:temp://...`（多一个 `:` 前缀）**，而默认示例任务是数字 id
+     → 断言锚点一律挑**数字 id**的叶子；用文本挑「新任务」会挑到 temp id 然后匹配不上 DOM。
+- 编辑态「新增任务 / 新增子任务」是**弹窗表单**（`GanttEditor.tsx` 的 `openTaskModal`）：填
+  `input[placeholder="例如：接口联调"]` → 点页脚「新增」（两个汉字，AntD `autoInsertSpace` 会插空格）；
+  「新增子任务」依赖 `selectedRef`，要先选中一条任务。
 
 ## CAD / DWG 约定
 - **DWG 两级策略**：① 外部转换器（`dwg2dxf` / `dwgread` / `ODAFileConverter`）转 DXF → 自研渲染器出

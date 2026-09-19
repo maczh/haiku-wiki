@@ -233,7 +233,7 @@ npm run verify:dashboard         # 首页纯逻辑 + 目录下拉 {value,label} 
 
 ```bash
 bash tools/build/build-embed.sh                    # 必须先跑：产出生产形态二进制 $TMPDIR/haiku-wiki
-bash tools/verify/run-all.sh                       # 全套，逐套 ✅/❌ 汇总（约 20 分钟）
+bash tools/verify/run-all.sh                       # 全套，逐套 ✅/❌ 汇总（实测约 23 分钟）
 SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑子集
 ```
 

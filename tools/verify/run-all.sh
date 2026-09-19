@@ -30,7 +30,7 @@ DEFAULT_SUITES=(
   gantt-fold-check
   gantt-fold-edge-check
   gantt-api-check
-  # gantt-ui-check 已停用（脚本交互漂移未修，见该文件头注释），修好后再登记回来
+  gantt-ui-check
   check-lazy-routes
   check-route-fallback
   ui-shot
