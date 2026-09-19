@@ -62,7 +62,7 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | `gantt-fold-check.sh` | 30 | 8112 | 甘特折叠右时间轴后左表格**不得丢行**、只读态拦截 |
 | `gantt-fold-edge-check.sh` | 22 | 8131 | 折叠的边界态（相对不变量、滚动、折叠态气泡） |
 | `gantt-api-check.sh` | — | 8098 | `doc_type=gantt` 未被静默降级、正文回读、导出 md/xlsx |
-| `gantt-ui-check.sh` | 21 | 8097 | 甘特界面冒烟：编辑态增删任务（弹窗表单）、阅读态仅可拖进度、数据落库、按需加载 |
+| `gantt-ui-check.sh` | 24 | 8097 | 甘特界面冒烟：编辑态增删任务（弹窗表单）、阅读态仅可拖进度、数据落库、按需加载、**临时 id 已归一化 + 优先级外框齐全** |
 | `check-lazy-routes.sh` | 14 | 8080 | 按需加载的**实证**：`/login` 不下载知识库页 chunk |
 | `check-route-fallback.sh` | 14 | 8080 | 有/无布局壳的路由在 `LazyBoundary fill` 下都正常落位、不卡占位 |
 | `ui-shot.sh` | 截图 | 8080 | 各页面截图留证 |
@@ -86,7 +86,26 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 - **「没找到任务条」会让断言恒真通过**：横向改期那条原本写成「起始日没变 → 通过」，
   而找不到条时起始日当然没变 → 必须把「找到条」当前置条件判失败；
 - 另外发现：界面**新增的任务**落库 id 形如 `temp://1789819763453`，DOM 里渲染成 `:temp://...`（多一个 `:` 前缀），
-  而默认示例任务是数字 id → 断言锚点一律挑**数字 id** 的叶子，temp id 只作 ℹ️ 观察项。
+  而默认示例任务是数字 id → 断言锚点一律挑**数字 id** 的叶子。
+
+### 临时 id 与优先级外框（2026-09-19 已修，套件盯着它）
+
+上面那条 `temp://` 不是「脚本要绕开的怪现象」，而是**产品缺陷**，已经在 `lib/gantt.ts` 的
+`ganttFromSvar()` 里统一归一化（非纯数字 id → `max(数字 id)+1、+2…`，并同步改写 `parent` 与
+links 的 `source/target`）。同一根因还让**新增任务的优先级外框整个消失**（外框靠按 id 拼的
+CSS 注入，而 DOM 上非数字 id 多一个 `:` 前缀 → 选择器静默失配）。
+
+本套件因此多了三条端到端断言（也是 21 → 24 的来源）：
+
+- 落库正文**不含** `temp://`；
+- **所有**任务条的优先级外框都在（`getComputedStyle(bar).boxShadow !== 'none'`，含刚新增的那条）；
+- 重载后 `data-id` **全为纯数字**（不再出现 `:` 前缀）。
+
+纯函数侧另有 `cd web && npm run verify:gantt-ids`（22 项：归一化 / 幂等 / 引用改写 / 候选形态）。
+
+> 写断言时注意：`agent-browser eval` 的返回值本身是**带转义的 JSON 字符串**（`{\"a\":1}`），
+> 直接丢给 `python3 -c "json.loads(...)"` 会解析失败。要么先反转义，要么让 JS 返回
+> `a|b;c` 这种**不含引号**的裸串（外框那条就是这么写的）。
 
 ## 夹具（`fixtures/`）
 
@@ -122,6 +141,10 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
    现在 `e2e-import` / `e2e_export` / `gantt-*` 都带**端口预检 + `PORT` 覆盖**：占用时直接报错并提示换端口重跑；
    其余套件若表现异常，先 `curl --noproxy '*' -s -o /dev/null -w '%{http_code}' http://127.0.0.1:<端口>/`
    确认是 `000`（空闲）。本会话自己起的服务可以用任务管理回收，别的会话留下的只能换端口。
+6. **`q()` 拿回的 JSON 是带转义的**：`agent-browser eval` 输出后再被 `sed` 剥掉首尾引号，
+   字符串内部仍是 `{\"a\":1}` —— 直接 `python3 -c "json.loads(...)"` 必然解析失败
+   （症状是断言结果变成兜底值、莫名其妙地红）。要么先反转义，要么让 JS 返回
+   `总数|缺项;缺项` 这类**不含引号**的裸串。这条是 2026-09-19 给外框断言踩出来的。
 
 ## 新增套件
 

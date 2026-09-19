@@ -114,6 +114,70 @@ function normalizeId(v: unknown, fallback: GanttId): GanttId {
   return fallback
 }
 
+/** 「纯数字」判定：有限数字，或纯数字字符串；`temp://…` 之类一律不算 */
+function asNumericId(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.trunc(v) : null
+  if (typeof v === 'string' && /^-?\d+$/.test(v.trim())) return Number(v.trim())
+  return null
+}
+
+/**
+ * 把 SVAR 的临时 id 稳定成数字 id —— **落库前必须做**，否则临时 id 会被持久化。
+ *
+ * 背景：`api.exec('add-task', { task })` 我们没有给 id，SVAR 会自己补一个
+ * `temp://<毫秒时间戳>` 形式的临时 id，并在 `api.serialize()` 里原样交回。
+ * 直接落库的后果（2026-09-19 探针实测）：
+ *   · 正文里变成「数字 id 与临时 id 混存」，任何 `Number(id)` 的快速路径都会落空；
+ *   · 这类 id 在 DOM 上被渲染成 `:temp://…`（多一个 `:` 前缀），
+ *     凡是按 id 拼的 CSS 选择器（优先级外框）都会静默失配。
+ *
+ * 规则（**必须是纯函数**：同一份输入永远给出同一结果，否则同一会话里的多次自动保存
+ * 会让同一个任务反复拿到不同 id）：
+ *   · 纯数字 id 原样保留；
+ *   · 其余 id 按「在数组中的出现顺序」依次分配 `max(数字 id) + 1、+2、…`（跳过已占用）。
+ * 返回「原始 id 字符串 → 数字 id」的映射，调用方用它同步改写 parent / links 的引用。
+ */
+function stabilizeIds(list: { id?: unknown }[]): Map<string, number> {
+  const used = new Set<number>()
+  let max = 0
+  for (const it of list) {
+    const n = asNumericId(it?.id)
+    if (n == null) continue
+    used.add(n)
+    if (n > max) max = n
+  }
+  const map = new Map<string, number>()
+  for (const it of list) {
+    const raw = it?.id
+    if (raw == null || raw === '') continue
+    const key = String(raw)
+    if (map.has(key)) continue
+    const n = asNumericId(raw)
+    if (n != null) {
+      map.set(key, n)
+      continue
+    }
+    let assigned = max + 1
+    while (used.has(assigned)) assigned++
+    used.add(assigned)
+    max = assigned
+    map.set(key, assigned)
+  }
+  return map
+}
+
+/**
+ * id → DOM 上 `.wx-bar[data-id]` 的候选形态。
+ *
+ * ⚠️ 实测：SVAR 渲染时给**非纯数字**的 id 加了 `:` 前缀（`temp://1789821459269` 在 DOM 上是
+ * `:temp://1789821459269`），数字 id 原样输出。所以按 id 拼选择器注入样式时，
+ * 非数字 id 必须把两种形态都写上 —— 匹配不上的那条无害，猜错规则却会让样式静默消失。
+ */
+export function svarDataIdCandidates(id: GanttId): string[] {
+  const s = String(id)
+  return /^\d+$/.test(s) ? [s] : [s, `:${s}`]
+}
+
 /** 新建文档时的初始内容：给一个最小的层级示例，避免空图无从下手 */
 export function defaultGanttJSON(): GanttJSON {
   const start = todayIso()
@@ -372,18 +436,30 @@ export function resolveSvarTask(
  * SVAR 状态 → 契约数据。
  * 入参是 api.serialize() 的结果：已按树的先序展开成扁平数组，但每项仍挂着 data 子树，
  * 这里按 id 去重后只取需要落库的字段（子结构丢弃，parent 已经表达了层级）。
+ *
+ * 落库前会把 SVAR 的临时 id（`temp://…`）稳定成数字 id（见 stabilizeIds），
+ * 并同步改写 parent 与 links 的 source/target —— 这是唯一一处「id 归一化出口」，
+ * 别在调用方再补一遍。
  */
 export function ganttFromSvar(rawTasks: unknown, rawLinks: unknown): GanttJSON {
   const list = Array.isArray(rawTasks) ? (rawTasks as GanttSvarTask[]) : []
   const seen = new Set<string>()
   const tasks: GanttTaskData[] = []
+  // 临时 id（SVAR 的 `temp://…`）在这里一次性稳定成数字 id，parent / links 同步改写
+  const idMap = stabilizeIds(list)
+  /** 把任意 id 引用映射到稳定后的 id；缺失或映射不中时退回 $2 */
+  const mapId = (v: unknown, fallback: GanttId): GanttId => {
+    if (v == null || v === '') return fallback
+    return idMap.get(String(v)) ?? fallback
+  }
 
   for (const t of list) {
     if (!t || typeof t !== 'object') continue
-    const id = normalizeId(t.id, tasks.length + 1)
-    const key = String(id)
+    // 去重按「原始 id」：id 缺失时用位置占位，避免多个缺 id 的项被误判成同一个
+    const key = t.id == null || t.id === '' ? `#${tasks.length + 1}` : String(t.id)
     if (seen.has(key)) continue
     seen.add(key)
+    const id = mapId(t.id, tasks.length + 1)
 
     const type: GanttTaskType =
       t.type === 'summary' || t.type === 'milestone' ? t.type : 'task'
@@ -399,7 +475,7 @@ export function ganttFromSvar(rawTasks: unknown, rawLinks: unknown): GanttJSON {
       duration: type === 'milestone' ? 0 : duration,
       progress: clampProgress(t.progress),
       type,
-      parent: t.parent ? normalizeId(t.parent, 0) : 0,
+      parent: t.parent ? mapId(t.parent, 0) : 0,
       assignees: Array.isArray(t.assignees)
         ? (t.assignees as unknown[]).filter((a): a is string => typeof a === 'string' && a.trim() !== '').map((a) => a.trim())
         : [],
@@ -410,13 +486,15 @@ export function ganttFromSvar(rawTasks: unknown, rawLinks: unknown): GanttJSON {
 
   const rawLinkList = Array.isArray(rawLinks) ? (rawLinks as GanttSvarLink[]) : []
   const links: GanttLinkData[] = []
+  // 依赖自身的 id 也要稳定化（新增依赖时同样是临时 id），source/target 走任务那张映射表
+  const linkIdMap = stabilizeIds(rawLinkList)
   for (const l of rawLinkList) {
     if (!l || typeof l !== 'object') continue
     if (l.source === undefined || l.target === undefined) continue
     links.push({
-      id: normalizeId(l.id, links.length + 1),
-      source: normalizeId(l.source, 0),
-      target: normalizeId(l.target, 0),
+      id: linkIdMap.get(String(l.id)) ?? normalizeId(l.id, links.length + 1),
+      source: mapId(l.source, 0),
+      target: mapId(l.target, 0),
       type: LINK_TYPES.includes(l.type as GanttLinkType) ? (l.type as GanttLinkType) : 'e2s',
       lag: typeof l.lag === 'number' ? l.lag : 0,
     })

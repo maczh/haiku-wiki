@@ -10,6 +10,7 @@ import {
   ganttToSvar,
   isoDate,
   resolveSvarTask,
+  svarDataIdCandidates,
   GANTT_STATUS_META,
   taskStatus,
   type GanttJSON,
@@ -230,15 +231,19 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
     return m
   })
   const priorityFrameCss = useMemo(() => {
-    const esc = (id: string) => id.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    const esc = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
     return Object.entries(priorityMap)
       .map(([id, p]) => {
         const c = ganttPriorityColor(p)
-        const sel = `.hk-gantt .wx-bar[data-id="${esc(id)}"]`
+        // ⚠️ 选择器要用 DOM 上 data-id 的**实际形态**：SVAR 给非纯数字 id 加了 `:` 前缀
+        // （`temp://x` → `:temp://x`）。直接拿序列化回来的 id 拼选择器，新增任务的
+        // 优先级外框会静默失配（实测 computedStyle.boxShadow === 'none'）。
+        const parts = svarDataIdCandidates(id).map((v) => `.hk-gantt .wx-bar[data-id="${esc(v)}"]`)
         // ⚠️ SVAR 自己的 hover 样式用的是 CSS-Modules 哈希类（.wx-XXXX:hover），与这里特异度相同
         // 但加载更晚，会把外框整条覆盖掉（悬停时外框消失）。所以：① 显式补一条 :hover 分支提高
         // 特异度；② 再加 !important 兜底，保证优先级外框任何状态下都可见。
-        return `${sel},${sel}:hover{box-shadow:0 -3px 0 0 ${c},0 3px 0 0 ${c} !important;}`
+        const all = parts.flatMap((sel) => [sel, `${sel}:hover`])
+        return `${all.join(',')}{box-shadow:0 -3px 0 0 ${c},0 3px 0 0 ${c} !important;}`
       })
       .join('\n')
   }, [priorityMap])

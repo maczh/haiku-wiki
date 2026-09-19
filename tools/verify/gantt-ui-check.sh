@@ -15,8 +15,12 @@
 #   · 汇总条（type=summary）上**也有** .wx-progress-marker，但进度由子任务派生、拖了不会变
 #     → 拖拽目标必须是**叶子任务**；
 #   · 「没找到任务条 → 起始日没变」会让「横向改期被拦截」**恒真通过** → 找不到条要判失败。
-#   另：界面新增的任务落库 id 形如 `temp://1789819763453`，DOM 里渲染成 `:temp://...`（多一个 `:` 前缀），
-#      所以断言锚点一律挑**数字 id**的叶子（这两条 temp id 只作 ℹ️ 观察项记录）。
+#   另：界面新增任务的落库 id **曾经**形如 `temp://1789819763453`（SVAR add-task 的临时 id 被原样持久化），
+#      DOM 里还多渲染一个 `:` 前缀（`:temp://...`）。2026-09-19 已在 lib/gantt.ts 的 ganttFromSvar 里
+#      统一稳定成数字 id（归一化规则与断言见技能 §3.3.5、`npm run verify:gantt-ids`），本套件新增
+#      两条断言盯它：落库不含 temp://、重载后 data-id 全为纯数字；顺带盯住「新增任务的优先级外框」
+#      （外框靠按 id 拼的 CSS 注入，id 形态一变就静默失配）。拖拽锚点仍挑**数字 id 的叶子**，
+#      因为历史文档里可能还留着存量临时 id。
 set -uo pipefail
 
 export PATH=/usr/local/go/bin:/home/macro/.workbuddy/binaries/node/versions/22.22.2/bin:$PATH
@@ -181,6 +185,24 @@ taskModal '新增子任务' '新子任务'
 BARS3=$(q "document.querySelectorAll('.wx-bar').length")
 echo "    新增子任务后条数: $BARS3"
 [ "${BARS3:-0}" -gt "${BARS2:-0}" ] && ok "新增子任务生效（$BARS2 → $BARS3）" || no "新增子任务未生效（$BARS2 → $BARS3）"
+
+# 优先级外框：SVAR 给**非纯数字** id 加了 `:` 前缀（`temp://x` 在 DOM 上是 `:temp://x`），
+# 按 id 拼的选择器若只用序列化形态就会静默失配 —— 实测新增任务的外框整个消失（boxShadow=none）。
+# 这条断言专门盯「刚新增、尚未重新加载、id 还是临时形态」的任务条。
+# ⚠️ 输出刻意不用 JSON：agent-browser eval 的结果本身是带转义的 JSON 字符串（`{\"a\":1}`），
+#    再丢给 python json.loads 会直接失败 —— 用 `|` 分隔的裸串最省事。
+FRAME=$(q "(()=>{const bs=[...document.querySelectorAll('.wx-bar')];
+  const miss=bs.filter(b=>{const s=getComputedStyle(b).boxShadow;return !s||s==='none'});
+  return bs.length+'|'+miss.map(b=>b.getAttribute('data-id')).join(';')})()")
+FTOT=${FRAME%%|*}
+FMISS=${FRAME#*|}
+echo "    优先级外框: 共 $FTOT 条，缺外框=[${FMISS:-无}]"
+case "$FMISS" in
+  "$FRAME") no "优先级外框探测异常（未拿到条数）：$FRAME" ;;
+  '')       ok "所有任务条都有优先级外框（共 $FTOT 条，含临时 id 的新增任务）" ;;
+  *)        no "有任务条缺优先级外框：$FMISS" ;;
+esac
+
 "$AB" screenshot "$OUT/02-edit-after-add.png" >/dev/null 2>&1
 
 echo "== 4) 自动保存落库 =="
@@ -223,12 +245,13 @@ num=[t for t in leaves if str(t.get('id','')).isdigit()]
 pick=(num or leaves or [None])[0]
 print(json.dumps({'id':pick['id'],'text':pick['text'],'start':pick['start'],'progress':pick['progress']},ensure_ascii=False) if pick else '')" 2>/dev/null)
 echo "    基线任务（数字 id 的叶子）: ${T1:-（空）}"
-# 观察项（不断言）：新增任务的 id 形态
+# 新增任务的 id 必须已被**稳定化**：SVAR 的临时 id（`temp://<时间戳>`）不允许落库
+# （归一化在 lib/gantt.ts 的 ganttFromSvar 里做；这类 id 在 DOM 上还会带 `:` 前缀，见技能 §3.3.5）
 TEMPIDS=$(printf '%s' "$C2" | python3 -c "
 import sys,json
 d=json.loads(sys.stdin.read() or '{}')
 print(sum(1 for t in d.get('tasks') or [] if str(t.get('id','')).startswith('temp://')))" 2>/dev/null)
-echo "    ℹ️ 观察到 $TEMPIDS 条任务 id 形如 temp://（新增任务未分配稳定数字 id，只记录不判定）"
+chk "落库不含 temp:// 临时 id（新增任务已分配稳定数字 id）" "0" "$TEMPIDS"
 TID=$(printf '%s' "$T1" | python3 -c "import sys,json;print(json.loads(sys.stdin.read() or '{}').get('id',''))" 2>/dev/null)
 P0=$(printf '%s' "$T1" | python3 -c "import sys,json;print(json.loads(sys.stdin.read() or '{}').get('progress',''))" 2>/dev/null)
 TXT=$(printf '%s' "$T1" | python3 -c "import sys,json;print(json.loads(sys.stdin.read() or '{}').get('text',''))" 2>/dev/null)
@@ -301,9 +324,14 @@ chk "markdown 文档未加载甘特图 chunk" "0" "${LOADED:-?}"
 visit "$BASE/books/$BID?docId=$GID&tab=read" 5000
 LOADED2=$(q "performance.getEntriesByType('resource').filter(e=>/GanttChart|GanttView|GanttEditor/.test(e.name)).length")
 [ "${LOADED2:-0}" -ge 1 ] && ok "甘特图文档加载了专属 chunk（$LOADED2 个）" || no "甘特图文档未加载专属 chunk（$LOADED2）"
-# 观察项（不断言）：重载后界面上的 data-id 是否还能与落库 id 对上（temp:// 那两条尤其关心）
+# 重载后界面上的 data-id 应与落库 id 一致：落库已稳定成数字 id → DOM 上不应再有 `:` 前缀
 IDS=$(q "(()=>{const b=[...document.querySelectorAll('.wx-bar')];return b.map(x=>x.getAttribute('data-id')).join(',')})()")
-echo "    ℹ️ 重载后任务条 data-id: $IDS （落库含 2 条 temp:// —— 看它们是否原样保留）"
+echo "    重载后任务条 data-id: $IDS"
+if printf '%s' "$IDS" | grep -q ':'; then
+  no "重载后仍有带 ':' 前缀的 data-id（说明落库 id 未稳定化）: $IDS"
+else
+  ok "重载后 data-id 全为纯数字（与落库 id 一致）"
+fi
 
 echo "== 9) 控制台错误 =="
 ERR=$("$AB" errors 2>&1 | tail -5)

@@ -175,9 +175,20 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - **写甘特断言的两个陷阱**（2026-09-19 修 `gantt-ui-check` 时定位，技能 §3.3.5）：
   ① **汇总条（`type:'summary'`）上也有 `.wx-progress-marker`**，但它的进度由子任务派生、拖了不会变
      → 拖拽/进度断言必须选**叶子任务**（`type=='task'` 且 `id ∉ 所有 parent`）；
-  ② 界面**新增的任务**落库 id 形如 `temp://1789819763453`（SVAR `add-task` 的临时 id 被原样持久化），
-     DOM 里渲染成 **`:temp://...`（多一个 `:` 前缀）**，而默认示例任务是数字 id
-     → 断言锚点一律挑**数字 id**的叶子；用文本挑「新任务」会挑到 temp id 然后匹配不上 DOM。
+  ② 「没找到任务条」会让「起始日没变 → 拦截成功」**恒真通过** → 找不到条必须判失败。
+- **临时 id 归一化（2026-09-19 修）**：`api.exec('add-task', {task})` 没给 id 时 SVAR 补一个
+  `temp://<毫秒时间戳>`，`api.serialize()` 原样交回 → 以前会被直接写进正文。现在**唯一出口**
+  `ganttFromSvar()` 里的 `stabilizeIds()` 把它按出现顺序分配成 `max(数字 id)+1、+2…`（跳过占用），
+  并**同步改写 `parent` 与 links 的 `source`/`target`**；纯数字 id 原样保留。
+  该函数必须是**纯函数**（同一会话里的多次自动保存会反复调用它，映射不稳会让同一个任务来回换 id）。
+  回归：`cd web && npm run verify:gantt-ids`（22 项）。
+- **DOM 的 `data-id` 与序列化/落库的 id 不同形**：SVAR 给**非纯数字** id 加 `:` 前缀
+  （`temp://x` → DOM 上是 `:temp://x`），数字 id 原样。凡「按 id 拼 CSS 选择器」的地方都要用
+  `svarDataIdCandidates(id)` 给出两种候选形态 —— 否则**新增任务的优先级外框会静默消失**
+  （实测 `getComputedStyle(bar).boxShadow === 'none'`；界面上一眼可见，但没有断言就没人发现）。
+- **`agent-browser eval` 的返回值是带转义的 JSON 字符串**（`{\"a\":1}`）→ 别直接丢给
+  `python3 -c "json.loads(...)"`（会解析失败、断言莫名变红）；让 JS 返回 `总数|缺项;缺项`
+  这类不含引号的裸串最省事。
 - 编辑态「新增任务 / 新增子任务」是**弹窗表单**（`GanttEditor.tsx` 的 `openTaskModal`）：填
   `input[placeholder="例如：接口联调"]` → 点页脚「新增」（两个汉字，AntD `autoInsertSpace` 会插空格）；
   「新增子任务」依赖 `selectedRef`，要先选中一条任务。

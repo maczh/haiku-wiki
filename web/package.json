@@ -13,7 +13,8 @@
     "verify:drawio": "node scripts/verify-drawio-assets.mjs",
     "verify:import": "node scripts/verify-html-import.mjs",
     "verify:sheet": "node scripts/verify-sheet-export.mjs",
-    "verify:dashboard": "node scripts/verify-dashboard.mjs"
+    "verify:dashboard": "node scripts/verify-dashboard.mjs",
+    "verify:gantt-ids": "node scripts/verify-gantt-ids.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",

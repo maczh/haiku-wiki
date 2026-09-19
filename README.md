@@ -220,10 +220,11 @@ npm run verify:import            # HTML 导入清洗（20 项断言，直接转�
 npm run verify:drawio            # draw.io 静态资源体检（16 项）
 npm run verify:sheet             # 表格存储契约 + 导出扩展名映射（42 项）
 npm run verify:dashboard         # 首页纯逻辑 + 目录下拉 {value,label} 契约
+npm run verify:gantt-ids         # 甘特临时 id 归一化（temp:// → 数字，含 parent/links 同步改写，22 项）
 ```
 
-这四个脚本用 esbuild 现场把产品源码（`src/lib/import/htmlClean.ts`、`src/lib/sheet.ts`、
-`src/lib/dashboard.ts`、`src/lib/dirOptions.ts` 等）转译成 ESM 后 import 再断言，
+这几个脚本用 esbuild 现场把产品源码（`src/lib/import/htmlClean.ts`、`src/lib/sheet.ts`、
+`src/lib/dashboard.ts`、`src/lib/dirOptions.ts`、`src/lib/gantt.ts` 等）转译成 ESM 后 import 再断言，
 **改了产品逻辑这里会立刻失败**，不是复刻品，可放心作为回归依据。
 
 ### 浏览器端到端套件（`tools/verify/`）
