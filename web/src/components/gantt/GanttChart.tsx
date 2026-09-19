@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Gantt, Willow } from '@svar-ui/react-gantt'
 import type { IApi, IColumnConfig, IScaleConfig } from '@svar-ui/react-gantt'
 import '@svar-ui/react-gantt/style.css'
@@ -107,7 +107,7 @@ function PriorityCell({ row }: { row?: Record<string, unknown> }) {
 
 /** 阅读态列：无编辑器、无「+」新增列 */
 const READ_COLUMNS: IColumnConfig[] = [
-  { id: 'text', header: '任务名称', width: 176, flexgrow: 1 },
+  { id: 'text', header: '任务名称', width: 176 },
   { id: 'assignees', header: '负责人', width: 100, align: 'left', cell: AssigneesCell },
   { id: 'status', header: '状态', width: 92, align: 'left', cell: StatusCell },
   { id: 'priority', header: '优先级', width: 74, align: 'center', cell: PriorityCell },
@@ -118,7 +118,7 @@ const READ_COLUMNS: IColumnConfig[] = [
 
 /** 编辑态列：可内联编辑 + 行尾「+」新增按钮（负责人/描述经工具栏弹窗编辑） */
 const EDIT_COLUMNS: IColumnConfig[] = [
-  { id: 'text', header: '任务名称', width: 176, flexgrow: 1, editor: 'text', sort: true },
+  { id: 'text', header: '任务名称', width: 176, editor: 'text', sort: true },
   { id: 'assignees', header: '负责人', width: 100, align: 'left', cell: AssigneesCell },
   { id: 'status', header: '状态', width: 92, align: 'left', cell: StatusCell },
   { id: 'priority', header: '优先级', width: 74, align: 'center', cell: PriorityCell, editor: 'text' },
@@ -149,6 +149,39 @@ interface TipState {
 }
 
 /**
+ * 甘特画布本体（memo 包裹）。
+ * 悬停气泡的 setTip 由外层容器在 onMouseMove 里频繁触发，若甘特本体也跟着重渲染，
+ * 大图表下会明显卡顿。这里把 Willow+Gantt 抽成 memo 组件，props（seed / mode / init）都稳定，
+ * 因此 tip 变化不会引发甘特重渲染，只重渲染外层那一层（含气泡）。
+ */
+type GanttSeed = ReturnType<typeof ganttToSvar>
+const GanttBody = memo(function GanttBody({
+  seed,
+  mode,
+  init,
+}: {
+  seed: GanttSeed
+  mode: GanttMode
+  init: (api: IApi) => void
+}) {
+  return (
+    <Willow>
+      <Gantt
+        tasks={seed.tasks}
+        links={seed.links}
+        columns={mode === 'edit' ? EDIT_COLUMNS : READ_COLUMNS}
+        scales={SCALES}
+        readonly={mode === 'readonly'}
+        zoom
+        cellHeight={34}
+        cellWidth={36}
+        init={init}
+      />
+    </Willow>
+  )
+})
+
+/**
  * 甘特图画布（内部共用组件）。
  *
  * 数据流：外层给出初始 GanttJSON → 这里只在挂载时播种一次，之后由组件内部状态自持，
@@ -163,9 +196,9 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
   const onApiRef = useRef(onApi)
   onApiRef.current = onApi
   const apiRef = useRef<IApi | null>(null)
-  const tipRef = useRef<TipState | null>(null)
   const [tip, setTip] = useState<TipState | null>(null)
-  tipRef.current = tip
+  // 当前悬停的 bar id（同一条内移动只更新位置、不重算任务，避免抖动）
+  const tipBarRef = useRef<string | null>(null)
 
   /** 任务 id → 优先级：驱动进度条上下「优先级外框」的样式注入（数据变更时同步刷新） */
   const [priorityMap, setPriorityMap] = useState<Record<string, number>>(() => {
@@ -191,6 +224,9 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
     (api: IApi) => {
       onApiRef.current?.(api)
       apiRef.current = api
+
+      // 左侧表格列宽固定：禁止拖动表头分隔线调整各列宽度（resize-column 走手动拖拽）
+      api.intercept('resize-column', () => false)
 
       if (mode === 'progress') {
         // 阅读态（有写权限）：只放行「改进度」
@@ -236,51 +272,64 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
     [mode],
   )
 
-  /** 悬停任务条 → 描述/负责人气泡（无附加信息不打扰；同一条内移动不重置） */
-  const onBarHover = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  /**
+   * 悬停任务条 → 描述/负责人气泡。
+   * 用 onMouseMove + onMouseLeave（而非 onMouseOver/onMouseOut）实现：
+   * 跨任务移动时 mouseout/mouseover 会交错触发、互相清掉对方的 setTip，
+   * 导致除第一个任务外气泡都不弹；mousemove 连续、只在「进入新 bar」时重算任务，
+   * 同一 bar 内只跟随光标更新位置，稳定且顺滑。无附加信息不打扰。
+   */
+  const onBarMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement
     const bar = el.closest?.('.wx-bar') as HTMLElement | null
-    const related = (e as unknown as { relatedTarget?: EventTarget | null }).relatedTarget as HTMLElement | null
-    if (bar && related?.closest?.('.wx-bar') === bar && tipRef.current) return
     if (!bar || bar.classList.contains('wx-summary')) {
-      setTip(null)
+      if (tipBarRef.current !== null) {
+        tipBarRef.current = null
+        setTip(null)
+      }
       return
     }
     const id = bar.getAttribute('data-id')
     const api = apiRef.current
     if (!id || !api) {
+      tipBarRef.current = null
       setTip(null)
+      return
+    }
+    // 同一任务条内移动：只跟随光标，不重算
+    if (tipBarRef.current === id) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      setTip((prev) =>
+        prev ? { ...prev, x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16 } : prev,
+      )
       return
     }
     // data-id 是字符串，store 里存的是数字 id，必须走兼容解析
     const task = resolveSvarTask(api, id)
-    const details = typeof task?.details === 'string' ? task.details.trim() : ''
-    const assignees = Array.isArray(task?.assignees) ? (task!.assignees as unknown[]).filter((a) => typeof a === 'string' && a) : []
-    if (!details && assignees.length === 0) {
+    if (!task) {
+      tipBarRef.current = null
       setTip(null)
       return
     }
+    const details = typeof task.details === 'string' ? task.details.trim() : ''
+    const assignees = Array.isArray(task.assignees)
+      ? (task.assignees as unknown[]).filter((a) => typeof a === 'string' && a)
+      : []
+    if (!details && assignees.length === 0) {
+      tipBarRef.current = null
+      setTip(null)
+      return
+    }
+    tipBarRef.current = id
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setTip({ x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16, task: task! })
+    setTip({ x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 16, task })
   }, [])
 
   return (
     <div className={`hk-gantt${mode === 'progress' ? ' hk-gantt-progress' : ''}`}>
       {priorityFrameCss && <style>{priorityFrameCss}</style>}
-      <div style={{ position: 'relative', height: '100%' }} onMouseOver={onBarHover} onMouseOut={() => setTip(null)}>
-        <Willow>
-          <Gantt
-            tasks={seed.tasks}
-            links={seed.links}
-            columns={mode === 'edit' ? EDIT_COLUMNS : READ_COLUMNS}
-            scales={SCALES}
-            readonly={mode === 'readonly'}
-            zoom
-            cellHeight={34}
-            cellWidth={36}
-            init={init}
-          />
-        </Willow>
+      <div style={{ position: 'relative', height: '100%' }} onMouseMove={onBarMove} onMouseLeave={() => { tipBarRef.current = null; setTip(null) }}>
+        <GanttBody seed={seed} mode={mode} init={init} />
         {tip && (
           <div
             className="hk-gantt-tip"

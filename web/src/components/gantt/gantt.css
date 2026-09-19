@@ -15,6 +15,23 @@
   font-family: var(--wx-font-family);
 }
 
+/* 列较窄，SVAR 默认用 font 简写变量（依赖 --wx-font-weight-md / --wx-font-size / --wx-font-family
+ * 等子变量），这些变量未被定义时整体失效、回退到继承的 16px。这里直接以 !important 覆盖字号，
+ * 让表头与各列更贴合列宽：表头与正文 12px，开始日期列再小一号 11px。 */
+.hk-gantt .wx-header .wx-cell {
+  font-size: 12px !important;
+  /* 列宽已固定且禁止拖拽调整，去掉表头悬停时的 col-resize 误导光标 */
+  cursor: default !important;
+}
+.hk-gantt .wx-content .wx-row .wx-cell,
+.hk-gantt .wx-row .wx-cell {
+  font-size: 12px !important;
+}
+/* 开始日期列（data-col-id=":start"）内容较长（如 2026-09-09），再小一号更贴合 96px 列宽 */
+.hk-gantt .wx-cell[data-col-id=':start'] {
+  font-size: 11px !important;
+}
+
 .hk-gantt > * {
   flex: 1;
   min-height: 0;
