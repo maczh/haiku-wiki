@@ -35,8 +35,19 @@ echo "二进制: $(ls -la "$TMP/haiku-wiki" | awk '{print $5}') 字节"
 echo "== 3) 起服（:$PORT）=="
 DATA=$TMP/prod-check-data-$(date +%s)
 mkdir -p "$DATA"
-PORT=$PORT DATA_DIR="$DATA" JWT_SECRET=prodcheck \
-  EXPORT_DWG_CONVERTER=$TMP/vendor/lr/libredwg-0.14/programs/dwg2dxf \
+# DWG 转换器：默认用本机编译的 libredwg（$TMP/vendor/lr/...），缺失则回退 PATH；
+# 两者都没有时 4.6 会**明确 skip** 而不是报假红。可用 EXPORT_DWG_CONVERTER 覆盖。
+DWG_CONV=${EXPORT_DWG_CONVERTER:-}
+if [ -z "$DWG_CONV" ]; then
+  for c in "$TMP/vendor/lr/libredwg-0.14/programs/dwg2dxf" \
+           "$(command -v dwg2dxf || true)" "$(command -v dwgread || true)" \
+           "$(command -v ODAFileConverter || true)"; do
+    [ -n "$c" ] && [ -x "$c" ] && { DWG_CONV=$c; break; }
+  done
+fi
+if [ -n "$DWG_CONV" ]; then echo "DWG 转换器: $DWG_CONV"; else echo "DWG 转换器: 未找到（4.6 将 skip）"; fi
+env PORT=$PORT DATA_DIR="$DATA" JWT_SECRET=prodcheck \
+  ${DWG_CONV:+EXPORT_DWG_CONVERTER=$DWG_CONV} \
   "$TMP/haiku-wiki" > "$TMP/prod-check.log" 2>&1 &
 APP=$!
 trap 'kill $APP 2>/dev/null; wait $APP 2>/dev/null' EXIT
@@ -128,8 +139,16 @@ c=$(curl -s -o /dev/null -w '%{http_code}' --noproxy '*' "http://127.0.0.1:$PORT
 [ "$c" = "200" ] && ok "GET /vditor/dist/js/lute/lute.min.js 200" || no "vditor lute 得 $c"
 
 # 4.6 DWG 转换器可用性
+# 转换器路径**参数化**：默认指向本机编译出来的 libredwg（$TMP/vendor/lr/...），
+# 没有它就用 PATH 里的（dwg2dxf / dwgread / ODAFileConverter）。
+# ⚠️ 缺转换器时**明确 skip**，不要静默判失败 —— 否则清理 tmp 之后这条会变成假红。
 CJ=$(curl -s --noproxy '*' "${AUTH[@]}" "http://127.0.0.1:$PORT/api/cad/converter")
-echo "$CJ" | grep -q '"available":true' && ok "/api/cad/converter available=true（$CJ）" || no "转换器不可用: $CJ"
+if printf '%s' "$DWG_CONV" | grep -q .; then
+  echo "$CJ" | grep -q '"available":true' && ok "/api/cad/converter available=true（转换器 $DWG_CONV）" \
+    || no "转换器不可用: $CJ"
+else
+  echo "  ⚠️ skip：本机没有可见的 DWG 转换器（设 EXPORT_DWG_CONVERTER=<dwg2dxf 路径> 可启用）—— $CJ"
+fi
 
 # 4.7 SPA 兜底：未知路由返回 index.html（含入口 chunk 引用）
 c=$(curl -s -o /tmp/spa.html -w '%{http_code}' --noproxy '*' "http://127.0.0.1:$PORT/books/1?docId=1&tab=read")

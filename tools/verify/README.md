@@ -119,6 +119,9 @@ CSS 注入，而 DOM 上非数字 id 多一个 `:` 前缀 → 选择器静默失
   以及重生成它们的 `gen.cjs`。
 - `fixtures/exports/doc.pdf`：导出套件用的上传样例。
 - `gen-upload-js.py`：把上述夹具内嵌成一段页面内注入的 JS（见下面「已知坑」第 1 条）。
+  夹具目录可用 `UPLOAD_FIX` 覆盖，产物 JS 路径用 `UPLOAD_JS_OUT`（默认 `$TMPDIR/imp-upload.js`）。
+- `seed-demo.py`：`e2e-dashboard.sh` 的数据播种脚本（全部走公开 API，不直接写库），
+  只读 `BASE` / `OUT` 两个环境变量、无硬编码路径；产出 `ids.json` 供后续定位页面。
 
 ## 已知坑（写新断言前先看这几条）
 
@@ -145,6 +148,29 @@ CSS 注入，而 DOM 上非数字 id 多一个 `:` 前缀 → 选择器静默失
    字符串内部仍是 `{\"a\":1}` —— 直接 `python3 -c "json.loads(...)"` 必然解析失败
    （症状是断言结果变成兜底值、莫名其妙地红）。要么先反转义，要么让 JS 返回
    `总数|缺项;缺项` 这类**不含引号**的裸串。这条是 2026-09-19 给外框断言踩出来的。
+7. **别把验证依赖留在 `$TMPDIR`**：那个目录是要清理的，清理后套件会静默跑旧逻辑或直接挂。
+   2026-09-19 扫描时揪出三处残留：`seed-demo.py` 压根没入库、`e2e-folder-dir` 调的是 tmp 里的
+   **旧** `gen-upload-js.py`、`embed-prod-check` 硬编码 `$TMP/vendor/lr/...` 的 DWG 转换器（找不到就假红）。
+   规则：**脚本与夹具一律进本目录**（用 `HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)` 定位），
+   只有**可变的运行产物**（日志/截图/临时库/生成的注入 JS）才留在 `$TMPDIR`；
+   外部工具路径必须参数化，且**缺失时要明确 skip 而不是判失败**。
+
+### ⚠️ `$TMPDIR` 里哪些东西不能删
+
+清理 `/home/macro/.workbuddy/tmp`（动辄数 GB）之前先看这张表 —— 下面几项是**工具链依赖**：
+
+| 路径 | 用途 |
+| --- | --- |
+| `tmp/haiku-wiki` | `build-embed.sh` 的产出；**所有**套件启动的就是它 |
+| `tmp/vendor/lr/` | `embed-prod-check.sh` 的 DWG 转换器（`EXPORT_DWG_CONVERTER` 默认指向它；缺失时该断言 skip） |
+| `tmp/gotmp` | `gantt-api-check.sh` 的 `TMPDIR` |
+| `tmp/xdg` | agent-browser 的 `XDG_RUNTIME_DIR` |
+| `tmp/agent-browser-chrome-*` | Chrome profile |
+| `tmp/regress` | `run-all.sh` 的日志（`run-all.log` + 逐套 `.out`） |
+
+其余（`dist-backup*`、`dockersim-web-*`、`e2e-*`、`*-out-*`、`shots-*`、旧 `gocache`/`npmcache`、
+一次性排查脚本 `gantt-diag*.sh` / `gantt-*-probe*.sh` / `capture-video-shots*.sh` 等）都是
+**可再生产物**，可以清。
 
 ## 新增套件
 

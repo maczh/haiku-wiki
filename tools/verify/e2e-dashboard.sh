@@ -17,6 +17,8 @@ export AGENT_BROWSER_ARGS="--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--
 export NO_PROXY="127.0.0.1,localhost" no_proxy="127.0.0.1,localhost"
 mkdir -p "$XDG_RUNTIME_DIR"
 AB=/home/macro/.workbuddy/binaries/node/workspace/node_modules/.bin/agent-browser
+# 仓库内脚本/夹具的落点（不要把验证依赖留在 $TMPDIR —— 那个目录会被清理）
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PORT=${PORT:-8150}
 BASE=http://127.0.0.1:$PORT
 ROOT=$TMPDIR/e2e-dash-$(date +%s); SHOTS=$ROOT/shots; mkdir -p "$SHOTS"
@@ -52,7 +54,9 @@ MAGIC=$(curl -s --noproxy '*' -r 0-11 "$BASE/onboarding/haiku-wiki-guide.mp4" | 
 ck "MP4 box 魔数" "ftyp" "$MAGIC"
 
 echo "== 1. 登录并进入首页 =="
-BASE="$BASE" OUT="$ROOT/ids.json" python3 "$TMPDIR/seed-demo.py" >/dev/null || exit 1
+# ⚠️ seed-demo.py 走**仓库内**的副本（原先写的是 $TMPDIR/seed-demo.py —— tmp 一清就挂）。
+#    它只读 BASE / OUT 两个环境变量，没有硬编码路径。
+BASE="$BASE" OUT="$ROOT/ids.json" python3 "$HERE/seed-demo.py" >/dev/null || exit 1
 TOKEN=$(python3 -c "import json;print(json.load(open('$ROOT/ids.json'))['token'])")
 DEV=$(python3 -c "import json;print(json.load(open('$ROOT/ids.json'))['books']['dev'])")
 "$AB" set viewport 1600 900 >/dev/null 2>&1

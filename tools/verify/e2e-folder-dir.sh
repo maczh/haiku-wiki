@@ -16,6 +16,8 @@ export AGENT_BROWSER_ARGS="--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--
 export NO_PROXY="127.0.0.1,localhost" no_proxy="127.0.0.1,localhost"
 mkdir -p "$XDG_RUNTIME_DIR"
 AB=/home/macro/.workbuddy/binaries/node/workspace/node_modules/.bin/agent-browser
+# 仓库内脚本/夹具的落点（不要把验证依赖留在 $TMPDIR —— 那个目录会被清理）
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PORT=${PORT:-8181}
 BASE=http://127.0.0.1:$PORT
 ROOT=$TMPDIR/e2e-folder-$(date +%s); SHOTS=$ROOT/shots; mkdir -p "$SHOTS"
@@ -263,8 +265,11 @@ ckc "导入抽屉已打开" "导入文档" "$(q "(document.querySelector('.ant-d
 shot 10-import-drawer.png
 # 注入三个夹具文件（隐藏 input 只能页面内构造真实 File + DataTransfer + change，
 # 走的是应用真实的 onChange → parseFile → 导入链路，只是替代了 OS 文件选择器）
-python3 "$TMPDIR/gen-upload-js.py" >/dev/null
-echo "  注入结果: $("$AB" eval "$(cat "$TMPDIR/imp-upload.js")" 2>&1 | grep -v '^{}' | tail -1 | sed -e 's/^"//' -e 's/"$//')"
+# ⚠️ 生成器与夹具都在**仓库内**（原先调用的是 $TMPDIR/gen-upload-js.py 那个旧副本 ——
+#    一旦清理 tmp，这里会静默跑到旧逻辑或直接失败）；只有产物 JS 留在 tmp。
+UPLOAD_JS=$TMPDIR/imp-upload.js
+UPLOAD_JS_OUT=$UPLOAD_JS python3 "$HERE/gen-upload-js.py" >/dev/null
+echo "  注入结果: $("$AB" eval "$(cat "$UPLOAD_JS")" 2>&1 | grep -v '^{}' | tail -1 | sed -e 's/^"//' -e 's/"$//')"
 ok=0
 for _ in $(seq 1 40); do
   N=$(api "/api/books/$BOOK/docs" | python3 -c "

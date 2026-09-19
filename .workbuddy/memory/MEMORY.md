@@ -140,6 +140,14 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
   更新夹具：从跑出来的数据目录取 `haiku.db`（先 `PRAGMA wal_checkpoint(TRUNCATE)` 把 WAL 落盘）+ `uploads/`。
 - 构建脚本 `tools/build/`：`build-embed.sh`（前端 → embed → go build）、`build-guide-pdf.sh`（指南 → PDF）。
   视频流水线在 `tools/video/`。**约定：套件脚本不要引用 tmp 下既有的目录/文件**，依赖一律走 `fixtures/`。
+- **`$TMPDIR` 里不能删的 6 项**（2026-09-19 清理扫描的结论）：`haiku-wiki`（生产形态二进制，所有套件启动它）、
+  `vendor/lr/`（`embed-prod-check` 的 DWG 转换器，553 MB）、`gotmp`（`gantt-api-check` 的 TMPDIR）、
+  `xdg`（XDG_RUNTIME_DIR）、`agent-browser-chrome-*`（Chrome profile）、`regress`（回归日志）。
+  其余（`dist-backup*`、`dockersim-web-*`、`e2e-*`、`*-out-*`、`shots-*`、旧 `gocache`/`npmcache`、
+  一次性 `gantt-diag*/probe*` 脚本）都是可再生产物。清理清单见 `/home/macro/.workbuddy/tmp-cleanup-plan-*.md`。
+- **验证依赖不要留 tmp**（三处残留 2026-09-19 已修）：`seed-demo.py` 与 `gen-upload-js.py` 现都在
+  `tools/verify/`，套件用 `HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)` 定位；
+  外部工具路径必须参数化且**缺失时明确 skip 而非判失败**（`embed-prod-check.sh` 的 `DWG_CONV`）。
 - 新写套件请登记进 `run-all.sh` 的 `DEFAULT_SUITES`，并挑一个独占端口（别挤 8080）。
 
 ## 接口契约速查（写测试脚本时最容易记错）
