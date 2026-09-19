@@ -58,7 +58,7 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | `e2e-dashboard.sh` | 40 | 8150 | 视频/封面真的随包分发（Content-Type + 字节数 + MP4 `ftyp`）、播放器解出真实时长、向导与视频可关闭且持久、快捷操作链路 |
 | `e2e-import.sh` | 10 | 18081 | xlsx 多工作表拆父子、空表跳过、docx/pdf 存为附件并可预览、表格 v3 契约 |
 | `e2e_export.sh` | — | 18080 | 导出双通道：服务端逐格式响应头/字节校验 |
-| `e2e-workbench-dnd.sh` | 30 | 8195 | 首页工作台三卡与搜索、目录树右键移动/复制弹窗、拖拽落点（部分树内探针尚未命中，见套件内注释） |
+| `e2e-workbench-dnd.sh` | 30 | 8195 | 首页工作台三卡与搜索、目录树右键移动/复制弹窗（跨库+多级+防环）、拖拽落点（中部=子文档，落库断言） |
 | `e2e-book-dashboard.sh` | 25 | 8196 | **文库工作台**（书页空态）：概览/快捷操作、`book_id` 限定的三卡与搜索（API+界面）、逾期口径（今天到期≠逾期）、最近更新、无裸 0 |
 | `ui-doc-types.sh` | 18 | 8080 | markdown / sheet / mindmap / flowchart / file 的读写渲染 |
 | `gantt-fold-check.sh` | 30 | 8112 | 甘特折叠右时间轴后左表格**不得丢行**、只读态拦截 |

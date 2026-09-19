@@ -182,11 +182,11 @@ q "localStorage.setItem('hk_token','$TOKEN'); 'ok'" >/dev/null
 
 echo
 echo "== 1. 首页不得出现裸 0 文本（任务①）=="
-go "$BASE/book/$A" 3500
+go "$BASE/books/$A" 3500
 Z=$(bareZero); echo "    /book/$A（未选中文档）裸 0 节点：$Z"
 ckc "知识库页未选中文档时无裸 0 文本" "0 " "$Z "
 shot "01-book-no-docid.png"
-go "$BASE/book/$A?docId=$D1" 3000
+go "$BASE/books/$A?docId=$D1" 3000
 Z=$(bareZero); echo "    /book/$A?docId=$D1（已选中）裸 0 节点：$Z"
 ckc "知识库页已选中文档时无裸 0 文本" "0 " "$Z "
 shot "02-book-with-docid.png"
@@ -240,7 +240,7 @@ ck "日历卡已出现" "1" "$(q "document.querySelectorAll('[data-testid=\"hk-w
 shot "04-dashboard-workbench.png"
 TODO_TXT=$(q "document.querySelector('[data-testid=\"hk-wb-todo\"]').innerText.replace(/\\n/g,' / ')")
 echo "    待办卡：$TODO_TXT"
-ckc "待办卡标出 2 项未完成（4 项里 1 项已完成）" "2 项未完成" "$TODO_TXT"
+ckc "待办卡标出 3 项未完成（4 项里 1 项已完成）" "3 项未完成" "$TODO_TXT"
 ckc "待办卡统计出逾期条目" "已逾期" "$TODO_TXT"
 GAN_TXT=$(q "document.querySelector('[data-testid=\"hk-wb-gantt\"]').innerText.replace(/\\n/g,' / ')")
 echo "    甘特卡：$GAN_TXT"
@@ -275,7 +275,8 @@ shot "05-search.png"
 
 echo
 echo "== 5. 右键「移动」：跨知识库 + 多级子目录（任务③）=="
-go "$BASE/book/$A" 3500
+go "$BASE/books/$A" 3500
+expandNode "私人知识库"
 expandNode "产品库"
 ctxDoc "散落文档"
 MI=$(menuItems); echo "    文档右键菜单：$MI"
@@ -298,7 +299,8 @@ ckn "原库里已不含该文档" "散落文档" "$(docList "$A")"
 
 echo
 echo "== 6. 防环：移动目录时不得把自身/子孙列为目标（任务③）=="
-go "$BASE/book/$A" 3500
+go "$BASE/books/$A" 3500
+expandNode "私人知识库"
 expandNode "产品库"
 ctxDoc "设计资料"
 R=$(clickMenu "移动"); echo "    点击移动：$R"
@@ -315,10 +317,11 @@ closeMenus
 
 echo
 echo "== 7. 拖拽：落在目录节点中部 = 成为其子文档（任务③）=="
-go "$BASE/book/$A" 3500
+go "$BASE/books/$A" 3500
+expandNode "私人知识库"
 expandNode "产品库"
 expandNode "设计资料"
-DRAG=$(q "(()=>{const rows=[...document.querySelectorAll('.ant-tree-treenode')];
+DRAG=$(q "(async()=>{const rows=[...document.querySelectorAll('.ant-tree-treenode')];
   const srcRow=rows.find(r=>r.textContent.includes('拖拽对象'));
   const dstRow=rows.find(r=>r.textContent.includes('设计资料'));
   if(!srcRow)return 'no-src'; if(!dstRow)return 'no-dst';
@@ -331,7 +334,17 @@ DRAG=$(q "(()=>{const rows=[...document.querySelectorAll('.ant-tree-treenode')];
   const dy=Math.round(db.top+db.height*0.75); // 下半部 → rc-tree 判为「成为子节点」
   const dt=new DataTransfer();
   const ev=(t,el,yy)=>el.dispatchEvent(new DragEvent(t,{bubbles:true,cancelable:true,dataTransfer:dt,clientX:x,clientY:yy}));
-  ev('dragstart',src,sy); ev('dragenter',dst,dy); ev('dragover',dst,dy); ev('drop',dst,dy);
+  // ⚠️ rc-tree 的 onNodeDrop 从组件 state 读落点，而 state 由 dragover 的 setState 异步提交；
+  // 同一同步任务里连发 dragover+drop 会因 state 未提交而 dropTargetKey=null 直接 return。
+  // 必须分段异步：dragstart → (等待) → dragover×2 → (等待 React 提交) → drop → dragend。
+  ev('dragstart',src,sy);
+  await new Promise(r=>setTimeout(r,120));
+  ev('dragenter',dst,dy); ev('dragover',dst,dy);
+  await new Promise(r=>setTimeout(r,120));
+  ev('dragover',dst,dy);
+  await new Promise(r=>setTimeout(r,200));
+  ev('drop',dst,dy);
+  await new Promise(r=>setTimeout(r,80));
   window.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:dt}));
   return 'dragged'})()")
 echo "    拖拽派发：$DRAG"
@@ -343,7 +356,8 @@ shot "08-after-drag.png"
 
 echo
 echo "== 8. 右键「复制」：目录连同子孙递归复制（任务③）=="
-go "$BASE/book/$A" 3500
+go "$BASE/books/$A" 3500
+expandNode "私人知识库"
 expandNode "产品库"
 NB=$(docCount "$A")
 ctxDoc "设计资料"

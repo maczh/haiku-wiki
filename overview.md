@@ -72,12 +72,11 @@
 | 套件 | 结果 |
 | --- | --- |
 | `tools/verify/e2e-book-dashboard.sh` | **25/25 全绿**（含裸 0 回归、逾期口径、book_id 限定） |
+| `tools/verify/e2e-workbench-dnd.sh` | **30/30 全绿**（移动/复制弹窗、跨库+多级+防环、拖拽落点落库断言） |
 | `tools/verify/cad-render-probe.sh` | 全绿（单测 + 目检图） |
 | `npm run verify:workbench`（`web/scripts/verify-workbench.mjs`，本轮补齐） | 全绿 |
 | Go 单测（service：搜索/工作台/复制/移动/置顶） | ok |
 | `tsc --noEmit` / `go vet ./internal/...` | 通过 |
 
 **遗留**：
-- `e2e-workbench-dnd.sh` 中目录树**拖拽落点的界面探针**尚未全部命中（API 与 Go 层已验证），
-  后续可把树内操作探针补齐；
 - 用户侧长期遗留：`git push origin master`（本地提交积压中）。
