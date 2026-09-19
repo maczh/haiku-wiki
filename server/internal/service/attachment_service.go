@@ -2,8 +2,7 @@ package service
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/exportx"
+	"haiku-wiki/server/internal/storage"
 )
 
 // AttachmentService 附件型文档（doc_type=file）的服务端预处理。
@@ -45,9 +45,9 @@ func (s *AttachmentService) Prepare(uid uint64, in PrepareInput) (*PrepareOutput
 		return nil, hkerr.Param("缺少附件地址")
 	}
 	name := strings.TrimSpace(in.Filename)
-	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
+	ext := strings.ToLower(strings.TrimPrefix(path.Ext(name), "."))
 	if ext == "" {
-		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(url), "."))
+		ext = strings.ToLower(strings.TrimPrefix(path.Ext(url), "."))
 	}
 	ref := &exportx.FileRef{
 		URL:      url,
@@ -111,27 +111,19 @@ func (s *AttachmentService) Prepare(uid uint64, in PrepareInput) (*PrepareOutput
 // saveDerivedFile 把派生文件写在原文件旁边（同目录、同基名、换扩展名）。
 // 为什么不另建目录：派生资源与原件的生命周期完全绑定（删文档时一起清理），
 // 放同目录让"按 url 前缀做权限与穿越校验"的既有逻辑直接复用。
+//
+// 落盘走 storage：S3 模式下派生图与原文件同样在对象存储里，不会掉到本地盘。
 func saveDerivedFile(origURL, ext string, data []byte) (string, error) {
-	rel := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(strings.TrimSpace(origURL), "/")))
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
-		return "", hkerr.NotFound("附件路径无效")
-	}
-	// 与 readUploadedFile 一致：必须落在 DataDir/uploads 内，防目录穿越
-	if !strings.HasPrefix(rel, "uploads"+string(os.PathSeparator)) {
-		return "", hkerr.NotFound("附件路径无效")
-	}
-	out := strings.TrimSuffix(filepath.Join(DataDir, rel), filepath.Ext(rel)) + "." + ext
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-		return "", hkerr.Internal("创建派生文件目录失败")
-	}
-	if err := os.WriteFile(out, data, 0o644); err != nil {
-		return "", hkerr.Internal("写入派生文件失败")
-	}
-	relOut, err := filepath.Rel(DataDir, out)
+	key, err := uploadKey(origURL)
 	if err != nil {
-		return "", hkerr.Internal("派生文件路径计算失败")
+		return "", err
 	}
-	return "/" + filepath.ToSlash(relOut), nil
+	out := strings.TrimSuffix(key, path.Ext(key)) + "." + ext
+	st := storage.Default()
+	if err := st.Put(out, data, storage.MimeByExt(out)); err != nil {
+		return "", err
+	}
+	return st.URL(out), nil
 }
 
 // ---------- PPTX 外链图片本地化 ----------
@@ -175,31 +167,25 @@ func (s *AttachmentService) localizePptx(uid uint64, url string) (*exportx.PptxL
 // 目录用 pptx-assets 而不是直接堆在同级：一份演示文稿可能带十几张图，
 // 独立子目录既避免与原文件同名冲突，也让清理时能整目录删除。
 func savePptxAsset(uid uint64, origURL, filename string, data []byte) (string, error) {
-	rel := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(strings.TrimSpace(origURL), "/")))
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
-		return "", hkerr.NotFound("附件路径无效")
+	key, err := uploadKey(origURL)
+	if err != nil {
+		return "", err
 	}
-	if !strings.HasPrefix(rel, "uploads"+string(os.PathSeparator)) {
-		return "", hkerr.NotFound("附件路径无效")
-	}
-	ext := strings.ToLower(filepath.Ext(filename))
+	ext := strings.ToLower(path.Ext(filename))
 	if ext == "" {
 		ext = ".png"
 	}
 	name := uuid.NewString() + ext
-	relDir := filepath.Join(filepath.Dir(rel), "pptx-assets")
-	absDir := filepath.Join(DataDir, relDir)
-	if err := os.MkdirAll(absDir, 0o755); err != nil {
-		return "", hkerr.Internal("创建图片目录失败")
+	out := path.Join(path.Dir(key), "pptx-assets", name)
+
+	st := storage.Default()
+	if err := st.Put(out, data, storage.MimeByExt(out)); err != nil {
+		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(absDir, name), data, 0o644); err != nil {
-		return "", hkerr.Internal("写入图片失败")
-	}
-	storagePath := filepath.ToSlash(filepath.Join(relDir, name))
 	if err := repository.CreateAttachment(&model.Attachment{
 		UploaderID:  uid,
 		Filename:    filename,
-		StoragePath: storagePath,
+		StoragePath: out,
 		MimeType:    mimeByExt(ext),
 		Size:        int64(len(data)),
 		CreatedAt:   time.Now().UTC(),
@@ -207,44 +193,20 @@ func savePptxAsset(uid uint64, origURL, filename string, data []byte) (string, e
 		// 记录失败不阻断：图已落盘且已嵌入 pptx
 		_ = err
 	}
-	return "/" + storagePath, nil
+	return st.URL(out), nil
 }
 
-// replaceUploadedFile 原子替换文件库中的文件（同目录临时文件 + rename）。
+// replaceUploadedFile 覆盖文件库中的文件。
 //
-// 直接就地覆盖有风险：写一半失败会毁掉用户刚导入的原件。同目录 rename 在同一文件系统
-// 上是原子的，最坏情况也只是保留旧文件。
+// 走 storage 的 Put（覆盖式写入）：local 后端内部是「临时文件 + rename」，
+// S3 后端是对象覆盖写，两者对上层表现一致。之所以不再就地覆盖：写一半失败会毁掉
+// 用户刚导入的原件，rename 即便失败最坏也只是保留旧文件。
 func replaceUploadedFile(url string, data []byte) error {
-	rel := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(strings.TrimSpace(url), "/")))
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
-		return hkerr.NotFound("附件路径无效")
-	}
-	if !strings.HasPrefix(rel, "uploads"+string(os.PathSeparator)) {
-		return hkerr.NotFound("附件路径无效")
-	}
-	abs := filepath.Join(DataDir, rel)
-	tmp, err := os.CreateTemp(filepath.Dir(abs), ".pptx-*.tmp")
+	key, err := uploadKey(url)
 	if err != nil {
-		return hkerr.Internal("创建临时文件失败")
+		return err
 	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		_ = os.Remove(tmpName)
-		return hkerr.Internal("写入临时文件失败")
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return hkerr.Internal("写入临时文件失败")
-	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
-		_ = err
-	}
-	if err := os.Rename(tmpName, abs); err != nil {
-		_ = os.Remove(tmpName)
-		return hkerr.Internal("替换原文件失败")
-	}
-	return nil
+	return storage.Default().Put(key, data, storage.MimeByExt(key))
 }
 
 // truncateNotes 限制提示条数，避免一次导入塞几十行警告把界面顶满。

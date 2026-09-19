@@ -24,6 +24,7 @@ import (
 	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service"
+	"haiku-wiki/server/internal/storage"
 )
 
 // qaResp 统一响应体。
@@ -49,7 +50,10 @@ func qaSetup(t *testing.T) (*gin.Engine, uint64, string) {
 	}
 	repository.SetDB(g)
 	jwtutil.Init("qa-route-secret")
-	service.DataDir = t.TempDir()
+	qaDataDir := t.TempDir()
+	service.DataDir = qaDataDir
+	// 文件读写已收敛到 storage 抽象：只设 service.DataDir 会让上传落到 ./data 兜底目录
+	storage.InitLocal(qaDataDir)
 	t.Cleanup(func() { service.DataDir = "./data" })
 
 	hash, err := bcrypt.GenerateFromPassword([]byte("pass123"), bcrypt.MinCost)

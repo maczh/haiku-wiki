@@ -92,14 +92,18 @@ WORKDIR /app
 COPY --from=server-builder /bin/haiku-wiki /app/haiku-wiki
 # dwg2dxf / dwgread（libredwg 构建失败时为空目录，不影响启动）
 COPY --from=dwg-builder /out/ /usr/local/bin/
+# 主配置模板：运行期挂载自己的目录覆盖（docker-compose 默认挂 ./conf:/app/conf）。
+# 没挂时也能直接用 ENV 启动——config.Load 找不到文件会回退环境变量，不会起不来。
+COPY conf/application.yml /app/conf/application.yml
 ENV PORT=8080 \
+    CONF_DIR=/app/conf \
     DATA_DIR=/app/data \
     GIN_MODE=release \
     EXPORT_FONT_PATH=/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc \
     EXPORT_DWG_CONVERTER=/usr/local/bin/dwg2dxf \
     EXPORT_DWG_BUILD_STATUS=/usr/local/bin/converter-status.txt
-RUN mkdir -p /app/data && chown -R haiku:haiku /app
-VOLUME ["/app/data"]
+RUN mkdir -p /app/data /app/conf && chown -R haiku:haiku /app
+VOLUME ["/app/data", "/app/conf"]
 EXPOSE 8080
 USER haiku
 ENTRYPOINT ["/app/haiku-wiki"]

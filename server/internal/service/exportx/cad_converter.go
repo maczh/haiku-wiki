@@ -312,8 +312,8 @@ func ConvertDWG(dwg []byte) (*CadConversion, error) {
 	}
 	c, err := embeddedPreviewConversion(dwg)
 	if err != nil {
-		return nil, fmt.Errorf("未安装 DWG 转换器，且文件内不含预览图。" +
-			"请安装 libredwg（提供 dwg2dxf）或通过 EXPORT_DWG_CONVERTER 指定转换器" + converterBuildHint())
+		return nil, fmt.Errorf("%s%s", "未安装 DWG 转换器，且文件内不含预览图。"+
+			"请安装 libredwg（提供 dwg2dxf）或通过 EXPORT_DWG_CONVERTER 指定转换器", converterBuildHint())
 	}
 	return c, nil
 }

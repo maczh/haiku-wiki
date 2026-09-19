@@ -9,13 +9,19 @@ services:
       - "${PORT:-8080}:8080"
     environment:
       - PORT=8080
+      - CONF_DIR=/app/conf
       - GIN_MODE=release
+      - JWT_SECRET=${JWT_SECRET:-haiku-wiki-dev-secret-change-me}
+      # 以下三项只作兜底：正式配置写在 ./conf/application.yml 里
       - DB_DRIVER=${DB_DRIVER:-sqlite}
       - DB_DSN=${DB_DSN:-}
-      - JWT_SECRET=${JWT_SECRET:-haiku-wiki-dev-secret-change-me}
       - DATA_DIR=/app/data
     volumes:
-      # 数据卷：SQLite 文件 + uploads/ 全部落盘持久化
+      # 配置卷：conf/application.yml（数据库 / 存储 / S3 / 上传上限）。
+      # 首次启动前请把仓库根的 conf/application.yml 复制到这里的 ./conf 目录再改；
+      # 不挂载也能启动（回退环境变量），但「系统迁移」功能需要配置文件可写。
+      - ./conf:/app/conf
+      # 数据卷：SQLite 文件 + local 存储的 uploads/ 全部落盘持久化
       - haiku-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/auth/me"]

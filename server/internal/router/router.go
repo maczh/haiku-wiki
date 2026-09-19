@@ -13,6 +13,7 @@ import (
 	"haiku-wiki/server/internal/middleware"
 	"haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/static"
+	"haiku-wiki/server/internal/storage"
 )
 
 // Register 挂载全部路由：/api 业务 + /uploads 静态 + SPA 前端托管。
@@ -146,8 +147,14 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.DELETE("/docs/:id/collaborators/:uid", handler.RemoveCollaborator)
 	}
 
-	// 上传文件静态托管
-	r.Static("/uploads", cfg.DataDir+"/uploads")
+	// 上传文件访问入口：
+	//   - local 存储：直接静态托管（零拷贝、支持 Range）
+	//   - S3 存储：走代理转发，让库里存的历史相对路径 /uploads/... 继续可用
+	if storage.Default().Kind() == config.StorageLocal {
+		r.Static("/uploads", cfg.DataDir+"/uploads")
+	} else {
+		r.GET("/uploads/*path", handler.StorageProxy)
+	}
 
 	// 前端 SPA 托管（生产模式：嵌入的 dist；本地开发仅有占位文件时跳过）
 	if static.HasIndex() {

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"haiku-wiki/server/internal/service"
+	"haiku-wiki/server/internal/storage"
 )
 
 // TestQAConvertHtmlToMarkdownStripsNonContent 脚本与样式内容不得进入正文。
@@ -86,6 +87,7 @@ func TestQAConvertHtmlToMarkdownTitleFallback(t *testing.T) {
 func TestQALocalizeImagesKeepsOriginalWhenBlocked(t *testing.T) {
 	dir := t.TempDir()
 	service.DataDir = dir
+	storage.InitLocal(dir) // 上传落盘走 storage，不设会掉到 ./data 兜底目录
 	t.Cleanup(func() { service.DataDir = "./data" })
 
 	base, err := url.Parse("https://site.example.com/page")

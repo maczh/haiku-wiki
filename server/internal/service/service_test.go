@@ -18,6 +18,7 @@ import (
 
 	"haiku-wiki/server/internal/model"
 	hkerr "haiku-wiki/server/internal/pkg"
+	"haiku-wiki/server/internal/storage"
 	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
 )
@@ -45,6 +46,7 @@ func newEnv(t *testing.T) {
 	authRateMu.Unlock()
 	uploadDataDir := t.TempDir()
 	DataDir = uploadDataDir
+	storage.InitLocal(uploadDataDir) // 上传读写走 storage 抽象，必须与 DataDir 同步
 	t.Cleanup(func() { DataDir = "./data" })
 }
 
@@ -808,12 +810,14 @@ func TestUpload(t *testing.T) {
 	us := &UploadService{}
 
 	// 超过单文件上限 → 41301（上限随常量调整，勿硬编码）
-	big := makeFileHeader(t, "big.png", make([]byte, maxUploadSize+1))
+	// 上限现在来自配置（conf/application.yml 的 upload.max_size_mb），不再是写死的常量
+	lim := maxUploadBytes()
+	big := makeFileHeader(t, "big.png", make([]byte, int(lim)+1))
 	if _, err := us.Save(owner.ID, big); codeOf(t, err) != 41301 {
-		t.Fatalf("超 %d 字节应 41301, got %v", maxUploadSize, err)
+		t.Fatalf("超 %d 字节应 41301, got %v", lim, err)
 	}
 	// 恰好等于上限：不应触发大小限制（超限才是 41301）
-	limit := makeFileHeader(t, "limit.png", make([]byte, maxUploadSize))
+	limit := makeFileHeader(t, "limit.png", make([]byte, int(lim)))
 	if _, err := us.Save(owner.ID, limit); err != nil && codeOf(t, err) == 41301 {
 		t.Fatal("恰好等于上限不应触发大小限制")
 	}

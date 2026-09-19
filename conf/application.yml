@@ -1,0 +1,56 @@
+# 寄海文库（haiku-wiki）主配置文件
+#
+# 读取位置：环境变量 CONF_DIR 指定目录，其次 ./conf，Docker 镜像内为 /app/conf。
+# 优先级：环境变量 > 本文件 > 内置默认值。
+# 本文件由「系统迁移」功能自动改写时会保留你的注释与键顺序。
+
+server:
+  # HTTP 监听端口
+  port: 8080
+  # gin 运行模式：debug | release（Docker 部署由环境变量 GIN_MODE=release 覆盖）
+  mode: debug
+
+jwt:
+  # 登录令牌签名密钥，生产环境务必修改
+  secret: haiku-wiki-dev-secret-change-me
+
+database:
+  # sqlite | mysql
+  driver: sqlite
+  # 留空时：sqlite 自动落在 storage.local.dir 下的 haiku.db
+  dsn: ""
+  # MySQL 可直接给 dsn：
+  # dsn: "root:password@tcp(127.0.0.1:3306)/haiku_wiki?charset=utf8mb4&parseTime=True&loc=Local"
+  # 也可拆成下面这些字段，由程序拼装（dsn 为空时生效；迁移功能按字段改写）
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: ""
+  name: haiku_wiki
+
+storage:
+  # local | s3
+  type: local
+  local:
+    # 本地存储根目录（上传文件落在 <dir>/uploads/）；Docker 部署由 DATA_DIR=/app/data 覆盖
+    dir: ./data
+
+# storage.type 为 s3 时生效（兼容 MinIO / Ceph RGW / 腾讯云 COS 等）
+s3:
+  endpoint: ""
+  region: ap-guangzhou
+  bucket: haiku-wiki
+  access_key: ""
+  secret_key: ""
+  # 对象键前缀，可留空
+  prefix: haiku/
+  # 自托管 MinIO 需要 true（path-style）；AWS S3 用 false
+  force_path_style: false
+  # 桶已公开读时置 true：直接拼公开 URL，不再每次生成预签名链接
+  public_read: false
+  # 私有桶预签名链接有效期（分钟）
+  presign_ttl: 60
+
+upload:
+  # 单文件上限（MB）
+  max_size_mb: 64

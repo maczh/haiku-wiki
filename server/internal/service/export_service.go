@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -14,6 +12,7 @@ import (
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/exportx"
+	"haiku-wiki/server/internal/storage"
 )
 
 // ExportService Markdown 导出业务（P1）：单篇 .md / 知识库 .md.zip。
@@ -277,25 +276,17 @@ func mimeByExt(ext string) string {
 	return "application/octet-stream"
 }
 
-// readUploadedFile 读取上传目录内的文件。
-// url 形如 /uploads/2026/09/xxx.pdf，仅允许落在 DataDir/uploads 内（防目录穿越）。
+// readUploadedFile 读取上传目录内的文件（local 或 S3 由 storage 决定）。
+// url 形如 /uploads/2026/09/xxx.pdf，仅允许落在 uploads/ 内（防目录穿越）。
 func readUploadedFile(urlPath string) ([]byte, error) {
-	clean := strings.TrimSpace(urlPath)
-	if !strings.HasPrefix(clean, "/uploads/") {
-		return nil, hkerr.NotFound("附件路径无效")
-	}
-	rel := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(clean, "/")))
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
-		return nil, hkerr.NotFound("附件路径无效")
-	}
-	base := filepath.Join(DataDir, "uploads")
-	abs := filepath.Join(DataDir, rel)
-	if !strings.HasPrefix(abs, base+string(os.PathSeparator)) {
-		return nil, hkerr.NotFound("附件路径无效")
-	}
-	data, err := os.ReadFile(abs)
+	key, err := uploadKey(urlPath)
 	if err != nil {
-		return nil, hkerr.NotFound("附件文件不存在")
+		return nil, err
+	}
+	data, err := storage.Default().Read(key)
+	if err != nil {
+		// 统一口径：调用方（导出/预览）靠 NotFound 区分「参数错」与「文件没了」
+		return nil, err
 	}
 	return data, nil
 }
