@@ -19,6 +19,10 @@ data/
 *.db
 *.db-shm
 *.db-wal
+# 例外：回归套件的数据夹具。tools/verify/fixtures/e2e-data 是种子库快照
+# （ui-doc-types / ui-shot / check-lazy-routes / check-route-fallback 依赖它，
+#   套件每次复制成临时副本再用），必须随仓库分发，否则套件无法复现。
+!tools/verify/fixtures/**/*.db
 
 # 环境变量（含密钥，禁止入库）
 .env

@@ -125,6 +125,22 @@ export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR
 - 采集截图的三个坑见 `tools/video/capture-shots.sh` 头部：树懒加载要逐个展开、文档右键要派发到
   `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
 
+## 回归套件与构建脚本（tools/，2026-09-19 起收进仓库）
+- **浏览器/接口端到端套件在 `tools/verify/`**（11 套 + `run-all.sh` + README，含端口表与夹具说明）。
+  这些原先散在 `/home/macro/.workbuddy/tmp/*.sh`，**那个目录会被清理**，所以已入库。
+  改完前端**必须先** `bash tools/build/build-embed.sh`（产出 `$TMPDIR/haiku-wiki`），否则套件测的是旧产物；
+  跑法：单跑 `bash tools/verify/<suite>.sh`，全跑 `bash tools/verify/run-all.sh`（`SUITES="a b"` 取子集）。
+- **必须顺序执行**：多套共用 `XDG_RUNTIME_DIR` 与同一个 Chrome profile（并行会随机 `no-btn`/串台），
+  其中 `ui-doc-types` / `ui-shot` / `check-lazy-routes` / `check-route-fallback` 还共用 8080。
+- **数据夹具在 `tools/verify/fixtures/`**：`e2e-data/`（种子快照 `haiku.db` + `uploads/`，book 1 固定
+  `1=md 2=sheet 3=mindmap 4=flowchart 5=file`，账号 `e2e@example.com / secret123`）、
+  `import-fixtures/`（xlsx/docx/pdf + 重生成脚本 `gen.cjs`）、`exports/doc.pdf`。
+  依赖 e2e-data 的 4 套每次把夹具**复制成临时副本**再给服务端写（夹具保持原样）；换数据用 `E2E_DATA=<dir>`。
+  更新夹具：从跑出来的数据目录取 `haiku.db`（先 `PRAGMA wal_checkpoint(TRUNCATE)` 把 WAL 落盘）+ `uploads/`。
+- 构建脚本 `tools/build/`：`build-embed.sh`（前端 → embed → go build）、`build-guide-pdf.sh`（指南 → PDF）。
+  视频流水线在 `tools/video/`。**约定：套件脚本不要引用 tmp 下既有的目录/文件**，依赖一律走 `fixtures/`。
+- 新写套件请登记进 `run-all.sh` 的 `DEFAULT_SUITES`，并挑一个独占端口（别挤 8080）。
+
 ## 接口契约速查（写测试脚本时最容易记错）
 - `POST /api/auth/login` → `{"account","password"}`，`account` 可以是用户名/手机号/邮箱（**不是 `email`**）。
 - `POST /api/auth/register` → `{"username","name","email","password"}`（`username`/`email`/`password` 必填），**没有 `nickname`**。

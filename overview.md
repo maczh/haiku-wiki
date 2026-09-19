@@ -153,11 +153,53 @@ vditor / simple-mind-map / mermaid / pdfjs` 在入口 chunk 计数**全为 0**�
 
 ---
 
-## 六、遗留事项
+## 六、顺带：回归套件与构建脚本入库 `tools/`
+
+收尾时发现一个隐患：**11 套浏览器回归脚本全住在 `/home/macro/.workbuddy/tmp/`**，
+而那个目录正要清理 —— 套件、夹具、生成器会一起消失。已全部收进仓库并做耐久化。
+
+```
+tools/build/    build-embed.sh（前端 → embed → go build）、build-guide-pdf.sh（指南 → PDF）+ README
+tools/verify/   11 套回归 + run-all.sh + README（端口表/夹具/已知坑/新增规范）
+                fixtures/e2e-data/        种子库快照（book 1 固定 1=md 2=sheet 3=mindmap 4=flowchart 5=file）
+                fixtures/import-fixtures/ xlsx（含空表）/docx/pdf + 重生成脚本
+                gen-upload-js.py          夹具 → 页面注入 JS（agent-browser upload 静默失效的替代）
+```
+
+三处耐久化改造（否则「入库」只是搬了个壳）：
+
+1. **夹具快照 + 临时副本**：原先 4 套直接读 tmp 下那个数据目录。现在默认把仓库夹具**复制成临时副本**
+   再交给服务端写（夹具保持原样、可反复跑），`E2E_DATA=<dir>` 可覆盖。
+   快照前用 `PRAGMA wal_checkpoint(TRUNCATE)` 把 WAL 落盘，否则拷出来的是「半个库」。
+2. **路径参数化**：`HAIKU_BIN` / `PORT` / `UPLOAD_JS_OUT`，`REPO` 改为按脚本位置推导，
+   删掉所有对 tmp 既有文件的引用；`.gitignore` 加例外 `!tools/verify/fixtures/**/*.db`。
+3. **`run-all.sh` 重写**：跑前探测端口（被幽灵实例占用的套件直接跳过并标注原因，不再产出假结果）、
+   统一三种计数口径、失败时打印明细并以非 0 退出。
+
+### 一个值得记住的「假失败」
+
+全套回归里 `e2e-import` 报 `❌ 注册失败`，**用时只有 1 秒**。真因是端口 18081 被上一个会话留下的服务
+占着（在另一个 PID 命名空间，`ps` 看不到）：套件自己的服务 `bind: address already in use` 起不来，
+于是它连上了**别人的**服务、在**别人的库**里注册用户 → 注册失败。看起来像产品故障，其实是环境问题。
+换 `PORT=18099` 重跑 → **10/10 通过**。现在这两套自带端口预检，遇到占用会直接明确报错。
+
+### 仓库内脚本的全套结果
+
+`embed-prod-check` 17 · `e2e-folder-dir` 49 · `e2e-dashboard` 40 · `e2e-import` 10（换端口后）·
+`e2e_export` 15 · `ui-doc-types` 18 · `gantt-fold-check` 30 · `check-lazy-routes` 14 ·
+`check-route-fallback` 14 · `ui-shot` 截图 · `sim-docker-web` OK（耗时 668s，内含一次完整 `npm build`）。
+全套约 20 分钟。
+
+---
+
+## 七、遗留事项
 
 - **`git push` 未执行**：本机没有任何 GitHub 凭据，需要你自己推。
 - **本机没有 Docker**：`Dockerfile` 未真实构建，只能陈述 `go build` 与 embed 产物的实测数字。
 - `/home/macro/.workbuddy/tmp` 下累积的构建备份与截图目录（数 GB）未清理，需要时按目录逐个删。
+  **回归套件与夹具已不在其中**（已入库 `tools/`），清理时不必再担心弄丢验证手段。
+  注意 tmp 里还留着本轮之前那些**一次性排查脚本**（`gantt-*-probe.sh`、`gantt-diag*.sh`、`ui-diag.sh` 等），
+  它们是排查过程的临时产物、没有再跑过，清理属于预期损失。
 - 「目录」当前刻意不支持：跨库挂载、拖拽移动、目录级分享/权限继承。
   如果后续要做「目录权限继承」，`services/book_service.go` 的可读性判定需要按祖先链向上回溯，
   这是唯一一处会牵动权限模型的地方。
