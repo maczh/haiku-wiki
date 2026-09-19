@@ -12,7 +12,7 @@ server:
 
 jwt:
   # 登录令牌签名密钥，生产环境务必修改
-  secret: haiku-wiki-dev-secret-change-me
+  secret: 3742451f57e399cfc11968a48bdfbe9ff149b8e7ff12300c73a2e3d113bbfb52
 
 database:
   # sqlite | mysql
@@ -20,12 +20,12 @@ database:
   # 留空时：sqlite 自动落在 storage.local.dir 下的 haiku.db
   dsn: ""
   # MySQL 可直接给 dsn：
-  # dsn: "root:password@tcp(127.0.0.1:3306)/haiku_wiki?charset=utf8mb4&parseTime=True&loc=Local"
+  # dsn: "haiku:Jihai2026@tcp(192.168.2.9:3306)/haiku_wiki?charset=utf8mb4&parseTime=True&loc=Local"
   # 也可拆成下面这些字段，由程序拼装（dsn 为空时生效；迁移功能按字段改写）
-  host: 127.0.0.1
+  host: 192.168.2.9
   port: 3306
-  user: root
-  password: ""
+  user: haiku
+  password: "Jihai2026"
   name: haiku_wiki
 
 storage:
