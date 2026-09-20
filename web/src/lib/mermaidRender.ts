@@ -44,11 +44,23 @@ export interface SanitizePreservingMermaidOptions {
   purify?: Config
 }
 
-/** 取出「已经渲染出 `<svg>`」的 mermaid 容器（渲染失败的容器不在此列，仍走常规清洗） */
-function renderedMermaidNodes(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(MERMAID_SELECTOR)).filter(
-    (el) => el.querySelector('svg') !== null,
-  )
+/**
+ * 取出「需要原位保留」的 mermaid 容器。
+ *
+ * 含两类：
+ *  - 已经渲染出 `<svg>` 的（后续做定向清洗）；
+ *  - **尚未渲染但确有内容的**（Vditor 还在异步加载脚本 / 还没轮到它）。
+ *
+ * 第二类必须一并保留，原因见 `preserveMermaidInPlace` 的说明：Vditor 的 mermaid 渲染器
+ * 在渲染管线里一次性 `querySelectorAll` 捕获容器元素，脚本加载完成后把 SVG 写进**捕获的
+ * 那个元素对象**。若调用方在这之间用 `innerHTML = sanitize(html)` 整体重建 DOM，这些
+ * 捕获到的元素就变成游离节点，SVG 会写进不在文档里的节点 —— 图永远出不来。
+ */
+function mermaidNodesToPreserve(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(MERMAID_SELECTOR)).filter((el) => {
+    if (el.querySelector('svg') !== null) return true // 已渲染
+    return (el.textContent ?? '').trim() !== '' // 未渲染但有内容（等待脚本加载/渲染）
+  })
 }
 
 /**
@@ -117,9 +129,9 @@ export function waitForMermaidBlocks(root: HTMLElement, timeoutMs = 5000): Promi
  * @param opts 可选：覆盖 DOMPurify 配置
  */
 export function sanitizePreservingMermaid(root: HTMLElement, opts: SanitizePreservingMermaidOptions = {}): void {
-  const nodes = renderedMermaidNodes(root)
+  const nodes = mermaidNodesToPreserve(root)
 
-  // 没有已渲染的 mermaid 图 → 退化为普通清洗（与原有行为一致）
+  // 没有任何 mermaid 容器 → 退化为普通清洗（与原有行为一致）
   if (nodes.length === 0) {
     root.innerHTML = purify(root.innerHTML, opts)
     return
