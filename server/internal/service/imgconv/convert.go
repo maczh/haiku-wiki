@@ -49,7 +49,7 @@ import (
 
 const (
 	// PreviewMax 预览图最长边（相册点开看的那张）。
-	PreviewMax = 1600
+	PreviewMax = 1920
 	// ThumbMax 缩略图最长边（相册网格里那张）。
 	ThumbMax = 400
 	// JPEGQuality 派生图编码质量。82 是「看不出压缩痕迹 / 体积仍可控」的常用平衡点。
@@ -141,9 +141,16 @@ func native(data []byte) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 原尺寸：不缩放，只把透明通道压到白底后编码为 JPEG（与 external() 的 original 同源）。
+	// 原型里从 .sketch/.rp 抽取/内嵌的预览位图走这档生成「原尺寸」全分辨率图。
+	orig, err := encodeJPEG(flatten(src, src.Bounds()))
+	if err != nil {
+		return nil, err
+	}
 	return &Result{
 		Preview: pv,
 		Thumb:   tb,
+		Original: orig,
 		Width:   src.Bounds().Dx(),
 		Height:  src.Bounds().Dy(),
 	}, nil
