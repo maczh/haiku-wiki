@@ -9,6 +9,15 @@ import (
 	"haiku-wiki/server/internal/model"
 )
 
+// DeleteDocApiSource 清除单篇文档的 URL 导入来源（正文被改成非接口内容时调用）。
+// 幂等：行不存在时影响 0 行、不报错。
+func DeleteDocApiSource(docID uint64) error {
+	if docID == 0 {
+		return nil
+	}
+	return db.Where("doc_id = ?", docID).Delete(&model.DocApiSource{}).Error
+}
+
 // UpsertDocApiSource 写入/更新一篇文档的 URL 导入来源。
 //
 // 关键语义：**首建保留 imported_at**——重复导入同一篇（或刷新）时不能把「首次导入时间」

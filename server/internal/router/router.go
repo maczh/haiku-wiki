@@ -136,6 +136,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		admin := jwt.Group("/admin", middleware.RequireAdmin())
 		{
 			admin.GET("/users", handler.ListUsers)
+			// 内容去重统计（P1-4）：总上传次数 / 秒传命中次数 / 省下的字节
+			admin.GET("/upload-stats", handler.UploadStats)
 			admin.PATCH("/users/:id/status", handler.SetUserStatus)
 			admin.PATCH("/users/:id/reset-password", handler.ResetUserPassword)
 			// 用户删除 / 恢复 / 彻底删除（静态路由 /users/deleted 优先于 /users/:id）

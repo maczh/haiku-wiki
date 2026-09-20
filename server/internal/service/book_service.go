@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/rand"
 	"math/big"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -432,13 +433,14 @@ func (s *DocService) CreateDocWithContent(book *model.Book, uid uint64, parentID
 		pos = fracidx.Between(siblings[len(siblings)-1].Pos, "")
 	}
 	doc := &model.Doc{
-		BookID:    book.ID,
-		ParentID:  parentID,
-		Title:     title,
-		DocType:   docType,
-		Pos:       pos,
-		Content:   content,
-		CreatedBy: uid,
+		BookID:     book.ID,
+		ParentID:   parentID,
+		Title:      title,
+		DocType:    docType,
+		Pos:        pos,
+		Content:    content,
+		ContentMD5: docContentMD5(docType, content),
+		CreatedBy:  uid,
 	}
 	if err := repository.CreateDoc(doc); err != nil {
 		return nil, hkerr.Internal("创建失败")
@@ -472,6 +474,7 @@ func (s *DocService) UpdateDoc(uid uint64, docID uint64, title *string, content 
 		}
 		if *content != doc.Content {
 			doc.Content = *content
+			doc.ContentMD5 = docContentMD5(doc.DocType, *content)
 			changed = true
 		}
 	}
@@ -492,6 +495,51 @@ func (s *DocService) UpdateDoc(uid uint64, docID uint64, title *string, content 
 	}
 	_ = book
 	return doc, true, nil
+}
+
+// SetApiSource 登记一篇接口文档的「URL 导入来源」（P0-7 / T07 定时刷新的依赖）。
+//
+// 幂等 upsert：doc_api_sources 以 doc_id 为主键，重复设置只更新 URL。
+// 需要该文档的**写**权限 —— 能改正文的人才配改它的导入来源。
+// 传空串表示清除来源记录（例如正文被改成了非接口内容）。
+func (s *DocService) SetApiSource(uid uint64, docID uint64, url string) error {
+	if _, _, err := s.loadDocForAccess(docID, uid, true); err != nil {
+		return err
+	}
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return repository.DeleteDocApiSource(docID)
+	}
+	return repository.UpsertDocApiSource(&model.DocApiSource{
+		DocID:      docID,
+		SourceURL:  url,
+		ImportedAt: time.Now().UTC(),
+	})
+}
+
+// ContentDuplicate 同摘要的另一篇文档（P1-1 重复提示）。
+type ContentDuplicate struct {
+	DocID uint64 `json:"doc_id"`
+	Title string `json:"title"`
+}
+
+// FindContentDuplicate 查「除自己之外」还有哪篇文档的摘要相同。
+//
+// 只提示不阻断：返回 nil 表示没有重复。空摘要（历史存量/无正文/附件原件未回填 md5）
+// 不参与比较 —— 否则所有空文档都会互相误报。
+func (s *DocService) FindContentDuplicate(docID uint64, md5v string) *ContentDuplicate {
+	md5v = strings.TrimSpace(md5v)
+	if md5v == "" {
+		return nil
+	}
+	var hits []model.Doc
+	if err := repository.DB().
+		Select("id", "title").
+		Where("content_md5 = ? AND id <> ? AND deleted_at IS NULL", md5v, docID).
+		Order("id ASC").Limit(1).Find(&hits).Error; err != nil || len(hits) == 0 {
+		return nil
+	}
+	return &ContentDuplicate{DocID: hits[0].ID, Title: hits[0].Title}
 }
 
 // isDescendant 判断 target 是否为 ancestor 的子孙。
@@ -794,13 +842,14 @@ func copySubtree(tx *gorm.DB, src *model.Doc, bookID, parentID uint64, pos strin
 		title = title[:256]
 	}
 	cp := &model.Doc{
-		BookID:    bookID,
-		ParentID:  parentID,
-		Title:     title,
-		DocType:   src.DocType,
-		Pos:       pos,
-		Content:   src.Content,
-		CreatedBy: uid,
+		BookID:     bookID,
+		ParentID:   parentID,
+		Title:      title,
+		DocType:    src.DocType,
+		Pos:        pos,
+		Content:    src.Content,
+		ContentMD5: src.ContentMD5, // 复制件与原件内容相同，摘要直接沿用（含附件型的原件 md5）
+		CreatedBy:  uid,
 	}
 	if err := tx.Create(cp).Error; err != nil {
 		return nil, err

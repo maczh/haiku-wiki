@@ -96,9 +96,16 @@ type patchDocReq struct {
 	Title   *string `json:"title"`
 	Content *string `json:"content"`
 	Source  string  `json:"source"` // auto | manual
+	// APISourceURL 登记接口文档的 URL 导入来源（P0-7；定时刷新依赖）。
+	// 缺省 = 不动；传空串 = 清除来源记录。与 title/content 互相独立。
+	APISourceURL *string `json:"api_source_url"`
 }
 
 // PatchDoc PATCH /api/docs/:id —— 更新标题/正文；内容变化时自动快照。
+//
+// 响应额外带 content_duplicate（P1-1 重复提示）：除自己之外还有哪篇文档的内容摘要
+// 与本文相同。**仅提示不阻断**——保存照常成功，前端据此弹一个「内容与《xxx》相同」
+// 的提醒。历史存量/无正文的文档摘要为空串，不参与比较（否则所有空文档互相误报）。
 func PatchDoc(c *gin.Context) {
 	id, ok := docIDFromPath(c)
 	if !ok {
@@ -110,8 +117,19 @@ func PatchDoc(c *gin.Context) {
 		resp.Error(c, paramErr(err))
 		return
 	}
-	if req.Title == nil && req.Content == nil {
+	if req.Title == nil && req.Content == nil && req.APISourceURL == nil {
 		resp.Error(c, paramMsg("无可更新字段"))
+		return
+	}
+	// 先落 api_source_url（独立于正文保存；失败不阻断正文更新）
+	if req.APISourceURL != nil {
+		if err := docService.SetApiSource(middleware.UID(c), id, *req.APISourceURL); err != nil {
+			resp.Error(c, err)
+			return
+		}
+	}
+	if req.Title == nil && req.Content == nil {
+		resp.OK(c, gin.H{"doc": nil, "changed": false})
 		return
 	}
 	doc, changed, err := docService.UpdateDoc(middleware.UID(c), id, req.Title, req.Content, req.Source)
@@ -119,7 +137,7 @@ func PatchDoc(c *gin.Context) {
 		resp.Error(c, err)
 		return
 	}
-	resp.OK(c, gin.H{"doc": doc, "changed": changed})
+	resp.OK(c, gin.H{"doc": doc, "changed": changed, "content_duplicate": docService.FindContentDuplicate(id, doc.ContentMD5)})
 }
 
 // MoveDoc PUT /api/docs/:id/move —— 移动/排序（fractional index）。
