@@ -38,7 +38,7 @@ import {
   SwapOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
-import { patchDoc } from '../../api/docs'
+import { getDoc, patchDoc, getApiRefreshStatus, refreshApiDoc, type ApiRefreshSource } from '../../api/docs'
 import { proxyRequest } from '../../api/proxy'
 import {
   defaultEndpoint,
@@ -247,9 +247,19 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
  *    但 Host / 请求头 / 请求参数 / 请求体仍可编辑（读者可填入测试值直接调试）。
  */
 export default function ApiEditor({ docId, initialContent, title, readOnly }: Props) {
-  const [doc, setDoc] = useState<ApiDoc>(() => normalizeApiDoc(initialContent))
-  const docRef = useRef(doc)
-  docRef.current = doc
+const [doc, setDoc] = useState<ApiDoc>(() => normalizeApiDoc(initialContent))
+const docRef = useRef(doc)
+docRef.current = doc
+
+// 接口文档自动刷新：来源状态 + 手动刷新（P0-8 / P1-2）
+const [refreshStatus, setRefreshStatus] = useState<ApiRefreshSource | null>(null)
+const [refreshing, setRefreshing] = useState(false)
+useEffect(() => {
+  if (!docId) return
+  getApiRefreshStatus(docId)
+    .then((r) => setRefreshStatus(r.source))
+    .catch(() => undefined)
+}, [docId])
   const [selGroup, setSelGroup] = useState<string | null>(null)
   const [selEp, setSelEp] = useState<string | null>(null)
   const [tab, setTab] = useState('headers')
@@ -360,6 +370,27 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
       setStatus('editing')
     }
   }
+
+  // 手动刷新：抓来源 → 后端原地合并 → 回写；成功后用新正文重载编辑器（保留调试历史）。
+  const onRefresh = useCallback(async () => {
+    if (!docId || refreshing) return
+    setRefreshing(true)
+    try {
+      const r = await refreshApiDoc(docId)
+      const d = await getDoc(docId)
+      const content = (d as unknown as { doc?: { content?: string } }).doc?.content ?? ''
+      setDoc(normalizeApiDoc(content))
+      dirtyRef.current = false
+      setStatus('saved')
+      message.success(`已刷新：新增 ${r.added}，更新 ${r.updated}，失效 ${r.removed}`)
+      const st = await getApiRefreshStatus(docId).catch(() => null)
+      if (st) setRefreshStatus(st.source)
+    } catch (e) {
+      message.error((e as Error)?.message || '刷新失败')
+    } finally {
+      setRefreshing(false)
+    }
+  }, [docId, refreshing])
 
   // 卸载前 flush 未保存内容
   useEffect(() => {
@@ -739,6 +770,13 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
         return
       }
       mergeImported(parsed)
+      // 登记 URL 导入来源（后端每日 02:00 自动刷新 + 手动刷新的依赖）
+      if (docId) {
+        patchDoc(docId, { api_source_url: u }).catch(() => undefined)
+        getApiRefreshStatus(docId)
+          .then((r) => setRefreshStatus(r.source))
+          .catch(() => undefined)
+      }
       setUrlOpen(false)
       setUrlValue('')
     } catch (err) {
@@ -812,6 +850,41 @@ export default function ApiEditor({ docId, initialContent, title, readOnly }: Pr
             </Button>
           </>
         )}
+        {docId ? (
+          <>
+            <Tooltip
+              title={
+                refreshStatus?.refresh_error
+                  ? `上次刷新失败：${refreshStatus.refresh_error}`
+                  : '按 URL 导入来源自动刷新（每日 02:00）'
+              }
+            >
+              <span
+                style={{
+                  color: '#8a919f',
+                  fontSize: 12,
+                  maxWidth: 240,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {refreshStatus?.last_refreshed_at
+                  ? `上次刷新：${refreshStatus.last_refreshed_at.slice(0, 16).replace('T', ' ')}（${
+                      refreshStatus.refresh_status === 'success'
+                        ? '成功'
+                        : refreshStatus.refresh_status === 'failed'
+                        ? '失败'
+                        : refreshStatus.refresh_status || '—'
+                    }）`
+                  : '未刷新（按 URL 来源每日 02:00 自动刷新）'}
+              </span>
+            </Tooltip>
+            <Button size="small" icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh}>
+              刷新
+            </Button>
+          </>
+        ) : null}
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>

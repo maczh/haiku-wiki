@@ -66,6 +66,16 @@ export npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR=/home/macro/.wor
 - folder 为容器、不承载正文；不参与搜索/导出/分享/协作/最近更新。
 - Dashboard：`/` 取代旧书架页；最近更新走 `GET /api/recent-docs`（SQL 粗筛 + 业务规则复核双层）；localStorage 键 `hk_onboard_dismissed` / `hk_intro_video_dismissed`。
 - 甘特图（SVAR React Gantt @2.7.3）：致命坑①只给**有子节点**的父节点写 `open:true`（全写白屏）；坑②`byId` 是数字 Map、DOM `data-id` 是字符串 → `lib/gantt.ts` 的 `resolveSvarTask` 兜底；面板折叠走原生 `displayMode` 不可用 CSS `display:none`；`.wx-theme{height:100%}` 必须保留。回归 `npm run verify:gantt-ids`。
+- **文档点评/讨论区（III）**：根主题 = `docs.ID`（顶/子/file 通用，无需新 schema）；评论表 `comments`/`comment_settings` 在 `database.go` 与 `migrate_service.go` **两处同时注册**。`CommentService.IsDocModerator` = 文档所有者||全局管理员||团队管理员(TeamMember.Role=admin)。匿名身份全新能力：靠分享 slug 解析文档（`ResolveAnonDoc` 文档级优先、书级兜底），`AuthorUID=0`+`GuestName` 署名。**禁言名单铁律**：`CommentSetting` 持久化用 `string`(JSON)，对外输出必须走 `CommentSettingOutput` 暴露 `banned_uids`；`UpdateSettings` 的 `BannedUIDs` 空切片 `!= nil` 会清空名单 ⇒ 前端始终带当前名单（面板从 `/comment-settings` 响应初始化，不可默认 `[]`）。面板 `CommentPanel` 是 docked `<aside>` flex 兄弟（在 maxWidth 容器外），拖拽 reflow 正文。
+
+## URL 导入接口文档的自动/手动刷新（T06/T07/T08，2026-09-20 交付）
+- 三端点：`POST /api/docs/:id/refresh`(写权限)、`GET /api/docs/:id/api-refresh-status`(读权限)、`GET /api/admin/api-refresh/last`(管理员)。来源登记走 `PATCH /api/docs/:id` 的 `api_source_url`（`SetApiSource` 幂等 upsert，空串清除）。
+- **P0-9 铁律**：刷新 = 抓 source_url → `apidoc.Parse`(Go 移植版，`server/internal/service/apidoc`) → `mergeApiDoc` **原地合并**；按 `method+"\x00"+uri` 复用既有 endpoint id，**绝不重建文档、绝不改 endpoint id** ⇒ `api_debug_history` 不受影响。确定性 id = `fnv32a` base36(method+uri)，刷新间稳定。
+- **Q5**：上游已移除的接口降级进 `g_stale`「已失效（上游已移除）」分组保留，不删。
+- **P0-10**：失败不覆盖正文，只 `UpdateRefreshResult(docID,"failed",err,...)`；用户态/解析/SSRF 失败一律 `hkerr.Param(...)`(HTTP 400，不是 500)。
+- **SSRF**：`api_refresh_service.go` 的 `validateRefreshTarget` 独立实现（禁非 http/https、解析 IP 禁私网/环回/链路本地、重定向每跳复校）；service 包不能 import handler 的 fetch-title 校验器。
+- **C5/D3**：单机进程内 ticker `StartApiRefreshScheduler()` 每日 02:00 Asia/Shanghai 跑 `RunAll("auto")`；只对「本次改动后新导入」文档（有 `doc_api_sources` 行）生效。
+- 回归：`server/internal/service/api_refresh_service_test.go`(4 测) + `tools/verify/api-refresh-check.sh`(端口 8101，登记 run-all.sh)。
 
 ## 回归套件 / 构建（tools/）
 - 端到端套件在 `tools/verify/`（登记进 `run-all.sh`）；改前端**必须先** `bash tools/build/build-embed.sh`。

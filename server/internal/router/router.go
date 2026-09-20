@@ -114,6 +114,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.DELETE("/comments/all", handler.ClearComments)
 			docs.DELETE("/comments/:cid", handler.DeleteComment)
 			docs.POST("/comments/:cid/ban", handler.BanAuthor)
+			// 接口文档 URL 导入来源的定时/手动刷新（P0-7 / P0-8 / P1-2）
+			docs.GET("/api-refresh-status", handler.GetApiRefreshStatus)
+			docs.POST("/refresh", handler.RefreshDocApi)
 		}
 
 		// 上传 / 回收站 / 导出
@@ -178,6 +181,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.POST("/migrate/storage", handler.MigrateStorage)
 			admin.POST("/migrate/database/test", handler.TestDatabaseConnection)
 			admin.POST("/migrate/storage/test", handler.TestStorageConnection)
+			// 接口文档刷新：最近一次任务汇总（仅管理员；P1-3）
+			admin.GET("/api-refresh/last", handler.GetApiRefreshLastRun)
 		}
 
 		// 团队管理

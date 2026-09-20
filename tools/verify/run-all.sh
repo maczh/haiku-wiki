@@ -38,6 +38,7 @@ DEFAULT_SUITES=(
   mermaid-render-check
   pptx-zoom-check
   comment-api-check
+  api-refresh-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -63,6 +64,7 @@ declare -A PORT_OF=(
   [mermaid-render-check]=18086
   [pptx-zoom-check]=18092
   [comment-api-check]=8100
+  [api-refresh-check]=8101
   [sim-docker-web]=0
 )
 

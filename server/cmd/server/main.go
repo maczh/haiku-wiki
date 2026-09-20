@@ -56,6 +56,9 @@ func main() {
 	r.Use(gin.Logger(), gin.Recovery())
 	router.Register(r, cfg)
 
+	// 接口文档 URL 导入来源的每日 02:00 自动刷新调度（C5：单机进程内 ticker，非 cron）。
+	go service.StartApiRefreshScheduler()
+
 	log.Printf("[haiku] 寄海文库启动于 :%s（DB=%s, DATA_DIR=%s, STORAGE=%s）",
 		cfg.Port, cfg.DBDriver, cfg.DataDir, storage.Default().Kind())
 	log.Printf("[haiku] DWG 转换能力：%s", exportx.DWGConverterStatus())

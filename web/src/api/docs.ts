@@ -40,9 +40,54 @@ export async function getDoc(docId: number): Promise<DocWithBook> {
 
 export async function patchDoc(
   docId: number,
-  payload: { title?: string; content?: string; source?: 'auto' | 'manual' },
+  payload: { title?: string; content?: string; source?: 'auto' | 'manual'; api_source_url?: string },
 ): Promise<{ doc: DocDetail; changed: boolean }> {
   return request.patch(`/docs/${docId}`, payload) as Promise<{ doc: DocDetail; changed: boolean }>
+}
+
+// ---------- 接口文档 URL 导入来源的刷新（P0-7 / P0-8 / P1-2 / P1-3） ----------
+
+/** 单篇接口文档的导入来源与上次刷新结果（未登记来源时 source 为 null）。 */
+export interface ApiRefreshSource {
+  doc_id: number
+  source_url: string
+  imported_at: string
+  last_refreshed_at?: string
+  refresh_status: string // "" | success | failed
+  refresh_error?: string
+  last_added: number
+  last_updated: number
+  last_removed: number
+}
+
+/** 最近一次刷新任务的汇总（管理员视角）。 */
+export interface ApiRefreshRun {
+  id: number
+  trigger: string // auto | manual | admin
+  started_at: string
+  finished_at?: string
+  scanned: number
+  succeeded: number
+  failed: number
+  added: number
+  updated: number
+  removed: number
+  failures: string // JSON: [{doc_id,title,error}]
+}
+
+/** 当前文档的刷新来源与上次结果（需读权限）。 */
+export async function getApiRefreshStatus(docId: number): Promise<{ source: ApiRefreshSource | null }> {
+  return request.get(`/docs/${docId}/api-refresh-status`) as Promise<{ source: ApiRefreshSource | null }>
+}
+
+/** 手动刷新单篇接口文档（需写权限）：抓取来源 → 原地合并 → 回写。 */
+export async function refreshApiDoc(docId: number): Promise<{ added: number; updated: number; removed: number }> {
+  return request.post(`/docs/${docId}/refresh`) as Promise<{ added: number; updated: number; removed: number }>
+}
+
+/** 管理员：最近一次刷新任务汇总。 */
+export async function getApiRefreshLastRun(): Promise<ApiRefreshRun> {
+  return request.get('/admin/api-refresh/last') as Promise<ApiRefreshRun>
 }
 
 // ---------- 增量：文档级分享管理 ----------
