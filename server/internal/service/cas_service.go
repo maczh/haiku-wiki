@@ -225,10 +225,56 @@ type ReferenceResult struct {
 	Dedup   bool                     // 恒为 true（引用式）
 }
 
+// ---------- 批量入口的有序条目（T03b） ----------
+
+// 批量条目的两种 kind：
+//   - ref ：内容已存在，只建 meta + 复用缓存，**不接收字节**；
+//   - file：需要传输的字节（老调用方不传 kind，等价于 file）。
+const (
+	BatchKindRef  = "ref"
+	BatchKindFile = "file"
+)
+
+// normalizeBatchKind 归一批量条目的 kind：空串按 file 处理。
+//
+// 这样既支持新协议（前端按预检结果标 ref/file），也让所有既有调用方
+// （只给字节、不带 kind）行为完全不变 —— manifest 缺省时契约与改造前一致。
+func normalizeBatchKind(kind string) string {
+	if strings.TrimSpace(kind) == BatchKindRef {
+		return BatchKindRef
+	}
+	return BatchKindFile
+}
+
+// normalizeAppName 归一引用式入库的 app 名。
+//
+// `attachment_derived.app` 只允许 gallery / prototype；空值或笔误一律落 gallery，
+// 避免写出一条下游无法按 app 分支处理的缓存行。
+func normalizeAppName(appName string) string {
+	if strings.TrimSpace(appName) == "prototype" {
+		return "prototype"
+	}
+	return "gallery"
+}
+
+// ReferenceExpiredReason 引用式入库失败时的**固定**文案（§12.2.2）。
+//
+// 语义：预检与提交之间原件被清理/迁移，或缓存与派生文件都不可用。
+// 该条进 `rejected`、**其余条目继续**（宽容语义，不整批 40001）；
+// 前端凭这段文案就地降级为普通 uploadFile 重试 —— 改字面量会打断前端约定。
+const ReferenceExpiredReason = "预检结果已过期，请重新上传该文件"
+
 // referenceMeta 引用式入库：不写盘、不重新转换、不派生，仅新增 meta + 复用派生元数据。
 //
 // 临界区（§13.3-④）：锁外预检 + 派生；锁内只做「二次校验 + 落 meta + 累加统计」。
+//
+// appName 分支（gallery / prototype）：先归一到合法值，再透传给 ensureDerived ——
+// 只有 L2/L3 兜底重派生**会写** `attachment_derived.app`，此时必须写明是哪个 app。
+// L1 直用缓存时不改写 app：同一份内容可能同时被图片库与原型引用，元数据同构，
+// 按**首次写入者**记账（见 model.AttachmentDerived.App 的注释）—— 反复翻转会让
+// 缓存行随引用顺序抖动，得不偿失。
 func referenceMeta(uid uint64, appName string, in ReferenceInput) (*ReferenceResult, error) {
+	appName = normalizeAppName(appName)
 	md5v := normalizeMD5(in.MD5)
 	if !isHexMD5(md5v) {
 		return nil, hkerr.Param("内容摘要格式不正确")

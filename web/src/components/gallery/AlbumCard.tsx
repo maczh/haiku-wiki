@@ -1,4 +1,4 @@
-import { Button, Image, Tooltip } from 'antd'
+import { Button, Image, Tag, Tooltip } from 'antd'
 import { DownloadOutlined, FileImageOutlined, WarningOutlined } from '@ant-design/icons'
 import type { GalleryImage } from '../../types'
 import './gallery.css'
@@ -36,6 +36,13 @@ export default function AlbumCard({ image, actions, preview = true }: Props) {
         {image.name}
       </div>
       <div className="hk-album-sub">
+        {image.dedup && (
+          <Tooltip title="该文件内容已存在于文库中，本次仅新增引用，未重复存储">
+            <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+              秒传
+            </Tag>
+          </Tooltip>
+        )}
         <span>{humanSize(image.size)}</span>
         {image.width > 0 && image.height > 0 && (
           <span>

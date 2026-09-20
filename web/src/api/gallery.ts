@@ -1,16 +1,24 @@
 import request from './request'
-import type { GalleryImage } from '../types'
+import type { BatchAddMeta, BatchManifestEntry, GalleryImage } from '../types'
 
-/** 图片库：批量上传（服务端立刻生成预览图与缩略图） */
-export async function addGalleryImages(docId: number, files: File[]): Promise<{
-  images: GalleryImage[]
-  rejected: { name: string; reason: string }[]
-}> {
+/**
+ * 图片库：批量上传（服务端立刻生成预览图与缩略图）。
+ *
+ * 两阶段协议（T03b）：可选传 `manifest`（与用户所选条目**等长同序**的唯一真源），
+ * `files` 只承载 manifest 中 `kind=file` 的字节。**manifest 缺省时行为与改造前完全一致**，
+ * 因此老后端 / 未做预检的调用方无需改动。
+ */
+export async function addGalleryImages(
+  docId: number,
+  files: File[],
+  manifest?: BatchManifestEntry[],
+): Promise<BatchAddMeta & { images: GalleryImage[] }> {
   const form = new FormData()
   files.forEach((f) => form.append('files', f))
+  if (manifest) form.append('manifest', JSON.stringify(manifest))
   return request.post(`/docs/${docId}/gallery/images`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
-  }) as Promise<{ images: GalleryImage[]; rejected: { name: string; reason: string }[] }>
+  }) as Promise<BatchAddMeta & { images: GalleryImage[] }>
 }
 
 /** 图片库：删除一张图（原件与派生图一并清理） */

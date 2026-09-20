@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"image"
 	"io"
+	"log"
 	"path"
 	"strings"
 	"time"
@@ -61,14 +62,34 @@ type PrototypeItem struct {
 	Degraded bool   `json:"degraded"`           // 没有可展示的预览
 	Note     string `json:"note"`               // 降级原因 / 处理说明
 	AddedAt  string `json:"added_at"`
+	// Dedup 本次是否**没有写盘**（引用式入库，或上传的内容已存在被 CAS 复用）。
+	// 前端据此在卡片上打蓝色「秒传」标（判定基准 = 主件 md5，T03b）。
+	Dedup bool `json:"dedup,omitempty"`
 }
 
-// PrototypeUpload 一次上传的单个原型文件（标题必填，描述可选）。
+// PrototypeUpload 一次上传的单个条目（标题必填，描述可选）。
+//
+// 自 T03b 起它同时承担「批量有序条目」的角色（切片顺序即 manifest 顺序），Kind 为空
+// 等价于 file —— 所以既有调用方（只给 Name/Data/Title/Desc）行为与改造前**完全一致**。
 type PrototypeUpload struct {
 	Name  string
 	Data  []byte
 	Title string
 	Desc  string
+	// Kind 条目类型："ref" | "file"（空 = file）
+	Kind string
+	// MD5 原件内容摘要（kind=ref 必填；kind=file 忽略）
+	MD5 string
+	// Size 原件字节数（kind=file 留空则取 len(Data)）
+	Size int64
+}
+
+// EntrySize 归一后的条目字节数。
+func (u PrototypeUpload) EntrySize() int64 {
+	if u.Size > 0 {
+		return u.Size
+	}
+	return int64(len(u.Data))
 }
 
 // PrototypeReject 被拒收的文件（不中断整批）。
@@ -95,7 +116,16 @@ func PrototypeAllowedExt() []string { return extList(prototypeExt) }
 // PrototypeMaxBytes 单个原型文件上限（与全局上传上限同源）。
 func PrototypeMaxBytes() int64 { return maxUploadBytes() }
 
-// AddPrototypeItems 往原型库追加条目（批量）。
+// AddPrototypeItems 往原型库追加条目（批量，按**切片顺序**逐条处理）。
+//
+// 权限走文档级写权限（loadDocForAccess write=true），与正文编辑完全同口径。
+// 单条失败只记入 rejects，其余照常入库——原型批量上传最怕「一个坏了全批作废」。
+//
+// 条目两种 kind（见 PrototypeUpload）：
+//   - file：字节上传 + 派生预览，与改造前完全一致；
+//   - ref ：引用式入库（§12.2.2）——不写盘、不重派生，直接复用 attachment_derived 缓存。
+//     md5 查不到（原件被清/预检过期）或缓存不可用时，该条进 rejected，reason 固定为
+//     ReferenceExpiredReason，**其余条目继续**（宽容语义，前端就地降级重传）。
 func (s *DocService) AddPrototypeItems(uid, docID uint64, files []PrototypeUpload) ([]PrototypeItem, []PrototypeReject, error) {
 	if len(files) == 0 {
 		return nil, nil, hkerr.Param("请选择要上传的原型文件")
@@ -112,6 +142,20 @@ func (s *DocService) AddPrototypeItems(uid, docID uint64, files []PrototypeUploa
 	added := make([]PrototypeItem, 0, len(files))
 	rejected := make([]PrototypeReject, 0)
 	for _, f := range files {
+		if normalizeBatchKind(f.Kind) == BatchKindRef {
+			// 标题是原型的业务必填项：缺标题属参数错误，与「预检过期」区分开报。
+			if strings.TrimSpace(f.Title) == "" {
+				rejected = append(rejected, PrototypeReject{Name: f.Name, Reason: "请填写原型标题"})
+				continue
+			}
+			it := referencePrototypeItem(uid, f)
+			if it == nil {
+				rejected = append(rejected, PrototypeReject{Name: f.Name, Reason: ReferenceExpiredReason})
+				continue
+			}
+			added = append(added, *it)
+			continue
+		}
 		it, err := buildPrototypeItem(uid, f)
 		if err != nil {
 			rejected = append(rejected, PrototypeReject{Name: f.Name, Reason: err.Error()})
@@ -143,6 +187,30 @@ func (s *DocService) AddPrototypeItems(uid, docID uint64, files []PrototypeUploa
 		return nil, rejected, hkerr.Internal("保存失败")
 	}
 	return added, rejected, nil
+}
+
+// referencePrototypeItem 引用式入库一条原型条目（不写盘、不重派生）。
+// 失败返回 nil（调用方记 rejected）—— 不区分失败原因对外一律用 ReferenceExpiredReason，
+// 避免把「他人内容摘要是否存在」这类信息泄漏给调用方。
+func referencePrototypeItem(uid uint64, f PrototypeUpload) *PrototypeItem {
+	res, err := referenceMeta(uid, "prototype", ReferenceInput{
+		MD5:      f.MD5,
+		Filename: f.Name,
+		Size:     f.EntrySize(),
+	})
+	if err != nil {
+		log.Printf("[prototype] 引用式入库失败 md5=%s name=%s: %v", normalizeMD5(f.MD5), f.Name, err)
+		return nil
+	}
+	it := ApplyDerivedToPrototypeItem(f.Title, f.Desc, f.Name, f.EntrySize(), res.Derived)
+	// 缓存行可能没有 origin_url（极端降级行）：回退到 referenceMeta 给出的原件 URL
+	if it.URL == "" {
+		it.URL = res.URL
+	}
+	if it.URL == "" {
+		return nil
+	}
+	return &it
 }
 
 // UpdatePrototypeItem 改某条原型的标题与需求描述（原型没说明等于没有原型）。
@@ -273,6 +341,7 @@ func buildImagePrototype(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 		return nil, errStr("保存失败")
 	}
 	it.URL = out.URL
+	it.Dedup = out.Dedup
 	res, err := imgconv.Convert(data, it.Filename)
 	if err != nil || res.Degraded {
 		it.Degraded = true
@@ -301,6 +370,7 @@ func buildSingleHTML(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem
 		return nil, errStr("保存失败")
 	}
 	it.URL = out.URL
+	it.Dedup = out.Dedup
 	it.Entry = out.URL
 	it.Note = "单页原型，直接嵌入展示"
 	return it, nil
@@ -320,6 +390,7 @@ func buildZipPrototype(uid uint64, data []byte, it *PrototypeItem) (*PrototypeIt
 		out, e3 := saveBytes(uid, it.Filename, "", data)
 		if e3 == nil {
 			it.URL = out.URL
+			it.Dedup = out.Dedup
 		}
 		return it, nil
 	}
@@ -342,6 +413,7 @@ func buildZipPrototype(uid uint64, data []byte, it *PrototypeItem) (*PrototypeIt
 		out, e := saveBytes(uid, it.Filename, "", data)
 		if e == nil {
 			it.URL = out.URL
+			it.Dedup = out.Dedup
 		}
 		return it, nil
 	}
@@ -351,6 +423,7 @@ func buildZipPrototype(uid uint64, data []byte, it *PrototypeItem) (*PrototypeIt
 	out, e := saveBytes(uid, it.Filename, "", data)
 	if e == nil {
 		it.URL = out.URL
+		it.Dedup = out.Dedup
 	}
 	it.Note = "网页原型包，入口：" + entry
 	_ = uid
@@ -369,6 +442,7 @@ func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 			if got.URL == "" {
 				if out, e := saveBytes(uid, it.Filename, "", data); e == nil {
 					got.URL = out.URL
+					got.Dedup = out.Dedup
 				}
 			}
 			return got, nil
@@ -384,6 +458,7 @@ func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 	}
 	it.Kind = "other"
 	it.URL = out.URL
+	it.Dedup = out.Dedup
 	it.Degraded = true
 	it.Note = "该格式无法在网页中渲染，请下载原件用对应工具打开"
 	return it, nil
@@ -398,6 +473,7 @@ func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *Prot
 		return nil, errStr("保存失败")
 	}
 	it.URL = out.URL
+	it.Dedup = out.Dedup
 	// .rp/.mp 本质是 Axure / Mockplus 工程文件，抽内嵌图只是预览手段；卡片标签归为
 	//「工程文件」（other），与 buildProjectArchive 的降级分支及前端语义保持一致。
 	it.Kind = "other"
@@ -522,6 +598,7 @@ func buildSketch(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem, er
 					return nil, errStr("保存失败")
 				}
 				it.URL = out.URL
+				it.Dedup = out.Dedup
 				it.Kind = "image"
 				// 抽取到的预览位图按「非图片格式」走 generatePrototypePreview：original 取全分辨率派生图
 				if e2 := generatePrototypePreview(uid, f.Data, f.Path, false, it, false); e2 != nil {
@@ -543,6 +620,7 @@ func buildSketch(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem, er
 	}
 	it.Kind = "other"
 	it.URL = out.URL
+	it.Dedup = out.Dedup
 	it.Degraded = true
 	it.Note = "Sketch 文件无法在网页中渲染，请下载原件用 Sketch 打开"
 	return it, nil

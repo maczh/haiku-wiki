@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { Alert, Button, Card, Empty, Input, Modal, Spin, Tag, Upload, message } from 'antd'
+import { Alert, Button, Card, Empty, Input, Modal, Spin, Tag, Tooltip, Upload, message } from 'antd'
 import { DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { PrototypeItem } from '../../types'
 import { addPrototypeItems, regeneratePrototypeItem, removePrototypeItem, updatePrototypeItem } from '../../api/prototype'
+import { uploadBatchWithDedup } from '../../lib/uploadFlow'
 import { parsePrototype } from './PrototypeView'
 import './prototype.css'
 
@@ -36,18 +37,24 @@ export default function PrototypeEditor({ docId, content, onChanged }: Props) {
   async function doUpload() {
     const files = filesRef.current
     if (files.length === 0) return
+    // 标题/描述按 **原始顺序**（= manifest 下标）对齐：被秒传的条目也要拿到自己的标题。
     const titles = files.map((f) => f.name.replace(/\.[^.]+$/, ''))
     const descs = files.map(() => '')
     setUploading(true)
     try {
-      const res = await addPrototypeItems(docId, files, titles, descs)
+      // 两阶段（T03b）：算摘要 → 批量预检（不传字节）→ 只上传未命中的文件；失败自动退化。
+      const plan = await uploadBatchWithDedup(files, { app: 'prototype' })
+      const res = await addPrototypeItems(docId, plan.missFiles, titles, descs, plan.manifest)
       if (res.rejected?.length) {
         message.warning(
           `${res.rejected.length} 个文件未入库：${res.rejected.map((r) => `${r.name}（${r.reason}）`).join('、')}`,
         )
       }
       if (res.items?.length) {
-        message.success(`已添加 ${res.items.length} 个原型（标题默认取文件名，可在列表中修改）`)
+        // 秒传条数以后端 summary 为准，缺失时按条目 dedup 标记兜底（兼容老后端）
+        const dedup = res.summary?.dedup ?? res.items.filter((i) => i.dedup).length
+        const base = `已添加 ${res.items.length} 个原型（标题默认取文件名，可在列表中修改）`
+        message.success(dedup > 0 ? `${base}；其中 ${dedup} 个秒传，未重复存储` : base)
       }
       setFileList([])
       onChanged?.()
@@ -166,6 +173,11 @@ export default function PrototypeEditor({ docId, content, onChanged }: Props) {
               <div className="hk-proto-row-main">
                 <div className="hk-proto-title">
                   {it.title} {it.degraded && <Tag color="orange">仅原件</Tag>}
+                  {it.dedup && (
+                    <Tooltip title="该文件内容已存在于文库中，本次仅新增引用，未重复存储">
+                      <Tag color="blue">秒传</Tag>
+                    </Tooltip>
+                  )}
                 </div>
                 <div className="hk-proto-desc">{it.desc || '（未填写需求描述）'}</div>
                 <div className="hk-proto-sub">

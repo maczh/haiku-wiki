@@ -14,6 +14,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -46,12 +47,32 @@ type GalleryImage struct {
 	Degraded bool   `json:"degraded"` // 没能生成预览图
 	Note     string `json:"note"`     // 降级原因 / 处理说明
 	AddedAt  string `json:"added_at"`
+	// Dedup 本次是否**没有写盘**（引用式入库，或上传的内容已存在被 CAS 复用）。
+	// 前端据此在卡片上打蓝色「秒传」标（T03b）。
+	Dedup bool `json:"dedup,omitempty"`
 }
 
-// GalleryUpload 一次上传的单个文件（handler 读进内存后交给 service，避免在 handler 里做业务）。
+// GalleryUpload 一次上传的单个条目（handler 读进内存后交给 service，避免在 handler 里做业务）。
+//
+// 自 T03b 起它同时承担「批量有序条目」的角色（切片顺序即 manifest 顺序），Kind 为空
+// 等价于 file —— 所以既有调用方（只给 Name/Data）的行为与改造前**完全一致**。
 type GalleryUpload struct {
 	Name string
 	Data []byte
+	// Kind 条目类型："ref" | "file"（空 = file）
+	Kind string
+	// MD5 原件内容摘要（kind=ref 必填；kind=file 忽略）
+	MD5 string
+	// Size 原件字节数（kind=file 留空则取 len(Data)）
+	Size int64
+}
+
+// EntrySize 归一后的条目字节数。
+func (u GalleryUpload) EntrySize() int64 {
+	if u.Size > 0 {
+		return u.Size
+	}
+	return int64(len(u.Data))
 }
 
 // GalleryReject 被拒收的文件（不中断整批：一个坏文件不该让其余图片白传）。
@@ -71,12 +92,18 @@ func GalleryAllowedExt() []string {
 	return extList(imgconv.AllowedExt())
 }
 
-// AddGalleryImages 往图片库里追加图片（批量，逐张转换）。
+// AddGalleryImages 往图片库里追加条目（批量，按**切片顺序**逐条处理）。
 //
 // 权限走文档级写权限（loadDocForAccess write=true），与正文编辑完全同口径。
-// 单张失败只记入 rejects，其余照常入库——相册批量上传最怕「一张坏了全批作废」。
-func (s *DocService) AddGalleryImages(uid, docID uint64, files []GalleryUpload) ([]GalleryImage, []GalleryReject, error) {
-	if len(files) == 0 {
+// 单条失败只记入 rejects，其余照常入库——相册批量上传最怕「一张坏了全批作废」。
+//
+// 条目两种 kind（见 GalleryUpload）：
+//   - file：字节上传 + 派生预览，与改造前完全一致；
+//   - ref ：引用式入库（§12.2.2）——不写盘、不重派生，直接复用 attachment_derived 缓存。
+//     md5 查不到（原件被清/预检过期）或缓存不可用时，该条进 rejected，reason 固定为
+//     ReferenceExpiredReason，**其余条目继续**（宽容语义，前端就地降级重传）。
+func (s *DocService) AddGalleryImages(uid, docID uint64, entries []GalleryUpload) ([]GalleryImage, []GalleryReject, error) {
+	if len(entries) == 0 {
 		return nil, nil, hkerr.Param("请选择要上传的图片")
 	}
 	doc, _, err := s.loadDocForAccess(docID, uid, true)
@@ -88,19 +115,28 @@ func (s *DocService) AddGalleryImages(uid, docID uint64, files []GalleryUpload) 
 	}
 	content := parseGalleryContent(doc.Content)
 
-	added := make([]GalleryImage, 0, len(files))
+	added := make([]GalleryImage, 0, len(entries))
 	rejected := make([]GalleryReject, 0)
-	for _, f := range files {
-		img, err := buildGalleryImage(uid, f)
+	for _, e := range entries {
+		if normalizeBatchKind(e.Kind) == BatchKindRef {
+			img := referenceGalleryImage(uid, e)
+			if img == nil {
+				rejected = append(rejected, GalleryReject{Name: e.Name, Reason: ReferenceExpiredReason})
+				continue
+			}
+			added = append(added, *img)
+			continue
+		}
+		img, err := buildGalleryImage(uid, e)
 		if err != nil {
-			rejected = append(rejected, GalleryReject{Name: f.Name, Reason: err.Error()})
+			rejected = append(rejected, GalleryReject{Name: e.Name, Reason: err.Error()})
 			continue
 		}
 		added = append(added, *img)
 		// 写入派生元数据缓存（§12.3）：供之后其它文档引用式入库复用（不重派生）。
 		// 没有原件 URL（极端降级）时不写缓存 —— 否则会留下一条无法复用、也无法自愈的行。
 		if img.URL != "" {
-			if d := CacheFromGalleryImage(md5Hex(f.Data), img.URL, img); d != nil {
+			if d := CacheFromGalleryImage(md5Hex(e.Data), img.URL, img); d != nil {
 				if uerr := repository.UpsertDerived(d); uerr != nil {
 					// 缓存写失败不阻断导入：后续引用走 L2/L3 兜底重派生
 					_ = uerr
@@ -123,6 +159,30 @@ func (s *DocService) AddGalleryImages(uid, docID uint64, files []GalleryUpload) 
 		return nil, rejected, hkerr.Internal("保存失败")
 	}
 	return added, rejected, nil
+}
+
+// referenceGalleryImage 引用式入库一条图片库条目（不写盘、不重派生）。
+// 失败返回 nil（调用方记 rejected）—— 不区分失败原因对外一律用 ReferenceExpiredReason，
+// 避免把「他人内容摘要是否存在」这类信息泄漏给调用方。
+func referenceGalleryImage(uid uint64, e GalleryUpload) *GalleryImage {
+	res, err := referenceMeta(uid, "gallery", ReferenceInput{
+		MD5:      e.MD5,
+		Filename: e.Name,
+		Size:     e.EntrySize(),
+	})
+	if err != nil {
+		log.Printf("[gallery] 引用式入库失败 md5=%s name=%s: %v", normalizeMD5(e.MD5), e.Name, err)
+		return nil
+	}
+	img := ApplyDerivedToGalleryImage(e.Name, e.EntrySize(), res.Derived)
+	// 缓存行可能没有 origin_url（极端降级行）：回退到 referenceMeta 给出的原件 URL
+	if img.URL == "" {
+		img.URL = res.URL
+	}
+	if img.URL == "" {
+		return nil
+	}
+	return &img
 }
 
 // RemoveGalleryImage 从图片库里删一张图（原件与派生图一并删除）。
@@ -224,6 +284,7 @@ func buildGalleryImage(uid uint64, f GalleryUpload) (*GalleryImage, error) {
 		Size:    int64(len(f.Data)),
 		Ext:     strings.TrimPrefix(ext, "."),
 		AddedAt: time.Now().Format(time.RFC3339),
+		Dedup:   out.Dedup, // 内容已存在时 casPut 复用物理对象、未写盘
 	}
 	res, err := imgconv.Convert(f.Data, name)
 	if err != nil {

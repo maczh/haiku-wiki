@@ -160,6 +160,32 @@ export interface BatchManifestEntry {
   size: number
 }
 
+/** 批量提交的模式：`manifest` = 两阶段（含秒传）；`bytes` = 旧契约（全部走字节） */
+export type BatchUploadMode = 'manifest' | 'bytes'
+
+/** 批量提交的结果概览（后端 `handler.BatchSummary` 对应）。老后端不返回该字段 */
+export interface BatchSummary {
+  /** 条目总数 */
+  total: number
+  /** 未传字节的条目数（预检命中） */
+  ref: number
+  /** 传了字节的条目数 */
+  file: number
+  /** 最终**没有写盘**的条目数（引用式 + CAS 复用） */
+  dedup: number
+  /** 被拒收的条目数 */
+  rejected: number
+}
+
+/** 批量上传响应里与具体条目类型无关的那部分（图片库 / 原型同构） */
+export interface BatchAddMeta {
+  /** 逐条拒收原因（不中断整批） */
+  rejected: { name: string; reason: string }[]
+  /** 老后端不返回；据此判断服务端是否理解两阶段协议 */
+  mode?: BatchUploadMode
+  summary?: BatchSummary
+}
+
 export interface AuthResult {
   token: string
   user: User
@@ -291,6 +317,8 @@ export interface GalleryImage {
   degraded: boolean
   note: string
   added_at: string
+  /** true = 本次采用引用式入库 / CAS 复用，**未写盘**（前端打「秒传」标） */
+  dedup?: boolean
 }
 
 /** 图片库正文，与后端 service.GalleryContent 对应 */
@@ -325,6 +353,8 @@ export interface PrototypeItem {
   degraded: boolean
   note: string
   added_at: string
+  /** true = 本次采用引用式入库 / CAS 复用，**未写盘**（前端打「秒传」标） */
+  dedup?: boolean
 }
 
 /** 需求原型正文，与后端 service.PrototypeContent 对应 */

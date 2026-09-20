@@ -4,6 +4,7 @@ import { DeleteOutlined, EditOutlined, InboxOutlined, ReloadOutlined } from '@an
 import type { UploadFile } from 'antd'
 import type { GalleryImage } from '../../types'
 import { addGalleryImages, regenerateGalleryImage, removeGalleryImage, renameGalleryImage, imageConverter } from '../../api/gallery'
+import { uploadBatchWithDedup } from '../../lib/uploadFlow'
 import AlbumCard, { humanSize } from './AlbumCard'
 import { parseGallery } from './GalleryView'
 import type { ImageConverterInfo } from '../../api/gallery'
@@ -46,12 +47,19 @@ export default function GalleryEditor({ docId, content, onChanged }: Props) {
     if (files.length === 0) return
     setUploading(true)
     try {
-      const res = await addGalleryImages(docId, files)
+      // 两阶段（T03b）：先顺序算摘要 → 批量预检（**不传字节**）→ 只把未命中的文件上传。
+      // 任何一步失败都会自动退化为「全部走字节」（见 lib/uploadFlow），绝不中断用户操作。
+      const plan = await uploadBatchWithDedup(files, { app: 'gallery' })
+      const res = await addGalleryImages(docId, plan.missFiles, plan.manifest)
       if (res.rejected?.length) {
         message.warning(`${res.rejected.length} 个文件未入库：${res.rejected.map((r) => `${r.name}（${r.reason}）`).join('、')}`)
       }
       if (res.images?.length) {
-        message.success(`已添加 ${res.images.length} 张图片`)
+        // 秒传条数以后端 summary 为准，缺失时按条目 dedup 标记兜底（兼容老后端）
+        const dedup = res.summary?.dedup ?? res.images.filter((i) => i.dedup).length
+        message.success(
+          dedup > 0 ? `已添加 ${res.images.length} 张图片（其中 ${dedup} 张秒传，未重复存储）` : `已添加 ${res.images.length} 张图片`,
+        )
       }
       setFileList([])
       onChanged?.()

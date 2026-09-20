@@ -81,6 +81,7 @@ func CacheFromPrototypeItem(md5v string, it *PrototypeItem) *model.AttachmentDer
 // ApplyDerivedToGalleryImage 用缓存字段填充一条引用式图片库条目（完全复用，不重算）。
 //
 // 每条引用是**独立条目**（有自己的 ID，删除用），但 URL 三档全部指向同一物理对象。
+// Dedup 恒为 true：引用式入库没有写任何物理对象。
 func ApplyDerivedToGalleryImage(name string, size int64, d *model.AttachmentDerived) GalleryImage {
 	ext := strings.TrimPrefix(strings.ToLower(path.Ext(name)), ".")
 	if ext == "" {
@@ -100,12 +101,14 @@ func ApplyDerivedToGalleryImage(name string, size int64, d *model.AttachmentDeri
 		Degraded: d.Degraded,
 		Note:     d.Note,
 		AddedAt:  time.Now().Format(time.RFC3339),
+		Dedup:    true,
 	}
 }
 
 // ApplyDerivedToPrototypeItem 用缓存字段填充一条引用式原型条目（完全复用，不重算）。
 //
 // title/desc 由调用方按 manifest 索引传入（§12.5：titles/descs 与 manifest 对齐）。
+// Dedup 恒为 true：引用式入库没有写任何物理对象。
 func ApplyDerivedToPrototypeItem(title, desc, name string, size int64, d *model.AttachmentDerived) PrototypeItem {
 	ext := strings.TrimPrefix(strings.ToLower(path.Ext(name)), ".")
 	if ext == "" {
@@ -127,6 +130,7 @@ func ApplyDerivedToPrototypeItem(title, desc, name string, size int64, d *model.
 		Degraded: d.Degraded,
 		Note:     d.Note,
 		AddedAt:  time.Now().Format(time.RFC3339),
+		Dedup:    true,
 	}
 }
 
@@ -142,6 +146,7 @@ func ApplyDerivedToPrototypeItem(title, desc, name string, size int64, d *model.
 // L2/L3 是有界兜底（仅历史内容或异常清理后触发一次），不会成为常态路径 ——
 // 因此这里读原件/解码/写派生件都发生在**casMu 锁外**。
 func ensureDerived(md5v, appName string) (*model.AttachmentDerived, error) {
+	appName = normalizeAppName(appName)
 	md5v = normalizeMD5(md5v)
 	var prev *model.AttachmentDerived
 	if cache, err := repository.LoadDerived(md5v); err == nil && cache != nil {
