@@ -18,9 +18,22 @@ RUN_USER=haiku
 RUN_GROUP=haiku
 
 if [ "$(id -u)" = "0" ]; then
-    # 卷未挂载时目录已在镜像内属 haiku；属主修正失败（如只读挂载）不阻断启动，
-    # 让服务自己报出后续的真实错误。
-    chown -R "$RUN_USER":"$RUN_GROUP" /app/data /app/conf 2>/dev/null || true
+    # 卷未挂载时目录已在镜像内属 haiku；挂载卷属主是 root 时，先在 root 下把属主
+    # 修正为 haiku，再降权运行（postgres 镜像同款模式）。
+    # 注意：chown 失败**不再静默吞掉**——打印明确告警，让真正的权限问题暴露出来，
+    # 而不是等 gorm 透出那句摸不着头脑的 "unable to open database file: out of memory (14)"。
+    for d in /app/data /app/conf; do
+        if [ -d "$d" ]; then
+            if chown -R "$RUN_USER":"$RUN_GROUP" "$d" 2>/tmp/haiku-chown.err; then
+                :
+            else
+                echo "[entrypoint] 警告：修正 $d 属主为 $RUN_USER:$RUN_GROUP 失败：" >&2
+                sed 's/^/    /' /tmp/haiku-chown.err >&2
+                echo "[entrypoint] 这说明挂载目录无法被 root 改属主（常见于只读挂载或底层文件系统不支持 chown）。" >&2
+                echo "[entrypoint] 请以 --user $RUN_USER 启动，并自行保证 $d 对该 UID 可写；或改用可写挂载。" >&2
+            fi
+        fi
+    done
     exec su-exec "$RUN_USER":"$RUN_GROUP" /app/haiku-wiki "$@"
 fi
 

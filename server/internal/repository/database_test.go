@@ -62,3 +62,34 @@ func TestConnectSQLiteReadOnlyDir(t *testing.T) {
 		t.Fatalf("不应再把误导性的驱动文案透给用户，实际: %v", err)
 	}
 }
+
+// TestConnectSQLiteReadOnlyFile 目录可写、但 db 文件本体不可写（如被 chattr +i、
+// 属主错乱）时，Connect 应报「无法以读写方式打开 SQLite 数据库文件」并给出真实
+// errno 提示，而不是让 gorm 透出 out of memory (14)。
+func TestConnectSQLiteReadOnlyFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("当前以 root 运行，只读文件用例无意义")
+	}
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "haiku.db")
+	if err := os.WriteFile(dbPath, []byte("SQLite format 3\x00"), 0o444); err != nil {
+		t.Fatalf("seed db file: %v", err)
+	}
+	defer os.Chmod(dbPath, 0o644) // 便于清理
+
+	cfg := &config.Config{
+		DBDriver: config.DBSQLite,
+		DBDSN:    dbPath,
+		DataDir:  dir, // 目录可写 → 目录预检通过，失败必须落在文件级预检
+	}
+	_, err := Connect(cfg)
+	if err == nil {
+		t.Fatal("db 文件不可写时 Connect 应失败")
+	}
+	if !strings.Contains(err.Error(), "无法以读写方式打开 SQLite 数据库文件") {
+		t.Fatalf("错误应包含文件级预检提示，实际: %v", err)
+	}
+	if strings.Contains(err.Error(), "out of memory") {
+		t.Fatalf("不应透出驱动误导文案，实际: %v", err)
+	}
+}

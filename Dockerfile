@@ -115,7 +115,6 @@ ENV PORT=8080 \
     EXPORT_DWG_CONVERTER=/usr/local/bin/dwg2dxf \
     EXPORT_DWG_BUILD_STATUS=/usr/local/bin/converter-status.txt
 RUN mkdir -p /app/data /app/conf && chown -R haiku:haiku /app
-VOLUME ["/app/data", "/app/conf"]
 EXPOSE 8080
 # 不再 USER haiku 固定降权：宿主机 bind mount 目录属主若是 root，
 # UID 10001 无法在数据目录创建 SQLite -wal/-shm 文件，启动即报

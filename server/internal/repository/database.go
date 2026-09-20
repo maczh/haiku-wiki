@@ -3,8 +3,11 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -72,6 +75,26 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 					"请在宿主机执行: chown -R 10001:10001 <宿主机数据目录>（挂载的配置目录同理），\n"+
 					"或使用 v2.1+ 镜像（入口脚本启动时自动修正挂载卷属主）。\n"+
 					"底层错误: %w", cfg.DataDir, err)
+		}
+		// 目录可写 ≠ db 文件可打开：再对「文件本体」做一次 O_RDWR 打开测试，把真实
+		// errno（EACCES/EPERM/EROFS…）照出来。实战中出现过目录 777、属主全对仍报
+		// CANTOPEN 的部署，最终是文件被 chattr +i / AppArmor 拦截——只有直接 open
+		// 文件才能把这类问题与普通属主问题区分开。
+		dbFile := dsn
+		if i := strings.IndexByte(dbFile, '?'); i >= 0 {
+			dbFile = dbFile[:i]
+		}
+		if f, e := os.OpenFile(dbFile, os.O_RDWR|os.O_CREATE, 0o644); e != nil {
+			hint := "请检查文件属主与权限（容器运行用户为 UID 10001）: chown 10001:10001 <db文件>；"
+			if errors.Is(e, fs.ErrPermission) {
+				hint += "权限被拒（EACCES/EPERM）：属主正确仍失败时，在宿主机用 lsattr <db文件> 检查是否被 chattr +i 锁定" +
+					"（用 chattr -i 解锁），并检查 ACL(getfacl) 与安全模块（AppArmor/SELinux，容器可临时用 --security-opt apparmor=unconfined 验证）"
+			} else {
+				hint += "另请检查挂载是否只读(:ro)、磁盘是否写满"
+			}
+			return nil, fmt.Errorf("无法以读写方式打开 SQLite 数据库文件: %s\n%s\n底层错误: %w", dbFile, hint, e)
+		} else {
+			_ = f.Close()
 		}
 		g, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: gormLog})
 	}
