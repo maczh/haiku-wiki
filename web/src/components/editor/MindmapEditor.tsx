@@ -9,7 +9,7 @@ import OuterFrame from 'simple-mind-map/src/plugins/OuterFrame.js'
 import Formula from 'simple-mind-map/src/plugins/Formula.js'
 import 'katex/dist/katex.min.css'
 import { patchDoc } from '../../api/docs'
-import { uploadFile } from '../../api/uploads'
+import { uploadWithDedup } from '../../lib/uploadFlow'
 import { parseMindmapJSON, stringifyMindmap, type SmmNode } from '../../lib/mindmap'
 import VersionDrawer from './VersionDrawer'
 import MindmapTopToolbar from './mindmap/MindmapTopToolbar'
@@ -437,7 +437,8 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     const node = requireActiveNode(mm)
     if (!node) return
     try {
-      const up = await uploadFile(file)
+      // 走秒传链路：节点图片重复插入时不重复传输字节（降级由 uploadFlow 内部保证）
+      const up = await uploadWithDedup(file)
       node.setImage?.({ url: up.url, title: up.filename, width: 120, height: 120 })
       message.success('图片已插入节点')
     } catch (err) {

@@ -115,6 +115,49 @@ export interface UploadResult {
   url: string
   filename: string
   size: number
+  /** 内容摘要（32 位小写 hex）。老后端不返回该字段 */
+  md5?: string
+  /** true = 服务端复查命中已有内容，本次**未写盘**（仅新增一条引用） */
+  dedup?: boolean
+}
+
+/**
+ * 秒传预检（单条形态）响应。
+ *
+ * ⚠️ 后端**刻意不返回 url**（架构 §12.0 修订）：预检只回答"是否命中"，
+ * URL 一律由入库接口（/uploads/instant、图片库、原型）返回。
+ */
+export interface PrecheckResult {
+  hit: boolean
+  md5: string
+  size: number
+}
+
+/** 秒传预检（批量形态）的单项结果：`index` 是**请求下标**，用于把结果对回入参 */
+export interface PrecheckBatchItem {
+  index: number
+  hit: boolean
+  md5: string
+  size: number
+}
+
+export interface PrecheckBatchResult {
+  results: PrecheckBatchItem[]
+}
+
+/** 秒传落 meta 的响应：与普通上传同构 */
+export type InstantResult = UploadResult
+
+/**
+ * 批量入口（图片库 / 原型）的 manifest 条目 —— 两阶段协议的**唯一真源**。
+ *  - `ref`：内容已存在，服务端只建 meta、**不传字节**（md5 必填）
+ *  - `file`：需要传输的字节，取 `files` 中第 k 个 `kind=file`（k = 该条之前 file 的累计数）
+ */
+export interface BatchManifestEntry {
+  kind: 'ref' | 'file'
+  md5?: string
+  name: string
+  size: number
 }
 
 export interface AuthResult {

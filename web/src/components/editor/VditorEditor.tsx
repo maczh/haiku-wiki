@@ -9,7 +9,7 @@ import VersionDrawer from './VersionDrawer'
 import NotionEditing, { type NotionEditingProps } from './notion/NotionEditing'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
-import { uploadFile } from '../../api/uploads'
+import { uploadWithDedup } from '../../lib/uploadFlow'
 
 // Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
 import 'vditor/dist/index.css'
@@ -279,7 +279,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     pendingPickRef.current = null
     if (!file || !ctx) return
     try {
-      const res = await uploadFile(file)
+      // 走秒传链路：内容已存在时不重复传输字节，直接拿 URL 插入（降级由 uploadFlow 内部保证）
+      const res = await uploadWithDedup(file)
       const url = (res as { url?: string }).url ?? ''
       if (!url) throw new Error('no url')
       const label = ctx.stripped.trim() || file.name

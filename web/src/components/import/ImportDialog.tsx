@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Drawer, List, Spin, Tag, Typography, Upload, message } from 'antd'
+import { Alert, Button, Drawer, List, Spin, Tag, Tooltip, Typography, Upload, message } from 'antd'
 import type { UploadFile } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InboxOutlined } from '@ant-design/icons'
 import { createDoc } from '../../api/docs'
-import { uploadFile } from '../../api/uploads'
+import { uploadWithDedup } from '../../lib/uploadFlow'
 import { prepareAttachment } from '../../api/attachments'
 import { ACCEPT_EXTENSIONS, parseFile } from '../../lib/import/parse'
 import { extOfName, isSupportedImportExt, unsupportedImportReason } from '../../lib/import/formats'
@@ -31,6 +31,10 @@ interface ImportItem {
   status: ItemStatus
   message: string
   docId?: number
+  /** 内容摘要（32 位小写 hex），来自秒传链路；仅用于 UI 回显 */
+  md5?: string
+  /** true = 本次命中秒传（内容已存在，未重复存储字节） */
+  dedup?: boolean
 }
 
 /** 文件去重键：名称 + 大小（同一批拖入的重复文件两者皆同） */
@@ -88,26 +92,28 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
     setItems((list) => list.map((it) => (it.uid === uid ? { ...it, ...patch } : it)))
   }
 
-  async function importOne(item: ImportItem, file: File) {
+  /** 导入单个文件；返回 true 表示本次命中了秒传（供调用方汇总提示） */
+  async function importOne(item: ImportItem, file: File): Promise<boolean> {
     updateItem(item.uid, { status: 'parsing', message: '解析中…' })
 
     // 前置格式校验：不支持的扩展名直接友好拒绝，不解析、不上传、不创建文档
     const ext = extOfName(file.name)
     if (!isSupportedImportExt(ext)) {
       updateItem(item.uid, { status: 'error', message: unsupportedImportReason(file.name) })
-      return
+      return false
     }
 
     const res = await parseFile(file)
     if (!res.ok) {
       updateItem(item.uid, { status: 'error', message: res.reason || unsupportedImportReason(file.name) })
-      return
+      return false
     }
     try {
       // 附件型（docx/pdf/pptx/vsd/dwg…）：先上传原文件，再按原样落库为 file 文档；
       // CAD 还要多一步：由后端把 .dwg/.dxf 转成 .svg/.png，回填 derived 供前端预览。
       if (res.attachment) {
-        const up = await uploadFile(file)
+        // 走秒传链路：内容已存在时不重复传输字节（降级由 uploadFlow 内部保证）
+        const up = await uploadWithDedup(file)
         let ref: FileAttachment = {
           url: up.url,
           filename: up.filename || res.attachment.filename,
@@ -137,8 +143,10 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
           status: 'success',
           message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存，不可编辑）',
           docId: doc.id,
+          md5: up.md5,
+          dedup: up.dedup,
         })
-        return
+        return up.dedup
       }
 
       // 普通文档：一次请求写入正文（落到指定的目标目录）
@@ -164,8 +172,10 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
               : '导入成功',
         docId: doc.id,
       })
+      return false
     } catch (e) {
       updateItem(item.uid, { status: 'error', message: (e as Error)?.message || '创建文档失败' })
+      return false
     }
   }
 
@@ -180,6 +190,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
     if (runningRef.current) return
     runningRef.current = true
     setRunning(true)
+    let deduped = 0
     try {
       while (queueRef.current.length > 0) {
         const file = queueRef.current.shift()
@@ -191,12 +202,16 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
           message: '等待导入',
         }
         setItems((list) => [...list, item])
-        await importOne(item, file)
+        if (await importOne(item, file)) deduped++
       }
     } finally {
       runningRef.current = false
       setRunning(false)
       onImported()
+      // 秒传汇总：只在真有命中时提示，避免每次导入都刷一条无意义 toast
+      if (deduped > 0) {
+        message.success(`本次有 ${deduped} 个文件命中秒传（内容已存在，未重复存储）`)
+      }
     }
   }
 
@@ -281,6 +296,11 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
                   {it.status === 'error' && <CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
                   {(it.status === 'waiting' || it.status === 'parsing') && <Spin size="small" />}
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.name}</span>
+                  {it.dedup && (
+                    <Tooltip title="该文件内容已存在于文库中，本次仅新增引用，未重复存储">
+                      <Tag color="blue">秒传</Tag>
+                    </Tooltip>
+                  )}
                   <Tag color={it.status === 'success' ? 'green' : it.status === 'error' ? 'red' : 'default'}>
                     {it.message}
                   </Tag>

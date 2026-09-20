@@ -8,7 +8,7 @@ import {
   SaveOutlined,
 } from '@ant-design/icons'
 import { patchDoc } from '../../api/docs'
-import { uploadFile } from '../../api/uploads'
+import { uploadWithDedup } from '../../lib/uploadFlow'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import {
@@ -425,7 +425,8 @@ export default function DrawioEditor({
       if (ext === 'vsd' || ext === 'vsdx') {
         // Visio：官方要求 data URI 前缀，交给 draw.io 内部转换；二进制无法内联进文档正文，
         // 因此这类文件必须先落盘再以 URL 读取
-        const up = await uploadFile(file)
+        // 走秒传链路：同一张 Visio 图重复导入时不重复传输字节（降级由 uploadFlow 内部保证）
+        const up = await uploadWithDedup(file)
         payload = await fetchAsLoadXml(up.url, ext)
       } else {
         // .drawio 是文本，无需上传即可直接载入
