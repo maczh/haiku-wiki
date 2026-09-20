@@ -234,7 +234,9 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
       if (fullscreenRef.current && box.clientHeight > 0) {
         setScale(Math.min(4, Math.max(0.1, Math.min(byW, box.clientHeight / STAGE_H))))
       } else {
-        setScale(Math.min(1, Math.max(0.2, byW)))
+        // 不再封顶 1:1：pptx-preview 是 HTML/CSS 渲染（矢量，放大不糊），
+        // 应像 PDF/DOCX 那样随「宽度」调节器铺满容器；仅全屏时另受高度约束。
+        setScale(Math.min(4, Math.max(0.1, byW)))
       }
     }
     update()
@@ -257,7 +259,8 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
     if (fullscreen && box.clientHeight > 0) {
       setScale(Math.min(4, Math.max(0.1, Math.min(byW, box.clientHeight / STAGE_H))))
     } else {
-      setScale(Math.min(1, Math.max(0.2, byW)))
+      // 不再封顶 1:1：随「宽度」调节器铺满容器（与上面的 ResizeObserver 保持一致）
+      setScale(Math.min(4, Math.max(0.1, byW)))
     }
   }, [fullscreen, zoomMode])
 
