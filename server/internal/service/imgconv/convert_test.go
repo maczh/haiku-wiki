@@ -100,13 +100,43 @@ func TestConvertNativeSizes(t *testing.T) {
 			if max := maxOf(tw, th); max != ThumbMax {
 				t.Fatalf("缩略图最长边应为 %d, got %dx%d", ThumbMax, tw, th)
 			}
-			// 宽高比保持（允许 1px 取整误差）
-			if abs(pw*ph/1000-tw*ph/1000) > 1000 {
+			// 宽高比保持（允许 1px 取整误差）：交叉相乘 pw*th ≈ tw*ph
+			if abs(pw*th-tw*ph) > pw+ph {
 				t.Fatalf("宽高比失真: %dx%d vs %dx%d", pw, ph, tw, th)
 			}
 			// 原图尺寸如实上报
 			if res.Width == 0 || res.Height == 0 {
 				t.Fatalf("应上报原图尺寸: %+v", res)
+			}
+		})
+	}
+}
+
+// 原生位图（png/jpg/gif）必须产出全分辨率 original（不缩放），供原型「原尺寸」查看。
+// 回归：native() 曾漏掉这档，导致 .sketch/.rp 抽取预览的 original.jpg 是 0 字节空文件。
+func TestNativeProducesOriginal(t *testing.T) {
+	cases := []struct {
+		name string
+		file string
+		data []byte
+	}{
+		{"png", "a.png", pngFixture(t, 2400, 1200, color.RGBA{R: 200, G: 30, B: 30, A: 255})},
+		{"jpeg", "b.jpg", jpegFixture(t, 3000, 1000)},
+		{"gif", "c.gif", gifFixture(t, 1200, 2400)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := Convert(c.data, c.file)
+			if err != nil {
+				t.Fatalf("转换失败: %v", err)
+			}
+			if len(res.Original) == 0 {
+				t.Fatalf("%s 应产出 original 派生图", c.file)
+			}
+			ow, oh := dims(t, res.Original)
+			// 原尺寸不缩放：最长边应等于原图最长边
+			if got := maxOf(ow, oh); got != maxOf(res.Width, res.Height) {
+				t.Fatalf("%s original 应全分辨率, got %dx%d (原图 %dx%d)", c.file, ow, oh, res.Width, res.Height)
 			}
 		})
 	}

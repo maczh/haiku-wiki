@@ -247,6 +247,13 @@ func TestBuildProjectArchiveExtractsEmbeddedJPEG(t *testing.T) {
 	if it.URL == "" {
 		t.Fatal("应保留原件 URL 供下载")
 	}
+	if it.Original == "" {
+		t.Fatalf("应产出 original 全分辨率图: %+v", it)
+	}
+	// 回归：native() 曾漏掉 Original，导致 original.jpg 是 0 字节空文件
+	if data, e := readUploadedFile(it.Original); e != nil || len(data) == 0 {
+		t.Fatalf("original 应落盘且非空: err=%v len=%d", e, len(data))
+	}
 	if it.Note != "已抽取 Axure 内置预览图" {
 		t.Fatalf("Note 不符: %q", it.Note)
 	}
