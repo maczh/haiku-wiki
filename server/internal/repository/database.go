@@ -125,6 +125,14 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 // ⚠️ 新增模型时必须**同时**在 service/migrate_service.go 的 migrateTables 追加对应 copier，
 // 否则「系统迁移」功能会静默丢表（F7/C4 硬约束）。
 func AutoMigrate(g *gorm.DB) error {
+	// 前置修复（R20）：TeamMember / DocCollaborator 现为「自增 id 主键 + 组合唯一索引」，
+	// 而历史库里这两张表还是 2 列复合主键、没有 id 列 —— GORM 无法给已存在的复合主键表
+	// 就地补自增主键列，不先修这里必然失败（SQLite: Cannot add a PRIMARY KEY column；
+	// MySQL: Error 1068）。放在 AutoMigrate **内部**而非 main.go：本函数有两个调用点
+	// （main.go 启动、系统迁移对目标库建表 migrate_service.go），放这里才能一处覆盖全部。
+	if err := RepairLegacyPrimaryKeys(g); err != nil {
+		return fmt.Errorf("repair legacy primary keys: %w", err)
+	}
 	return g.AutoMigrate(
 		&model.User{},
 		&model.Book{},
