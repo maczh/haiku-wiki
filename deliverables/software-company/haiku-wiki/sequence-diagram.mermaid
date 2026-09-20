@@ -1,0 +1,132 @@
+%% =====================================================================
+%% 关键时序图 1/3：上传秒传全链路（含前端 hash 预检）
+%% 覆盖：P0-2 全部、P0-1③、P0-3、P0-5①、P1-4
+%% =====================================================================
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant W as md5.worker (spark-md5 分片)
+    participant UF as lib/uploadFlow
+    participant API as /api/uploads/*
+    participant CAS as casPut (saveBytes)
+    participant ST as storage.Store
+    participant DB as attachments / upload_stats / docs
+
+    U->>UF: 选择文件（导入弹窗 / Markdown / 图片库 / 原型 / 绘图）
+    UF->>W: computeFileMD5(file, onProgress)
+    W-->>UF: md5（32 hex）+ 进度
+    Note over UF,W: 一律先算 hash，不设大小阈值（用户决定，推翻 Q9）
+
+    UF->>API: POST /api/uploads/precheck {md5,size,filename}
+    API->>DB: FindAttachmentByMD5(md5)
+    alt 命中（已有物理对象）
+        API-->>UF: {hit:true, url, md5, size}
+        UF->>API: POST /api/uploads/instant {md5,size,filename,mime}
+        Note over UF,API: 请求体无文件字节（<10KB，无 multipart 文件段）
+        API->>CAS: instantMeta(md5)
+        CAS->>DB: CreateAttachment(复用 storage_path) + BumpUploadStat(hit)
+        API-->>UF: {url, md5, size, dedup:true}
+        UF-->>U: toast「检测到相同内容，已秒传 —— 仅新增引用，未重复存储（MD5 ab12cd34 · 2.4 MB）」+ 蓝色 Tag「秒传」
+    else 未命中
+        API-->>UF: {hit:false}
+        UF->>API: POST /api/uploads（multipart，带 md5 字段）
+        API->>CAS: saveBytes(uid, filename, mime, data)
+        CAS->>CAS: sum = md5Hex(data)（服务端重算，以自己为准）
+        CAS->>DB: 复查 FindAttachmentByMD5(sum)（防竞态 / 防绕过）
+        alt 复查命中
+            CAS->>DB: CreateAttachment(复用 storage_path) + BumpUploadStat(hit)
+        else 仍未命中
+            CAS->>ST: Put(uploads/cas/<md5[0:2]>/<md5>-<rand6><ext>)
+            CAS->>DB: CreateAttachment(md5=sum) + BumpUploadStat(miss)
+        end
+        API-->>UF: {url, md5, size, dedup:false}
+    end
+
+    UF->>API: POST /api/books/:id/docs {doc_type:"file", content:FileRef}
+    API->>DB: CreateDocWithContent → content_md5 = attachments.md5（P0-1③）
+    Note over DB: 同一文件上传 N 次：物理对象 = 1（P0-2①）<br/>attachments 中 N 行 meta 共用同一 storage_path（P0-2③）
+
+%% =====================================================================
+%% 关键时序图 2/3：接口文档刷新全链路（含 id 沿用策略）
+%% 覆盖：P0-7、P0-8、P0-9、P0-10、P1-2、P1-3
+%% =====================================================================
+sequenceDiagram
+    autonumber
+    participant SCH as Scheduler (02:00)
+    actor U as 用户（编辑态 / 阅读态点「刷新」）
+    participant H as handler /api/docs/:id/api-refresh
+    participant ARS as ApiRefreshService
+    participant FG as fetchguard
+    participant AP as apidoc.Parse / Merge
+    participant DB as doc_api_sources / docs
+
+    SCH->>ARS: RefreshAll(ctx, "auto")
+    U->>H: POST /api/docs/:id/api-refresh
+    H->>ARS: RefreshDoc(uid, docID, "manual")
+    Note over ARS: 进程内按 docID 互斥 → 否则 40901 该文档正在刷新中
+    ARS->>DB: FindDocApiSource(docID)
+    alt 无来源记录（非 URL 导入 / 历史文档，D3）
+        ARS-->>U: 40001「该文档非 URL 导入，无法刷新」（按钮置灰同理）
+    end
+    ARS->>FG: GetBytes(source_url, max=10MB, timeout=20s)
+    alt 上游不可达 / 超时 / 非 2xx / 超限
+        FG-->>ARS: err（归类为可读文案）
+        ARS->>DB: UpdateRefreshResult(status=failed, error="连接超时")
+        Note over ARS,DB: **绝不触碰 docs.content**（P0-10①）
+        ARS-->>U: {status:"failed", error:"连接超时"}
+        Note over U: toast「刷新失败：连接超时（已保留原内容）」
+    else 拉取成功
+        ARS->>AP: Parse(body)  %% Swagger2 / OpenAPI3 / Apifox / Postman
+        alt 无法识别格式
+            ARS->>DB: UpdateRefreshResult(failed, "返回内容非 Swagger/OpenAPI/Apifox/Postman 格式")
+        else 识别成功
+            ARS->>AP: Merge(oldContent, fresh, sourceURL)
+            Note over AP: key = UPPER(method) + " " + normPath(uri)<br/>同 key → 沿用旧 id（P0-9）<br/>新增 → 新 id<br/>旧有未出现 → 保留并置 stale=true「上游已移除」（Q5）
+            AP-->>ARS: merged + {added, updated, removed, unchanged}
+            alt 全 0（幂等：连续两次结果一致，P0-8③）
+                ARS->>DB: UpdateRefreshResult(success, 无变化)
+                Note over ARS,DB: content 与 updated_at 都不动
+            else 有变化
+                ARS->>DB: UPDATE docs SET content=?, content_md5=?, updated_at=? WHERE id=?
+                Note over ARS,DB: 单条语句、不建版本快照（P2-4 不做）
+                ARS->>DB: UpdateRefreshResult(success, added/updated/removed)
+            end
+            ARS-->>U: {status:"success", added, updated, removed}
+            Note over U: toast「刷新成功：新增 2 个接口，更新 5 个接口，移除 0 个」
+        end
+    end
+    Note over DB: 全程 api_debug_history 零写入、docs 行不重建、endpoint.id 不变（P0-9 验收断言）
+    SCH->>DB: SaveLastRun(RunSummary)（P1-3）
+
+%% =====================================================================
+%% 关键时序图 3/3：定时任务启动 / 触发 / 优雅退出
+%% 覆盖：P0-7①⑤、C5、F13
+%% =====================================================================
+sequenceDiagram
+    autonumber
+    participant MAIN as cmd/server/main.go
+    participant SCH as Scheduler
+    participant ARS as ApiRefreshService
+    participant SRV as http.Server
+    participant DB as api_refresh_runs
+
+    MAIN->>SCH: NewScheduler({loc: Asia/Shanghai, at: 02:00, enabled})
+    MAIN->>SCH: Start()
+    SCH->>SCH: nextFire(now) → time.NewTimer(次日 02:00)
+    MAIN->>SRV: go srv.ListenAndServe()（不再用 r.Run 阻塞）
+    MAIN->>MAIN: signal.Notify(ch, SIGINT, SIGTERM)
+
+    loop 每日
+        SCH->>SCH: timer 触发
+        SCH->>ARS: RefreshAll(ctx, "auto")
+        ARS->>ARS: 逐文档 RefreshDoc（单个失败继续下一个，P0-7③）
+        ARS->>DB: SaveLastRun({scanned, succeeded, failed, failures[]})
+        SCH->>SCH: 重新计算次日 02:00 → timer.Reset
+    end
+
+    MAIN->>MAIN: 收到 SIGINT / SIGTERM
+    MAIN->>SCH: Stop(ctx 15s)
+    Note over SCH: 停 timer → cancel ctx → wg.Wait()<br/>RefreshAll 在文档间隔检查 ctx.Err()，优雅收尾
+    MAIN->>SRV: Shutdown(ctx 15s)
+    MAIN->>MAIN: return（进程退出）
+    Note over MAIN: hkerr.Restart 走 syscall.Exec 直接换进程映像，跳过本流程；<br/>因刷新写库是单条 UPDATE，硬杀只会留下「旧内容」或「新内容」，不会半截（P0-10①）

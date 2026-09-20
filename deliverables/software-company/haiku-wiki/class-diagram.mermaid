@@ -1,0 +1,211 @@
+classDiagram
+    direction LR
+
+    %% ========== 存储与去重（改造一） ==========
+    class UploadService {
+        +Save(uid, fh) UploadOutput
+        +SaveBytes(uid, filename, data) UploadOutput
+        +Precheck(md5, size, filename) PrecheckResult
+        +Instant(uid, md5, size, filename, mime) UploadOutput
+    }
+    class UploadOutput {
+        +URL string
+        +Filename string
+        +Size int64
+        +MD5 string
+        +Dedup bool
+    }
+    class PrecheckResult {
+        +Hit bool
+        +MD5 string
+        +Size int64
+        +URL string
+    }
+    class casService {
+        <<package service>>
+        +CasPrefix string
+        +casMu sync.Mutex
+        +md5Hex(data) string
+        +casKey(md5, ext) string
+        +casPut(uid, filename, contentType, ext, data) casPutResult
+        +randHex6() string
+    }
+    class AttachmentService {
+        +Prepare(uid, in) PrepareOutput
+        +LocalizePptx(uid, url) PptxLocalizeResult
+        -saveDerivedFile(origURL, ext, data, force) string
+    }
+    class Store {
+        <<interface>>
+        +Put(key, data, contentType)
+        +Read(key) []byte
+        +Exists(key) bool
+        +Delete(key)
+        +URL(key) string
+        +LocalPath(key) string
+    }
+    class DeleteGuard {
+        <<package service>>
+        +shouldKeepPhysical(url) bool
+        +safeDeleteUploaded(url) error
+        +safeDeletePrefix(prefix) error
+    }
+
+    %% ========== 模型 ==========
+    class Attachment {
+        +ID uint64
+        +UploaderID uint64
+        +Filename string
+        +StoragePath string
+        +MimeType string
+        +Size int64
+        +MD5 string
+    }
+    class Doc {
+        +ID uint64
+        +BookID uint64
+        +Title string
+        +DocType string
+        +Content string
+        +ContentMD5 string
+        +UpdatedAt time.Time
+    }
+    class DocApiSource {
+        +DocID uint64
+        +SourceURL string
+        +ImportedAt time.Time
+        +LastRefreshedAt time.Time
+        +RefreshStatus string
+        +RefreshError string
+        +LastAdded int
+        +LastUpdated int
+        +LastRemoved int
+    }
+    class UploadStat {
+        +ID uint64
+        +TotalUploads int64
+        +DedupHits int64
+        +SavedBytes int64
+    }
+    class ApiRefreshRun {
+        +ID uint64
+        +Trigger string
+        +StartedAt time.Time
+        +FinishedAt time.Time
+        +Scanned int
+        +Succeeded int
+        +Failed int
+        +Failures string
+    }
+
+    %% ========== 文档 / 接口文档 ==========
+    class DocService {
+        +CreateDocWithContent(book, uid, parentID, title, docType, content) Doc
+        +UpdateDoc(uid, docID, title, content, source) Doc
+        +Duplicate(uid, docID) Doc
+        +SetApiSource(uid, docID, sourceURL) error
+    }
+    class ApiDebugHistoryService {
+        +LoadHistory(uid, docID, endpointID) records
+        +SaveHistory(uid, docID, endpointID, rec) error
+    }
+    class ApiRefreshService {
+        +RefreshDoc(uid, docID, trigger) RefreshResult
+        +RefreshAll(ctx, trigger) RunSummary
+    }
+    class RefreshResult {
+        +Status string
+        +Added int
+        +Updated int
+        +Removed int
+        +Unchanged int
+        +Error string
+    }
+    class apidoc {
+        <<package apidoc>>
+        +Parse(body) ApiDoc
+        +Merge(old, fresh, sourceURL) ApiDoc
+        +endpointKey(ep) string
+        +newID(prefix) string
+    }
+    class MergeStats {
+        +Added int
+        +Updated int
+        +Removed int
+        +Unchanged int
+    }
+    class fetchguard {
+        <<package fetchguard>>
+        +ValidateTarget(rawURL) error
+        +NewClient(timeout) HttpClient
+        +GetBytes(rawURL, maxBytes) []byte
+    }
+    class Scheduler {
+        +Enabled bool
+        +Loc Location
+        +At Duration
+        +Start()
+        +Stop(ctx)
+        +nextFire(now) Time
+        +TriggerOnce(trigger) RunSummary
+    }
+    class ApiDoc {
+        +Version int
+        +BaseHost string
+        +Groups ApiGroup[]
+    }
+    class ApiGroup {
+        +ID string
+        +Name string
+        +ImportSource string
+        +ImportSourceURL string
+        +Items ApiEndpoint[]
+    }
+    class ApiEndpoint {
+        +ID string
+        +Name string
+        +Method string
+        +URI string
+        +BaseHost string
+        +ContentType string
+        +Headers ApiKeyVal[]
+        +Params ApiKeyVal[]
+        +BodyType string
+        +Body string
+        +Description string
+        +ResponseExample string
+        +ResponseFields ApiField[]
+        +Stale bool
+        +StaleNote string
+    }
+    class ApiField {
+        +Name string
+        +Type string
+        +Description string
+        +Required bool
+    }
+
+    %% ========== 关系 ==========
+    UploadService ..> casService : 委托唯一写盘入口
+    AttachmentService ..> casService : 派生件确定性路径
+    casService --> Store : Put / Exists / URL
+    casService ..> Attachment : 新增 meta(md5)
+    casService ..> UploadStat : 计数自增
+    UploadService ..> UploadOutput
+    UploadService ..> PrecheckResult
+    AttachmentService ..> Doc : 回填 content_md5
+    DeleteGuard --> Store : 条件删除
+    DocService ..> Doc
+    DocService ..> Attachment : file 类取原件 md5
+    DocService ..> DocApiSource : 写来源 URL
+    ApiRefreshService ..> fetchguard : 拉取上游
+    ApiRefreshService ..> apidoc : Parse + Merge
+    ApiRefreshService ..> DocApiSource : 状态 / 时间 / 原因
+    ApiRefreshService ..> Doc : 单条 UPDATE（不建快照）
+    ApiRefreshService ..> ApiRefreshRun : 最近一次结果
+    ApiRefreshService ..> ApiDebugHistoryService : 零写入（约束）
+    Scheduler ..> ApiRefreshService : 每日 02:00 触发
+    apidoc ..> ApiDoc
+    ApiDoc *-- ApiGroup
+    ApiGroup *-- ApiEndpoint
+    ApiEndpoint *-- ApiField

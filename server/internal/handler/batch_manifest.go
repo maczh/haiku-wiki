@@ -41,19 +41,21 @@ type BatchManifestEntry struct {
 	Size int64 `json:"size"`
 }
 
-// BatchSummary 批量提交的结果概览（供前端一次性提示用，不承载正确性判定）。
+// BatchSummary 批量提交的结果概览（§12.2.2 / §12.2.3）——**专为验收断言设计**，
+// 不含任何他人信息，也不承载正确性判定。
+//
+// 三个计数的口径（改这段前先读 §12.10 的判据 1/3/8）：
+//   - Received   ：实际收到的文件段数（`len(files)`）。全部命中时该值为 0。
+//   - Referenced ：引用式入库**成功**条数（= manifest 中 kind=ref 条数 − 引用失效被拒条数）。
+//   - Written    ：**新写 CAS 对象数**（= 入库条目中 dedup=false 的条数）；
+//     字节上传但命中已有内容（CAS 复用）不计入。
 type BatchSummary struct {
-	// Total manifest 条目总数（缺省 manifest 时为收到的字节条目数）
-	Total int `json:"total"`
-	// Ref 未传输字节的条目数（预检命中的秒传条目）
-	Ref int `json:"ref"`
-	// File 本次传输了字节的条目数
-	File int `json:"file"`
-	// Dedup 最终**没有写盘**的条目数（= 引用式入库 + 字节上传但 CAS 复用），
-	// 由调用方按入库结果的逐条 `dedup` 标记统计后传入。
-	Dedup int `json:"dedup"`
-	// Rejected 被拒收的条目数（含 handler 层超限/空文件与 service 层引用过期）
-	Rejected int `json:"rejected"`
+	// Received 实际收到的文件段数（= len(files)）
+	Received int `json:"received"`
+	// Referenced 引用式入库成功条数（未传输任何字节）
+	Referenced int `json:"referenced"`
+	// Written 新写 CAS 对象数（dedup=false 的入库条目数）
+	Written int `json:"written"`
 }
 
 // parseManifest 解析并**严格校验** manifest（§R13）。
@@ -111,25 +113,27 @@ func parseManifest(raw string, fileCount int) ([]BatchManifestEntry, error) {
 	return entries, nil
 }
 
-// summarize 汇总一次批量提交的结果。
+// summarize 生成 summary（§12.2.2）。三个入参均由调用方按实际结果统计：
 //
-// manifest 为 nil（旧契约）时按 fileCount 个纯字节条目计；dedupCount 是入库结果里
-// 逐条 `dedup=true` 的条数，rejectedCount 是被拒条数（handler 层 + service 层合计）。
-func summarize(manifest []BatchManifestEntry, fileCount, dedupCount, rejectedCount int) BatchSummary {
-	s := BatchSummary{Dedup: dedupCount, Rejected: rejectedCount}
+//	received     = 实际收到的文件段数（len(fhs)）
+//	refFailed    = 因「引用结果已过期」被拒的条数（reason == service.ReferenceExpiredReason）
+//	newlyWritten = 入库条目中 dedup=false 的条数（即真正写盘的 CAS 对象数）
+//
+// manifest 缺省（旧契约）时 referenced 恒为 0。
+func summarize(manifest []BatchManifestEntry, received, refFailed, newlyWritten int) BatchSummary {
+	s := BatchSummary{Received: received, Written: newlyWritten}
 	if manifest == nil {
-		// 旧契约：全部按字节条目计（其中被 CAS 复用的仍可能计入 Dedup）
-		s.Total = fileCount
-		s.File = fileCount
 		return s
 	}
-	s.Total = len(manifest)
+	refs := 0
 	for _, e := range manifest {
 		if e.Kind == "ref" {
-			s.Ref++
-		} else {
-			s.File++
+			refs++
 		}
+	}
+	s.Referenced = refs - refFailed
+	if s.Referenced < 0 {
+		s.Referenced = 0
 	}
 	return s
 }
@@ -144,10 +148,10 @@ func firstFormValue(vals []string) string {
 	return ""
 }
 
-// batchMode 本次提交的模式：`manifest`（两阶段）| `bytes`（旧契约，纯字节）。
+// batchMode 本次提交的模式：`manifest`（两阶段）| `legacy`（旧契约，纯字节）。
 func batchMode(manifest []BatchManifestEntry) string {
 	if manifest == nil {
-		return "bytes"
+		return "legacy"
 	}
 	return "manifest"
 }

@@ -86,15 +86,26 @@ func PrototypeAddItems(c *gin.Context) {
 		"items":    added,
 		"rejected": rejected,
 		"mode":     batchMode(manifest),
-		"summary":  summarize(manifest, len(fhs), countPrototypeDedup(added), len(rejected)),
+		"summary":  summarize(manifest, len(fhs), countPrototypeExpired(rejected), countPrototypeWritten(added)),
 	})
 }
 
-// countPrototypeDedup 统计本次**未写盘**的入库条目数（引用式入库或 CAS 复用）。
-func countPrototypeDedup(items []service.PrototypeItem) int {
+// countPrototypeWritten 统计本次**真正写盘**的入库条目数（= 新写 CAS 对象数，§12.2.3）。
+func countPrototypeWritten(items []service.PrototypeItem) int {
 	n := 0
 	for _, it := range items {
-		if it.Dedup {
+		if !it.Dedup {
+			n++
+		}
+	}
+	return n
+}
+
+// countPrototypeExpired 统计因「引用结果已过期」被拒的条数（reason 为固定文案，§12.2.2）。
+func countPrototypeExpired(rejected []service.PrototypeReject) int {
+	n := 0
+	for _, r := range rejected {
+		if r.Reason == service.ReferenceExpiredReason {
 			n++
 		}
 	}

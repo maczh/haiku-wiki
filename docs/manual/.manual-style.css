@@ -1,0 +1,252 @@
+/* 《寄海文库 · 用户使用手册》PDF 排版样式
+   由 pandoc 渲染为 standalone HTML，再交给 Chrome headless 打印为 A4 PDF。 */
+
+:root {
+  --ink: #1f2328;
+  --ink-2: #4b5563;
+  --ink-3: #8c8c8c;
+  --brand: #2f54eb;
+  --brand-soft: #f0f5ff;
+  --line: #e5e7eb;
+  --line-soft: #f0f0f0;
+  --code-bg: #f6f8fa;
+  --cover-bg: #2f54eb;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* ---------- 页面尺寸与页边距 ----------
+   Chrome 无 @page 规则时默认用 Letter + 约 1cm 边距，必须显式声明 A4。 */
+@page {
+  size: A4;
+  margin: 15mm 14mm 16mm 14mm;
+}
+@page cover {
+  size: A4;
+  margin: 0;
+}
+
+/* 隐藏 pandoc standalone 模板自带的标题块（封面已单独设计） */
+#title-block-header,
+header#title-block-header { display: none; }
+
+/* ---------- 覆盖 pandoc standalone 模板的默认样式 ----------
+   pandoc 默认模板会内联一段基础 CSS，其中 `body{max-width:36em;margin:0 auto;
+   padding:0 50px}` 会把正文列宽压到 36em（10.5pt 字号下 ≈133mm），右侧留下大片空白。
+   本文件由 --include-in-header 注入、位置在模板样式之后，因此同优先级即可覆盖。 */
+html {
+  font-size: 10.5pt;
+  line-height: 1.78;
+  background: #fff;
+  color: var(--ink);
+}
+body {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC",
+               "WenQuanYi Micro Hei", "Microsoft YaHei", -apple-system, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.78;
+  color: var(--ink);
+  background: #fff;
+}
+
+/* ---------- 封面 ---------- */
+.cover {
+  page: cover;
+  width: 210mm;
+  height: 297mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 0 20mm;
+  background: linear-gradient(160deg, #2f54eb 0%, #1d39c4 55%, #10239e 100%);
+  color: #fff;
+}
+.cover h1 {
+  font-size: 34pt;
+  line-height: 1.3;
+  margin: 0 0 10mm 0;
+  color: #fff;
+  border: 0;
+  padding: 0;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+.cover .cover-sub {
+  font-size: 13pt;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 4mm 0;
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+.cover .cover-meta {
+  font-size: 10pt;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 2;
+  margin: 14mm 0 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  padding-top: 6mm;
+}
+
+.pagebreak { break-after: page; page-break-after: always; height: 0; }
+
+/* ---------- 标题层级 ---------- */
+h1, h2, h3, h4 { font-weight: 700; color: var(--ink); line-height: 1.45; }
+
+h2 {
+  font-size: 17pt;
+  margin: 0 0 6mm 0;
+  padding: 0 0 3mm 0;
+  border-bottom: 2.5px solid var(--brand);
+  color: var(--brand);
+}
+h3 {
+  font-size: 13pt;
+  margin: 8mm 0 3mm 0;
+  padding-left: 3.4mm;
+  border-left: 4px solid var(--brand);
+}
+h4 {
+  font-size: 11.5pt;
+  margin: 6mm 0 2mm 0;
+  color: var(--ink-2);
+}
+
+p { margin: 0 0 3mm 0; }
+
+a { color: var(--brand); text-decoration: none; word-break: break-all; }
+
+strong { color: #10239e; font-weight: 700; }
+
+/* ---------- 列表 ---------- */
+ul, ol { margin: 0 0 3.5mm 0; padding-left: 6.5mm; }
+li { margin-bottom: 1.4mm; }
+li > ul, li > ol { margin-top: 1.4mm; }
+
+/* ---------- 表格 ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4mm 0 5mm 0;
+  font-size: 9.5pt;
+  break-inside: avoid;
+}
+thead { background: var(--brand-soft); }
+th {
+  text-align: left;
+  padding: 2.2mm 2.6mm;
+  border: 1px solid var(--line);
+  font-weight: 700;
+  color: #10239e;
+  white-space: nowrap;
+}
+td {
+  padding: 2.2mm 2.6mm;
+  border: 1px solid var(--line);
+  vertical-align: top;
+  line-height: 1.6;
+}
+tbody tr:nth-child(even) { background: #fafafa; }
+
+/* ---------- 图片 ---------- */
+/* 截图统一是 1600x1000。若按正文满宽（182mm）渲染，单张高 114mm，
+   一页塞不下两张，页内会大片留白。这里用 max-height 封顶，
+   浏览器按比例回缩到约 166x104mm，一页可容纳两段图文，排面更紧凑；
+   166mm 宽下 1600px 截图约 245 dpi，界面文字印刷后仍清晰可读。 */
+img {
+  display: block;
+  max-width: 100%;
+  max-height: 104mm;
+  height: auto;
+  width: auto;
+  margin: 4mm auto 2mm auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  break-inside: avoid;
+}
+/* 表格里的图片小一些 */
+td img { margin: 0 auto; }
+
+/* ---------- 引用 / 提示框 ---------- */
+blockquote {
+  margin: 4mm 0;
+  padding: 3mm 4mm;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-left: 4px solid #faad14;
+  border-radius: 3px;
+  color: #614700;
+  font-size: 9.8pt;
+  break-inside: avoid;
+}
+blockquote p:last-child { margin-bottom: 0; }
+blockquote strong { color: #ad4e00; }
+
+/* ---------- 代码 ---------- */
+code {
+  font-family: "JetBrains Mono", "Cascadia Mono", "Menlo", "Consolas", monospace;
+  font-size: 9pt;
+  background: var(--code-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 0.3mm 1.2mm;
+  color: #c7254e;
+  white-space: nowrap;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3.4mm 4mm;
+  overflow-x: auto;
+  break-inside: avoid;
+  line-height: 1.6;
+}
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  white-space: pre;
+  font-size: 8.8pt;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 8mm 0;
+}
+
+.footer-note {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 9pt;
+  letter-spacing: 3px;
+}
+
+/* ---------- 目录列表（第 2 页） ---------- */
+h2 + ul a, ul li a { color: var(--brand); }
+
+/* ---------- 分页控制 ---------- */
+h3, h4 { break-after: avoid; page-break-after: avoid; }
+img + p { break-before: avoid; }
+
+/* 图片说明：紧跟图片的段落用浅灰小字 */
+img + p em { color: var(--ink-3); }
+
+@media print {
+  body { font-size: 10.5pt; }
+  h2 { break-before: auto; }
+}

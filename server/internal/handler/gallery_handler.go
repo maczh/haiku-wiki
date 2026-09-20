@@ -70,15 +70,26 @@ func GalleryAddImages(c *gin.Context) {
 		"images":   added,
 		"rejected": rejected,
 		"mode":     batchMode(manifest),
-		"summary":  summarize(manifest, len(fhs), countGalleryDedup(added), len(rejected)),
+		"summary":  summarize(manifest, len(fhs), countExpiredReasons(rejected), countWritten(added)),
 	})
 }
 
-// countGalleryDedup 统计本次**未写盘**的入库条目数（引用式入库或 CAS 复用）。
-func countGalleryDedup(imgs []service.GalleryImage) int {
+// countWritten 统计本次**真正写盘**的入库条目数（= 新写 CAS 对象数，§12.2.2）。
+func countWritten(imgs []service.GalleryImage) int {
 	n := 0
 	for _, img := range imgs {
-		if img.Dedup {
+		if !img.Dedup {
+			n++
+		}
+	}
+	return n
+}
+
+// countExpiredReasons 统计因「引用结果已过期」被拒的条数（reason 为固定文案，§12.2.2）。
+func countExpiredReasons(rejected []service.GalleryReject) int {
+	n := 0
+	for _, r := range rejected {
+		if r.Reason == service.ReferenceExpiredReason {
 			n++
 		}
 	}

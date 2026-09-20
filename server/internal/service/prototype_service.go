@@ -143,11 +143,9 @@ func (s *DocService) AddPrototypeItems(uid, docID uint64, files []PrototypeUploa
 	rejected := make([]PrototypeReject, 0)
 	for _, f := range files {
 		if normalizeBatchKind(f.Kind) == BatchKindRef {
-			// 标题是原型的业务必填项：缺标题属参数错误，与「预检过期」区分开报。
-			if strings.TrimSpace(f.Title) == "" {
-				rejected = append(rejected, PrototypeReject{Name: f.Name, Reason: "请填写原型标题"})
-				continue
-			}
+			// 引用式入库：不写盘、不重派生。标题按 manifest 下标（§12.5）取，缺省即空串
+			// —— 沿用 parsePrototypeMeta 的宽容语义（不足补空串），
+			// 失败时该条进 rejected 且 reason 固定为 ReferenceExpiredReason，其余继续。
 			it := referencePrototypeItem(uid, f)
 			if it == nil {
 				rejected = append(rejected, PrototypeReject{Name: f.Name, Reason: ReferenceExpiredReason})
