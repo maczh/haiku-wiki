@@ -9,6 +9,7 @@
     "prebuild": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "verify:mermaid-assets": "node scripts/verify-mermaid-assets.mjs",
     "fetch:drawio": "node scripts/fetch-drawio-assets.mjs",
     "verify:drawio": "node scripts/verify-drawio-assets.mjs",
     "verify:import": "node scripts/verify-html-import.mjs",

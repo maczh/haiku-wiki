@@ -9,7 +9,7 @@
 
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
-import DOMPurify from 'dompurify'
+import { sanitizePreservingMermaid } from '../mermaidRender'
 
 /** A4 纵向（pt）与页边距 */
 const A4_W = 595.28
@@ -36,7 +36,10 @@ export async function htmlToPdf(html: string, title: string): Promise<Blob> {
   host.style.fontSize = '15px'
   host.style.lineHeight = '1.8'
   host.style.color = '#1f2a44'
-  host.innerHTML = DOMPurify.sanitize(html, { FORBID_TAGS: ['script', 'iframe', 'object', 'embed'] })
+  // 清洗必须走 sanitizePreservingMermaid：直接 DOMPurify.sanitize 会删掉 mermaid 的
+  // <foreignObject>（图变空框，见 lib/mermaidRender.ts 文件头「事实 2」），导出保真即失效。
+  host.innerHTML = html
+  sanitizePreservingMermaid(host)
   document.body.appendChild(host)
   try {
     await waitImages(host)
@@ -114,7 +117,11 @@ export function printHtml(html: string, title: string): void {
   if (!win) {
     throw new Error('浏览器阻止了弹出窗口，请允许弹出窗口后重试')
   }
-  const safe = DOMPurify.sanitize(html, { FORBID_TAGS: ['script', 'iframe', 'object', 'embed'] })
+  // 同 htmlToPdf：用「摘出 mermaid → 清洗其余 → 原位放回」保证打印视图里图形标签不丢失
+  const stage = document.createElement('div')
+  stage.innerHTML = html
+  sanitizePreservingMermaid(stage)
+  const safe = stage.innerHTML
   win.document.write(
     `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>` +
       `<style>@page{size:A4;margin:16mm}body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;` +

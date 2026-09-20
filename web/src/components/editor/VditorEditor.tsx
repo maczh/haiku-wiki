@@ -106,12 +106,14 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       counter: { enable: true },
       height: '100%',
       placeholder: '开始写作…（Markdown 与富文本混合，自动保存已开启）',
+      // 工具栏含 Vditor 内置 `preview`（一键浮层预览）：IR 模式下 mermaid 代码块以源码显示，
+      // 用浮层预览即可看到真实图形（P0-6）。默认仍保持 mode:'ir'，不做编辑器模式改造。
       toolbar: [
         'headings', 'bold', 'italic', 'strike', '|',
         'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'link', 'table', '|',
-        'undo', 'redo', '|', 'fullscreen', 'edit-mode', 'export',
+        'undo', 'redo', '|', 'fullscreen', 'preview', 'edit-mode', 'export',
       ],
       upload: {
         url: '/api/uploads',

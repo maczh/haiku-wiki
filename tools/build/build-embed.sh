@@ -7,7 +7,10 @@ TMP=/home/macro/.workbuddy/tmp
 BK=$TMP/dist-backup
 mkdir -p "$BK"
 
-export PATH=/home/macro/.workbuddy/binaries/node/versions/22.22.2/bin:/home/macro/.workbuddy/binaries/go/bin:$PATH
+# Go 工具链选择：优先系统 Go（/usr/local/go，本机 1.25.x，满足 server/go.mod 的 `go 1.25`）。
+# 注意：/home/macro/.workbuddy/binaries/go 是 1.23.4，若排在前面会让 go 去联网下载
+# toolchain go1.25.0，并在 GOSUMDB=off 下以 "checksum database disabled" 失败。
+export PATH=/home/macro/.workbuddy/binaries/node/versions/22.22.2/bin:/usr/local/go/bin:/home/macro/.workbuddy/binaries/go/bin:$PATH
 export HOME=/home/macro
 export TMPDIR=$TMP
 export npm_config_cache=/home/macro/.workbuddy/npm-cache
@@ -16,6 +19,7 @@ export GOMODCACHE=/home/macro/.workbuddy/go/pkg/mod
 export GOCACHE=/home/macro/.workbuddy/go/cache
 export GOPROXY=https://goproxy.cn,direct
 export GOSUMDB=off
+export GOTOOLCHAIN=local
 
 # 1) 前端构建（emptyDir 会触发宿主批量删除保护，先把旧产物挪走）
 echo "== 前端构建 =="
