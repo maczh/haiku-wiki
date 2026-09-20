@@ -106,6 +106,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 
 		// 上传 / 回收站 / 导出
 		jwt.POST("/uploads", handler.Upload)
+		// 秒传两阶段（§3.3 R1/R2 + §12.2.1）：预检（只回命中与否、无副作用）→ 秒传落 meta。
+		// 鉴权走 JWT 即可，**不放 admin 组**：任何登录用户都能上传，预检不写任何数据。
+		jwt.POST("/uploads/precheck", handler.PrecheckUpload)
+		jwt.POST("/uploads/instant", handler.InstantUpload)
 		// 附件预处理（CAD 图纸在后端完成 svg/png 转换）与转换器能力查询
 		jwt.POST("/attachments/prepare", handler.PrepareAttachment)
 		// PPTX 外链图片本地化（历史文件补做；幂等）
