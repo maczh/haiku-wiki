@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
+	"os"
 	"strings"
 	"testing"
 
@@ -34,6 +36,22 @@ func pngFixture(w, h int, c color.RGBA) []byte {
 	}
 	var buf bytes.Buffer
 	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
+// jpegFixture 造一张指定尺寸、指定底色的合法 JPEG（用于内嵌图抽取测试）。
+func jpegFixture(t *testing.T, w, h int, c color.RGBA) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("编码 jpeg 夹具失败: %v", err)
+	}
 	return buf.Bytes()
 }
 
@@ -190,4 +208,107 @@ func docAfter(t *testing.T, uid, docID uint64) *model.Doc {
 		t.Fatalf("读文档失败: %v", err)
 	}
 	return d
+}
+
+// ---------- 内嵌图抽取（Bug 修复）----------
+
+// fakeRP 把一段合法 JPEG 塞进任意二进制里，伪装成 Axure .rp 专有容器。
+func fakeRP(t *testing.T, jpeg []byte) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	b.WriteString("AC EF 09 00 Axure proprietary binary header \x00\x01\x02\x03")
+	b.Write(jpeg)
+	b.WriteString("trailing garbage \xFF\x00\xFF\xD9 padding")
+	return b.Bytes()
+}
+
+// TestBuildProjectArchiveExtractsEmbeddedJPEG 非 ZIP 但内含 JPEG 字节的 .rp，应抽出预览图。
+func TestBuildProjectArchiveExtractsEmbeddedJPEG(t *testing.T) {
+	newEnv(t)
+	jpeg := jpegFixture(t, 256, 251, color.RGBA{R: 200, G: 100, B: 50, A: 255})
+	fake := fakeRP(t, jpeg)
+
+	it, err := buildProjectArchive(1, fake, &PrototypeItem{Filename: "demo.rp"})
+	if err != nil {
+		t.Fatalf("buildProjectArchive 失败: %v", err)
+	}
+	if it.Degraded {
+		t.Fatalf("含内嵌 JPEG 的 .rp 不应降级: %+v", it)
+	}
+	if it.Kind != "image" {
+		t.Fatalf("kind 应为 image, got %q", it.Kind)
+	}
+	if it.Preview == "" {
+		t.Fatalf("应抽到预览图: %+v", it)
+	}
+	if it.Thumb == "" {
+		t.Fatalf("应派生缩略图: %+v", it)
+	}
+	if it.URL == "" {
+		t.Fatal("应保留原件 URL 供下载")
+	}
+	if it.Note != "已抽取 Axure 内置预览图" {
+		t.Fatalf("Note 不符: %q", it.Note)
+	}
+}
+
+// TestBuildProjectArchiveIgnoresTinyIcons 内嵌图太小（<120px）应视为图标跳过，最终降级。
+func TestBuildProjectArchiveIgnoresTinyIcons(t *testing.T) {
+	newEnv(t)
+	// 16×16 小图标，远小于 minEmbeddedLong，不应被当成可用预览
+	tiny := jpegFixture(t, 16, 16, color.RGBA{R: 0, G: 0, B: 0, A: 255})
+	fake := fakeRP(t, tiny)
+
+	it, err := buildProjectArchive(1, fake, &PrototypeItem{Filename: "icons.rp"})
+	if err != nil {
+		t.Fatalf("buildProjectArchive 失败: %v", err)
+	}
+	if !it.Degraded {
+		t.Fatalf("只有小图标时应降级: %+v", it)
+	}
+	if it.Preview != "" {
+		t.Fatalf("不应抽到预览图: %+v", it)
+	}
+}
+
+// TestBuildProjectArchiveNoEmbeddedImageDegrades 完全没有内嵌图的非 ZIP，应保留原降级行为。
+func TestBuildProjectArchiveNoEmbeddedImageDegrades(t *testing.T) {
+	newEnv(t)
+	raw := []byte("not a real rp, just some binary without any embedded image \x00\xFF\xD8garbage")
+	it, err := buildProjectArchive(1, raw, &PrototypeItem{Filename: "flow.rp"})
+	if err != nil {
+		t.Fatalf("buildProjectArchive 失败: %v", err)
+	}
+	if !it.Degraded {
+		t.Fatalf("无内嵌图应降级: %+v", it)
+	}
+	if it.Kind != "other" {
+		t.Fatalf("kind 应为 other, got %q", it.Kind)
+	}
+	if it.Preview != "" {
+		t.Fatalf("降级不应有预览图: %+v", it)
+	}
+	if it.URL == "" {
+		t.Fatal("降级也应保留原件 URL")
+	}
+}
+
+// TestBuildProjectArchiveRealRP 集成样例：用真实 .rp 验证能抽到预览图（文件缺失则跳过）。
+func TestBuildProjectArchiveRealRP(t *testing.T) {
+	newEnv(t)
+	const path = "/Users/macro/Documents/打印小票功能(1).rp"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("真实 .rp 样例缺失，跳过集成验证: %v", err)
+	}
+	it, err := buildProjectArchive(1, data, &PrototypeItem{Filename: "打印小票功能.rp"})
+	if err != nil {
+		t.Fatalf("buildProjectArchive 失败: %v", err)
+	}
+	if it.Degraded {
+		t.Fatalf("真实 .rp 应抽到预览图而不降级: %+v", it)
+	}
+	if it.Preview == "" {
+		t.Fatalf("真实 .rp 应抽到预览图: %+v", it)
+	}
 }

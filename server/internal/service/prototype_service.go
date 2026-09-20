@@ -19,10 +19,16 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"image"
 	"io"
 	"path"
 	"strings"
 	"time"
+
+	// 显式注册光栅解码器：extractEmbeddedImage 用 image.DecodeConfig 量内嵌图尺寸，
+	// 不能依赖 imgconv 的副作用导入（避免哪天 imgconv 调整依赖导致这里静默失效）。
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/google/uuid"
 
@@ -340,7 +346,9 @@ func buildZipPrototype(uid uint64, data []byte, it *PrototypeItem) (*PrototypeIt
 }
 
 // .rp / .mp 这类工程文件：先当 zip 试探（Mockplus、新版 Axure 的包本质是 zip），
-// 能抽出网页入口就当网页原型，否则老实降级——专有二进制格式服务端渲染不了。
+// 能抽出网页入口就当网页原型；抽不到入口就再试着从二进制容器里抠一张内嵌预览图
+// （Axure .rp 本质是非 ZIP 的专有二进制，里面内嵌了 JPEG/PNG 截图）；
+// 两者都失败才老实降级——专有二进制格式服务端真渲染不了页面。
 func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem, error) {
 	if files, err := unpackZip(data); err == nil && pickHTMLEntry(files) != "" {
 		zipItem := *it
@@ -354,6 +362,10 @@ func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 			return got, nil
 		}
 	}
+	// 不是 zip / 解不出网页入口：Axure .rp 等二进制容器里内嵌了光栅截图，抽一张当预览。
+	if imgData, ext, ok := extractEmbeddedImage(data); ok {
+		return buildEmbeddedPreview(uid, data, imgData, ext, it)
+	}
 	out, err := saveBytes(uid, it.Filename, "", data)
 	if err != nil {
 		return nil, errStr("保存失败")
@@ -363,6 +375,146 @@ func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 	it.Degraded = true
 	it.Note = "该格式无法在网页中渲染，请下载原件用对应工具打开"
 	return it, nil
+}
+
+// buildEmbeddedPreview 把从二进制容器（Axure .rp 等）里抽到的内嵌图，归一化成
+// 预览图 + 缩略图。与 buildSketch / buildImagePrototype 同构：原件先落盘保下载，
+// 再派生两张小图；imgconv 也降级时直接把抽出的原图当预览/缩略图（ReuseOriginal 思路），
+// 保证前端至少有图可显示。
+func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *PrototypeItem) (*PrototypeItem, error) {
+	out, err := saveBytes(uid, it.Filename, "", data)
+	if err != nil {
+		return nil, errStr("保存失败")
+	}
+	it.URL = out.URL
+	it.Kind = "image"
+
+	// 归一化必须按「真实图片格式」分派：原件扩展名是 .rp/.mp，不在 imgconv 白名单，
+	// 直接传 it.Filename 会被当成不支持的格式而降级。
+	res, err := imgconv.Convert(imgData, "embedded."+ext)
+	if err == nil && !res.Degraded && !res.ReuseOriginal {
+		if pv, e1 := saveDerivedFile(out.URL, "preview.jpg", res.Preview); e1 == nil {
+			it.Preview = pv
+		}
+		if tb, e2 := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb); e2 == nil {
+			it.Thumb = tb
+		}
+	}
+	if it.Preview == "" {
+		// imgconv 没辙（缺少外部转换器之类）：把抽出的原图直接当预览/缩略图，
+		// 总比空白占位强。
+		if pv, e1 := saveDerivedFile(out.URL, "preview.jpg", imgData); e1 == nil {
+			it.Preview = pv
+		}
+		if tb, e2 := saveDerivedFile(out.URL, "thumb.jpg", imgData); e2 == nil {
+			it.Thumb = tb
+		}
+	}
+	if it.Preview == "" {
+		// 连原图都落不下来：兜底降级（原件下载仍在），避免出现半截状态。
+		it.Kind = "other"
+		it.Degraded = true
+		it.Note = "Axure 内置预览图抽取后保存失败"
+		return it, nil
+	}
+	it.Degraded = false
+	it.Note = "已抽取 Axure 内置预览图"
+	return it, nil
+}
+
+// ---------- 内嵌图抽取（Axure .rp 等专有二进制容器）----------
+
+// 光栅图特征签名（用于从任意二进制里抠出完整图段）。
+var (
+	pngSig  = []byte("\x89PNG\r\n\x1a\n") // PNG 文件头
+	pngIEND = []byte("IEND\xAE\x42\x60\x82") // IEND chunk（type + CRC），即 PNG 结尾
+	jpegSig = []byte{0xFF, 0xD8, 0xFF}    // JPEG SOI
+	jpegEOI = []byte{0xFF, 0xD9}          // JPEG EOI
+)
+
+// minEmbeddedLong 内嵌图最短边下限。小于此的通常是 16×16 之类的小图标，跳过以免
+// 抽到无意义的占位图。
+const minEmbeddedLong = 120
+
+// extractEmbeddedImage 在二进制容器里扫描内嵌的 PNG / JPEG， extractEmbeddedImage
+// 返回抽到的「可用」图片字节、格式扩展名（jpg/png）与是否成功。
+//
+// 策略：收集所有能完整解码（签名到对应 trailer）且最长边 ≥ minEmbeddedLong 的候选段，
+// 挑体积（字节数）最大的一张——既避开了小图标，又优先选信息量最大的那张。
+//
+// 完整性保障：PNG 靠 IEND chunk 精确收尾；JPEG 的熵编码段里可能出现伪 EOI，因此从每
+// 个 SOI 起逐个试 EOI，取第一个能被解码器识别的完整段（decode 失败就试下一段）。
+func extractEmbeddedImage(data []byte) (img []byte, ext string, ok bool) {
+	type cand struct {
+		data []byte
+		ext  string
+		vol  int
+	}
+	best := cand{vol: 0}
+
+	// PNG：从文件头到 IEND chunk（含 CRC）即完整文件。
+	for off := 0; off < len(data); {
+		i := bytes.Index(data[off:], pngSig)
+		if i < 0 {
+			break
+		}
+		start := off + i
+		e := bytes.Index(data[start+len(pngSig):], pngIEND)
+		if e < 0 {
+			off = start + 1
+			continue
+		}
+		seg := data[start : start+len(pngSig)+e+len(pngIEND)]
+		if long := imageLongSide(seg); long >= minEmbeddedLong {
+			if len(seg) > best.vol {
+				best = cand{data: seg, ext: "png", vol: len(seg)}
+			}
+		}
+		off = start + 1
+	}
+
+	// JPEG：从 SOI 到第一个能解码的 EOI 即完整文件。
+	for off := 0; off < len(data); {
+		i := bytes.Index(data[off:], jpegSig)
+		if i < 0 {
+			break
+		}
+		start := off + i
+		from := start + len(jpegSig)
+		for {
+			e := bytes.Index(data[from:], jpegEOI)
+			if e < 0 {
+				break
+			}
+			seg := data[start : from+e+len(jpegEOI)]
+			if long := imageLongSide(seg); long >= minEmbeddedLong {
+				if len(seg) > best.vol {
+					best = cand{data: seg, ext: "jpg", vol: len(seg)}
+				}
+				break // 该 SOI 下取第一个可解码的完整段即可
+			}
+			from = from + e + 1
+		}
+		off = start + 1
+	}
+
+	if best.data == nil {
+		return nil, "", false
+	}
+	return best.data, best.ext, true
+}
+
+// imageLongSide 解出图片最长边（像素）；解码失败时返回 0（视为不可用候选）。
+func imageLongSide(seg []byte) int {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(seg))
+	if err != nil {
+		return 0
+	}
+	long := cfg.Width
+	if cfg.Height > long {
+		long = cfg.Height
+	}
+	return long
 }
 
 // .sketch 是 zip 结构，内部通常带一张 previews/preview.png —— 抽出来当预览图刚刚好。
