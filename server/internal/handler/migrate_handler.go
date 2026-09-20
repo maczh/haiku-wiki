@@ -67,3 +67,31 @@ func MigrateStorage(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{"job": st})
 }
+
+// TestDatabaseConnection POST /api/admin/migrate/database/test —— 迁移前测试数据库连接。
+func TestDatabaseConnection(c *gin.Context) {
+	var in service.DBMigrateInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		resp.Error(c, paramMsg("请求体解析失败"))
+		return
+	}
+	if err := migrateService.TestDatabaseConnection(in); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"message": "连接成功"})
+}
+
+// TestStorageConnection POST /api/admin/migrate/storage/test —— 迁移前测试存储连接。
+func TestStorageConnection(c *gin.Context) {
+	var in service.StorageMigrateInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		resp.Error(c, paramMsg("请求体解析失败"))
+		return
+	}
+	if err := migrateService.TestStorageConnection(in); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"message": "连接成功"})
+}

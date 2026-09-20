@@ -28,6 +28,10 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const TeamsPage = lazy(() => import('./pages/TeamsPage'))
 const TeamDetailPage = lazy(() => import('./pages/TeamDetailPage'))
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'))
+// 系统管理
+const SystemConfigPage = lazy(() => import('./pages/SystemConfigPage'))
+const DatabaseMigrationPage = lazy(() => import('./pages/DatabaseMigrationPage'))
+const StorageMigrationPage = lazy(() => import('./pages/StorageMigrationPage'))
 
 /** 路由守卫：未登录跳 /login */
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -136,6 +140,36 @@ export default function App() {
             <RequireAdmin>
               <LazyBoundary fill tip="正在加载用户管理…">
                 <AdminUsersPage />
+              </LazyBoundary>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/system-config"
+          element={
+            <RequireAdmin>
+              <LazyBoundary fill tip="正在加载系统配置…">
+                <SystemConfigPage />
+              </LazyBoundary>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/migrate/database"
+          element={
+            <RequireAdmin>
+              <LazyBoundary fill tip="正在加载数据库迁移…">
+                <DatabaseMigrationPage />
+              </LazyBoundary>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/migrate/storage"
+          element={
+            <RequireAdmin>
+              <LazyBoundary fill tip="正在加载存储迁移…">
+                <StorageMigrationPage />
               </LazyBoundary>
             </RequireAdmin>
           }

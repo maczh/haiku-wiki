@@ -90,14 +90,35 @@ export default function AppLayout() {
                 label: '账号设置',
                 onClick: () => navigate('/settings'),
               },
-              // 仅管理员可见：用户管理（启用/禁用、重置密码）
+              // 仅管理员可见：系统管理（用户管理 / 系统配置 / 数据库迁移 / 存储迁移）
               ...(user?.role === 'admin'
                 ? [
                     {
-                      key: 'admin-users',
+                      key: 'system-management',
                       icon: <SafetyCertificateOutlined />,
-                      label: '用户管理',
-                      onClick: () => navigate('/admin/users'),
+                      label: '系统管理',
+                      children: [
+                        {
+                          key: 'admin-users',
+                          label: '用户管理',
+                          onClick: () => navigate('/admin/users'),
+                        },
+                        {
+                          key: 'system-config',
+                          label: '系统配置',
+                          onClick: () => navigate('/admin/system-config'),
+                        },
+                        {
+                          key: 'migrate-database',
+                          label: '数据库迁移',
+                          onClick: () => navigate('/admin/migrate/database'),
+                        },
+                        {
+                          key: 'migrate-storage',
+                          label: '存储迁移',
+                          onClick: () => navigate('/admin/migrate/storage'),
+                        },
+                      ],
                     },
                   ]
                 : []),

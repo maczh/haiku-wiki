@@ -88,6 +88,52 @@ func ListUsers(offset, limit int) ([]model.User, error) {
 	return us, err
 }
 
+// AdminListUsers 分页列出用户；includeDeleted=true 时含软删（Unscoped 绕过软删过滤）。
+func AdminListUsers(offset, limit int, includeDeleted bool) ([]model.User, error) {
+	var us []model.User
+	q := db.Order("id ASC").Offset(offset).Limit(limit)
+	if includeDeleted {
+		q = q.Unscoped()
+	}
+	err := q.Find(&us).Error
+	return us, err
+}
+
+// FindUserByIDUnscoped 按 ID 查用户（含软删，回收站 / 彻底删除用）。
+func FindUserByIDUnscoped(id uint64) (*model.User, error) {
+	var u model.User
+	if err := db.Unscoped().First(&u, id).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// SoftDeleteUser 软删用户（GORM Delete 自动写 deleted_at）。
+func SoftDeleteUser(id uint64) error { return db.Delete(&model.User{}, id).Error }
+
+// RestoreUser 恢复软删用户（deleted_at 置 NULL）。
+func RestoreUser(id uint64) error {
+	return db.Unscoped().Model(&model.User{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+// PurgeUser 彻底删除用户（物理删除，绕过软删）。
+func PurgeUser(id uint64) error { return db.Unscoped().Delete(&model.User{}, id).Error }
+
+// ListDeletedUsers 分页列出已软删用户（按删除时间倒序）。
+func ListDeletedUsers(offset, limit int) ([]model.User, error) {
+	var us []model.User
+	err := db.Unscoped().Where("deleted_at IS NOT NULL").
+		Order("deleted_at DESC").Offset(offset).Limit(limit).Find(&us).Error
+	return us, err
+}
+
+// CountDeletedUsers 已软删用户总数（分页用）。
+func CountDeletedUsers() (int64, error) {
+	var n int64
+	err := db.Unscoped().Model(&model.User{}).Where("deleted_at IS NOT NULL").Count(&n).Error
+	return n, err
+}
+
 // CountAdmins 统计管理员数量（保留接口，便于未来扩展）。
 func CountAdmins() (int64, error) {
 	var n int64

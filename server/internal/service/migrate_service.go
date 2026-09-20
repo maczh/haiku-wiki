@@ -205,6 +205,11 @@ func runDatabaseMigration(driver, dsn string, in DBMigrateInput) {
 	}
 	st.Status = "done"
 	finish(st)
+	// 迁移并切换成功后重启后端：让运行进程按新配置（端口 / 存储根目录等）重新绑定，
+	// 保证「配置文件已改写」与「运行态」最终一致。未切换则无需重启。
+	if in.Switch {
+		hkerr.Restart(800 * time.Millisecond)
+	}
 }
 
 // tableCopier 一张表的复制逻辑（泛型不能用切片常量，故用函数值包装）。
@@ -398,6 +403,104 @@ func runStorageMigration(typ string, in StorageMigrateInput) {
 	// 只在 `== ""` 时才补默认值的话，任务会永远停在 running（轮询方永远等不到结束）。
 	st.Status = "done"
 	finish(st)
+	// 迁移并切换成功后重启后端（理由同数据库迁移）。
+	if in.Switch {
+		hkerr.Restart(800 * time.Millisecond)
+	}
+}
+
+// TestDatabaseConnection 测试目标数据库连接（仅探活，不写入、不切换）。
+// 用于迁移前验证源 / 目标可达；复用 Connect 建临时连接后 Ping，
+// 结束后切回源库避免污染运行中的全局 db。
+func (s *MigrateService) TestDatabaseConnection(in DBMigrateInput) error {
+	driver := in.Driver
+	switch driver {
+	case config.DBMySQL, config.DBSQLite:
+	default:
+		return hkerr.Param("driver 只支持 sqlite 或 mysql")
+	}
+	dsn := in.DSN
+	if dsn == "" {
+		if driver == config.DBMySQL {
+			if in.Name == "" {
+				return hkerr.Param("MySQL 需要 dsn 或 name")
+			}
+			port := in.Port
+			if port == 0 {
+				port = 3306
+			}
+			host := in.Host
+			if host == "" {
+				host = "127.0.0.1"
+			}
+			dsn = in.User + ":" + in.Password + "@tcp(" + host + ":" + itoa(port) + ")/" +
+				in.Name + "?charset=utf8mb4&parseTime=True&loc=Local"
+		} else {
+			return hkerr.Param("SQLite 需要 dsn（数据库文件路径）")
+		}
+	}
+	cur := storage.Cfg()
+	dataDir := "./data"
+	if cur != nil {
+		dataDir = cur.DataDir
+	}
+	targetCfg := &config.Config{DBDriver: driver, DBDSN: dsn, DataDir: dataDir}
+	// ⚠️ Connect 末尾会改写全局 db，必须先暂存源库，探活后切回。
+	src := repository.DB()
+	dst, err := repository.Connect(targetCfg)
+	if err != nil {
+		repository.SetDB(src)
+		return hkerr.Param("连接失败：" + err.Error())
+	}
+	sqlDB, err := dst.DB()
+	if err != nil {
+		repository.SetDB(src)
+		return hkerr.Param("连接失败：" + err.Error())
+	}
+	if err := sqlDB.Ping(); err != nil {
+		repository.SetDB(src)
+		return hkerr.Param("连接失败：" + err.Error())
+	}
+	repository.SetDB(src)
+	return nil
+}
+
+// TestStorageConnection 测试目标存储连接（仅探针，写入后清理）。
+// 用 storage.New 构造目标后端，做一次 Put + Exists + Delete 探针，验证可写可读。
+func (s *MigrateService) TestStorageConnection(in StorageMigrateInput) error {
+	typ := in.Type
+	if typ != config.StorageLocal && typ != config.StorageS3 {
+		return hkerr.Param("type 只支持 local 或 s3")
+	}
+	if typ == config.StorageS3 && in.S3.Bucket == "" {
+		return hkerr.Param("缺少 s3.bucket")
+	}
+	cur := storage.Cfg()
+	dataDir := "./data"
+	if cur != nil {
+		dataDir = cur.DataDir
+	}
+	localDir := in.LocalDir
+	if localDir == "" {
+		localDir = dataDir
+	}
+	targetCfg := &config.Config{StorageType: typ, DataDir: localDir, S3: in.S3}
+	dstStore, err := storage.New(targetCfg)
+	if err != nil {
+		return hkerr.Param("初始化目标存储失败：" + err.Error())
+	}
+	probeKey := "uploads/.hk-migrate-probe-" + time.Now().Format("20060102150405") + ".tmp"
+	if err := dstStore.Put(probeKey, []byte("probe"), "text/plain"); err != nil {
+		return hkerr.Param("写入探测失败：" + err.Error())
+	}
+	if ok, _ := dstStore.Exists(probeKey); !ok {
+		_ = dstStore.Delete(probeKey)
+		return hkerr.Param("存储存在性校验失败")
+	}
+	if err := dstStore.Delete(probeKey); err != nil {
+		return hkerr.Param("清理探测文件失败：" + err.Error())
+	}
+	return nil
 }
 
 // tick 更新进行中的状态（供轮询展示）。

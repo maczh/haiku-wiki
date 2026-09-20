@@ -1,214 +1,45 @@
 # 项目长期约定（haiku-wiki / 寄海文库）
 
 ## 技术形态
-- 后端：Go + Gin + GORM，SQLite（`glebarez/sqlite`，免 CGO，WAL）或 MySQL；JWT 鉴权；`embed` 托管前端 dist。
-- 前端：Vite 5 + React 18 + TS strict + Ant Design 5；Vditor（markdown）、simple-mind-map（思维导图）、
-  x-data-spreadsheet（表格）、mermaid（流程图）、pdfjs-dist + mammoth（附件阅读）。
-- **无外部 CDN 依赖**：Vditor 资源自托管在 `web/public/vditor/dist`（`scripts/copy-vditor-assets.mjs` 生成，
-  挂在 `predev`/`prebuild`），组件统一 `cdn: '/vditor'`。新增依赖 Vditor 的能力前先确认资源已自托管。
-- **draw.io 同样是自托管**：`web/vendor/drawio`（`scripts/fetch-drawio-assets.mjs` 按白名单拉取，2384 文件 / 44MB）
-  → `web/public/drawio`（`copy-drawio-assets.mjs` 同步）。两个目录都在 `.gitignore` 里；
-  `.dockerignore` 只排 `public/drawio`，`vendor/drawio` 必须留在构建上下文（镜像内复用，避免构建时联网）。
-  `js/stencils.min.js` 已内联 204 个形状库，不要加回 41MB 的 `stencils/` 目录。
-- 附件预览/绘图渲染器：CAD 用自研 SVG/PNG 看图（`reader/CadView.tsx`，静态内联在 `FileView` chunk 内）、
-  PPTX 用 `pptx-preview@1.0.7`、绘图用内嵌 iframe draw.io。
-- 绘图文档（`doc_type=drawing`）：`.drawio` 直建为可编辑绘图文档；`.vsd/.vsdx` 保留源文件，
-  阅读页由组件转换预览 + 「另存为绘图文档」另建可编辑文档。
-  **`.vsdx` 导出不可用**：自托管包里 `vsdxExportEnabled()` 要求 `getServiceName()=="atlassian"`（恒为 `"draw.io"`），
-  且 `VsdxExport` 类未随包发布（只有 `mxgraph.io.vsdx.*` 导入解析器）→ UI/README 标注为「仅导入」，不要承诺导出。
+- 后端：Go + Gin + GORM，SQLite（glebarez/sqlite 免CGO WAL）或 MySQL；JWT；embed 托管前端 dist。
+- 前端：Vite5 + React18 + TS strict + AntD5；Vditor/mind-map/x-data-spreadsheet/mermaid/pdfjs+mammoth 均自托管，无外部 CDN。
+- 预览/绘图：CAD 自研 SVG/PNG 看图；PPTX 用 pptx-preview@1.0.7；绘图用内嵌 iframe draw.io（自托管 vendor+public）。
+- **原型/图片库预览图三层尺寸（2026-09-20 新增）**：`imgconv.Convert` 产出 `Original`(全分辨率、压白底、不缩放) + `Preview`(≤1920 标准屏宽) + `Thumb`(≤400 缩略图)。
+  图片格式 `Original` 复用原图 url 不另存；非图片抽取预览(.rp/.sketch 内嵌/抽取图)的 Original 落 `original.jpg`。
+  regenerate 端点：`POST /api/docs/:id/prototype/items/:itemId/regenerate` 与 `/api/docs/:id/gallery/images/:imageId/regenerate`（service: `RegeneratePrototypeItem`/`RegenerateGalleryImage`）。
+  前端三尺寸用 AntD `Segmented`(屏宽/缩略图/原尺寸) 切换；重新生成按钮经 `docId` 透传（BookPage→DocContent→View）。
 
-## 本机构建环境（必须显式设置，否则构建失败）
+## 本机构建环境（必须显式设置，否则构建失败/静默成功）
 ```bash
-# Go —— 两份都可用：托管 1.23.4 (/home/macro/.workbuddy/binaries/go/bin)
-#        与系统 1.25.7 (/usr/local/go/bin)；项目 go.mod 要求 go 1.22，两者都满足。
-export PATH=/home/macro/.workbuddy/binaries/go/bin:$PATH   # 或 /usr/local/go/bin
-# ⚠️ 关键不是选哪份 Go，而是这几项必须显式给出：工具调用的 shell 里 HOME 可能为空，
-#    此时 go 会报 `module cache not found: neither GOMODCACHE nor GOPATH is set`（退出码仍为 0，看着像成功）。
+export PATH=/home/macro/.workbuddy/binaries/go/bin:$PATH
 export HOME=/home/macro
 export GOPATH=/home/macro/.workbuddy/go GOMODCACHE=/home/macro/.workbuddy/go/pkg/mod
 export GOCACHE=/home/macro/.workbuddy/go/cache TMPDIR=/home/macro/.workbuddy/tmp/gotmp
 export GOPROXY=https://goproxy.cn,direct GOSUMDB=off
-# 前端
 export PATH=/home/macro/.workbuddy/binaries/node/versions/22.22.2/bin:$PATH
 export HOME=/home/macro npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR=/home/macro/.workbuddy/tmp
 ```
-（注意 `GOMODCACHE` 不显式指定时默认会落到 `$HOME/go/pkg/mod`，与本项目依赖所在的
-`.workbuddy/go/pkg/mod` 不同 —— 会重新下载全部依赖，故必须显式给。）
+（HOME 为空时 go 退出码仍为 0 但报 `module cache not found`；GOMODCACHE 不设会重新下载全部依赖。）
 
 ## 已知陷阱
-- `http_proxy=http://127.0.0.1:44271` 会劫持 localhost → curl 一律加 `--noproxy '*'`。
-- 宿主 safe-delete shim：单 turn 内删除/覆盖 >50 个文件会被拦（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`）。
-  规避：用 `mv` 腾目录而不是 `rm -rf`；脚本里「大小相同即跳过」而非无条件覆盖。
-- Vite `build.emptyDir` 会因上述守卫失败 → 先 `mv dist` 到备份目录再构建。
-- Chrome headless 直连 CDP 在本机会遇到 `net::ERR_INSUFFICIENT_RESOURCES`；用 `agent-browser` 技能更稳
-  （配 `AGENT_BROWSER_EXECUTABLE_PATH=/opt/google/chrome/chrome`、`XDG_RUNTIME_DIR`、`--no-proxy-server`）。
-- Vite 5 默认绑 `localhost`（可能只监听 IPv6），别用 `127.0.0.1` 做就绪探测；验证优先走单源生产形态。
-- **静态托管的 SPA 兜底有个致命细节**：`io/fs` 的 `fs.ValidPath` 不接受尾随斜杠，
-  `fs.Stat(fsys, "drawio/")` 返回 `invalid argument` 而**不是「不存在」**。路由 `NoRoute` 靠
-  `fs.Stat` 判断「是不是静态资源」，所以任何**目录型请求**（`/drawio/`）都会被误判为非静态资源、
-  回退成应用自身 `index.html`。规则：判断前必须把目录路径补成 `<dir>/index.html`
-  （已抽成 `router.staticProbePath()`，`internal/router/static_spa_test.go` 锁住不变量）。
-  Vite dev server 由自己的静态中间件服务、不复现，**只能靠生产形态复验发现**。
-- `agent-browser` 的 ref 与页面状态**不跨 Bash 调用保留**（下一次调用页会变 `about:blank`）→
-  所有浏览器步骤必须封进同一个脚本；上传隐藏的 `input[type=file]` 只能页面内构造 `File`+`DataTransfer`+`change`。
-  另：同 IP **注册限频 60s**（`allowRegister`，内存计数）—— 脚本里要连注册两个账号得等窗口过去。
-- 本机 pandoc 是 **2.17.1.1**，**没有 `--embed-resources`**（会报 unknown option）→ 用 `--self-contained`；
-  PDF 走 `google-chrome --headless=new --no-pdf-header-footer --print-to-pdf`（脚本
-  `tools/build/build-guide-pdf.sh`，样式 `docs/.guide-style.css`）。
-- 中文字体：正文/字幕首选 `/usr/share/fonts/opentype/noto/NotoSansCJK-{Regular,Bold}.ttc`；
-  `winfonts/NotoSansSC-VF.ttf` 是可变字体，drawtext 渲染偏细且字距异常，别用。
+- `127.0.0.1` 代理会劫持 localhost → curl 加 `--noproxy '*'`。
+- safe-delete shim：单 turn 删除/覆盖 >50 文件被拦；用 `mv` 腾目录、大小相同即跳过。
+- 静态 SPA 兜底：`io/fs` 的 `fs.ValidPath` 拒尾斜杠，`fs.Stat("drawio/")` 返回 `invalid argument` 而非「不存在」→ 目录型请求误判为应用；`router.staticProbePath()` 补 `<dir>/index.html` 再判。
+- agent-browser 的 ref/页面状态不跨 Bash 调用保留；同 IP 注册限频 60s。
+- **前端 tsc 预存报错（与功能改动无关，勿误修）**：`@svar-ui/react-gantt` 依赖未在 node_modules 安装（package.json 已声明），且 `GanttChart.tsx` 两处 `ev:any`。验证新功能时这些报错应被忽略。
+- **Agent Edit 静默失败风险**：曾出现 Edit 报告成功但实际未改动（结构体字段、前端 import/handler）。任何改动后必须 `Read` 复核关键文件，不能只信 commit message。
 
 ## 架构约定
-- 后端是**导出/转换的唯一事实来源**：前端只下载，格式清单从 `/api/export/docs/:id/formats` 拉。
-- 附件型文档 `doc_type=file`：content 存 `FileRef{url,filename,size,ext}` JSON，正文不可改，只读+下载。
-- 权限校验统一走 `loadReadableDoc(uid, docID)`。
-- markdown 渲染统一 `MarkdownView`（Vditor preview + DOMPurify）；非 markdown 内容绝不进该管线。
-- 自动保存统一 3s 防抖，切换文档/卸载前 fire-and-forget 落库。
-- **按需加载是本项目的硬约束，分三层，三层都要维持**（详见技能 `haiku-wiki-build-verify` §3.6）：
-  1. **库级**：Vditor、simple-mind-map（含 katex）、Luckysheet、pdf.js、mermaid 必须经
-     `React.lazy` + `components/common/LazyBoundary` 引入（入口：`DocContent` 阅读、
-     `BookPage` 编辑、`SharePage` 公开预览）。新增同量级的库沿用同一模式。
-  2. **路由级**：`App.tsx` 内页面全部 `lazy()` + `<LazyBoundary fill>`；
-     **布局（AppLayout / BlankLayout）保持静态**（外壳先出现，避免二次闪白）。
-  3. **静态依赖不得漏网**：`React.lazy` 只隔离被 lazy 的那个模块，它**静态 import 的兄弟会被一起拉走**。
-     已修的两处：`VersionDrawer` 内的 `MarkdownView`、`DocTree` 内的 `ImportDialog`
-     （后者同时改为「只在 `importOpen` 为真时挂载」，所以知识库页上**不再有隐藏的 `input[type=file]`**）。
-     新增「被多个编辑器共用的抽屉/弹窗」时，务必检查它是否静态引入了重量级渲染器。
-- 走 Vditor 的 CSS（`vditor/dist/index.css`）随 `MarkdownView` / `VditorEditor` 懒加载，
-  **不要放回 `main.tsx`**（否则入口 CSS 多 40 KB）。判定：`grep -c vditor` 入口 CSS 应为 0。
-- 实测收益：入口 chunk 3819 KB → **649 KB**（gzip 213 KB），入口 CSS 43 KB → **3.0 KB**，
-  `BookPage` chunk 623 KB → **216 KB**；首页改版后入口 755 KB / 251 KB gzip、CSS 4.0 KB。
+- 后端是导出/转换唯一事实来源；markdown 统一 `MarkdownView`；自动保存 3s 防抖。
+- 按需加载三层（库级 / 路由级 / 静态依赖）必须维持；入口 CSS `grep -c vditor` 应为 0。
+- 新增 `doc_type` 改动面：`handler.validDocTypes` → `exportx` → 前端 `DocType` 联合类型 → `iconForDocType` → `DocContent` 分发（不在表内被静默归一化为 markdown 落库）。
 
-## 首页 Dashboard（`/`，2026-09-19 起）
-- `pages/DashboardPage.tsx` 取代原 `BookshelfPage.tsx`（已删）；书架能力抽到 `components/book/BookshelfSection.tsx`。
-  区块顺序：欢迎条 → 8 个快捷操作 → 新手向导｜视频介绍 → 最近更新｜团队速览 → 书架。
-- 「最近更新」走 `GET /api/recent-docs?limit=N`（默认 12、上限 50）：仓库层粗筛可读库 id 集合 +
-  JOIN `doc_collaborators`，服务层合并去重、按 `updated_at` 倒序后**逐条复核** `canReadBook||isDocCollaborator`
-  再附 `can_write` —— 新增跨库聚合类接口时保持这个「SQL 粗筛 + 业务规则复核」的双层结构。
-- 向导与视频的关闭记忆用两个 localStorage 键：`hk_onboard_dismissed`、`hk_intro_video_dismissed`；
-  首次渲染即读标志位，避免「先闪后消」；欢迎条开关可重新打开并清键。
-- 直达导入：`/books/:id?import=file|url` 打开对应导入框后**立刻** `setSearchParams(replace)` 清掉参数。
-- 组件：`components/dashboard/{OnboardingGuide,IntroVideo,RecentDocsCard,QuickActions,QuickStartModal}.tsx` + `dashboard.css`；
-  纯逻辑在 `web/src/lib/dashboard.ts`，由 `npm run verify:dashboard`（40 项）覆盖。
-- 快捷操作按钮的 `data-testid` 生成规则：`hk-quick-${key.replace(/^on/,'').toLowerCase()}`
-  → `onCreateDoc` 对应 `hk-quick-createdoc`。
+## 目录(folder)/ 首页 Dashboard / 甘特图
+- folder 为容器、不承载正文；不参与搜索/导出/分享/协作/最近更新。
+- Dashboard：`/` 取代旧书架页；最近更新走 `GET /api/recent-docs`（SQL 粗筛 + 业务规则复核双层）；localStorage 键 `hk_onboard_dismissed` / `hk_intro_video_dismissed`。
+- 甘特图（SVAR React Gantt @2.7.3）：致命坑①只给**有子节点**的父节点写 `open:true`（全写白屏）；坑②`byId` 是数字 Map、DOM `data-id` 是字符串 → `lib/gantt.ts` 的 `resolveSvarTask` 兜底；面板折叠走原生 `displayMode` 不可用 CSS `display:none`；`.wx-theme{height:100%}` 必须保留。回归 `npm run verify:gantt-ids`。
 
-## 目录（doc_type=folder，2026-09-19 起）
-- **容器类型，不承载正文**：content 恒空；可挂子文档与子目录；**不参与**搜索、导出、分享、协作、
-  「最近更新」（`recentDocRepo` 的 `recentDocFilter` 在 SQL 层排除）；删除/恢复走既有
-  `SoftDelete` + `ListDescendantIDs` **整棵子树级联**。
-- 新增一个 `doc_type` 的改动面（漏一处就静默失效，清单见技能 §6.1）：
-  `handler` 的 `validDocTypes`（**不在表里会被归一化成 markdown 落库、不报错**）→
-  `exportx` 的 `NormalizeDocType`/`FormatsForDocType`/`Convert` → 前端 `DocType` 联合类型
-  （`Record<DocType,…>` 由 tsc 强制补全）→ `iconForDocType` → `DocContent` 渲染分发 →
-  `recent_docs` 聚合排除。`DOC_TYPES` 是「可选文档类型」列表，容器类型**不要**加进去。
-- 三个入口：知识库标题三横菜单「新建目录」/ 节点右键「新建子目录」/ 正文空态链接。
-- 目录不提供编辑、导出、分享、协作入口（`KnowledgeTree` 里直接不渲染这些菜单项）。
-
-## 目录（存放位置）下拉：AntD `options` 只认 `{value,label}`（易复发）
-- **症状**：下拉显示一个裸数字（`0`），选任何一项最后都落成 `parent_id=0`。
-- **根因**：`options` 写成 `{id, label}` → 每项 `value` 为 `undefined` → 控件匹配不到选项就
-  **回退显示原始受控值**，`onChange` 也收到 `undefined`。「显示错」和「保存错」是同一个根因。
-- **约束**：目录选项一律经 `web/src/lib/dirOptions.ts`（`buildDirOptions(docs)` + `withRootDir(...)`）
-  构造，`DirOption = {value:number, label:string}`，根目录恒为 `value:0`；
-  `buildChildrenMap` 在 `lib/docTree.ts`（纯函数，别放 store 里以免把 zustand 拉进入口 chunk）。
-  `npm run verify:dashboard` 第 ⑧ 组 15 条断言锁住该契约（含「不得残留 `id` 字段」）。
-- 首页快捷操作把目标目录经 URL 传出：`/books/:id?import=file|url&parent=<id>`。
-
-## 操作演示视频（首页「视频介绍」卡片）
-- 资源随前端分发：`web/public/onboarding/haiku-wiki-guide.mp4` + `-poster.jpg`；
-  缺失时 `IntroVideo` 捕获 `onError` 降级成指向功能指南的说明。
-- 生成流水线在 `tools/video/`（`seed-demo.py` → `capture-shots.sh` → `build-guide-video.py`，见该目录 README）。
-  旁白用 edge-tts（需联网），字幕/章节标签用 ffmpeg drawtext，
-  中文**必须**用 `/usr/share/fonts/opentype/noto/NotoSansCJK-{Regular,Bold}.ttc`。
-- **改了视频必须同步** `DashboardPage.tsx` 的 `INTRO_CHAPTERS`（章节秒数）与 `INTRO_SECONDS`（卡片上的「约 N 分钟」）。
-- 采集截图的三个坑见 `tools/video/capture-shots.sh` 头部：树懒加载要逐个展开、文档右键要派发到
-  `.ant-tree-title span`（事件只向上冒泡）、`data-testid` 命名规则。
-
-## 回归套件与构建脚本（tools/，2026-09-19 起收进仓库）
-- **浏览器/接口端到端套件在 `tools/verify/`**（14 个套件全部登记进 `run-all.sh`；
-  含端口表、夹具说明与已知坑）。
-  这些原先散在 `/home/macro/.workbuddy/tmp/*.sh`，**那个目录会被清理**，所以已入库。
-  改完前端**必须先** `bash tools/build/build-embed.sh`（产出 `$TMPDIR/haiku-wiki`），否则套件测的是旧产物；
-  跑法：单跑 `bash tools/verify/<suite>.sh`，全跑 `bash tools/verify/run-all.sh`（`SUITES="a b"` 取子集）。
-- **必须顺序执行**：多套共用 `XDG_RUNTIME_DIR` 与同一个 Chrome profile（并行会随机 `no-btn`/串台），
-  其中 `ui-doc-types` / `ui-shot` / `check-lazy-routes` / `check-route-fallback` 还共用 8080。
-- **数据夹具在 `tools/verify/fixtures/`**：`e2e-data/`（种子快照 `haiku.db` + `uploads/`，book 1 固定
-  `1=md 2=sheet 3=mindmap 4=flowchart 5=file`，账号 `e2e@example.com / secret123`）、
-  `import-fixtures/`（xlsx/docx/pdf + 重生成脚本 `gen.cjs`）、`exports/doc.pdf`。
-  依赖 e2e-data 的 4 套每次把夹具**复制成临时副本**再给服务端写（夹具保持原样）；换数据用 `E2E_DATA=<dir>`。
-  更新夹具：从跑出来的数据目录取 `haiku.db`（先 `PRAGMA wal_checkpoint(TRUNCATE)` 把 WAL 落盘）+ `uploads/`。
-- 构建脚本 `tools/build/`：`build-embed.sh`（前端 → embed → go build）、`build-guide-pdf.sh`（指南 → PDF）。
-  视频流水线在 `tools/video/`。**约定：套件脚本不要引用 tmp 下既有的目录/文件**，依赖一律走 `fixtures/`。
-- **`$TMPDIR` 里不能删的 6 项**（2026-09-19 清理扫描的结论）：`haiku-wiki`（生产形态二进制，所有套件启动它）、
-  `vendor/lr/`（`embed-prod-check` 的 DWG 转换器，553 MB）、`gotmp`（`gantt-api-check` 的 TMPDIR）、
-  `xdg`（XDG_RUNTIME_DIR）、`agent-browser-chrome-*`（Chrome profile）、`regress`（回归日志）。
-  其余（`dist-backup*`、`dockersim-web-*`、`e2e-*`、`*-out-*`、`shots-*`、旧 `gocache`/`npmcache`、
-  一次性 `gantt-diag*/probe*` 脚本）都是可再生产物。清理清单见 `/home/macro/.workbuddy/tmp-cleanup-plan-*.md`。
-- **验证依赖不要留 tmp**（三处残留 2026-09-19 已修）：`seed-demo.py` 与 `gen-upload-js.py` 现都在
-  `tools/verify/`，套件用 `HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)` 定位；
-  外部工具路径必须参数化且**缺失时明确 skip 而非判失败**（`embed-prod-check.sh` 的 `DWG_CONV`）。
-- 新写套件请登记进 `run-all.sh` 的 `DEFAULT_SUITES`，并挑一个独占端口（别挤 8080）。
-
-## 接口契约速查（写测试脚本时最容易记错）
-- `POST /api/auth/login` → `{"account","password"}`，`account` 可以是用户名/手机号/邮箱（**不是 `email`**）。
-- `POST /api/auth/register` → `{"username","name","email","password"}`（`username`/`email`/`password` 必填），**没有 `nickname`**。
-- `GET /api/docs/:id` → 正文在 **`.data.doc.content`**。
-- 表格内容契约 **v3**：`{"version":3,"sheets":[{…,"celldata":[{r,c,v}]}]}`（`web/src/lib/sheet.ts`），
-  旧的 v1/v2（`.cells["r-c"].text`）读取时自动迁移；渲染器是 **Luckysheet**（`.luckysheet-cell-main`，单元格在 canvas 上）。
-- 弹窗 vs 抽屉：`ImportDialog` 是 **Drawer**（标题「导入文档」），`UrlImportDialog` 是 **Modal**。
-
-## 甘特图文档（doc_type=gantt）
-- 组件选型：`vxe-gantt` 是 **Vue 3 专用**，React18 项目用不了 → 已改用 **SVAR React Gantt**
-  (`@svar-ui/react-gantt@2.7.3` + `@svar-ui/gantt-locales@2.7.2`，MIT)。进度手柄派 `update-task {task:{progress}}`、
-  横/纵向改期派 `drag-task` —— 阅读态只改进度 = intercept 拦 `drag-task` 等 + `update-task` 白名单仅放行 `progress` 键。
-- **致命坑 ①**：给所有任务写 `open:true` 会让叶子节点白屏。SVAR `lib-state` 的 `parse()` 把每个任务 `data` 置 `null`，
-  `toArray()` 遇 `open===true && data===null` 抛 `Cannot read properties of null (reading 'forEach')`。
-  **只给有子任务的父节点写 `open:true`**（`ganttToSvar` 用 `hasChild` 集合判定）。
-- **致命坑 ②**：SVAR `byId` 是 `Map`，键为**数字** id；DOM `data-id` 是字符串 → `getTask(字符串)` 查不到。
-  `web/src/lib/gantt.ts` 抽了 `resolveSvarTask(api, id)`（先 `getTask(Number(id))` 再遍历 `serialize` 兜底）。
-- **外框被 hover 覆盖**：SVAR hover 规则用 CSS-Modules 哈希类，比注入选择器加载更晚 → 覆盖我们的 `box-shadow`。
-  注入选择器须加深为 `.hk-gantt .wx-bar[data-id="X"]` 并对 `box-shadow` 加 `!important`。
-- **零 CDN**：只能用 `@svar-ui/react-gantt/style.css`（无 url()），**不能用 `all.css`**（含 `@font-face` 指向 cdn.svar.dev）。
-- 甘特代码在独立 chunk（`GanttChart-*.js`/`GanttChart-*.css`），入口 `wx-gantt/svar/GanttChart/vxe` 计数必须为 0。
-- 状态灯/优先级规则前后端各一份且须同步：`web/src/lib/gantt.ts` 与 `server/internal/service/exportx/gantt.go`。
-  判定序：已结束→已超期→未开始→进度拖延→正常；优先级外框 alpha 0.16(P1)→0.72(P10)，紫罗兰 `rgba(114,46,209,a)`。
-- **左右面板折叠必须走 SVAR 原生 `displayMode`（`all|grid|chart`）+ `api.exec('set-display-mode')`，
-  绝不能用 CSS `display:none` 藏面板** —— 左表格的行是按右侧时间轴可见区切片渲染的
-  （组件内 `tasks.slice(area.start, area.end)`），把时间轴藏掉会让它测量归零、左表格只剩 2 行。
-  `GanttChart.tsx` 的 `init` 内须 `api.on('set-display-mode')` 回读状态（SVAR resizer 自带箭头也派发该 action）。
-- `.hk-gantt .wx-theme{height:100%;min-height:0}` **必须保留**：Willow 渲染的主题包装层在 SVAR 全部 CSS 里
-  没有任何规则，缺它则 `.wx-gantt{height:100%;overflow-y:auto}` 的 100% 退化为 auto ——
-  行数多时图表撑破外层固定高度容器，下侧行看不到也滚不动。
-- **写甘特断言的两个陷阱**（2026-09-19 修 `gantt-ui-check` 时定位，技能 §3.3.5）：
-  ① **汇总条（`type:'summary'`）上也有 `.wx-progress-marker`**，但它的进度由子任务派生、拖了不会变
-     → 拖拽/进度断言必须选**叶子任务**（`type=='task'` 且 `id ∉ 所有 parent`）；
-  ② 「没找到任务条」会让「起始日没变 → 拦截成功」**恒真通过** → 找不到条必须判失败。
-- **临时 id 归一化（2026-09-19 修）**：`api.exec('add-task', {task})` 没给 id 时 SVAR 补一个
-  `temp://<毫秒时间戳>`，`api.serialize()` 原样交回 → 以前会被直接写进正文。现在**唯一出口**
-  `ganttFromSvar()` 里的 `stabilizeIds()` 把它按出现顺序分配成 `max(数字 id)+1、+2…`（跳过占用），
-  并**同步改写 `parent` 与 links 的 `source`/`target`**；纯数字 id 原样保留。
-  该函数必须是**纯函数**（同一会话里的多次自动保存会反复调用它，映射不稳会让同一个任务来回换 id）。
-  回归：`cd web && npm run verify:gantt-ids`（22 项）。
-- **DOM 的 `data-id` 与序列化/落库的 id 不同形**：SVAR 给**非纯数字** id 加 `:` 前缀
-  （`temp://x` → DOM 上是 `:temp://x`），数字 id 原样。凡「按 id 拼 CSS 选择器」的地方都要用
-  `svarDataIdCandidates(id)` 给出两种候选形态 —— 否则**新增任务的优先级外框会静默消失**
-  （实测 `getComputedStyle(bar).boxShadow === 'none'`；界面上一眼可见，但没有断言就没人发现）。
-- **`agent-browser eval` 的返回值是带转义的 JSON 字符串**（`{\"a\":1}`）→ 别直接丢给
-  `python3 -c "json.loads(...)"`（会解析失败、断言莫名变红）；让 JS 返回 `总数|缺项;缺项`
-  这类不含引号的裸串最省事。
-- 编辑态「新增任务 / 新增子任务」是**弹窗表单**（`GanttEditor.tsx` 的 `openTaskModal`）：填
-  `input[placeholder="例如：接口联调"]` → 点页脚「新增」（两个汉字，AntD `autoInsertSpace` 会插空格）；
-  「新增子任务」依赖 `selectedRef`，要先选中一条任务。
-
-## CAD / DWG 约定
-- **DWG 两级策略**：① 外部转换器（`dwg2dxf` / `dwgread` / `ODAFileConverter`）转 DXF → 自研渲染器出
-  SVG + PNG（矢量）；② 兜底抽取 DWG 内嵌预览位图（PNG/BMP 魔数扫描），此时 `Degraded=true`。
-  发现顺序：`EXPORT_DWG_CONVERTER` → PATH；结果 `sync.Once` 缓存，测试可用 `ResetDWGConverterCache()`。
-- 转换器能力对前端可见：`GET /api/cad/converter`；导入后由 `POST /api/attachments/prepare` 落派生文件并回 `derived:{svg,png}` + `note`。
-- `Dockerfile` 阶段 0 编译 libredwg 产出 `dwg2dxf`/`dwgread`，**构建失败不阻断镜像**（运行期如实报告降级）。
-- 真实夹具集成测试：`exportx/cad_dwg_integration_test.go`，默认 skip，需
-  `DWG_FIXTURE_DIR` + `EXPORT_DWG_CONVERTER`（可选 `DWG_OUT_DIR`）。断言要点：不得走降级路径、
-  SVG 不得含 `<image>`、PNG 尺寸只拒绝「贴边到没有意义」（单行文字图纸天然是长条）；
-  **PNG 全白要先用 `DWGToDXF`+`ParseDXF` 数可绘制图元**再判定（ENTITIES 为空的图纸空白是正确的）。
-
+## 回归套件 / 构建（tools/）
+- 端到端套件在 `tools/verify/`（登记进 `run-all.sh`）；改前端**必须先** `bash tools/build/build-embed.sh`。
+- 必须顺序执行（共用 XDG_RUNTIME_DIR / Chrome profile / 8080）；夹具在 `tools/verify/fixtures/`（e2e-data 含种子 `haiku.db` + 账号 `e2e@example.com/secret123`，book 1=md 2=sheet 3=mindmap 4=flowchart 5=file）。
+- `$TMPDIR` 不可删：`haiku-wiki` 二进制、`vendor/lr`、`gotmp`、`xdg`、`agent-browser-chrome-*`、`regress`。

@@ -179,3 +179,135 @@ func genRandomPassword(n int) string {
 	}
 	return string(b)
 }
+
+// ---------- 管理员：删除 / 恢复 / 彻底删除用户 ----------
+
+// AdminSoftDeleteUser 软删用户（不能删自己、不能删管理员账号）。
+func (s *UserService) AdminSoftDeleteUser(adminID, targetID uint64) error {
+	if adminID == targetID {
+		return hkerr.Param("不能删除自己")
+	}
+	target, err := repository.FindUserByID(targetID)
+	if err != nil {
+		return hkerr.NotFound("用户不存在")
+	}
+	if target.Role == "admin" {
+		return hkerr.Param("不能删除管理员账号")
+	}
+	return repository.SoftDeleteUser(targetID)
+}
+
+// AdminRestoreUser 恢复被软删的用户（deleted_at 置 NULL）。
+func (s *UserService) AdminRestoreUser(targetID uint64) error {
+	u, err := repository.FindUserByIDUnscoped(targetID)
+	if err != nil {
+		return hkerr.NotFound("用户不存在")
+	}
+	if !u.DeletedAt.Valid {
+		return hkerr.Param("该用户未被删除")
+	}
+	return repository.RestoreUser(targetID)
+}
+
+// AdminPurgeUser 彻底删除用户（不能删自己、不能删管理员账号）。
+func (s *UserService) AdminPurgeUser(adminID, targetID uint64) error {
+	if adminID == targetID {
+		return hkerr.Param("不能彻底删除自己")
+	}
+	u, err := repository.FindUserByIDUnscoped(targetID)
+	if err != nil {
+		return hkerr.NotFound("用户不存在")
+	}
+	if u.Role == "admin" {
+		return hkerr.Param("不能彻底删除管理员账号")
+	}
+	return repository.PurgeUser(targetID)
+}
+
+// AdminListDeletedUsers 分页列出已软删用户。
+func (s *UserService) AdminListDeletedUsers(page, pageSize int) ([]AdminUserView, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	us, err := repository.ListDeletedUsers((page-1)*pageSize, pageSize)
+	if err != nil {
+		return nil, 0, hkerr.Internal("查询失败")
+	}
+	total, err := repository.CountDeletedUsers()
+	if err != nil {
+		return nil, 0, hkerr.Internal("查询失败")
+	}
+	views := make([]AdminUserView, 0, len(us))
+	for _, u := range us {
+		views = append(views, toAdminView(u))
+	}
+	return views, total, nil
+}
+
+// ---------- 管理员：用户文库管理 ----------
+
+// AdminListUserLibraries 列出某用户的私有文库与团队文库（含文档数）。
+func (s *UserService) AdminListUserLibraries(uid uint64) (private, team []model.BookWithCount, err error) {
+	private, err = repository.ListBooksByOwner(uid)
+	if err != nil {
+		return nil, nil, hkerr.Internal("查询私有文库失败")
+	}
+	team, err = repository.ListTeamLibraries(uid)
+	if err != nil {
+		return nil, nil, hkerr.Internal("查询团队文库失败")
+	}
+	return private, team, nil
+}
+
+// AdminListLibraryDocs 列出某文库下的文档（平铺列表，前端自行组树）。
+func (s *UserService) AdminListLibraryDocs(bookID uint64) ([]model.Doc, error) {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return nil, hkerr.NotFound("知识库不存在")
+	}
+	docs, err := repository.ListTreeByBook(book.ID)
+	if err != nil {
+		return nil, hkerr.Internal("查询文档失败")
+	}
+	return docs, nil
+}
+
+// AdminDeleteLibrary 删除用户文库：先级联软删文档，再删除文库本身。
+// 公司知识库（系统持有）禁止删除，避免破坏全员只读的基础结构。
+func (s *UserService) AdminDeleteLibrary(adminID, bookID uint64) error {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return hkerr.NotFound("知识库不存在")
+	}
+	if book.IsCompanyKB {
+		return hkerr.Param("不能删除公司知识库")
+	}
+	if err := repository.SoftDeleteDocsByBook(bookID); err != nil {
+		return hkerr.Internal("删除文档失败")
+	}
+	if err := repository.DeleteBook(book); err != nil {
+		return hkerr.Internal("删除知识库失败")
+	}
+	return nil
+}
+
+// AdminBackupLibrary 备份用户文库为 .md.zip（复用导出逻辑），返回文件名与 zip 字节。
+func (s *UserService) AdminBackupLibrary(bookID uint64) (string, []byte, error) {
+	book, err := repository.FindBookByID(bookID)
+	if err != nil {
+		return "", nil, hkerr.NotFound("知识库不存在")
+	}
+	// 以文库持有者身份导出：公司知识库 owner_id=0 时用 1 让 canReadBook 放行。
+	uid := book.OwnerID
+	if uid == 0 {
+		uid = 1
+	}
+	name, data, err := (&ExportService{}).BookZip(uid, bookID)
+	if err != nil {
+		return "", nil, err
+	}
+	return name, data, nil
+}

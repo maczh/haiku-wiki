@@ -16,7 +16,7 @@ jwt:
 
 database:
   # sqlite | mysql
-  driver: mysql
+  driver: sqlite
   # 留空时：sqlite 自动落在 storage.local.dir 下的 haiku.db
   dsn: ""
   # MySQL 可直接给 dsn：

@@ -8,7 +8,7 @@ type Attachment struct {
 	UploaderID  uint64    `json:"uploader_id"`
 	Filename    string    `gorm:"size:255" json:"filename"`
 	StoragePath string    `gorm:"size:255" json:"storage_path"` // uploads/2026/09/<uuid>.<ext>
-	MimeType    string    `gorm:"size:64" json:"mime_type"`
+	MimeType    string    `gorm:"size:255" json:"mime_type"`
 	Size        int64     `json:"size"`
 	CreatedAt   time.Time `json:"created_at"`
 }

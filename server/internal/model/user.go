@@ -2,7 +2,11 @@
 // 约定：主键 id uint64 自增；时间戳 created_at/updated_at；JSON 输出 snake_case。
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // User 用户表。
 //   - 首个注册用户自动 admin 的 old 规则已退役（新注册用户固定 member），仅保留存量 admin 账号；
@@ -20,6 +24,9 @@ type User struct {
 	Status       int       `gorm:"default:1" json:"status"`            // 1=启用 0=禁用
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	// DeletedAt 软删时间戳（GORM 软删机制）：非空表示已删除，默认查询自动排除。
+	// 仅管理员可经 Unscoped 查询到已删除用户（恢复 / 彻底删除用）。
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (User) TableName() string { return "users" }

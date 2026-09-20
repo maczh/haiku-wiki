@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -154,4 +155,146 @@ func RemoveBookWriter(c *gin.Context) {
 		return
 	}
 	resp.OK(c, gin.H{"revoked": true})
+}
+
+// ---------- 用户删除 / 恢复 / 彻底删除 ----------
+
+// ListDeletedUsers GET /api/admin/users/deleted —— 已软删用户列表。
+func ListDeletedUsers(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	users, total, err := userService.AdminListDeletedUsers(page, size)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"users": users, "total": total, "page": page, "page_size": size})
+}
+
+// DeleteUser DELETE /api/admin/users/:id —— 软删用户（不能删自己 / 管理员）。
+func DeleteUser(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := userIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的用户 ID"))
+		return
+	}
+	if err := userService.AdminSoftDeleteUser(middleware.UID(c), id); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"deleted": true})
+}
+
+// RestoreUser POST /api/admin/users/:id/restore —— 恢复被软删用户。
+func RestoreUser(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := userIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的用户 ID"))
+		return
+	}
+	if err := userService.AdminRestoreUser(id); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"restored": true})
+}
+
+// PurgeUser DELETE /api/admin/users/:id/purge —— 彻底删除用户。
+func PurgeUser(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := userIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的用户 ID"))
+		return
+	}
+	if err := userService.AdminPurgeUser(middleware.UID(c), id); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"purged": true})
+}
+
+// ---------- 用户文库管理 ----------
+
+// ListUserLibraries GET /api/admin/users/:id/libraries —— 某用户的私有 / 团队文库。
+func ListUserLibraries(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := userIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的用户 ID"))
+		return
+	}
+	private, team, err := userService.AdminListUserLibraries(id)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"private": private, "team": team})
+}
+
+// ListLibraryDocs GET /api/admin/books/:id/docs —— 文库文档树（平铺列表）。
+func ListLibraryDocs(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := bookIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的知识库 ID"))
+		return
+	}
+	docs, err := userService.AdminListLibraryDocs(id)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, docs)
+}
+
+// DeleteLibrary DELETE /api/admin/books/:id —— 删除用户文库（级联软删文档）。
+func DeleteLibrary(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := bookIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的知识库 ID"))
+		return
+	}
+	if err := userService.AdminDeleteLibrary(middleware.UID(c), id); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"deleted": true})
+}
+
+// BackupLibrary POST /api/admin/books/:id/backup —— 备份文库为 zip 下载。
+func BackupLibrary(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	id, ok := bookIDFromPath(c)
+	if !ok {
+		resp.Error(c, paramMsg("无效的知识库 ID"))
+		return
+	}
+	name, data, err := userService.AdminBackupLibrary(id)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	c.Header("Content-Disposition", service.ContentDisposition(name))
+	c.Data(http.StatusOK, "application/zip", data)
 }

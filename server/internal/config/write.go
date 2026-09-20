@@ -129,6 +129,49 @@ func scalarNode(v interface{}) (*yaml.Node, error) {
 	return n, nil
 }
 
+// ApplyEditable 把可编辑视图翻译成点号路径 map 后写回配置文件（保留注释）。
+// 与 config.Load 的解析规则一致：dsn 非空时写 dsn 并清空拆分字段，否则写拆分字段；
+// storage 仅 local 时写 local.dir，s3 时写 s3.* 全部字段。
+func ApplyEditable(e EditableConfig) error {
+	pairs := map[string]interface{}{
+		"server.port":        e.Server.Port,
+		"server.mode":        e.Server.Mode,
+		"jwt.secret":         e.JWT.Secret,
+		"database.driver":    e.Database.Driver,
+		"storage.type":       e.Storage.Type,
+		"storage.local.dir":  e.Storage.LocalDir,
+		"upload.max_size_mb": e.Upload.MaxSizeMB,
+	}
+	if e.Database.DSN != "" {
+		pairs["database.dsn"] = e.Database.DSN
+		// 清空拆分字段，避免两套字段并存导致解析歧义
+		pairs["database.host"] = ""
+		pairs["database.port"] = 0
+		pairs["database.user"] = ""
+		pairs["database.password"] = ""
+		pairs["database.name"] = ""
+	} else {
+		pairs["database.dsn"] = ""
+		pairs["database.host"] = e.Database.Host
+		pairs["database.port"] = e.Database.Port
+		pairs["database.user"] = e.Database.User
+		pairs["database.password"] = e.Database.Password
+		pairs["database.name"] = e.Database.Name
+	}
+	if e.Storage.Type == StorageS3 {
+		pairs["s3.endpoint"] = e.S3.Endpoint
+		pairs["s3.region"] = e.S3.Region
+		pairs["s3.bucket"] = e.S3.Bucket
+		pairs["s3.access_key"] = e.S3.AccessKey
+		pairs["s3.secret_key"] = e.S3.SecretKey
+		pairs["s3.prefix"] = e.S3.Prefix
+		pairs["s3.force_path_style"] = e.S3.ForcePathStyle
+		pairs["s3.public_read"] = e.S3.PublicRead
+		pairs["s3.presign_ttl"] = e.S3.PresignTTLMinutes
+	}
+	return Update(pairs)
+}
+
 // Template 内置配置模板（文件缺失时用于创建，注释即文档）。
 func Template() string {
 	return `# 寄海文库（haiku-wiki）主配置文件

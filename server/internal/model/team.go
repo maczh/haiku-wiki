@@ -17,6 +17,7 @@ func (Team) TableName() string { return "teams" }
 // TeamMember 团队成员。role：admin | read_write | read_only。
 // 旧数据中的 member 等价于 read_write，读取时由服务层兼容。
 type TeamMember struct {
+	ID        uint64    `gorm:"primaryKey" json:"id"`
 	TeamID    uint64    `gorm:"primaryKey" json:"team_id"`
 	UserID    uint64    `gorm:"primaryKey" json:"user_id"`
 	Role      string    `gorm:"size:16;default:read_write" json:"role"`

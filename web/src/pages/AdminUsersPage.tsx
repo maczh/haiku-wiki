@@ -1,10 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Card, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Typography, message } from 'antd'
-import { ReloadOutlined, SafetyCertificateOutlined, SafetyOutlined } from '@ant-design/icons'
+import {
+  Button,
+  Card,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd'
+import { ReloadOutlined, SafetyCertificateOutlined, SafetyOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { listUsers, resetUserPassword, setUserStatus } from '../api/admin'
+import {
+  deleteUser,
+  listUsers,
+  listDeletedUsers,
+  purgeUser,
+  resetUserPassword,
+  restoreUser,
+  setUserStatus,
+} from '../api/admin'
 import { listBooks } from '../api/books'
 import CompanyKBWritersModal from '../components/admin/CompanyKBWritersModal'
+import UserLibraryModal from '../components/admin/UserLibraryModal'
 import { useAuthStore } from '../stores/authStore'
 import type { AdminUser } from '../types'
 
@@ -14,7 +35,8 @@ import type { AdminUser } from '../types'
  * 后端约束（UserService 为单一事实来源，界面只做前置提示、不重复判定）：
  *   - 不能禁用/启用自己；
  *   - 不能禁用管理员账号；
- *   - 重置密码不能针对自己；未填新密码时由后端生成 12 位随机密码并一次性返回明文。
+ *   - 重置密码不能针对自己；
+ *   - 删除（软删）/ 彻底删除不能针对自己或管理员账号。
  */
 export default function AdminUsersPage() {
   const me = useAuthStore((s) => s.user)
@@ -25,6 +47,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
 
+  // 已删除用户视图
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [deletedRows, setDeletedRows] = useState<AdminUser[]>([])
+  const [deletedTotal, setDeletedTotal] = useState(0)
+  const [deletedPage, setDeletedPage] = useState(1)
+  const [deletedPageSize, setDeletedPageSize] = useState(20)
+  const [deletedLoading, setDeletedLoading] = useState(false)
+
   // 重置密码弹窗
   const [resetUser, setResetUser] = useState<AdminUser | null>(null)
   const [resetPwd, setResetPwd] = useState('')
@@ -33,6 +63,11 @@ export default function AdminUsersPage() {
   // 公司知识库写权限管理弹窗
   const [kbBookId, setKbBookId] = useState<number | null>(null)
   const [kbOpen, setKbOpen] = useState(false)
+
+  // 用户文库管理弹窗
+  const [libUserId, setLibUserId] = useState<number | null>(null)
+  const [libUsername, setLibUsername] = useState('')
+  const [libOpen, setLibOpen] = useState(false)
 
   async function openKbWriters() {
     try {
@@ -49,7 +84,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  const refresh = useCallback(async () => {
+  const refreshActive = useCallback(async () => {
     setLoading(true)
     try {
       const res = await listUsers(page, pageSize)
@@ -63,9 +98,24 @@ export default function AdminUsersPage() {
     }
   }, [page, pageSize])
 
+  const refreshDeleted = useCallback(async () => {
+    setDeletedLoading(true)
+    try {
+      const res = await listDeletedUsers(deletedPage, deletedPageSize)
+      setDeletedRows(res.users || [])
+      setDeletedTotal(res.total || 0)
+    } catch {
+      setDeletedRows([])
+      setDeletedTotal(0)
+    } finally {
+      setDeletedLoading(false)
+    }
+  }, [deletedPage, deletedPageSize])
+
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (showDeleted) void refreshDeleted()
+    else void refreshActive()
+  }, [showDeleted, refreshActive, refreshDeleted])
 
   async function toggleStatus(row: AdminUser, checked: boolean) {
     const status = checked ? 1 : 0
@@ -74,8 +124,7 @@ export default function AdminUsersPage() {
       setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)))
       message.success(updated.status === 1 ? '已启用该账号' : '已禁用该账号')
     } catch {
-      // 失败（自分身 / 管理员账号）：刷新回真实状态，避免 Switch 停留在错误位置
-      void refresh()
+      void refreshActive()
     }
   }
 
@@ -104,7 +153,43 @@ export default function AdminUsersPage() {
     }
   }
 
-  const columns: ColumnsType<AdminUser> = [
+  async function handleDelete(row: AdminUser) {
+    try {
+      await deleteUser(row.id)
+      message.success('已删除该用户（可在「已删除用户」中恢复）')
+      void refreshActive()
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  async function handleRestore(row: AdminUser) {
+    try {
+      await restoreUser(row.id)
+      message.success('已恢复该用户')
+      void refreshDeleted()
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  async function handlePurge(row: AdminUser) {
+    try {
+      await purgeUser(row.id)
+      message.success('已彻底删除该用户')
+      void refreshDeleted()
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
+  function openLibrary(row: AdminUser) {
+    setLibUserId(row.id)
+    setLibUsername(row.username)
+    setLibOpen(true)
+  }
+
+  const activeColumns: ColumnsType<AdminUser> = [
     {
       title: '用户名',
       dataIndex: 'username',
@@ -150,25 +235,101 @@ export default function AdminUsersPage() {
     {
       title: '操作',
       key: 'op',
-      width: 180,
+      width: 240,
       render: (_, r) => {
         const self = !!me && r.id === me.id
         return (
-          <Popconfirm
-            title={`重置「${r.username}」的密码？`}
-            description="重置后原密码立即失效。"
-            okText="重置"
-            cancelText="取消"
-            disabled={self}
-            onConfirm={() => {
-              setResetPwd('')
-              setResetUser(r)
-            }}
-          >
-            <Button size="small" disabled={self} title={self ? '不能重置自己的密码' : undefined}>
-              重置密码
+          <Space size={4}>
+            <Button size="small" onClick={() => openLibrary(r)}>
+              文库管理
             </Button>
-          </Popconfirm>
+            <Popconfirm
+              title={`重置「${r.username}」的密码？`}
+              description="重置后原密码立即失效。"
+              okText="重置"
+              cancelText="取消"
+              disabled={self}
+              onConfirm={() => {
+                setResetPwd('')
+                setResetUser(r)
+              }}
+            >
+              <Button size="small" disabled={self} title={self ? '不能重置自己的密码' : undefined}>
+                重置密码
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title={`删除用户「${r.username}」？`}
+              description="删除后该用户进入已删除列表，可恢复。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={self || r.role === 'admin'}
+              onConfirm={() => void handleDelete(r)}
+            >
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={self || r.role === 'admin'}
+                title={self ? '不能删除自己' : r.role === 'admin' ? '不能删除管理员账号' : undefined}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        )
+      },
+    },
+  ]
+
+  const deletedColumns: ColumnsType<AdminUser> = [
+    {
+      title: '用户名',
+      dataIndex: 'username',
+      width: 140,
+      render: (v: string, r) => (
+        <Space size={4}>
+          <span style={{ fontWeight: 600 }}>{v}</span>
+          {me && r.id === me.id && <Tag color="blue">我</Tag>}
+        </Space>
+      ),
+    },
+    { title: '姓名', dataIndex: 'name', width: 110, render: (v: string) => v || '—' },
+    { title: '邮箱', dataIndex: 'email', width: 200 },
+    { title: '部门', dataIndex: 'department', width: 120, render: (v: string) => v || '—' },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      width: 90,
+      render: (v: string) => (v === 'admin' ? <Tag color="gold">管理员</Tag> : <Tag>普通用户</Tag>),
+    },
+    {
+      title: '操作',
+      key: 'op',
+      width: 180,
+      render: (_, r) => {
+        const self = !!me && r.id === me.id
+        const isAdmin = r.role === 'admin'
+        return (
+          <Space size={4}>
+            <Button size="small" onClick={() => void handleRestore(r)} disabled={isAdmin}>
+              恢复
+            </Button>
+            <Popconfirm
+              title={`彻底删除「${r.username}」？`}
+              description="将永久删除，不可恢复。"
+              okText="彻底删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={self || isAdmin}
+              onConfirm={() => void handlePurge(r)}
+            >
+              <Button size="small" danger disabled={self || isAdmin}>
+                彻底删除
+              </Button>
+            </Popconfirm>
+          </Space>
         )
       },
     },
@@ -189,40 +350,80 @@ export default function AdminUsersPage() {
           <SafetyCertificateOutlined /> 用户管理
         </Typography.Title>
         <div style={{ flex: 1 }} />
-        <Input.Search
-          placeholder="按用户名 / 姓名 / 邮箱 / 手机号过滤"
-          allowClear
-          style={{ width: 280 }}
-          onChange={(e) => setKeyword(e.target.value)}
+        <Switch
+          checkedChildren="已删除用户"
+          unCheckedChildren="已删除用户"
+          checked={showDeleted}
+          onChange={(v) => {
+            setShowDeleted(v)
+            if (v) {
+              setDeletedPage(1)
+            } else {
+              setPage(1)
+            }
+          }}
         />
-        <Button icon={<SafetyOutlined />} onClick={() => void openKbWriters()}>
-          公司知识库写权限
-        </Button>
-        <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>
+        {!showDeleted && (
+          <>
+            <Input.Search
+              placeholder="按用户名 / 姓名 / 邮箱 / 手机号过滤"
+              allowClear
+              style={{ width: 280 }}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+            <Button icon={<SafetyOutlined />} onClick={() => void openKbWriters()}>
+              公司知识库写权限
+            </Button>
+          </>
+        )}
+        <Button icon={<ReloadOutlined />} onClick={() => (showDeleted ? void refreshDeleted() : void refreshActive())}>
           刷新
         </Button>
       </div>
 
-      <Card size="small">
-        <Table<AdminUser>
-          rowKey="id"
-          size="middle"
-          loading={loading}
-          columns={columns}
-          dataSource={filtered}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showTotal: (t) => `共 ${t} 位用户`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
-        />
-      </Card>
+      {showDeleted ? (
+        <Card size="small">
+          <Table<AdminUser>
+            rowKey="id"
+            size="middle"
+            loading={deletedLoading}
+            columns={deletedColumns}
+            dataSource={deletedRows}
+            pagination={{
+              current: deletedPage,
+              pageSize: deletedPageSize,
+              total: deletedTotal,
+              showSizeChanger: true,
+              showTotal: (t) => `共 ${t} 位已删除用户`,
+              onChange: (p, ps) => {
+                setDeletedPage(p)
+                setDeletedPageSize(ps)
+              },
+            }}
+          />
+        </Card>
+      ) : (
+        <Card size="small">
+          <Table<AdminUser>
+            rowKey="id"
+            size="middle"
+            loading={loading}
+            columns={activeColumns}
+            dataSource={filtered}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              showTotal: (t) => `共 ${t} 位用户`,
+              onChange: (p, ps) => {
+                setPage(p)
+                setPageSize(ps)
+              },
+            }}
+          />
+        </Card>
+      )}
 
       <Modal
         title={resetUser ? `重置「${resetUser.username}」的密码` : '重置密码'}
@@ -253,6 +454,13 @@ export default function AdminUsersPage() {
         onClose={() => setKbOpen(false)}
         bookId={kbBookId ?? 0}
         bookName="公司知识库"
+      />
+
+      <UserLibraryModal
+        open={libOpen}
+        onClose={() => setLibOpen(false)}
+        userId={libUserId ?? 0}
+        username={libUsername}
       />
     </div>
   )
