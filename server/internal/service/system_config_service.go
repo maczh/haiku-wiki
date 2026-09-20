@@ -5,8 +5,8 @@ package service
 import (
 	"time"
 
-	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/config"
+	hkerr "haiku-wiki/server/internal/pkg"
 )
 
 // SystemConfigService 系统配置管理（仅管理员可调用，鉴权在 handler）。

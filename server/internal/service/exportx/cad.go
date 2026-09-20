@@ -54,8 +54,8 @@ type cadText struct {
 	Height   float64 // 字高（世界单位）；<=0 表示待兜底（见 resolveTextHeights）
 	Rotation float64 // 度，逆时针
 	Color    string
-	AnchorH  int     // 水平锚点 0=左 1=中 2=右
-	AnchorV  int     // 垂直锚点 0=基线 1=底 2=中 3=顶
+	AnchorH  int // 水平锚点 0=左 1=中 2=右
+	AnchorV  int // 垂直锚点 0=基线 1=底 2=中 3=顶
 	// WidthFactor 字宽因子（STYLE 组码 41 / TEXT 组码 41），<=0 视为 1。
 	WidthFactor float64
 	// blockScale 该文字所在块参照链上的累积 Y 缩放。

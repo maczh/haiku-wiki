@@ -160,7 +160,7 @@ func TestPrototypeRejectsMissingTitle(t *testing.T) {
 	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
 
 	_, rej, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
-		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R:0,G:0,B:0,A:255}), Title: ""},
+		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R: 0, G: 0, B: 0, A: 255}), Title: ""},
 	})
 	if err != nil {
 		t.Fatalf("不应返回错误: %v", err)
@@ -176,7 +176,7 @@ func TestPrototypeUpdateAndRemove(t *testing.T) {
 	book := mkBook(t, owner.ID, "产品库", "private")
 	doc := mkProtoDoc(t, book, owner.ID, 0, "需求原型")
 	added, _, err := (&DocService{}).AddPrototypeItems(owner.ID, doc.ID, []PrototypeUpload{
-		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R:0,G:0,B:0,A:255}), Title: "初稿", Desc: "old"},
+		{Name: "a.png", Data: pngFixture(10, 10, color.RGBA{R: 0, G: 0, B: 0, A: 255}), Title: "初稿", Desc: "old"},
 	})
 	if err != nil {
 		t.Fatalf("加原型失败: %v", err)

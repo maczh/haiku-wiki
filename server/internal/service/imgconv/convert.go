@@ -41,8 +41,8 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 
-	"golang.org/x/image/draw"
 	_ "golang.org/x/image/bmp"
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
 )
@@ -148,11 +148,11 @@ func native(data []byte) (*Result, error) {
 		return nil, err
 	}
 	return &Result{
-		Preview: pv,
-		Thumb:   tb,
+		Preview:  pv,
+		Thumb:    tb,
 		Original: orig,
-		Width:   src.Bounds().Dx(),
-		Height:  src.Bounds().Dy(),
+		Width:    src.Bounds().Dx(),
+		Height:   src.Bounds().Dy(),
 	}, nil
 }
 

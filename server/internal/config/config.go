@@ -203,10 +203,10 @@ type EditableConfig struct {
 		Name     string `json:"name"`
 	} `json:"database"`
 	Storage struct {
-		Type    string `json:"type"` // local | s3
+		Type     string `json:"type"` // local | s3
 		LocalDir string `json:"local_dir"`
 	} `json:"storage"`
-	S3       S3Config `json:"s3"`
+	S3     S3Config `json:"s3"`
 	Upload struct {
 		MaxSizeMB int `json:"max_size_mb"`
 	} `json:"upload"`
