@@ -306,20 +306,34 @@ func TestParseManifestInvalid(t *testing.T) {
 // ---------- summarize ----------
 
 func TestSummarize(t *testing.T) {
-	// 旧契约（manifest 缺省）：全部按字节条目计
+	// 契约（§12.2.2）：summary = {received, referenced, written}
+	//  - received  = 实际收到的文件段数
+	//  - referenced = manifest 中 kind=ref 的条数 − refFailed（下限 0）
+	//  - written   = 实际新写的 CAS 对象数
+	// 旧契约（manifest 缺省）：没有引用式入库，Referenced 恒为 0
 	s := summarize(nil, 3, 1, 0)
-	if s.Total != 3 || s.File != 3 || s.Ref != 0 || s.Dedup != 1 || s.Rejected != 0 {
+	if s.Received != 3 || s.Referenced != 0 || s.Written != 0 {
 		t.Fatalf("旧契约汇总不符: %+v", s)
 	}
-	// 两阶段：按 manifest 条目种类统计
+	// 两阶段：manifest = 2 ref + 1 file；实际收到 1 个文件段、0 个 ref 失败、新写 2 个对象
 	m := []BatchManifestEntry{
 		{Kind: "ref", MD5: strings.Repeat("a", 32), Name: "a", Size: 1},
 		{Kind: "file", Name: "b", Size: 2},
 		{Kind: "ref", MD5: strings.Repeat("b", 32), Name: "c", Size: 3},
 	}
-	s = summarize(m, 1, 3, 1)
-	if s.Total != 3 || s.Ref != 2 || s.File != 1 || s.Dedup != 3 || s.Rejected != 1 {
+	s = summarize(m, 1, 0, 2)
+	if s.Received != 1 || s.Referenced != 2 || s.Written != 2 {
 		t.Fatalf("两阶段汇总不符: %+v", s)
+	}
+	// refFailed 多于 ref 条数时 Referenced 下限为 0（不出现负数）
+	s = summarize(m, 1, 3, 1)
+	if s.Referenced != 0 {
+		t.Fatalf("Referenced 应被下限截断为 0，实际 %d", s.Referenced)
+	}
+	// 部分 ref 失败：2 个 ref 失败 1 个 → Referenced = 1
+	s = summarize(m, 1, 1, 1)
+	if s.Referenced != 1 {
+		t.Fatalf("Referenced 应为 2-1=1，实际 %d", s.Referenced)
 	}
 }
 
@@ -380,7 +394,7 @@ func TestPrototypeManifestMixedAlignment(t *testing.T) {
 	if len(data.Items) != 3 {
 		t.Fatalf("应入库 3 条，实际 %d", len(data.Items))
 	}
-	if data.Summary.Total != 3 || data.Summary.Ref != 2 || data.Summary.File != 1 || data.Summary.Dedup != 2 {
+	if data.Summary.Received != 1 || data.Summary.Referenced != 2 || data.Summary.Written != 1 {
 		t.Fatalf("summary 不符: %+v", data.Summary)
 	}
 
@@ -485,10 +499,10 @@ func TestGalleryLegacyAndManifest(t *testing.T) {
 	if err := json.Unmarshal(out.Data, &legacy); err != nil {
 		t.Fatalf("解析 data 失败: %v", err)
 	}
-	if legacy.Mode != "bytes" {
+	if legacy.Mode != "legacy" { // §12.2.2：mode 取值是 manifest | legacy（无 manifest = legacy）
 		t.Fatalf("无 manifest 时 mode 应为 bytes，实际 %q", legacy.Mode)
 	}
-	if len(legacy.Images) != 1 || legacy.Summary.Total != 1 || legacy.Summary.File != 1 {
+	if len(legacy.Images) != 1 || legacy.Summary.Received != 1 || legacy.Summary.Written != 1 || legacy.Summary.Referenced != 0 {
 		t.Fatalf("旧契约入库不符: images=%d summary=%+v", len(legacy.Images), legacy.Summary)
 	}
 
@@ -517,7 +531,7 @@ func TestGalleryLegacyAndManifest(t *testing.T) {
 	if mixed.Mode != "manifest" || len(mixed.Rejected) != 0 || len(mixed.Images) != 2 {
 		t.Fatalf("混合提交不符: mode=%s rejected=%+v images=%d", mixed.Mode, mixed.Rejected, len(mixed.Images))
 	}
-	if mixed.Summary.Ref != 1 || mixed.Summary.File != 1 || mixed.Summary.Dedup != 1 {
+	if mixed.Summary.Received != 1 || mixed.Summary.Referenced != 1 || mixed.Summary.Written != 1 {
 		t.Fatalf("summary 不符: %+v", mixed.Summary)
 	}
 	if !mixed.Images[0].Dedup || mixed.Images[1].Dedup {
@@ -566,7 +580,8 @@ func TestGalleryManifestRefExpired(t *testing.T) {
 	if data.Rejected[0].Name != "ghost.png" {
 		t.Fatalf("拒绝条目名应对齐 manifest: %q", data.Rejected[0].Name)
 	}
-	if data.Summary.Rejected != 1 || data.Summary.Ref != 1 || data.Summary.File != 1 {
+	// 1 个 ref 失效（进 rejected）+ 1 个 file 入库：Referenced = 1-1 = 0
+	if data.Summary.Received != 1 || data.Summary.Referenced != 0 || data.Summary.Written != 1 {
 		t.Fatalf("summary 不符: %+v", data.Summary)
 	}
 }
