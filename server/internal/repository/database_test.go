@@ -93,3 +93,24 @@ func TestConnectSQLiteReadOnlyFile(t *testing.T) {
 		t.Fatalf("不应透出驱动误导文案，实际: %v", err)
 	}
 }
+
+// TestConnectSQLiteConnStringDSN DB_DRIVER=sqlite 却给了 MySQL 连接串时，
+// 必须立刻报「driver/DSN 不匹配」的可操作错误，而不是把连接串当文件路径去 open
+// （那会报 no such file or directory 的怪信息，让人误以为是挂载/权限问题）。
+func TestConnectSQLiteConnStringDSN(t *testing.T) {
+	cfg := &config.Config{
+		DBDriver: config.DBSQLite,
+		DBDSN:    "haiku:secret@tcp(192.168.31.252:3306)/haiku",
+		DataDir:  t.TempDir(),
+	}
+	_, err := Connect(cfg)
+	if err == nil {
+		t.Fatal("sqlite 分支给了 mysql 连接串时应失败")
+	}
+	if !strings.Contains(err.Error(), "DB_DSN 是数据库连接串格式") {
+		t.Fatalf("应报 driver/DSN 不匹配，实际: %v", err)
+	}
+	if strings.Contains(err.Error(), "no such file or directory") {
+		t.Fatalf("不应把连接串当文件路径去 open，实际: %v", err)
+	}
+}

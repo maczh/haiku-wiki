@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -50,15 +51,24 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		fallthrough
 	default:
 		dsn := cfg.DBDSN
+		// 空 DSN → 默认落 <DataDir>/haiku.db（最常见部署形态，Docker 部署即此）。
+		if dsn == "" {
+			dsn = filepath.Join(cfg.DataDir, "haiku.db")
+		} else if dsnLooksLikeConnString(dsn) {
+			// DB_DRIVER=sqlite 却给了 MySQL/PG 连接串：典型配置失误（把 mysql 的 dsn
+			// 误填进了 sqlite 部署）。不要让后续把连接串当文件路径去 open —— 那只会报
+			// "no such file or directory" 的怪信息，让人误以为是挂载/权限问题。
+			return nil, fmt.Errorf(
+				"DB_DRIVER=sqlite 但 DB_DSN 是数据库连接串格式（%q）。\n"+
+					"请二选一：\n"+
+					"  ① 用本地 SQLite → 把 DB_DSN 置空（默认打开 %s/haiku.db）；\n"+
+					"  ② 用 MySQL     → 把 DB_DRIVER 改为 mysql，并正确配置 host/port/user/password/name 或 dsn。",
+				dsn, cfg.DataDir)
+		}
 		// 追加 WAL 与 busy_timeout 参数（glebarez/sqlite 的 pragma 写法）
 		sep := "?"
-		if len(dsn) > 0 {
-			for _, c := range dsn {
-				if c == '?' {
-					sep = "&"
-					break
-				}
-			}
+		if strings.Contains(dsn, "?") {
+			sep = "&"
 		}
 		dsn = dsn + sep + "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
 		// SQLite(WAL) 不仅要求 db 文件本身可写，还要求「所在目录」可写：驱动需要在
@@ -199,4 +209,15 @@ func ensureDirWritable(dir string) error {
 	_ = probe.Close()
 	_ = os.Remove(name)
 	return nil
+}
+
+// dsnLooksLikeConnString 判断一个 DSN 是否像 MySQL/PostgreSQL 连接串而非文件路径。
+// SQLite 的 DSN 是文件路径（可带 ?_pragma= 查询参数），绝不会含 @ / tcp( / ://；
+// 这些字符是连接串的标志（user@host、mysql 的 @tcp(...)、postgres 的 scheme://）。
+// 用于拦截「DB_DRIVER=sqlite 却填了 mysql dsn」这类配置失误，避免把连接串当文件 open。
+func dsnLooksLikeConnString(s string) bool {
+	if i := strings.IndexByte(s, '?'); i >= 0 {
+		s = s[:i]
+	}
+	return strings.Contains(s, "@") || strings.Contains(s, "tcp(") || strings.Contains(s, "://")
 }
