@@ -195,6 +195,10 @@ func TestGalleryRemoveAndRename(t *testing.T) {
 	}
 
 	key, _ := uploadKey(added[1].URL)
+	// a.png 与 b.png 是**同一份字节**（确定性 PNG 夹具）⇒ 内容寻址后共享同一物理对象
+	if added[0].URL != added[1].URL {
+		t.Fatalf("同内容图片应共享同一物理对象: %q vs %q", added[0].URL, added[1].URL)
+	}
 	if err := (&DocService{}).RemoveGalleryImage(owner.ID, doc.ID, added[1].ID); err != nil {
 		t.Fatalf("删除失败: %v", err)
 	}
@@ -202,8 +206,11 @@ func TestGalleryRemoveAndRename(t *testing.T) {
 	if got := len(parseGalleryContent(fresh.Content).Images); got != 1 {
 		t.Fatalf("删除后应剩 1 张, got %d", got)
 	}
-	if ok, _ := storage.Default().Exists(key); ok {
-		t.Fatal("删除后原件应从存储里清掉")
+	// 删除语义（PRD D2 / C2 + 架构 §1.2）：**只删 meta，物理对象一律不删**。
+	// 此处该对象仍被 a.png 引用（同一 md5 共用 storage_path），删掉会毁掉 a.png；
+	// 且 uploads/cas/ 前缀对象永不删除（孤儿留给 P2-2 清理）。
+	if ok, _ := storage.Default().Exists(key); !ok {
+		t.Fatal("删除图库条目不得删除物理对象（内容仍被 a.png 引用，且 CAS 前缀对象永不删除）")
 	}
 	if codeOf(t, (&DocService{}).RemoveGalleryImage(owner.ID, doc.ID, "no-such-id")) != 40401 {
 		t.Fatal("删不存在的图应 40401")

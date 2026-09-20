@@ -23,7 +23,6 @@ import (
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/imgconv"
-	"haiku-wiki/server/internal/storage"
 )
 
 // GalleryContent 图片库正文 JSON（前端 types.ts 的 GalleryContent 与之对应）。
@@ -98,6 +97,16 @@ func (s *DocService) AddGalleryImages(uid, docID uint64, files []GalleryUpload) 
 			continue
 		}
 		added = append(added, *img)
+		// 写入派生元数据缓存（§12.3）：供之后其它文档引用式入库复用（不重派生）。
+		// 没有原件 URL（极端降级）时不写缓存 —— 否则会留下一条无法复用、也无法自愈的行。
+		if img.URL != "" {
+			if d := CacheFromGalleryImage(md5Hex(f.Data), img.URL, img); d != nil {
+				if uerr := repository.UpsertDerived(d); uerr != nil {
+					// 缓存写失败不阻断导入：后续引用走 L2/L3 兜底重派生
+					_ = uerr
+				}
+			}
+		}
 	}
 	if len(added) == 0 {
 		// 全批被拒：不落库，直接把原因交给前端
@@ -147,17 +156,10 @@ func (s *DocService) RemoveGalleryImage(uid, docID uint64, imageID string) error
 	if err := repository.UpdateDoc(doc); err != nil {
 		return hkerr.Internal("保存失败")
 	}
-	// 清掉文件：派生图与原件都删（失败也只记过，正文已改，不能因此回滚）
-	// SVG 直通时 preview/thumb 就是原件，去重后只删一次
-	urls := []string{victim.URL}
-	for _, u := range []string{victim.Preview, victim.Thumb} {
-		if u != "" && u != victim.URL {
-			urls = append(urls, u)
-		}
-	}
-	for _, u := range urls {
-		_ = deleteUploaded(u)
-	}
+	// 清理文件：走删除守卫（守住共享内容与 CAS 原件，§12.5）。
+	// 派生件键名是确定性的（原件键换扩展名），守卫会一并处理 preview/thumb/original。
+	// 失败也只记过：正文已改，不能因此回滚。
+	_ = safeDeleteOwnedSet(victim.URL, nil)
 	return nil
 }
 
@@ -243,12 +245,12 @@ func buildGalleryImage(uid uint64, f GalleryUpload) (*GalleryImage, error) {
 		img.Preview, img.Thumb, img.Original = "", "", ""
 		return img, nil
 	}
-	pv, err := saveDerivedFile(out.URL, "preview.jpg", res.Preview)
+	pv, err := saveDerivedFile(out.URL, "preview.jpg", res.Preview, false)
 	if err != nil {
 		img.Degraded, img.Note, img.Preview, img.Thumb, img.Original = true, "预览图保存失败", "", "", ""
 		return img, nil
 	}
-	tb, err := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb)
+	tb, err := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb, false)
 	if err != nil {
 		img.Degraded, img.Note, img.Preview, img.Thumb, img.Original = true, "缩略图保存失败", "", "", ""
 		return img, nil
@@ -286,14 +288,8 @@ func extList(m map[string]bool) []string {
 	return out
 }
 
-// deleteUploaded 按附件 URL 删除存储里的对象（local/S3 通用）。
-func deleteUploaded(url string) error {
-	key, err := uploadKey(url)
-	if err != nil {
-		return err
-	}
-	return storage.Default().Delete(key)
-}
+// deleteUploaded 已由删除守卫 safeDeleteUploaded 取代（守住共享内容与 CAS 原件，§12.5）；
+// 原实现无条件删除，会在去重后毁掉别处正在引用的同一物理对象。
 
 // RegenerateGalleryImage 重新生成某张图片的三档预览图（覆盖旧派生图），用于首次转换
 // 降级/缺转换器后的补救。图片库全是图片格式，故 original 一律等于原图 URL。
@@ -332,11 +328,11 @@ func (s *DocService) RegenerateGalleryImage(uid, docID uint64, imageID string) (
 		img.Preview, img.Thumb, img.Original = img.URL, img.URL, img.URL
 		img.Degraded = false
 	} else {
-		// 覆盖旧派生图（saveDerivedFile 用确定性文件名，Put 原地覆盖）
-		if pv, e1 := saveDerivedFile(img.URL, "preview.jpg", res.Preview); e1 == nil {
+		// 覆盖旧派生图（saveDerivedFile force=true：键名确定，Put 原地覆盖 ⇒ URL 不变）
+		if pv, e1 := saveDerivedFile(img.URL, "preview.jpg", res.Preview, true); e1 == nil {
 			img.Preview = pv
 		}
-		if tb, e2 := saveDerivedFile(img.URL, "thumb.jpg", res.Thumb); e2 == nil {
+		if tb, e2 := saveDerivedFile(img.URL, "thumb.jpg", res.Thumb, true); e2 == nil {
 			img.Thumb = tb
 		}
 		// 图片格式：原尺寸直接复用原图 URL
@@ -352,6 +348,11 @@ func (s *DocService) RegenerateGalleryImage(uid, docID uint64, imageID string) (
 	doc.Content = string(raw)
 	if err := repository.UpdateDoc(doc); err != nil {
 		return nil, hkerr.Internal("保存失败")
+	}
+	// 覆盖后**必须**刷新缓存行（§12.4-③）：否则后续引用式入库会拿到 regenerate 之前的
+	// width/height/degraded/note（虽然 URL 仍对）。降级态也要写进去（占位卡 + 原因）。
+	if m := md5ByOriginURL(img.URL); m != "" {
+		_ = repository.UpsertDerived(CacheFromGalleryImage(m, img.URL, &img))
 	}
 	return &img, nil
 }

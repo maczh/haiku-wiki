@@ -130,9 +130,16 @@ func ListDescendantIDs(bookID, rootID uint64) ([]uint64, error) {
 }
 
 // PurgeDocs 彻底删除文档（物理删除）。
+//
+// 同时清理 doc_api_sources 中对应的来源行：否则定时刷新任务会反复去抓取
+// 「已被彻底删除的文档」的来源 URL，形成孤儿行（§2.3 / T01 第 7 项）。
+// 顺序上先删来源行再删文档，避免中途失败留下孤儿来源行。
 func PurgeDocs(ids []uint64) error {
 	if len(ids) == 0 {
 		return nil
+	}
+	if err := DeleteDocApiSourceByDocIDs(ids); err != nil {
+		return err
 	}
 	return db.Unscoped().Where("id IN ?", ids).Delete(&model.Doc{}).Error
 }

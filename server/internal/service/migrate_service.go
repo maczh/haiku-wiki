@@ -223,7 +223,7 @@ type result struct{ rows int }
 
 // migrateTables 迁移顺序 = 外键依赖顺序。
 //
-// ⚠️ 新增模型时**必须**同步这里，否则新表不会被迁移（会静默丢数据）。
+// ⚠️ 新增模型时**必须**同步这里，否则新表不会被迁移（会静默丢数据，F7/C4 硬项）。
 var migrateTables = []tableCopier{
 	{"users", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.User](d, s, ow) }},
 	{"books", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.Book](d, s, ow) }},
@@ -235,18 +235,41 @@ var migrateTables = []tableCopier{
 	{"doc_shares", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.DocShare](d, s, ow) }},
 	{"doc_collaborators", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.DocCollaborator](d, s, ow) }},
 	{"book_writers", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.BookWriter](d, s, ow) }},
-	{"api_debug_histories", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.ApiDebugHistory](d, s, ow) }},
+	// 标签修正为真实表名（F8/C9：仅影响进度文案；行搬移走泛型 TableName()，与标签无关）
+	{"api_debug_history", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.ApiDebugHistory](d, s, ow) }},
+	// 去重后端新增表（T01；漏登记 = 迁移时静默丢表）
+	{"doc_api_sources", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.DocApiSource](d, s, ow) }},
+	{"upload_stats", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.UploadStat](d, s, ow) }},
+	{"api_refresh_runs", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.ApiRefreshRun](d, s, ow) }},
+	// 派生元数据缓存（T02b；PK 是 md5，没有 id 列）
+	{"attachment_derived", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.AttachmentDerived](d, s, ow) }},
 }
 
 // copyRows 分批复制一张表，返回成功批次涉及的记录数。
 //
 // 用 upsert 而非纯 insert：迁移中断后重跑不会因主键冲突整批失败。
+//
+// ⚠️ 排序必须按**该表真实的主键列**，不能写死 "id"：新增的 doc_api_sources（PK doc_id）、
+// attachment_derived（PK md5）都没有 id 列，写死会得到
+// SQLite `no such column: id` / MySQL `ERROR 1054 Unknown column 'id' in 'order clause'`，
+// 让「系统迁移」功能整体失败（§13.1-C9b / §13.3-③）。
 func copyRows[T any](dst, src *gorm.DB, overwrite bool) (result, error) {
 	const batchSize = 500
 	var total int64
 	if err := src.Model(new(T)).Count(&total).Error; err != nil {
 		return result{}, err
 	}
+	// 取 schema 的优先主键字段名（gorm.Statement.Parse 只做模型解析，不触库）
+	orderCol := "id"
+	stmt := &gorm.Statement{DB: src}
+	if err := stmt.Parse(new(T)); err != nil {
+		return result{}, err
+	}
+	if f := stmt.Schema.PrioritizedPrimaryField; f != nil && f.DBName != "" {
+		orderCol = f.DBName
+	}
+	order := clause.OrderByColumn{Column: clause.Column{Name: orderCol}}
+
 	conflict := clause.OnConflict{DoNothing: true}
 	if overwrite {
 		conflict = clause.OnConflict{UpdateAll: true}
@@ -254,7 +277,7 @@ func copyRows[T any](dst, src *gorm.DB, overwrite bool) (result, error) {
 	var done int
 	for offset := 0; offset < int(total); offset += batchSize {
 		var rows []T
-		if err := src.Order("id ASC").Offset(offset).Limit(batchSize).Find(&rows).Error; err != nil {
+		if err := src.Order(order).Offset(offset).Limit(batchSize).Find(&rows).Error; err != nil {
 			return result{rows: done}, err
 		}
 		if len(rows) == 0 {

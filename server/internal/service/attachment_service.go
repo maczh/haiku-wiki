@@ -92,14 +92,14 @@ func (s *AttachmentService) Prepare(uid uint64, in PrepareInput) (*PrepareOutput
 	ref.Degraded = degraded
 	ref.Note = note
 	if len(svg) > 0 {
-		u, werr := saveDerivedFile(url, "svg", svg)
+		u, werr := saveDerivedFile(url, "svg", svg, false)
 		if werr != nil {
 			return nil, werr
 		}
 		ref.Derived["svg"] = u
 	}
 	if len(pngData) > 0 {
-		u, werr := saveDerivedFile(url, "png", pngData)
+		u, werr := saveDerivedFile(url, "png", pngData, false)
 		if werr != nil {
 			return nil, werr
 		}
@@ -113,13 +113,26 @@ func (s *AttachmentService) Prepare(uid uint64, in PrepareInput) (*PrepareOutput
 // 放同目录让"按 url 前缀做权限与穿越校验"的既有逻辑直接复用。
 //
 // 落盘走 storage：S3 模式下派生图与原文件同样在对象存储里，不会掉到本地盘。
-func saveDerivedFile(origURL, ext string, data []byte) (string, error) {
+//
+// force 语义（§12.4）：
+//   - force=false（普通导入路径）：键名是确定性的，**命中即跳过 Put**，直接复用已有 URL
+//     （也避免覆盖他人已生成的派生件）；
+//   - force=true（Regenerate* 覆盖路径）：强制 Put 覆盖，键名不变 ⇒ URL 不变。
+//
+// 键名规则（§9）：原件键去掉扩展名 + "." + 派生扩展名。
+// 正因为键名确定，"命中即跳过 Put" 才是等价且安全的。
+func saveDerivedFile(origURL, ext string, data []byte, force bool) (string, error) {
 	key, err := uploadKey(origURL)
 	if err != nil {
 		return "", err
 	}
 	out := strings.TrimSuffix(key, path.Ext(key)) + "." + ext
 	st := storage.Default()
+	if !force {
+		if ok, _ := st.Exists(out); ok {
+			return st.URL(out), nil
+		}
+	}
 	if err := st.Put(out, data, storage.MimeByExt(out)); err != nil {
 		return "", err
 	}
@@ -158,6 +171,14 @@ func (s *AttachmentService) localizePptx(uid uint64, url string) (*exportx.PptxL
 	}
 	if err := replaceUploadedFile(url, out); err != nil {
 		return res, err
+	}
+	// 本地化是**就地改写** CAS 原件字节：必须同步刷新 meta 的 md5/size，
+	// 否则后续按旧 md5 秒传会拿到被改写过的文件（静默给错内容）。
+	if key, kerr := uploadKey(url); kerr == nil {
+		if err := repository.UpdateAttachmentsByPath(key, md5Hex(out), int64(len(out))); err != nil {
+			// 刷新失败不阻断本地化结果：文件已改写且已嵌入 pptx
+			_ = err
+		}
 	}
 	return res, nil
 }

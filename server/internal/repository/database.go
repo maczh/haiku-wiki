@@ -121,6 +121,9 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 }
 
 // AutoMigrate 建表/补列（幂等）。
+//
+// ⚠️ 新增模型时必须**同时**在 service/migrate_service.go 的 migrateTables 追加对应 copier，
+// 否则「系统迁移」功能会静默丢表（F7/C4 硬约束）。
 func AutoMigrate(g *gorm.DB) error {
 	return g.AutoMigrate(
 		&model.User{},
@@ -137,6 +140,12 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.BookWriter{},
 		// 接口文档调试历史
 		&model.ApiDebugHistory{},
+		// 内容寻址去重（P0-1~P0-5、P1-3、P1-4）新增表
+		&model.DocApiSource{},
+		&model.UploadStat{},
+		&model.ApiRefreshRun{},
+		// 派生元数据缓存（T02b，引用式入库复用）
+		&model.AttachmentDerived{},
 	)
 }
 
@@ -161,6 +170,12 @@ func SeedData(g *gorm.DB) error {
 	// 补 status（缺省/异常值统一置为启用）
 	if err := g.Exec("UPDATE users SET status = 1 WHERE status IS NULL OR status = 0").Error; err != nil {
 		return fmt.Errorf("backfill status: %w", err)
+	}
+
+	// 去重统计单行表（ID=1，幂等）。放在「admin 已存在则提前返回」之前，
+	// 保证老库升级时也能建上这一行（否则首次秒传前 /api/admin/upload-stats 查不到行）。
+	if err := EnsureUploadStatRow(); err != nil {
+		return fmt.Errorf("ensure upload stat row: %w", err)
 	}
 
 	// 内置管理员种子

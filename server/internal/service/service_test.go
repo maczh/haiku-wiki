@@ -18,9 +18,9 @@ import (
 
 	"haiku-wiki/server/internal/model"
 	hkerr "haiku-wiki/server/internal/pkg"
-	"haiku-wiki/server/internal/storage"
 	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
+	"haiku-wiki/server/internal/storage"
 )
 
 // ---------- 测试环境 ----------
@@ -849,11 +849,23 @@ func TestUpload(t *testing.T) {
 	if !bytes.Equal(data, content) {
 		t.Fatal("落盘内容与上传内容不一致")
 	}
-	// 扩展名大小写归一 + 上传目录结构 uploads/YYYY/MM/
+	// 扩展名大小写归一 + 内容寻址目录结构 uploads/cas/<前2位>/<md5>-<rand6>.<ext>
+	//（P0-2 起新上传一律走 CAS；历史 uploads/YYYY/MM/<uuid>.<ext> 不迁移）
 	rel := strings.TrimPrefix(out.URL, "/")
 	parts := strings.Split(rel, "/")
-	if len(parts) != 4 || parts[0] != "uploads" || len(parts[1]) != 4 || len(parts[2]) != 2 {
+	if len(parts) != 4 || parts[0] != "uploads" || parts[1] != "cas" || len(parts[2]) != 2 {
 		t.Fatalf("存储路径结构错误: %q", rel)
+	}
+	base := strings.TrimSuffix(parts[3], ".png")
+	i := strings.LastIndex(base, "-")
+	if i != 32 || base[:32] != out.MD5 || len(base[i+1:]) != 6 {
+		t.Fatalf("CAS 键名不符合 <md5>-<rand6>.png: %q (md5=%q)", parts[3], out.MD5)
+	}
+	if len(out.MD5) != 32 || strings.ToLower(out.MD5) != out.MD5 {
+		t.Fatalf("MD5 应为 32 位小写 hex: %q", out.MD5)
+	}
+	if out.Dedup {
+		t.Fatal("首次上传不应标记 dedup")
 	}
 }
 

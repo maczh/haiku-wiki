@@ -118,6 +118,16 @@ func (s *DocService) AddPrototypeItems(uid, docID uint64, files []PrototypeUploa
 			continue
 		}
 		added = append(added, *it)
+		// 写入派生元数据缓存（§12.3）：缓存里带 Kind/Entry/ExtraPrefix，供其它文档
+		// 引用式入库复用（zip 内页落在随机目录，**无法**从 md5 推导，必须缓存）。
+		// 没有原件 URL（极端降级）时不写缓存 —— 否则留下一条无法复用、也无法自愈的行。
+		if it.URL != "" {
+			if d := CacheFromPrototypeItem(md5Hex(f.Data), it); d != nil {
+				if uerr := repository.UpsertDerived(d); uerr != nil {
+					_ = uerr // 缓存写失败不阻断导入：后续引用走 L2/L3 兜底重派生
+				}
+			}
+		}
 	}
 	if len(added) == 0 {
 		return nil, rejected, nil
@@ -200,17 +210,18 @@ func (s *DocService) RemovePrototypeItem(uid, docID uint64, itemID string) error
 		return hkerr.Internal("保存失败")
 	}
 
-	// 清理文件：网页包是整个目录（uploads/prototype/<id>/…），其余是单文件 + 两张派生图
-	if victim.Kind == "html" && strings.Contains(victim.Entry, "/prototype/") {
-		_ = deletePrefix(path.Dir(mustKey(victim.Entry)))
-	} else {
-		_ = deleteUploaded(victim.URL)
-	}
-	for _, u := range []string{victim.Preview, victim.Thumb} {
-		if u != "" && u != victim.URL && u != victim.Entry {
-			_ = deleteUploaded(u)
+	// 清理文件：走删除守卫（守住共享内容与 CAS 原件，§12.5）。
+	// 网页包是整目录（uploads/prototype/<uuid>/…），其余是单文件 + 派生图；
+	// 同内容被两个文档引用时 origin 的 meta 行数 > 1，守卫会整批跳过。
+	extra := []string{}
+	if victim.Kind == "html" && victim.Entry != "" && victim.Entry != victim.URL {
+		if key, kerr := uploadKey(victim.Entry); kerr == nil {
+			if dir := path.Dir(key); dir != "" && dir != "." && dir != "/" {
+				extra = append(extra, dir+"/")
+			}
 		}
 	}
+	_ = safeDeleteOwnedSet(victim.URL, extra)
 	return nil
 }
 
@@ -272,8 +283,8 @@ func buildImagePrototype(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 		it.Preview, it.Thumb = out.URL, out.URL
 		return it, nil
 	}
-	pv, err1 := saveDerivedFile(out.URL, "preview.jpg", res.Preview)
-	tb, err2 := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb)
+	pv, err1 := saveDerivedFile(out.URL, "preview.jpg", res.Preview, false)
+	tb, err2 := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb, false)
 	if err1 != nil || err2 != nil {
 		it.Degraded, it.Note = true, "预览图保存失败"
 		return it, nil
@@ -390,7 +401,7 @@ func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *Prot
 	// .rp/.mp 本质是 Axure / Mockplus 工程文件，抽内嵌图只是预览手段；卡片标签归为
 	//「工程文件」（other），与 buildProjectArchive 的降级分支及前端语义保持一致。
 	it.Kind = "other"
-	if err := generatePrototypePreview(uid, imgData, "embedded."+ext, false, it); err != nil {
+	if err := generatePrototypePreview(uid, imgData, "embedded."+ext, false, it, false); err != nil {
 		return nil, err
 	}
 	if it.Preview == "" {
@@ -409,10 +420,10 @@ func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *Prot
 
 // 光栅图特征签名（用于从任意二进制里抠出完整图段）。
 var (
-	pngSig  = []byte("\x89PNG\r\n\x1a\n") // PNG 文件头
+	pngSig  = []byte("\x89PNG\r\n\x1a\n")    // PNG 文件头
 	pngIEND = []byte("IEND\xAE\x42\x60\x82") // IEND chunk（type + CRC），即 PNG 结尾
-	jpegSig = []byte{0xFF, 0xD8, 0xFF}    // JPEG SOI
-	jpegEOI = []byte{0xFF, 0xD9}          // JPEG EOI
+	jpegSig = []byte{0xFF, 0xD8, 0xFF}       // JPEG SOI
+	jpegEOI = []byte{0xFF, 0xD9}             // JPEG EOI
 )
 
 // minEmbeddedLong 内嵌图最短边下限。小于此的通常是 16×16 之类的小图标，跳过以免
@@ -513,7 +524,7 @@ func buildSketch(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem, er
 				it.URL = out.URL
 				it.Kind = "image"
 				// 抽取到的预览位图按「非图片格式」走 generatePrototypePreview：original 取全分辨率派生图
-				if e2 := generatePrototypePreview(uid, f.Data, f.Path, false, it); e2 != nil {
+				if e2 := generatePrototypePreview(uid, f.Data, f.Path, false, it, false); e2 != nil {
 					return nil, e2
 				}
 				if it.Preview == "" {
@@ -605,23 +616,9 @@ func noteOf(res *imgconv.Result, err error, fallback string) string {
 // errStr 让构造错误像内置错误一样被 errors.As 识别为业务错误。
 func errStr(msg string) error { return hkerr.Param(msg) }
 
-// deletePrefix 删除某个前缀下的全部对象（清理整个原型网页包）。
-func deletePrefix(prefix string) error {
-	keys, err := storage.Default().List(prefix)
-	if err != nil {
-		return err
-	}
-	for _, k := range keys {
-		_ = storage.Default().Delete(k.Key)
-	}
-	return nil
-}
-
-// mustKey 把附件 URL 换算成存储键，忽略错误（清理场景，键无效时删空也无妨）。
-func mustKey(url string) string {
-	k, _ := uploadKey(url)
-	return k
-}
+// deletePrefix / mustKey / deleteUploaded 已被删除守卫
+//（safeDeletePrefix / safeDeletePrefix+safeDeleteOwnedSet）取代 —— 见 cas_service.go。
+// 原实现无条件删除整个目录，会在去重后毁掉别处正在引用的同一批内页（§12.5）。
 
 // prototypePreviewSource 从原型原件里取出「可用于生成预览图的位图数据」及其名义文件名。
 //
@@ -663,8 +660,9 @@ func prototypePreviewSource(data []byte, it *PrototypeItem) (imgData []byte, img
 //     成功则保存全分辨率 original 派生图，失败/降级则把抽取原图直接当 original 落盘，
 //     保证至少有原尺寸图可看。
 //
-// 三档图统一落在原件旁（saveDerivedFile 用确定性文件名，重生成时 Put 原地覆盖）。
-func generatePrototypePreview(uid uint64, srcData []byte, srcName string, isImage bool, it *PrototypeItem) error {
+// force=false（首次导入）时「键名确定 + 命中即跳过 Put」；force=true（Regenerate* /
+// 引用式重派生）时强制覆盖写，键名不变 ⇒ URL 不变（§12.4）。
+func generatePrototypePreview(uid uint64, srcData []byte, srcName string, isImage bool, it *PrototypeItem, force bool) error {
 	_ = uid
 	// 图片/矢量格式：原尺寸直接等于原图，不另存
 	if isImage {
@@ -674,7 +672,7 @@ func generatePrototypePreview(uid uint64, srcData []byte, srcName string, isImag
 	if err != nil || res.Degraded {
 		// 转换失败/降级：非图片（抽取图）退而求其次，把抽取原图直接当 original 落盘
 		if !isImage {
-			if o, e1 := saveDerivedFile(it.URL, "original.jpg", srcData); e1 == nil {
+			if o, e1 := saveDerivedFile(it.URL, "original.jpg", srcData, force); e1 == nil {
 				it.Original = o
 			}
 		}
@@ -691,15 +689,15 @@ func generatePrototypePreview(uid uint64, srcData []byte, srcName string, isImag
 	}
 	// 非图片：额外保存全分辨率 original 派生图
 	if !isImage {
-		if o, e1 := saveDerivedFile(it.URL, "original.jpg", res.Original); e1 == nil {
+		if o, e1 := saveDerivedFile(it.URL, "original.jpg", res.Original, force); e1 == nil {
 			it.Original = o
 		}
 	}
 	// 统一生成 preview/thumb
-	if pv, e1 := saveDerivedFile(it.URL, "preview.jpg", res.Preview); e1 == nil {
+	if pv, e1 := saveDerivedFile(it.URL, "preview.jpg", res.Preview, force); e1 == nil {
 		it.Preview = pv
 	}
-	if tb, e2 := saveDerivedFile(it.URL, "thumb.jpg", res.Thumb); e2 == nil {
+	if tb, e2 := saveDerivedFile(it.URL, "thumb.jpg", res.Thumb, force); e2 == nil {
 		it.Thumb = tb
 	}
 	it.Degraded, it.Note = false, ""
@@ -748,9 +746,9 @@ func (s *DocService) RegeneratePrototypeItem(uid, docID uint64, itemID string) (
 		}
 		return &it, nil
 	}
-	// 清掉旧的三档图，交给辅助函数重新生成
+	// 清掉旧的三档图，交给辅助函数重新生成（force=true：覆盖写，键名不变）
 	it.Preview, it.Thumb, it.Original = "", "", ""
-	if err := generatePrototypePreview(uid, srcData, srcName, isImage, &it); err != nil {
+	if err := generatePrototypePreview(uid, srcData, srcName, isImage, &it, true); err != nil {
 		return nil, err
 	}
 	content.Items[idx] = it
@@ -761,6 +759,10 @@ func (s *DocService) RegeneratePrototypeItem(uid, docID uint64, itemID string) (
 	doc.Content = string(raw)
 	if err := repository.UpdateDoc(doc); err != nil {
 		return nil, hkerr.Internal("保存失败")
+	}
+	// 覆盖后**必须**刷新缓存行（§12.4-③），否则后续引用式入库会拿到旧元数据
+	if m := md5ByOriginURL(it.URL); m != "" {
+		_ = repository.UpsertDerived(CacheFromPrototypeItem(m, &it))
 	}
 	return &it, nil
 }

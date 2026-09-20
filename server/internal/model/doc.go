@@ -20,6 +20,10 @@ type Doc struct {
 	// 文档，用于收集员工的建议、意见与 bug 报告——不必把每个人加进写授权名单。
 	// 仅在公司知识库（books.is_company_kb）中生效，避免个人库误开导致权限失控。
 	PublicEdit bool `gorm:"default:false" json:"public_edit"`
+	// ContentMD5 正文摘要：手写类 = 规范化正文（\r\n|\r → \n）的 MD5；附件类 = 原件 MD5
+	//（与 attachments.md5 一致）。空串 = 空正文或历史存量（不参与重复提示）。
+	// 一律 32 位**小写** hex（§9 摘要口径）。
+	ContentMD5 string `gorm:"size:32;index:idx_docs_content_md5" json:"content_md5,omitempty"`
 	// PinnedAt 置顶时间（NULL=未置顶）；同级排序：置顶在前，其余按 pos。
 	PinnedAt  *time.Time     `json:"pinned_at,omitempty"`
 	CreatedBy uint64         `json:"created_by"`
