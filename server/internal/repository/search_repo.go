@@ -16,9 +16,13 @@ type SearchRow struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-// escapeLike 转义 LIKE 通配符，配合 ESCAPE '\\' 使用。
+// escapeLike 转义 LIKE 通配符，配合 `ESCAPE '!'` 使用。
+//
+// 为什么用 `!` 而不是反斜杠：SQLite 的 LIKE **没有默认转义字符**，`\%` 会被解释成
+// 「反斜杠 + 任意字符」而不是「字面量 %」；MySQL 的默认转义字符恰好是 `\`，所以反斜杠
+// 版本只在 MySQL 上正确。改用显式声明的 `!` 后两种方言行为一致（全仓仅此文件用 LIKE 转义）。
 func escapeLike(kw string) string {
-	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	r := strings.NewReplacer(`!`, `!!`, `%`, `!%`, `_`, `!_`)
 	return r.Replace(kw)
 }
 
@@ -36,8 +40,8 @@ func SearchDocs(userID uint64, keyword string, bookID uint64, limit int) ([]Sear
 		Joins("JOIN books ON books.id = docs.book_id").
 		Where("docs.deleted_at IS NULL").
 		Where(
-			"(docs.doc_type = 'markdown' AND (docs.title LIKE ? ESCAPE '\\' OR docs.content LIKE ? ESCAPE '\\')"+
-				" OR docs.doc_type <> 'markdown' AND docs.title LIKE ? ESCAPE '\\')",
+			"(docs.doc_type = 'markdown' AND (docs.title LIKE ? ESCAPE '!' OR docs.content LIKE ? ESCAPE '!'))"+
+				" OR docs.doc_type <> 'markdown' AND docs.title LIKE ? ESCAPE '!' ",
 			kw, kw, kw,
 		)
 	if bookID > 0 {
