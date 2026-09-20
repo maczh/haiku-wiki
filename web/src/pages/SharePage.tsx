@@ -5,6 +5,7 @@ import { CaretDownOutlined, CaretRightOutlined, FileTextOutlined, FolderOutlined
 import { getShare, getShareDoc } from '../api/share'
 import LazyBoundary from '../components/common/LazyBoundary'
 import WidthControl from '../components/reader/WidthControl'
+import CommentPanel from '../components/reader/CommentPanel'
 import { useReaderWidth } from '../lib/readerWidth'
 import type { DocDetail, DocNode, ShareInfo } from '../types'
 
@@ -200,6 +201,9 @@ export default function SharePage() {
           )}
           {!loadingDoc && !doc && info.docs.length > 0 && <Spin style={{ display: 'block', margin: '80px auto' }} />}
         </main>
+
+        {/* 点评讨论区（右侧浮动面板，免登录匿名可发帖）；仅选中文档时挂载 */}
+        {docId > 0 && slug && <CommentPanel slug={slug} docId={docId} anon />}
       </div>
     </div>
   )

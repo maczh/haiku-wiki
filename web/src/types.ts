@@ -421,6 +421,7 @@ export interface DocShareView {
 
 /** 分享公开元信息（GET /api/public/doc-share/:slug） */
 export interface DocShareMeta {
+  doc_id: number
   title: string
   doc_type: DocType
   has_password: boolean
@@ -430,6 +431,7 @@ export interface DocShareMeta {
 
 /** 密码校验成功返回（POST /api/public/doc-share/:slug/verify） */
 export interface DocShareContent {
+  doc_id: number
   title: string
   doc_type: DocType
   content: string

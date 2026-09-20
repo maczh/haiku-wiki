@@ -37,6 +37,7 @@ DEFAULT_SUITES=(
   # ⚠️ 新套件一律插在 sim-docker-web **之前**（它必须保持最后：要跑一次完整 npm build）
   mermaid-render-check
   pptx-zoom-check
+  comment-api-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -61,6 +62,7 @@ declare -A PORT_OF=(
   [ui-shot]=8080
   [mermaid-render-check]=18086
   [pptx-zoom-check]=18092
+  [comment-api-check]=8100
   [sim-docker-web]=0
 )
 

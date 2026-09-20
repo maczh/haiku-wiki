@@ -154,6 +154,9 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.ApiRefreshRun{},
 		// 派生元数据缓存（T02b，引用式入库复用）
 		&model.AttachmentDerived{},
+		// 文档点评 / 讨论区（owner/admin/team-admin 可管理）
+		&model.Comment{},
+		&model.CommentSetting{},
 	)
 }
 

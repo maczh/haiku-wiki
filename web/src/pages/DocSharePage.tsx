@@ -4,6 +4,7 @@ import { Result, Spin, Typography } from 'antd'
 import { getDocShareMeta, verifyDocShare } from '../api/share'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
+import CommentPanel from '../components/reader/CommentPanel'
 import { useReaderWidth } from '../lib/readerWidth'
 import PasswordGate from '../components/share/PasswordGate'
 import type { DocShareContent, DocShareMeta } from '../types'
@@ -20,6 +21,7 @@ export default function DocSharePage() {
   const [meta, setMeta] = useState<DocShareMeta | null>(null)
   const [invalid, setInvalid] = useState(false)
   const [content, setContent] = useState<DocShareContent | null>(null)
+  const [password, setPassword] = useState('')
   const [tocContainer, setTocContainer] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export default function DocSharePage() {
       if (!slug) return
       const res = await verifyDocShare(slug, password)
       setContent(res)
+      setPassword(password)
     },
     [slug],
   )
@@ -131,6 +134,8 @@ export default function DocSharePage() {
             onRendered={isMarkdown ? (el) => setTocContainer(el) : undefined}
           />
         </main>
+        {/* 点评讨论区（右侧浮动面板，免登录匿名可发帖；文档级分享需带密码） */}
+        {content && slug && <CommentPanel slug={slug} docId={content.doc_id} anon password={password} />}
         {/* 右侧大纲锚点（仅 markdown 类型；非 markdown 隐藏） */}
         {isMarkdown && (
           <aside style={{ width: 200, flexShrink: 0, borderLeft: '1px solid #f0f2f5', overflow: 'auto' }}>

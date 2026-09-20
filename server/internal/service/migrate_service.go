@@ -243,6 +243,9 @@ var migrateTables = []tableCopier{
 	{"api_refresh_runs", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.ApiRefreshRun](d, s, ow) }},
 	// 派生元数据缓存（T02b；PK 是 md5，没有 id 列）
 	{"attachment_derived", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.AttachmentDerived](d, s, ow) }},
+	// 文档点评 / 讨论区（owner/admin/team-admin 可管理）
+	{"comments", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.Comment](d, s, ow) }},
+	{"comment_settings", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.CommentSetting](d, s, ow) }},
 }
 
 // copyRows 分批复制一张表，返回成功批次涉及的记录数。

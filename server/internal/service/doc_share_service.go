@@ -138,6 +138,7 @@ func (s *DocShareService) Revoke(userID, docID uint64) error {
 
 // ShareMeta GET /api/public/doc-share/:slug 响应。
 type ShareMeta struct {
+	DocID       uint64  `json:"doc_id"`
 	Title       string  `json:"title"`
 	DocType     string  `json:"doc_type"`
 	HasPassword bool    `json:"has_password"`
@@ -161,6 +162,7 @@ func (s *DocShareService) GetPublicMeta(slug string) (*ShareMeta, error) {
 		return nil, hkerr.NotFound("分享链接无效")
 	}
 	meta := &ShareMeta{
+		DocID:       share.DocID,
 		Title:       doc.Title,
 		DocType:     doc.DocType,
 		HasPassword: share.PasswordHash != "",
@@ -178,6 +180,7 @@ func (s *DocShareService) GetPublicMeta(slug string) (*ShareMeta, error) {
 
 // ShareContent POST /verify 成功响应：直接返回文档内容。
 type ShareContent struct {
+	DocID   uint64 `json:"doc_id"`
 	Title   string `json:"title"`
 	DocType string `json:"doc_type"`
 	Content string `json:"content"`
@@ -209,5 +212,5 @@ func (s *DocShareService) Verify(slug, password, ip string) (*ShareContent, erro
 		// 统计失败不影响访问
 		_ = e
 	}
-	return &ShareContent{Title: doc.Title, DocType: doc.DocType, Content: doc.Content}, nil
+	return &ShareContent{Title: doc.Title, DocType: doc.DocType, DocID: share.DocID, Content: doc.Content}, nil
 }

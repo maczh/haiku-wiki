@@ -29,6 +29,7 @@ import BookDashboard from '../components/dashboard/BookDashboard'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import TocAnchor from '../components/reader/TocAnchor'
+import CommentPanel from '../components/reader/CommentPanel'
 import DocShareDrawer from '../components/share/DocShareDrawer'
 import WeChatShareModal from '../components/share/WeChatShareModal'
 import ExportDialog, { type ExportTarget } from '../components/export/ExportDialog'
@@ -1086,6 +1087,9 @@ export default function BookPage() {
           </div>
         </div>
       </section>
+
+      {/* 点评讨论区（右侧浮动面板，可隐藏 / 拖拽调宽）；仅选中文档时挂载 */}
+      {docIdParam && <CommentPanel docId={docIdParam} />}
 
       {/* 文档级分享管理抽屉（R4/R5：右键分享入口；默认永久有效） */}
       <DocShareDrawer

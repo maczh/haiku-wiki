@@ -28,6 +28,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		// 文档级分享（与书级并列，handler 分文件）
 		pub.GET("/doc-share/:slug", handler.GetDocShareMeta)
 		pub.POST("/doc-share/:slug/verify", handler.VerifyDocShare)
+		// 文档点评（分享访客，免 JWT）：文档级 / 书级分享 slug 均可
+		pub.GET("/doc-comments", handler.AnonListComments)
+		pub.POST("/doc-comments", handler.AnonCreateComment)
+		pub.POST("/doc-comments/upload", handler.AnonUpload)
 	}
 
 	// 认证（注册/登录免 JWT）
@@ -102,6 +106,14 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.GET("/api-debug-history", handler.ListApiDebugHistory)
 			docs.POST("/api-debug-history", handler.SaveApiDebugHistory)
 			docs.DELETE("/api-debug-history", handler.DeleteApiDebugHistory)
+			// 文档点评 / 讨论区
+			docs.GET("/comments", handler.ListComments)
+			docs.POST("/comments", handler.CreateComment)
+			docs.GET("/comment-settings", handler.GetCommentSettings)
+			docs.PUT("/comment-settings", handler.UpdateCommentSettings)
+			docs.DELETE("/comments/all", handler.ClearComments)
+			docs.DELETE("/comments/:cid", handler.DeleteComment)
+			docs.POST("/comments/:cid/ban", handler.BanAuthor)
 		}
 
 		// 上传 / 回收站 / 导出
