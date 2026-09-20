@@ -235,8 +235,8 @@ func TestBuildProjectArchiveExtractsEmbeddedJPEG(t *testing.T) {
 	if it.Degraded {
 		t.Fatalf("含内嵌 JPEG 的 .rp 不应降级: %+v", it)
 	}
-	if it.Kind != "image" {
-		t.Fatalf("kind 应为 image, got %q", it.Kind)
+	if it.Kind != "other" {
+		t.Fatalf("kind 应为 other（工程文件）, got %q", it.Kind)
 	}
 	if it.Preview == "" {
 		t.Fatalf("应抽到预览图: %+v", it)

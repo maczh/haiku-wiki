@@ -387,7 +387,9 @@ func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *Prot
 		return nil, errStr("保存失败")
 	}
 	it.URL = out.URL
-	it.Kind = "image"
+	// .rp/.mp 本质是 Axure / Mockplus 工程文件，抽内嵌图只是预览手段；卡片标签归为
+	//「工程文件」（other），与 buildProjectArchive 的降级分支及前端语义保持一致。
+	it.Kind = "other"
 
 	// 归一化必须按「真实图片格式」分派：原件扩展名是 .rp/.mp，不在 imgconv 白名单，
 	// 直接传 it.Filename 会被当成不支持的格式而降级。
