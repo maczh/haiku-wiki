@@ -130,6 +130,17 @@ func Dir() string {
 // FilePath 配置文件完整路径。
 func FilePath() string { return filepath.Join(Dir(), "application.yml") }
 
+// ---------- 运行时引用 ----------
+
+// current 最近一次 Load 得到的生效配置（供系统配置编辑、迁移等运行时读取）。
+var current *Config
+
+// fileCfg 最近一次解析出的原始文件配置（供 ToEditable 还原 host/port/user/password/name 拆分字段）。
+var fileCfg fileConfig
+
+// Current 返回最近一次 Load 的生效配置；未加载时返回 nil。
+func Current() *Config { return current }
+
 // ---------- 加载 ----------
 
 func getenv(key, def string) string {
@@ -148,17 +159,130 @@ func Load() *Config {
 		if err := yaml.Unmarshal(raw, &fc); err == nil {
 			applyFile(cfg, &fc)
 			cfg.Path = FilePath()
+			fileCfg = fc
 		}
 		// YAML 解析失败不阻断启动：回退「环境变量 + 默认值」，
 		// 避免一处笔误就让整个服务起不来（配置错误应在日志里可见，而非致命）。
 	}
 	applyEnv(cfg)
 
+	// MySQL 拆分字段 → DSN 拼装：必须等 driver 终态（文件 + 环境变量）确定后进行，
+	// 且只对 mysql 生效。放在这里同时覆盖两种来源组合：文件写 driver: mysql，
+	// 以及文件只给拆分字段、由 DB_DRIVER=mysql 环境变量切驱动的部署。
+	if cfg.DBDSN == "" && cfg.DBDriver == DBMySQL && fileCfg.Database.Name != "" {
+		cfg.DBDSN = MySQLDSN(fileCfg.Database)
+	}
+
 	// SQLite 未显式给 DSN 时落在数据目录
 	if cfg.DBDriver == DBSQLite && cfg.DBDSN == "" {
 		cfg.DBDSN = filepath.Join(cfg.DataDir, "haiku.db")
 	}
+	current = cfg
 	return cfg
+}
+
+// ---------- 可编辑视图 ----------
+
+// EditableConfig 系统配置的可编辑视图，与 conf/application.yml 的嵌套结构对齐，
+// 也直接对应前端「系统配置」表单字段。Save 时由 ApplyEditable 落回文件。
+type EditableConfig struct {
+	Server struct {
+		Port string `json:"port"`
+		Mode string `json:"mode"`
+	} `json:"server"`
+	JWT struct {
+		Secret string `json:"secret"`
+	} `json:"jwt"`
+	Database struct {
+		Driver   string `json:"driver"` // sqlite | mysql
+		DSN      string `json:"dsn"`
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		Name     string `json:"name"`
+	} `json:"database"`
+	Storage struct {
+		Type    string `json:"type"` // local | s3
+		LocalDir string `json:"local_dir"`
+	} `json:"storage"`
+	S3       S3Config `json:"s3"`
+	Upload struct {
+		MaxSizeMB int `json:"max_size_mb"`
+	} `json:"upload"`
+}
+
+// ToEditable 把生效配置翻成可编辑视图。
+// 拆分字段（host/port/user/password/name）优先取文件原始值（fileCfg），
+// 缺失时回退到生效配置（current）的扁平值，保证表单能回填当前实际生效的配置。
+func (c *Config) ToEditable() EditableConfig {
+	var e EditableConfig
+	e.Server.Port = c.Port
+	e.Server.Mode = c.GINMode
+	e.JWT.Secret = c.JWTSecret
+	e.Database.Driver = c.DBDriver
+	e.Database.DSN = fileCfg.Database.DSN
+	if e.Database.DSN == "" {
+		e.Database.DSN = c.DBDSN // 回退到生效值（如默认 sqlite 路径）
+	}
+	e.Database.Host = fileCfg.Database.Host
+	e.Database.Port = fileCfg.Database.Port
+	e.Database.User = fileCfg.Database.User
+	e.Database.Password = fileCfg.Database.Password
+	e.Database.Name = fileCfg.Database.Name
+	// 回退：文件未给拆分字段但生效的是 mysql（dsn 由字段拼成）时，从 dsn 反解以便展示
+	if e.Database.Driver == DBMySQL && e.Database.User == "" && e.Database.Name == "" && c.DBDSN != "" {
+		if u, h, p, n := splitMySQLDSN(c.DBDSN); u != "" || n != "" {
+			e.Database.User = u
+			e.Database.Password = p
+			e.Database.Host = h
+			e.Database.Name = n
+		}
+	}
+	e.Storage.Type = c.StorageType
+	e.Storage.LocalDir = fileCfg.Storage.Local.Dir
+	if e.Storage.LocalDir == "" {
+		e.Storage.LocalDir = c.DataDir
+	}
+	e.S3 = c.S3
+	e.Upload.MaxSizeMB = c.MaxUploadMB
+	return e
+}
+
+// splitMySQLDSN 尽力从 MySQL DSN 反解出 user/password/host/name（仅用于配置编辑回显）。
+// 支持形如 user:password@tcp(host:port)/name?charset=... 的常见写法。
+func splitMySQLDSN(dsn string) (user, host, password, name string) {
+	at := strings.Index(dsn, "@tcp(")
+	if at < 0 {
+		return
+	}
+	userPass := dsn[:at]
+	if i := strings.Index(userPass, ":"); i >= 0 {
+		user = userPass[:i]
+		password = userPass[i+1:]
+	} else {
+		user = userPass
+	}
+	rest := dsn[at+len("@tcp("):]
+	end := strings.Index(rest, ")")
+	if end < 0 {
+		return
+	}
+	hostPort := rest[:end]
+	if i := strings.LastIndex(hostPort, ":"); i >= 0 {
+		host = hostPort[:i]
+	} else {
+		host = hostPort
+	}
+	after := rest[end+1:]
+	if strings.HasPrefix(after, "/") {
+		after = after[1:]
+	}
+	if i := strings.Index(after, "?"); i >= 0 {
+		after = after[:i]
+	}
+	name = after
+	return
 }
 
 func defaults() *Config {
@@ -186,10 +310,13 @@ func applyFile(cfg *Config, fc *fileConfig) {
 	if fc.Database.Driver != "" {
 		cfg.DBDriver = strings.ToLower(strings.TrimSpace(fc.Database.Driver))
 	}
+	// 显式 dsn 直接生效；拆分字段（host/port/user/password/name）**不在这里**拼
+	// MySQL DSN —— 此刻 driver 还可能被环境变量改写，且 sqlite 部署的 yml 里常残留
+	// 之前试 MySQL 留下的 host/user/password/name 字段，在这里拼会把空 dsn 误占位，
+	// 导致 driver=sqlite 却拿着 mysql 连接串去 open 的怪错（glebarez 报成
+	// "out of memory (14)"，极具迷惑性）。拼装挪到 Load() 末尾 driver 终态确定后。
 	if fc.Database.DSN != "" {
 		cfg.DBDSN = fc.Database.DSN
-	} else if fc.Database.Name != "" {
-		cfg.DBDSN = MySQLDSN(fc.Database)
 	}
 	if fc.Storage.Type != "" {
 		cfg.StorageType = strings.ToLower(strings.TrimSpace(fc.Storage.Type))

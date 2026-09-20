@@ -79,6 +79,58 @@ func TestLoadSQLiteDefaultDSN(t *testing.T) {
 	}
 }
 
+// TestLoadSQLiteIgnoresMysqlFields driver=sqlite 的 yml 里残留 mysql 拆分字段
+// （host/user/password/name，常见于从 MySQL 迁回 SQLite 的部署）时，绝不能把
+// 这些字段拼成 MySQL 连接串去占位空 dsn —— 否则 sqlite 分支会拿连接串当文件
+// 路径 open，报 "out of memory (14)" 的怪错。dsn 必须回落默认 <DataDir>/haiku.db。
+func TestLoadSQLiteIgnoresMysqlFields(t *testing.T) {
+	withConfDir(t, `
+database:
+  driver: sqlite
+  dsn: ""
+  host: 192.168.31.252
+  port: 3306
+  user: haiku
+  password: "Jihai2026"
+  name: haiku
+storage:
+  local:
+    dir: /tmp/haiku-data
+`)
+	c := Load()
+	if c.DBDriver != DBSQLite {
+		t.Fatalf("driver=%s", c.DBDriver)
+	}
+	if strings.Contains(c.DBDSN, "@tcp(") {
+		t.Fatalf("sqlite 驱动不应拼出 MySQL 连接串，dsn=%q", c.DBDSN)
+	}
+	if c.DBDSN != "/tmp/haiku-data/haiku.db" {
+		t.Fatalf("dsn=%q，应回落默认数据目录", c.DBDSN)
+	}
+}
+
+// TestLoadEnvDriverAssemblesMysqlDSN 文件只给拆分字段、由 DB_DRIVER=mysql 环境变量
+// 切驱动的部署：拼装必须在 driver 终态确定后进行，这条组合不能回归。
+func TestLoadEnvDriverAssemblesMysqlDSN(t *testing.T) {
+	withConfDir(t, `
+database:
+  host: db.internal
+  port: 3307
+  user: wiki
+  password: pw
+  name: haiku
+`)
+	t.Setenv("DB_DRIVER", "mysql")
+	c := Load()
+	if c.DBDriver != DBMySQL {
+		t.Fatalf("driver=%s", c.DBDriver)
+	}
+	want := "wiki:pw@tcp(db.internal:3307)/haiku?charset=utf8mb4&parseTime=True&loc=Local"
+	if c.DBDSN != want {
+		t.Fatalf("dsn=%q want=%q", c.DBDSN, want)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	withConfDir(t, "server:\n  port: 9099\nstorage:\n  local:\n    dir: /from-file\n")
 	t.Setenv("PORT", "7777")
