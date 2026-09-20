@@ -92,10 +92,10 @@ FROM alpine:3.20
 # 两者都在 community 仓库（与 font-wqy-zenhei 同源），故显式指定仓库。
 # 装不上**不阻断镜像**：运行期按降级处理（只保存原件、不生成预览图），
 # 并在 GET /api/images/converter 里如实报告，不会让服务起不来。
-RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei \
+RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec \
       --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
       imagemagick libheif-tools \
-    || apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei
+    || apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec
 RUN adduser -D -u 10001 haiku
 WORKDIR /app
 COPY --from=server-builder /bin/haiku-wiki /app/haiku-wiki
@@ -104,6 +104,9 @@ COPY --from=dwg-builder /out/ /usr/local/bin/
 # 主配置模板：运行期挂载自己的目录覆盖（docker-compose 默认挂 ./conf:/app/conf）。
 # 没挂时也能直接用 ENV 启动——config.Load 找不到文件会回退环境变量，不会起不来。
 COPY conf/application.yml /app/conf/application.yml
+# 入口脚本：root 启动时先修正挂载卷属主为 haiku(10001) 再降权执行，见脚本头部注释
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV PORT=8080 \
     CONF_DIR=/app/conf \
     DATA_DIR=/app/data \
@@ -114,5 +117,9 @@ ENV PORT=8080 \
 RUN mkdir -p /app/data /app/conf && chown -R haiku:haiku /app
 VOLUME ["/app/data", "/app/conf"]
 EXPOSE 8080
-USER haiku
-ENTRYPOINT ["/app/haiku-wiki"]
+# 不再 USER haiku 固定降权：宿主机 bind mount 目录属主若是 root，
+# UID 10001 无法在数据目录创建 SQLite -wal/-shm 文件，启动即报
+# "unable to open database file: out of memory (14)"（实为目录不可写，非内存问题）。
+# 改由入口脚本以 root 修正属主后 su-exec 降权为 haiku 运行；
+# --user 非 root 启动时脚本直接透传执行。
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

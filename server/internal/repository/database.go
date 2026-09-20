@@ -58,6 +58,21 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 			}
 		}
 		dsn = dsn + sep + "_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
+		// SQLite(WAL) 不仅要求 db 文件本身可写，还要求「所在目录」可写：驱动需要在
+		// 目录里创建 <db>-wal / <db>-shm。Docker 把宿主机目录 bind mount 进容器、而
+		// 目录属主不是运行用户时，glebarez 纯 Go 驱动只会丢出一句摸不着头脑的
+		// "unable to open database file: out of memory (14)"（14 = SQLITE_CANTOPEN，
+		// "out of memory" 文案纯属误导）。先用探针文件把真实原因查出来，直接给出
+		// 可操作的处理建议，别让用户对着 "out of memory" 排查内存。
+		if err := ensureDirWritable(cfg.DataDir); err != nil {
+			return nil, fmt.Errorf(
+				"数据目录不可写: %s\n"+
+					"SQLite(WAL) 需要在数据目录中创建 <db>-wal/-shm 文件，因此目录本身必须可写。\n"+
+					"常见原因是 Docker 挂载的宿主机目录属主与容器运行用户（镜像内为 UID 10001）不一致，\n"+
+					"请在宿主机执行: chown -R 10001:10001 <宿主机数据目录>（挂载的配置目录同理），\n"+
+					"或使用 v2.1+ 镜像（入口脚本启动时自动修正挂载卷属主）。\n"+
+					"底层错误: %w", cfg.DataDir, err)
+		}
 		g, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: gormLog})
 	}
 	if err != nil {
@@ -149,3 +164,16 @@ func SeedData(g *gorm.DB) error {
 
 // isNoRows 供上层判断"查无记录"（保留给未来扩展）。
 var _ = sql.ErrNoRows
+
+// ensureDirWritable 通过「创建并删除一个探针文件」检测目录是否可写。
+// 比只看权限位可靠：只读 bind mount、属主不一致等场景都能真实暴露。
+func ensureDirWritable(dir string) error {
+	probe, err := os.CreateTemp(dir, ".haiku-write-probe-*")
+	if err != nil {
+		return err
+	}
+	name := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(name)
+	return nil
+}
