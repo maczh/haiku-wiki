@@ -3,6 +3,7 @@ import { Alert, Button, Spin, Tooltip, Typography, message } from 'antd'
 import { DownloadOutlined, FileImageOutlined, FileTextOutlined, SwapOutlined } from '@ant-design/icons'
 import DOMPurify from 'dompurify'
 import { attachmentKind, formatSize, loadPdfjs, parseAttachment } from '../../lib/attachment'
+import { useReaderWidth } from '../../lib/readerWidth'
 import { createDoc } from '../../api/docs'
 import CadView from './CadView'
 
@@ -35,10 +36,14 @@ interface Props {
  *  顶部固定信息条提供"下载原文件"。
  */
 export default function FileView({ content, bookId, onDocCreated }: Props) {
+  // 正文宽度跟随「宽度」调节器（lib/readerWidth，与阅读页/分享页共享同一份偏好）。
+  // ⚠️ 这里不能写死 780：写死之后 PDF / DOCX 会永远卡在 780px，
+  //    宽度调节器看起来在动、实际对附件预览毫无影响。
+  const { maxWidth } = useReaderWidth()
   const ref = parseAttachment(content)
   if (!ref) {
     return (
-      <div style={{ maxWidth: 780, margin: '0 auto', padding: '0 24px 40px' }}>
+      <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '0 24px 40px' }}>
         <Alert type="warning" showIcon message="附件信息缺失或格式不正确，无法预览" />
       </div>
     )
@@ -48,7 +53,7 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
   if (kind === 'cad') return <CadView content={content} />
 
   return (
-    <div style={{ maxWidth: 780, margin: '0 auto', padding: '0 24px 40px' }}>
+    <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '0 24px 40px', width: '100%' }}>
       {/* 附件信息条 */}
       <div
         style={{
@@ -215,15 +220,47 @@ function ImageViewer({ url, filename }: { url: string; filename: string }) {
 
 // ---------- PDF：pdf.js 逐页渲染 ----------
 
+/** pdf.js 文档实例：跨「宽度变化后的重渲染」复用，避免每次调宽度都重新下载 */
+type PdfjsModule = typeof import('pdfjs-dist')
+type PdfDoc = Awaited<ReturnType<PdfjsModule['getDocument']>['promise']>
+
 function PdfViewer({ url, filename }: { url: string; filename: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
+  // 已加载的文档实例：跨「宽度变化后的重渲染」复用，避免每次调宽度都重新下载
+  const pdfRef = useRef<PdfDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [numPages, setNumPages] = useState(0)
   const [rendered, setRendered] = useState(0)
+  // 实际参与渲染的容器宽度（px）。0 = 尚未量到，等 ResizeObserver 报告后再渲染。
+  const [renderWidth, setRenderWidth] = useState(0)
 
-  // 加载文档
+  // 监听容器宽度：用户拖「宽度」调节器（standard/wide/full/自定义）或缩放窗口时，
+  // 页面要按新宽度重排重绘 —— 否则 PDF 会永远停在首次渲染时的尺寸。
+  // ResizeObserver 而不是只依赖 readerWidth：容器宽度还受窗口尺寸/侧栏影响。
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect.width ?? 0)
+      if (w <= 0) return
+      // 防抖：拖动条连续变化时不要每像素都重渲染一遍整本 PDF
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => setRenderWidth(Math.max(320, w - 4)), 200)
+    })
+    ro.observe(el)
+    // 首次量一次（ResizeObserver 首个回调是异步的，这里先给个即时值）
+    const w0 = Math.round(el.clientWidth)
+    if (w0 > 0) setRenderWidth(Math.max(320, w0 - 4))
+    return () => {
+      ro.disconnect()
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
+
+  // 载入文档：只依赖 url —— 调宽度**不**重新下载 PDF（实例存进 pdfRef 供渲染复用）
   useEffect(() => {
     let alive = true
     let task: { destroy: () => Promise<void> } | null = null
@@ -231,6 +268,7 @@ function PdfViewer({ url, filename }: { url: string; filename: string }) {
     setError('')
     setNumPages(0)
     setRendered(0)
+    pdfRef.current = null
     ;(async () => {
       const pdfjs = await loadPdfjs()
       const loading = pdfjs.getDocument({ url })
@@ -240,11 +278,32 @@ function PdfViewer({ url, filename }: { url: string; filename: string }) {
         void pdf.destroy()
         return
       }
-      const total = pdf.numPages
-      setNumPages(total)
-      // 逐页渲染（pdf.js 渲染需串行复用文档实例）
-      const limit = Math.min(total, MAX_PDF_PAGES)
-      const width = (containerRef.current?.clientWidth ?? 720) - 4
+      pdfRef.current = pdf
+      if (alive) setNumPages(pdf.numPages)
+    })()
+      .catch((e) => {
+        if (alive) setError((e as Error)?.message || 'PDF 加载失败')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+      pdfRef.current = null
+      if (task) void task.destroy().catch(() => undefined)
+    }
+  }, [url])
+
+  // 按当前宽度渲染各页：文档就绪（numPages>0）且量到宽度后执行；
+  // 宽度变化时整本重排，**复用已加载的文档实例**（不重新下载）。
+  useEffect(() => {
+    if (numPages <= 0 || renderWidth <= 0) return
+    const pdf = pdfRef.current
+    if (!pdf) return
+    let alive = true
+    setRendered(0)
+    ;(async () => {
+      const limit = Math.min(pdf.numPages, MAX_PDF_PAGES)
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       for (let i = 1; i <= limit; i++) {
         if (!alive) return
@@ -252,7 +311,9 @@ function PdfViewer({ url, filename }: { url: string; filename: string }) {
         const canvas = canvasRefs.current[i - 1]
         if (!canvas) continue
         const base = page.getViewport({ scale: 1 })
-        const scale = Math.max(0.4, Math.min(2, width / base.width))
+        // 上限放宽到 6 倍：pdf.js 是矢量渲染，放大不会糊；原先的 2 倍上限会让
+        // 「拖宽到 1800px」在 A4 纸（≈595pt 宽）上被截到 1190px，宽度调不上去。
+        const scale = Math.max(0.4, Math.min(6, renderWidth / base.width))
         const viewport = page.getViewport({ scale })
         canvas.width = Math.floor(viewport.width * dpr)
         canvas.height = Math.floor(viewport.height * dpr)
@@ -263,18 +324,15 @@ function PdfViewer({ url, filename }: { url: string; filename: string }) {
         await page.render({ canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined }).promise
         if (alive) setRendered(i)
       }
-    })()
-      .catch((e) => {
-        if (alive) setError((e as Error)?.message || 'PDF 加载失败')
-      })
-      .finally(() => {
-        if (alive) setLoading(false)
-      })
+      // ⚠️ 不要在这里 destroy 文档实例 —— 它要跨「宽度变化后的重渲染」复用，
+      //    销毁交给载入 effect 的清理函数。
+    })().catch(() => {
+      // 重渲染失败不弹全局错误（原文档还在）；加载阶段的错误已由上面的 effect 负责
+    })
     return () => {
       alive = false
-      if (task) void task.destroy().catch(() => undefined)
     }
-  }, [url])
+  }, [numPages, renderWidth])
 
   return (
     <div ref={containerRef}>
