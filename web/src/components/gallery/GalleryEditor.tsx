@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Input, Modal, Spin, Upload, message } from 'antd'
-import { DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, InboxOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { GalleryImage } from '../../types'
-import { addGalleryImages, removeGalleryImage, renameGalleryImage, imageConverter } from '../../api/gallery'
+import { addGalleryImages, regenerateGalleryImage, removeGalleryImage, renameGalleryImage, imageConverter } from '../../api/gallery'
 import AlbumCard, { humanSize } from './AlbumCard'
 import { parseGallery } from './GalleryView'
 import type { ImageConverterInfo } from '../../api/gallery'
@@ -30,6 +30,8 @@ export default function GalleryEditor({ docId, content, onChanged }: Props) {
   const [conv, setConv] = useState<ImageConverterInfo | null>(null)
   const [renaming, setRenaming] = useState<GalleryImage | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  // 正在「重新生成」的图片 id（逐行独立 loading）
+  const [regenId, setRegenId] = useState<string | null>(null)
   // 拖拽区的值在闭包里容易读到旧值，用 ref 兜一份最新文件列表
   const filesRef = useRef<File[]>([])
   filesRef.current = fileList.map((f) => f.originFileObj as unknown as File).filter(Boolean)
@@ -92,6 +94,20 @@ export default function GalleryEditor({ docId, content, onChanged }: Props) {
       onChanged?.()
     } catch {
       /* 拦截器已提示 */
+    }
+  }
+
+  // 重新生成某张图片的预览图（三档尺寸）
+  async function handleRegenerate(img: GalleryImage) {
+    setRegenId(img.id)
+    try {
+      await regenerateGalleryImage(docId, img.id)
+      message.success('已重新生成预览图')
+      onChanged?.()
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setRegenId(null)
     }
   }
 
@@ -170,6 +186,15 @@ export default function GalleryEditor({ docId, content, onChanged }: Props) {
                     }}
                   >
                     改名
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<ReloadOutlined />}
+                    loading={regenId === img.id}
+                    onClick={() => void handleRegenerate(img)}
+                  >
+                    重新生成
                   </Button>
                   <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => void handleRemove(img)}>
                     删除

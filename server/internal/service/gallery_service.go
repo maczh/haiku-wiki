@@ -39,6 +39,7 @@ type GalleryImage struct {
 	URL      string `json:"url"`      // 原件
 	Preview  string `json:"preview"`  // 预览图（SVG 直通时等于 URL）
 	Thumb    string `json:"thumb"`    // 缩略图（SVG 直通时等于 URL）
+	Original string `json:"original"` // 原尺寸（图片库全是图片格式，故一律等于原图 URL）
 	Size     int64  `json:"size"`     // 原件字节数
 	Width    int    `json:"width"`    // 原图宽（未知为 0）
 	Height   int    `json:"height"`   // 原图高（未知为 0）
@@ -235,25 +236,25 @@ func buildGalleryImage(uid uint64, f GalleryUpload) (*GalleryImage, error) {
 	img.Note = res.Note
 	if res.ReuseOriginal {
 		// 矢量图：预览/缩略图直接用原件，浏览器按容器缩放，永不失真
-		img.Preview, img.Thumb = out.URL, out.URL
+		img.Preview, img.Thumb, img.Original = out.URL, out.URL, out.URL
 		return img, nil
 	}
 	if res.Degraded {
-		img.Preview, img.Thumb = "", ""
+		img.Preview, img.Thumb, img.Original = "", "", ""
 		return img, nil
 	}
 	pv, err := saveDerivedFile(out.URL, "preview.jpg", res.Preview)
 	if err != nil {
-		img.Degraded, img.Note, img.Preview, img.Thumb = true, "预览图保存失败", "", ""
+		img.Degraded, img.Note, img.Preview, img.Thumb, img.Original = true, "预览图保存失败", "", "", ""
 		return img, nil
 	}
 	tb, err := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb)
 	if err != nil {
-		img.Degraded, img.Note, img.Preview = true, "缩略图保存失败", ""
-		img.Thumb = ""
+		img.Degraded, img.Note, img.Preview, img.Thumb, img.Original = true, "缩略图保存失败", "", "", ""
 		return img, nil
 	}
-	img.Preview, img.Thumb = pv, tb
+	// 图片库全是图片格式：原尺寸直接复用原图 URL，不另存 original.jpg（避免冗余存储）
+	img.Preview, img.Thumb, img.Original = pv, tb, out.URL
 	return img, nil
 }
 
@@ -292,4 +293,65 @@ func deleteUploaded(url string) error {
 		return err
 	}
 	return storage.Default().Delete(key)
+}
+
+// RegenerateGalleryImage 重新生成某张图片的三档预览图（覆盖旧派生图），用于首次转换
+// 降级/缺转换器后的补救。图片库全是图片格式，故 original 一律等于原图 URL。
+func (s *DocService) RegenerateGalleryImage(uid, docID uint64, imageID string) (*GalleryImage, error) {
+	doc, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	if doc.DocType != "gallery" {
+		return nil, hkerr.Param("该文档不是图片库")
+	}
+	content := parseGalleryContent(doc.Content)
+	idx := -1
+	for i := range content.Images {
+		if content.Images[i].ID == imageID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, hkerr.NotFound("图片不存在")
+	}
+	img := content.Images[idx]
+	data, err := readUploadedFile(img.URL)
+	if err != nil {
+		return nil, hkerr.Internal("读取原件失败")
+	}
+	res, err := imgconv.Convert(data, img.Name)
+	if err != nil || res.Degraded {
+		// 转换失败/降级：保留原件，清掉预览图，前端显示占位卡
+		img.Degraded = true
+		img.Note = noteOf(res, err, "无法重新生成预览图")
+		img.Preview, img.Thumb, img.Original = "", "", ""
+	} else if res.ReuseOriginal {
+		// 矢量图：三档都直接用原文件 URL
+		img.Preview, img.Thumb, img.Original = img.URL, img.URL, img.URL
+		img.Degraded = false
+	} else {
+		// 覆盖旧派生图（saveDerivedFile 用确定性文件名，Put 原地覆盖）
+		if pv, e1 := saveDerivedFile(img.URL, "preview.jpg", res.Preview); e1 == nil {
+			img.Preview = pv
+		}
+		if tb, e2 := saveDerivedFile(img.URL, "thumb.jpg", res.Thumb); e2 == nil {
+			img.Thumb = tb
+		}
+		// 图片格式：原尺寸直接复用原图 URL
+		img.Original = img.URL
+		img.Width, img.Height = res.Width, res.Height
+		img.Degraded = false
+	}
+	content.Images[idx] = img
+	raw, err := json.Marshal(content)
+	if err != nil {
+		return nil, hkerr.Internal("保存失败")
+	}
+	doc.Content = string(raw)
+	if err := repository.UpdateDoc(doc); err != nil {
+		return nil, hkerr.Internal("保存失败")
+	}
+	return &img, nil
 }

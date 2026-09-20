@@ -55,8 +55,9 @@ type PrototypeItem struct {
 	Size     int64  `json:"size"`               // 原件字节数
 	Ext      string `json:"ext"`                // 扩展名（不含点，小写）
 	Entry    string `json:"entry,omitempty"`    // kind=html 时的入口页地址
-	Preview  string `json:"preview,omitempty"`  // 预览图（灯箱/卡片用）
-	Thumb    string `json:"thumb,omitempty"`    // 缩略图
+	Preview  string `json:"preview,omitempty"`  // 预览图（灯箱/卡片用，最长边 1920）
+	Thumb    string `json:"thumb,omitempty"`    // 缩略图（最长边 400）
+	Original string `json:"original,omitempty"` // 原尺寸（图片格式=原图 url，非图片格式=全分辨率派生图）
 	Degraded bool   `json:"degraded"`           // 没有可展示的预览
 	Note     string `json:"note"`               // 降级原因 / 处理说明
 	AddedAt  string `json:"added_at"`
@@ -378,9 +379,8 @@ func buildProjectArchive(uid uint64, data []byte, it *PrototypeItem) (*Prototype
 }
 
 // buildEmbeddedPreview 把从二进制容器（Axure .rp 等）里抽到的内嵌图，归一化成
-// 预览图 + 缩略图。与 buildSketch / buildImagePrototype 同构：原件先落盘保下载，
-// 再派生两张小图；imgconv 也降级时直接把抽出的原图当预览/缩略图（ReuseOriginal 思路），
-// 保证前端至少有图可显示。
+// 预览图 + 缩略图 + 原尺寸图。与 buildSketch / buildImagePrototype 同构：原件先落盘保下载，
+// 再交给 generatePrototypePreview 派生三档图。
 func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *PrototypeItem) (*PrototypeItem, error) {
 	out, err := saveBytes(uid, it.Filename, "", data)
 	if err != nil {
@@ -390,27 +390,8 @@ func buildEmbeddedPreview(uid uint64, data, imgData []byte, ext string, it *Prot
 	// .rp/.mp 本质是 Axure / Mockplus 工程文件，抽内嵌图只是预览手段；卡片标签归为
 	//「工程文件」（other），与 buildProjectArchive 的降级分支及前端语义保持一致。
 	it.Kind = "other"
-
-	// 归一化必须按「真实图片格式」分派：原件扩展名是 .rp/.mp，不在 imgconv 白名单，
-	// 直接传 it.Filename 会被当成不支持的格式而降级。
-	res, err := imgconv.Convert(imgData, "embedded."+ext)
-	if err == nil && !res.Degraded && !res.ReuseOriginal {
-		if pv, e1 := saveDerivedFile(out.URL, "preview.jpg", res.Preview); e1 == nil {
-			it.Preview = pv
-		}
-		if tb, e2 := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb); e2 == nil {
-			it.Thumb = tb
-		}
-	}
-	if it.Preview == "" {
-		// imgconv 没辙（缺少外部转换器之类）：把抽出的原图直接当预览/缩略图，
-		// 总比空白占位强。
-		if pv, e1 := saveDerivedFile(out.URL, "preview.jpg", imgData); e1 == nil {
-			it.Preview = pv
-		}
-		if tb, e2 := saveDerivedFile(out.URL, "thumb.jpg", imgData); e2 == nil {
-			it.Thumb = tb
-		}
+	if err := generatePrototypePreview(uid, imgData, "embedded."+ext, false, it); err != nil {
+		return nil, err
 	}
 	if it.Preview == "" {
 		// 连原图都落不下来：兜底降级（原件下载仍在），避免出现半截状态。
@@ -523,21 +504,17 @@ func imageLongSide(seg []byte) int {
 func buildSketch(uid uint64, data []byte, it *PrototypeItem) (*PrototypeItem, error) {
 	files, err := unpackZip(data)
 	if err == nil {
-	for _, f := range files {
-		if strings.EqualFold(f.Path, "previews/preview.png") || strings.EqualFold(f.Path, "previews/preview.webp") {
+		for _, f := range files {
+			if strings.EqualFold(f.Path, "previews/preview.png") || strings.EqualFold(f.Path, "previews/preview.webp") {
 				out, e := saveBytes(uid, it.Filename, "", data)
 				if e != nil {
 					return nil, errStr("保存失败")
 				}
 				it.URL = out.URL
 				it.Kind = "image"
-				if res, e2 := imgconv.Convert(f.Data, f.Path); e2 == nil && !res.Degraded && !res.ReuseOriginal {
-					if pv, e3 := saveDerivedFile(out.URL, "preview.jpg", res.Preview); e3 == nil {
-						it.Preview = pv
-					}
-					if tb, e4 := saveDerivedFile(out.URL, "thumb.jpg", res.Thumb); e4 == nil {
-						it.Thumb = tb
-					}
+				// 抽取到的预览位图按「非图片格式」走 generatePrototypePreview：original 取全分辨率派生图
+				if e2 := generatePrototypePreview(uid, f.Data, f.Path, false, it); e2 != nil {
+					return nil, e2
 				}
 				if it.Preview == "" {
 					it.Degraded = true
@@ -644,4 +621,146 @@ func deletePrefix(prefix string) error {
 func mustKey(url string) string {
 	k, _ := uploadKey(url)
 	return k
+}
+
+// prototypePreviewSource 从原型原件里取出「可用于生成预览图的位图数据」及其名义文件名。
+//
+// 返回值：(imgData, imgName, isImage, ok)
+//   - isImage=true  ：原件本身就是位图（png/jpg/.../svg），直接复用原件，不另存 original；
+//   - isImage=false ：要从专有格式里抽取/内嵌的预览位图另做转换（original=全分辨率派生图）。
+//
+// 这样 RegeneratePrototypeItem 复用与首次上传一致的取图逻辑，避免两套实现漂移。
+func prototypePreviewSource(data []byte, it *PrototypeItem) (imgData []byte, imgName string, isImage bool, ok bool) {
+	switch strings.ToLower(it.Ext) {
+	// 位图 / 矢量：原件即图片，直接复用（original=原图 url）
+	case "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "svg":
+		return data, it.Filename, true, true
+	// .sketch：zip 结构，抽 previews/preview.png(或 .webp)
+	case "sketch":
+		if files, err := unpackZip(data); err == nil {
+			for _, f := range files {
+				if strings.EqualFold(f.Path, "previews/preview.png") || strings.EqualFold(f.Path, "previews/preview.webp") {
+					return f.Data, f.Path, false, true
+				}
+			}
+		}
+		return nil, "", false, false
+	// .rp / .mp：从专有二进制容器里抠一张内嵌光栅图
+	case "rp", "mp":
+		if img, ext, eok := extractEmbeddedImage(data); eok {
+			return img, "embedded." + ext, false, true
+		}
+		return nil, "", false, false
+	default:
+		return nil, "", false, false
+	}
+}
+
+// generatePrototypePreview 在「原件已落盘、it.URL 已赋值」的前提下，统一生成三档预览图。
+//
+//   - isImage=true（图片/矢量格式）：original 直接复用原图 url，不另存文件；
+//   - isImage=false（抽取/内嵌的预览位图）：把 srcData 交给 imgconv 转换，
+//     成功则保存全分辨率 original 派生图，失败/降级则把抽取原图直接当 original 落盘，
+//     保证至少有原尺寸图可看。
+//
+// 三档图统一落在原件旁（saveDerivedFile 用确定性文件名，重生成时 Put 原地覆盖）。
+func generatePrototypePreview(uid uint64, srcData []byte, srcName string, isImage bool, it *PrototypeItem) error {
+	_ = uid
+	// 图片/矢量格式：原尺寸直接等于原图，不另存
+	if isImage {
+		it.Original = it.URL
+	}
+	res, err := imgconv.Convert(srcData, srcName)
+	if err != nil || res.Degraded {
+		// 转换失败/降级：非图片（抽取图）退而求其次，把抽取原图直接当 original 落盘
+		if !isImage {
+			if o, e1 := saveDerivedFile(it.URL, "original.jpg", srcData); e1 == nil {
+				it.Original = o
+			}
+		}
+		it.Preview, it.Thumb = "", ""
+		it.Degraded = true
+		it.Note = noteOf(res, err, "未能生成预览图")
+		return nil
+	}
+	if res.ReuseOriginal {
+		// 矢量图：预览/缩略图/原尺寸都直接用原文件 URL（浏览器按容器缩放，永不失真）
+		it.Preview, it.Thumb, it.Original = it.URL, it.URL, it.URL
+		it.Degraded, it.Note = false, ""
+		return nil
+	}
+	// 非图片：额外保存全分辨率 original 派生图
+	if !isImage {
+		if o, e1 := saveDerivedFile(it.URL, "original.jpg", res.Original); e1 == nil {
+			it.Original = o
+		}
+	}
+	// 统一生成 preview/thumb
+	if pv, e1 := saveDerivedFile(it.URL, "preview.jpg", res.Preview); e1 == nil {
+		it.Preview = pv
+	}
+	if tb, e2 := saveDerivedFile(it.URL, "thumb.jpg", res.Thumb); e2 == nil {
+		it.Thumb = tb
+	}
+	it.Degraded, it.Note = false, ""
+	return nil
+}
+
+// RegeneratePrototypeItem 重新生成某条原型的预览图（三档），用于首次转换降级/缺转换器后补救。
+//
+// html 类型（单页 HTML / zip 网页包）没有可重生成的预览图，直接返回该项，不做处理。
+func (s *DocService) RegeneratePrototypeItem(uid, docID uint64, itemID string) (*PrototypeItem, error) {
+	doc, _, err := s.loadDocForAccess(docID, uid, true)
+	if err != nil {
+		return nil, err
+	}
+	if doc.DocType != "prototype" {
+		return nil, hkerr.Param("该文档不是需求原型")
+	}
+	content := parsePrototypeContent(doc.Content)
+	idx := -1
+	for i := range content.Items {
+		if content.Items[i].ID == itemID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, hkerr.NotFound("原型不存在")
+	}
+	it := content.Items[idx]
+	// 网页原型无需重生成预览图
+	if it.Kind == "html" {
+		return &it, nil
+	}
+	data, err := readUploadedFile(it.URL)
+	if err != nil {
+		return nil, hkerr.Internal("读取原件失败")
+	}
+	srcData, srcName, isImage, ok := prototypePreviewSource(data, &it)
+	if !ok {
+		it.Degraded = true
+		it.Note = "无法读取原件或抽取预览失败"
+		raw, _ := json.Marshal(content)
+		doc.Content = string(raw)
+		if err := repository.UpdateDoc(doc); err != nil {
+			return nil, hkerr.Internal("保存失败")
+		}
+		return &it, nil
+	}
+	// 清掉旧的三档图，交给辅助函数重新生成
+	it.Preview, it.Thumb, it.Original = "", "", ""
+	if err := generatePrototypePreview(uid, srcData, srcName, isImage, &it); err != nil {
+		return nil, err
+	}
+	content.Items[idx] = it
+	raw, err := json.Marshal(content)
+	if err != nil {
+		return nil, hkerr.Internal("保存失败")
+	}
+	doc.Content = string(raw)
+	if err := repository.UpdateDoc(doc); err != nil {
+		return nil, hkerr.Internal("保存失败")
+	}
+	return &it, nil
 }

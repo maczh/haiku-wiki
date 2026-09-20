@@ -37,3 +37,8 @@ export async function updatePrototypeItem(
 export async function removePrototypeItem(docId: number, itemId: string): Promise<{ item_id: string }> {
   return request.delete(`/docs/${docId}/prototype/items/${itemId}`) as Promise<{ item_id: string }>
 }
+
+/** 需求原型：重新生成某条原型的预览图（三档尺寸），用于首次转换降级后补救。 */
+export async function regeneratePrototypeItem(docId: number, itemId: string): Promise<{ item: PrototypeItem }> {
+  return request.post(`/docs/${docId}/prototype/items/${itemId}/regenerate`) as Promise<{ item: PrototypeItem }>
+}

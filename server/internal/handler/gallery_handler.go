@@ -91,6 +91,27 @@ func GalleryRemoveImage(c *gin.Context) {
 	resp.OK(c, gin.H{"image_id": imageID})
 }
 
+// GalleryRegenerateImage POST /api/docs/:id/gallery/images/:imageId/regenerate
+// 重新生成某张图片的预览图（三档），用于首次转换降级/缺转换器后的补救。
+func GalleryRegenerateImage(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		resp.Error(c, paramMsg("文档 ID 无效"))
+		return
+	}
+	imageID := c.Param("imageId")
+	if imageID == "" {
+		resp.Error(c, paramMsg("图片 ID 无效"))
+		return
+	}
+	img, err := docService.RegenerateGalleryImage(middleware.UID(c), id, imageID)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"image": img})
+}
+
 // GalleryRenameImage PATCH /api/docs/:id/gallery/images/:imageId —— 改图片显示名。
 func GalleryRenameImage(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)

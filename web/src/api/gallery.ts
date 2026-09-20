@@ -23,6 +23,11 @@ export async function renameGalleryImage(docId: number, imageId: string, name: s
   return request.patch(`/docs/${docId}/gallery/images/${imageId}`, { name }) as Promise<{ name: string }>
 }
 
+/** 图片库：重新生成某张图片的预览图（三档尺寸），用于首次转换降级后补救。 */
+export async function regenerateGalleryImage(docId: number, imageId: string): Promise<{ image: GalleryImage }> {
+  return request.post(`/docs/${docId}/gallery/images/${imageId}/regenerate`) as Promise<{ image: GalleryImage }>
+}
+
 /** 本机图片转换能力：用于提示「哪些格式会因缺少转换器而只保存原件」 */
 export interface ImageConverterInfo {
   converter: string

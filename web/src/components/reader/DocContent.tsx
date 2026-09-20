@@ -146,14 +146,14 @@ export default function DocContent({
     // 图片库：相册网格用缩略图，点开看预览图，下载给原件
     body = (
       <LazyBoundary tip={TIP.gallery}>
-        <GalleryView content={content} />
+        <GalleryView content={content} docId={docId} />
       </LazyBoundary>
     )
   } else if (docType === 'prototype') {
     // 需求原型：卡片 = 一个原型（一份需求说明 + 它的载体），见 PrototypeView
     body = (
       <LazyBoundary tip={TIP.prototype}>
-        <PrototypeView content={content} />
+        <PrototypeView content={content} docId={docId} />
       </LazyBoundary>
     )
   } else if (docType === 'folder') {

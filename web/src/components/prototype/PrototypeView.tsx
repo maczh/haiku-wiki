@@ -1,17 +1,23 @@
-import { useMemo, useState } from 'react'
-import { Button, Card, Empty, Image, Modal, Tag, Tooltip } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Button, Card, Empty, Image, Modal, Segmented, Tag, Tooltip, message } from 'antd'
 import {
   DownloadOutlined,
   EyeOutlined,
   FileImageOutlined,
   FileUnknownOutlined,
   GlobalOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import type { PrototypeContent, PrototypeItem } from '../../types'
+import { regeneratePrototypeItem } from '../../api/prototype'
 import './prototype.css'
 
 interface Props {
   content: string
+  /** 文档 id：阅读态「重新生成」需要它来调用后端；分享页等无 docId 时不显示该按钮 */
+  docId?: number
+  /** 重新生成后通知外层刷新 */
+  onChanged?: () => void
 }
 
 export function parsePrototype(content: string): PrototypeContent {
@@ -42,15 +48,52 @@ function humanSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+type SizeMode = 'preview' | 'thumb' | 'original'
+
 /**
  * 需求原型阅读态：一张卡片 = 一个原型（一份需求说明 + 它的载体）。
  *   - 网页原型（html）：直接打开入口页（新窗口）
- *   - 图片原型：预览图 + 灯箱
+ *   - 图片原型：预览图 + 灯箱（支持屏宽/缩略图/原尺寸三档切换）
  *   - 工程文件（.rp/.mp/.sketch 等无法在网页渲染的）：占位 + 原件下载
  */
-export default function PrototypeView({ content }: Props) {
-  const items: PrototypeItem[] = useMemo(() => parsePrototype(content).items, [content])
+export default function PrototypeView({ content, docId, onChanged }: Props) {
+  const [items, setItems] = useState<PrototypeItem[]>(() => parsePrototype(content).items)
+  useEffect(() => {
+    setItems(parsePrototype(content).items)
+  }, [content])
   const [preview, setPreview] = useState<PrototypeItem | null>(null)
+  const [sizeMode, setSizeMode] = useState<SizeMode>('preview')
+  const [regenLoading, setRegenLoading] = useState(false)
+
+  // 切换预览项时回到默认的「屏宽」档
+  useEffect(() => {
+    setSizeMode('preview')
+  }, [preview])
+
+  const currentSrc = useMemo(() => {
+    if (!preview) return ''
+    if (sizeMode === 'preview') return preview.preview || preview.url
+    if (sizeMode === 'thumb') return preview.thumb || preview.preview || preview.url
+    // 原尺寸：优先 original（非图片格式为全分辨率派生图），回退到原图 url
+    return preview.original || preview.url
+  }, [preview, sizeMode])
+
+  async function handleRegenerate() {
+    if (!docId || !preview) return
+    setRegenLoading(true)
+    try {
+      const { item } = await regeneratePrototypeItem(docId, preview.id)
+      // 用返回的最新条目更新本地列表与当前预览
+      setItems((prev) => prev.map((x) => (x.id === item.id ? item : x)))
+      setPreview(item)
+      message.success('已重新生成预览图')
+      onChanged?.()
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setRegenLoading(false)
+    }
+  }
 
   if (items.length === 0) {
     return (
@@ -135,7 +178,13 @@ export default function PrototypeView({ content }: Props) {
 
       <Modal
         open={!!preview}
-        footer={null}
+        footer={
+          preview && preview.kind !== 'html' && docId ? (
+            <Button icon={<ReloadOutlined />} loading={regenLoading} onClick={handleRegenerate}>
+              重新生成
+            </Button>
+          ) : null
+        }
         title={preview?.title}
         width="80%"
         onCancel={() => setPreview(null)}
@@ -144,7 +193,19 @@ export default function PrototypeView({ content }: Props) {
         {preview?.kind === 'html' && preview.entry ? (
           <iframe src={preview.entry} title={preview.title} className="hk-proto-frame" />
         ) : (
-          <Image src={preview?.preview || preview?.url} alt={preview?.title} style={{ maxWidth: '100%' }} />
+          <>
+            <Segmented
+              options={[
+                { label: '屏宽', value: 'preview' },
+                { label: '缩略图', value: 'thumb' },
+                { label: '原尺寸', value: 'original' },
+              ]}
+              value={sizeMode}
+              onChange={(v) => setSizeMode(v as SizeMode)}
+              style={{ marginBottom: 12 }}
+            />
+            <Image src={currentSrc} alt={preview?.title} style={{ maxWidth: '100%' }} />
+          </>
         )}
       </Modal>
     </div>

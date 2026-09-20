@@ -1,4 +1,11 @@
-// Package imgconv 把各种图片格式归一化成「标准尺寸预览图 + 缩略图」。
+// Package imgconv 把各种图片格式归一化成「屏宽预览图 + 缩略图 + 原尺寸图」三档。
+//
+// 上传原件永远保留（可下载），另外派生三档图供相册网格、灯箱与「原尺寸查看」使用：
+//   - preview（屏宽）：最长边 PreviewMax(1920px)，灯箱/大图查看用；
+//   - thumb（缩略图）：最长边 ThumbMax(400px)，相册网格用；
+//   - original（原尺寸）：位图格式直接复用原图 URL（不另存，避免冗余存储）；
+//     SVG 等矢量图同样复用原 URL；仅原型里从专有格式（.rp/.mp/.sketch）抽取/内嵌的
+//     预览位图会压平透明通道后另存一张全分辨率 JPEG。
 //
 // 图片库（doc_type=gallery）与需求原型（doc_type=prototype）共用这一层：
 // 上传原件永远保留（可下载），另外派生两张小图供相册网格与灯箱使用。
@@ -55,6 +62,7 @@ const (
 type Result struct {
 	Preview       []byte // JPEG 预览图（最长边 ≤ PreviewMax）；ReuseOriginal 时为空
 	Thumb         []byte // JPEG 缩略图（最长边 ≤ ThumbMax）；ReuseOriginal 时为空
+	Original      []byte // 全分辨率压平后的 JPEG（位图原尺寸派生图）；ReuseOriginal/SVG 时留空，前端回退到 url
 	Width         int    // 原图宽（未知时为 0）
 	Height        int    // 原图高（未知时为 0）
 	Degraded      bool   // true = 没能生成派生图，只能保留原件
@@ -328,7 +336,16 @@ func external(data []byte, ext string) (*Result, error) {
 	if err1 != nil || err2 != nil || len(pv) == 0 || len(tb) == 0 {
 		return degraded("转换结果为空"), nil
 	}
-	return &Result{Preview: pv, Thumb: tb}, nil
+	res := &Result{Preview: pv, Thumb: tb}
+	// 原尺寸：不缩放，只压平透明通道（注意这里**没有** -resize）。
+	// 失败不致命——preview/thumb 已成功，original 留空，前端回退到原图 URL。
+	origPath := filepath.Join(dir, "original.jpg")
+	if err := exec.Command(conv, append(base, origPath)...).Run(); err == nil {
+		if orig, oerr := os.ReadFile(origPath); oerr == nil && len(orig) > 0 {
+			res.Original = orig
+		}
+	}
+	return res, nil
 }
 
 func degraded(note string) *Result {

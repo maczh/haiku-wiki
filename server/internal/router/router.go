@@ -83,10 +83,12 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			docs.POST("/gallery/images", handler.GalleryAddImages)
 			docs.DELETE("/gallery/images/:imageId", handler.GalleryRemoveImage)
 			docs.PATCH("/gallery/images/:imageId", handler.GalleryRenameImage)
+			docs.POST("/gallery/images/:imageId/regenerate", handler.GalleryRegenerateImage)
 			// 需求原型：批量加原型（每文件带标题+需求描述）/ 改说明 / 删原型
 			docs.POST("/prototype/items", handler.PrototypeAddItems)
 			docs.PATCH("/prototype/items/:itemId", handler.PrototypeUpdateItem)
 			docs.DELETE("/prototype/items/:itemId", handler.PrototypeRemoveItem)
+			docs.POST("/prototype/items/:itemId/regenerate", handler.PrototypeRegenerateItem)
 			docs.GET("/versions", handler.ListVersions)
 			docs.GET("/versions/:vid", handler.GetVersion)
 			docs.POST("/versions/:vid/rollback", handler.RollbackVersion)
@@ -132,16 +134,32 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.GET("/users", handler.ListUsers)
 			admin.PATCH("/users/:id/status", handler.SetUserStatus)
 			admin.PATCH("/users/:id/reset-password", handler.ResetUserPassword)
+			// 用户删除 / 恢复 / 彻底删除（静态路由 /users/deleted 优先于 /users/:id）
+			admin.GET("/users/deleted", handler.ListDeletedUsers)
+			admin.DELETE("/users/:id", handler.DeleteUser)
+			admin.POST("/users/:id/restore", handler.RestoreUser)
+			admin.DELETE("/users/:id/purge", handler.PurgeUser)
+			// 用户文库管理：查看 / 备份 / 删除某用户的私有文库与团队文库
+			admin.GET("/users/:id/libraries", handler.ListUserLibraries)
+			admin.GET("/books/:id/docs", handler.ListLibraryDocs)
+			admin.DELETE("/books/:id", handler.DeleteLibrary)
+			admin.POST("/books/:id/backup", handler.BackupLibrary)
 			// 公司知识库写权限授权（仅管理员）：列出 / 授予 / 撤销
 			admin.GET("/books/:id/writers", handler.ListBookWriters)
 			admin.POST("/books/:id/writers", handler.AddBookWriter)
 			admin.DELETE("/books/:id/writers/:uid", handler.RemoveBookWriter)
+
+			// 系统配置（服务 / JWT / 数据库 / 存储 / 上传）
+			admin.GET("/system-config", handler.GetSystemConfig)
+			admin.PUT("/system-config", handler.SaveSystemConfig)
 
 			// 系统迁移（数据库 SQLite↔MySQL、存储 local↔S3）：仅管理员
 			admin.GET("/migrate/config", handler.MigrateConfig)
 			admin.GET("/migrate/status", handler.MigrateStatus)
 			admin.POST("/migrate/database", handler.MigrateDatabase)
 			admin.POST("/migrate/storage", handler.MigrateStorage)
+			admin.POST("/migrate/database/test", handler.TestDatabaseConnection)
+			admin.POST("/migrate/storage/test", handler.TestStorageConnection)
 		}
 
 		// 团队管理

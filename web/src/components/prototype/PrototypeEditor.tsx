@@ -3,7 +3,7 @@ import { Alert, Button, Card, Empty, Input, Modal, Spin, Tag, Upload, message } 
 import { DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import type { PrototypeItem } from '../../types'
-import { addPrototypeItems, removePrototypeItem, updatePrototypeItem } from '../../api/prototype'
+import { addPrototypeItems, regeneratePrototypeItem, removePrototypeItem, updatePrototypeItem } from '../../api/prototype'
 import { parsePrototype } from './PrototypeView'
 import './prototype.css'
 
@@ -27,6 +27,8 @@ export default function PrototypeEditor({ docId, content, onChanged }: Props) {
   const [editing, setEditing] = useState<PrototypeItem | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  // 正在「重新生成」的原型 id（逐行独立 loading）
+  const [regenId, setRegenId] = useState<string | null>(null)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const filesRef = useRef<File[]>([])
   filesRef.current = fileList.map((f) => f.originFileObj as unknown as File).filter(Boolean)
@@ -88,6 +90,20 @@ export default function PrototypeEditor({ docId, content, onChanged }: Props) {
       onChanged?.()
     } catch {
       /* 拦截器已提示 */
+    }
+  }
+
+  // 重新生成某条原型的预览图（三档尺寸）
+  async function handleRegenerate(it: PrototypeItem) {
+    setRegenId(it.id)
+    try {
+      await regeneratePrototypeItem(docId, it.id)
+      message.success('已重新生成预览图')
+      onChanged?.()
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setRegenId(null)
     }
   }
 

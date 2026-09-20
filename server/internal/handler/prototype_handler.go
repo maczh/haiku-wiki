@@ -128,6 +128,27 @@ func PrototypeRemoveItem(c *gin.Context) {
 	resp.OK(c, gin.H{"item_id": itemID})
 }
 
+// PrototypeRegenerateItem POST /api/docs/:id/prototype/items/:itemId/regenerate
+// 重新生成某条原型的预览图（三档），用于首次转换降级/缺转换器后的补救。
+func PrototypeRegenerateItem(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		resp.Error(c, paramMsg("文档 ID 无效"))
+		return
+	}
+	itemID := c.Param("itemId")
+	if itemID == "" {
+		resp.Error(c, paramMsg("原型 ID 无效"))
+		return
+	}
+	it, err := docService.RegeneratePrototypeItem(middleware.UID(c), id, itemID)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"item": it})
+}
+
 // parsePrototypeMeta 解析并列的 titles/descs 数组（前端以 JSON 字符串传，兼容空值）。
 func parsePrototypeMeta(titlesRaw, descsRaw []string, n int) (titles, descs []string) {
 	titles = make([]string, 0, n)

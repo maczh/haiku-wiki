@@ -17,6 +17,8 @@ interface Props {
   actions?: React.ReactNode
   /** 是否放进灯箱分组（阅读态开启，点击缩略图即放大） */
   preview?: boolean
+  /** 点击卡片缩略图（非原生灯箱模式时）的回调，用于阅读态自定义灯箱 */
+  onClick?: () => void
 }
 
 /**

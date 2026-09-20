@@ -64,6 +64,8 @@ export interface DocNode {
    * 用于收集员工的建议、意见与 bug 报告。仅在公司知识库生效。
    */
   public_edit?: boolean
+  /** 前端组树后的子节点（后端返回平铺列表，由前端递归组装） */
+  children?: DocNode[]
 }
 
 export interface DocDetail extends DocNode {
@@ -236,6 +238,8 @@ export interface GalleryImage {
   url: string
   preview: string
   thumb: string
+  /** 原尺寸（图片格式=原图 url，即全分辨率） */
+  original: string
   size: number
   width: number
   height: number
@@ -254,7 +258,8 @@ export interface GalleryContent {
 
 /**
  * 需求原型（doc_type=prototype）里的一条，与后端 service.PrototypeItem 对应。
- * kind=html 的原型直接嵌入展示（Axure/Mockplus 导出的网页包），其余生成预览图 + 原件下载。
+ * kind=html 的原型直接嵌入展示（Axure/Mockplus 导出的网页包），其余生成三档预览图（屏宽/缩略图/原尺寸）+ 原件下载。
+ * 三档尺寸：屏宽（preview，最长边 1920）/ 缩略图（thumb，最长边 400）/ 原尺寸（original）。
  */
 export interface PrototypeItem {
   id: string
@@ -272,6 +277,8 @@ export interface PrototypeItem {
   entry?: string
   preview?: string
   thumb?: string
+  /** 原尺寸（图片格式=原图 url；非图片格式=全分辨率派生图 url） */
+  original?: string
   degraded: boolean
   note: string
   added_at: string
@@ -411,6 +418,69 @@ export interface TeamMemberView {
 export interface TeamDetail {
   team: Team
   my_role: 'admin' | 'read_write' | 'read_only' | 'member'
+}
+
+// ---------- 系统管理（管理员） ----------
+
+/** 文库视图（复用 BookWithCount 形态，供管理员查看用户文库用） */
+export interface LibraryView {
+  id: number
+  owner_id: number
+  name: string
+  description: string
+  visibility: Visibility
+  team_id: number | null
+  is_company_kb?: boolean
+  doc_count: number
+}
+
+/** 用户文库集合：私有文库 + 团队文库 */
+export interface UserLibraries {
+  private: LibraryView[]
+  team: LibraryView[]
+}
+
+/** 系统配置（镜像后端 EditableConfig 的 JSON 结构） */
+export interface SystemConfig {
+  server: { port: string; mode: string }
+  jwt: { secret: string }
+  database: {
+    driver: 'sqlite' | 'mysql'
+    dsn: string
+    host: string
+    port: number
+    user: string
+    password: string
+    name: string
+  }
+  storage: { type: 'local' | 's3'; local_dir: string }
+  s3: {
+    endpoint: string
+    region: string
+    bucket: string
+    access_key: string
+    secret_key: string
+    prefix: string
+    force_path_style: boolean
+    public_read: boolean
+    presign_ttl: number
+  }
+  upload: { max_size_mb: number }
+}
+
+/** 迁移任务状态（镜像后端 service.MigrateStatus） */
+export interface MigrateStatus {
+  type: string
+  status: 'idle' | 'running' | 'done' | 'failed'
+  total: number
+  done: number
+  failed: number
+  skipped: number
+  message: string
+  switched: boolean
+  need_restart: boolean
+  started_at?: string | null
+  finished_at?: string | null
 }
 
 /** 文档协作者（个人库文档邀请协作） */
