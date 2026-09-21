@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import luckysheet from 'luckysheet'
 import 'luckysheet/dist/css/luckysheet.css'
 import 'luckysheet/dist/assets/iconfont/iconfont.css'
-import { Alert, Button, Space, Tooltip, message } from 'antd'
+import { Alert, Button, Popover, Space, Tooltip, message } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
@@ -46,6 +46,7 @@ interface LuckysheetApi {
  */
 export default function SheetEditor({ docId, initialContent, title, docType }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
+  const apiRef = useRef<LuckysheetApi | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestRef = useRef<SheetJSON>(parseSheetJSON(initialContent).data)
   const dirtyRef = useRef(false)
@@ -78,6 +79,7 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
     const api = luckysheet as unknown as LuckysheetApi
     // 内部若干分支直接引用全局 luckysheet（见文件头说明），先挂上去再 create
     ;(window as unknown as { luckysheet?: unknown }).luckysheet = api
+    apiRef.current = api
 
     /** 内容变更 → 记入内存副本并触发防抖保存 */
     const onChange = () => {
@@ -113,8 +115,6 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
           italic: true,
           strikethrough: true,
           underline: true,
-          textColor: true,
-          fillColor: true,
           border: true,
           mergeCell: true,
           horizontalAlignMode: true,
@@ -186,10 +186,56 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
       } catch {
         /* 重复销毁等场景忽略 */
       }
+      apiRef.current = null
       host.innerHTML = ''
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
+
+  /**
+   * 文字颜色 / 单元格背景色：Luckysheet 自带 textColor/fillColor 下拉在自托管环境（无外链字体、
+   * jQuery 菜单样式缺失）下无法弹出取色框，故改为本组件自管取色器，直接调用 Luckysheet 实例的
+   * setCellFormat 写到当前选区并 refresh 重绘。attr: 'fc' 字体色 / 'bg' 背景色；color 为空串表示清除。
+   */
+  const applyCellColor = useCallback((attr: 'fc' | 'bg', color: string) => {
+    const api = apiRef.current as (LuckysheetApi & {
+      setCellFormat?: (r: number, c: number, a: string, v: string) => void
+      refresh?: () => void
+      getluckysheet_select_save?: () => { row: number[]; column: number[] }[]
+    }) | null
+    if (!api) return
+    let ranges: { row: number[]; column: number[] }[] = []
+    try {
+      ranges = api.getluckysheet_select_save?.() ?? []
+    } catch {
+      ranges = []
+    }
+    if (!ranges || ranges.length === 0) {
+      message.info('请先选中要设置颜色的单元格')
+      return
+    }
+    for (const r of ranges) {
+      for (let row = r.row[0]; row <= r.row[1]; row++) {
+        for (let col = r.column[0]; col <= r.column[1]; col++) {
+          try {
+            api.setCellFormat?.(row, col, attr, color)
+          } catch {
+            /* 跳过非法格 */
+          }
+        }
+      }
+    }
+    try {
+      api.refresh?.()
+    } catch {
+      /* 忽略 */
+    }
+    // 程序化刷新不会触发 Luckysheet 的 updated/cellUpdated 钩子，显式标记改动并触发防抖保存
+    dirtyRef.current = true
+    setStatus('editing')
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+  }, [])
 
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -222,6 +268,10 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
       >
         <SaveIndicator status={status} savedAt={savedAt} />
         <div style={{ flex: 1 }} />
+        <Space size={8}>
+          <CellColorButton label="文字颜色" attr="fc" onApply={(c) => applyCellColor('fc', c)} />
+          <CellColorButton label="单元格背景色" attr="bg" onApply={(c) => applyCellColor('bg', c)} />
+        </Space>
         <Space size={8}>
           <Tooltip title="立即保存（生成手动版本快照）">
             <Button size="small" icon={<SaveOutlined />} onClick={() => void doSave('manual')}>
@@ -259,5 +309,79 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
         }}
       />
     </div>
+  )
+}
+
+/** 取色器预设色板（字体色与背景色共用一套常用色） */
+const CELL_SWATCHES = [
+  '#000000', '#434343', '#666666', '#999999', '#b45f06', '#e60000',
+  '#ff9900', '#ffff00', '#008a00', '#0066cc', '#9933ff', '#ffffff',
+  '#f4cccc', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#cfe2f3',
+  '#d9d2e9', '#ead1dc', '#ea9999', '#ffd966', '#b6d7a8', '#a2c4c9',
+]
+
+/**
+ * 单元格颜色按钮：点击弹出取色器（预设色板 + 原生取色器 + 清除），
+ * 选中颜色后回调 onApply(color) 写到当前选区。颜色为空串表示清除。
+ */
+function CellColorButton({
+  label,
+  attr,
+  onApply,
+}: {
+  label: string
+  attr: 'fc' | 'bg'
+  onApply: (color: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [custom, setCustom] = useState('#ff0000')
+  void attr
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      title={label}
+      content={
+        <div style={{ width: 232 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+            {CELL_SWATCHES.map((c) => (
+              <div
+                key={c}
+                title={c}
+                onClick={() => {
+                  onApply(c)
+                  setOpen(false)
+                }}
+                style={{
+                  width: 26,
+                  height: 26,
+                  background: c,
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  border: '1px solid #d9d9d9',
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="color"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              style={{ width: 40, height: 30, padding: 0, border: '1px solid #d9d9d9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+            />
+            <Button size="small" onClick={() => { onApply(custom); setOpen(false) }}>
+              应用
+            </Button>
+            <Button size="small" type="text" onClick={() => { onApply(''); setOpen(false) }}>
+              清除
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <Button size="small">{label}</Button>
+    </Popover>
   )
 }

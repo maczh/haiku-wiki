@@ -86,8 +86,9 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const [fontFamily, setFontFamily] = useState('')
   const [ready, setReady] = useState(false)
   const [initFailed, setInitFailed] = useState(false)
-  // 当前布局/主题选择（持久化到 docs.content）
-  const [layout, setLayout] = useState(initialData.layout || 'logicalStructure')
+  // 当前布局/主题选择（持久化到 docs.content）。
+  // 默认结构从「逻辑结构图」改为「思维导图」：新建与导入的思维导图默认即思维导图结构（#需求）。
+  const [layout, setLayout] = useState(initialData.layout || 'mindMap')
   const [activeThemeKey, setActiveThemeKey] = useState<string | null>(null)
   const layoutRef = useRef(layout)
   layoutRef.current = layout

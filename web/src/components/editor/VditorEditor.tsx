@@ -2,12 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import Vditor from 'vditor'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
-import { Button, Space, Tooltip } from 'antd'
+import { Button, Menu, Space, Tooltip } from 'antd'
+import type { MenuProps } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
+import {
+  resolveContext,
+  setBlockType,
+  deleteLine,
+  insertContent,
+  applySelectionOp,
+  tableOp,
+  type CtxState,
+  type BlockType,
+  type SelectionOp,
+  type TableOp,
+} from '../../lib/vditorCmds'
 
 // Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
 import 'vditor/dist/index.css'
@@ -36,7 +49,62 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  *  - 图片/附件上传钩子 → POST /api/uploads
  *  - 3s 防抖自动保存（source=auto），内容无变化不请求
  *  - 手动保存（source=manual）/ 历史版本抽屉
+ *  - 右键上下文菜单：行样式/插入/删除行、选区格式化、表格行列增删
  */
+
+/** 按上下文构造右键菜单项 */
+function buildMenuItems(c: CtxState): MenuProps['items'] {
+  if (c.kind === 'selection') {
+    return [
+      { key: 'bold', label: '加粗' },
+      { key: 'italic', label: '斜体' },
+      { key: 'strike', label: '删除线' },
+      { key: 'underline', label: '下划线' },
+      { key: 'code', label: '行内代码' },
+      { key: 'codeblock', label: '代码块' },
+    ]
+  }
+  if (c.kind === 'table') {
+    return [
+      { key: 'row-up', label: '在上方插入行' },
+      { key: 'row-down', label: '在下方插入行' },
+      { key: 'col-left', label: '在左侧插入列' },
+      { key: 'col-right', label: '在右侧插入列' },
+      { key: 'row-del', label: '删除本行' },
+      { key: 'col-del', label: '删除本列' },
+    ]
+  }
+  return [
+    {
+      key: 'style',
+      label: '样式',
+      children: [
+        { key: 'h1', label: '标题 1（H1）' },
+        { key: 'h2', label: '标题 2（H2）' },
+        { key: 'h3', label: '标题 3（H3）' },
+        { key: 'p', label: '正文' },
+        { key: 'quote', label: '引用' },
+        { key: 'ul', label: '无序列表' },
+        { key: 'ol', label: '有序列表' },
+      ],
+    },
+    {
+      key: 'insert',
+      label: '插入',
+      children: [
+        { key: 'table', label: '表格' },
+        { key: 'image', label: '图片' },
+        { key: 'link', label: '链接' },
+        { key: 'hr', label: '分割线' },
+        { key: 'seq', label: '时序图' },
+        { key: 'flow', label: '流程图' },
+      ],
+    },
+    { type: 'divider' },
+    { key: 'delete-line', label: '删除行' },
+  ]
+}
+
 export default function VditorEditor({ docId, initialContent, title }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const vdRef = useRef<Vditor | null>(null)
@@ -47,6 +115,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
+  /** 右键上下文菜单状态（null 表示关闭） */
+  const [ctx, setCtx] = useState<CtxState | null>(null)
 
   // docId 变化时重建编辑器
   useEffect(() => {
@@ -178,9 +248,31 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     }
     elRef.current?.addEventListener('paste', onPaste)
 
+    // ---------- 右键上下文菜单（样式/插入/删除行、选区格式化、表格行列增删） ----------
+    // 用捕获阶段拦截，确保早于 Vditor 自带 handler；工具栏/计数区放行原生菜单。
+    const onCtx = (e: MouseEvent) => {
+      const vd = vdRef.current
+      if (!vd) return
+      const target = document.elementFromPoint(e.clientX, e.clientY)
+      if (target && target.closest('.vditor-toolbar, .vditor-counter')) return
+      e.preventDefault()
+      e.stopPropagation()
+      setCtx(resolveContext(vd, e.clientX, e.clientY))
+    }
+    // 点击菜单以外区域即关闭（菜单自身 mousedown 不关闭，保证 onClick 能命中）
+    const onDocDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && t.closest('[data-vd-cm]')) return
+      setCtx(null)
+    }
+    elRef.current?.addEventListener('contextmenu', onCtx, true)
+    document.addEventListener('mousedown', onDocDown)
+
     return () => {
       disposed = true
       elRef.current?.removeEventListener('paste', onPaste)
+      elRef.current?.removeEventListener('contextmenu', onCtx)
+      document.removeEventListener('mousedown', onDocDown)
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
       if (dirtyRef.current && latestRef.current !== lastSavedRef.current) {
@@ -210,6 +302,53 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       setStatus('saved')
     } catch {
       setStatus('editing')
+    }
+  }
+
+  /** 执行右键菜单项 */
+  function runAction(key: string, c: CtxState) {
+    const vd = vdRef.current
+    if (!vd) return
+    if (c.kind === 'selection') {
+      applySelectionOp(vd, key as SelectionOp)
+      return
+    }
+    if (c.kind === 'table') {
+      if (c.td) tableOp(vd, c.td, key as TableOp)
+      return
+    }
+    // line 上下文
+    switch (key) {
+      case 'h1':
+      case 'h2':
+      case 'h3':
+      case 'p':
+      case 'quote':
+      case 'ul':
+      case 'ol':
+        setBlockType(vd, c.x, c.y, key as BlockType)
+        break
+      case 'delete-line':
+        deleteLine(vd, c.x, c.y)
+        break
+      case 'table':
+        insertContent(vd, 'table')
+        break
+      case 'image':
+        insertContent(vd, 'image')
+        break
+      case 'link':
+        insertContent(vd, 'link')
+        break
+      case 'hr':
+        insertContent(vd, 'hr')
+        break
+      case 'seq':
+        insertContent(vd, 'seq')
+        break
+      case 'flow':
+        insertContent(vd, 'flow')
+        break
     }
   }
 
@@ -257,6 +396,35 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
           window.location.reload()
         }}
       />
+
+      {/* 右键上下文菜单浮层：fixed 定位在鼠标处，data-vd-cm 标记使其自身点击不触发关闭 */}
+      {ctx && (
+        <div
+          data-vd-cm="1"
+          style={{
+            position: 'fixed',
+            left: ctx.x,
+            top: ctx.y,
+            zIndex: 1200,
+            background: '#fff',
+            borderRadius: 6,
+            boxShadow: '0 3px 14px rgba(0,0,0,0.18)',
+            padding: 4,
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <Menu
+            mode="vertical"
+            selectable={false}
+            style={{ border: 'none', minWidth: 180 }}
+            items={buildMenuItems(ctx)}
+            onClick={({ key }) => {
+              runAction(key, ctx)
+              setCtx(null)
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

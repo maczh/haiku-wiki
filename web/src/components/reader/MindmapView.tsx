@@ -1,11 +1,27 @@
 import { useEffect, useRef } from 'react'
 import { message } from 'antd'
 import MindMap from 'simple-mind-map'
+import Drag from 'simple-mind-map/src/plugins/Drag.js'
+import Export from 'simple-mind-map/src/plugins/Export.js'
+import Painter from 'simple-mind-map/src/plugins/Painter.js'
+import AssociativeLine from 'simple-mind-map/src/plugins/AssociativeLine.js'
+import OuterFrame from 'simple-mind-map/src/plugins/OuterFrame.js'
+import Formula from 'simple-mind-map/src/plugins/Formula.js'
+import 'katex/dist/katex.min.css'
 import { parseMindmapJSON } from '../../lib/mindmap'
 
 interface Props {
   content: string
 }
+
+// 插件静态注册（与 MindmapEditor 保持一致）：用户真实导图常带节点图片 / 关联线 / 公式 / 备注，
+// 只读预览若不注册这些插件，simple-mind-map 解析带对应特性的数据时会抛错（#模板预览报错）。
+MindMap.usePlugin(Drag)
+MindMap.usePlugin(Export)
+MindMap.usePlugin(Painter)
+MindMap.usePlugin(AssociativeLine)
+MindMap.usePlugin(OuterFrame)
+MindMap.usePlugin(Formula)
 
 /** 思维导图只读渲染（simple-mind-map readonly，禁止编辑/拖拽，初始 fit 视图） */
 export default function MindmapView({ content }: Props) {
@@ -22,7 +38,7 @@ export default function MindmapView({ content }: Props) {
       el: host,
       data: data.root,
       readonly: true,
-      layout: data.layout || 'logicalStructure',
+      layout: data.layout || 'mindMap',
       initRootNodePosition: ['center', 'center'],
     })
     // 只读也还原持久化的主题配置（#31）：保持与编辑态一致的视觉样式。
