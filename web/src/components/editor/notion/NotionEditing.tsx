@@ -40,7 +40,7 @@ import {
   type InlineStyle,
 } from '../../../lib/notionBlocks'
 import { internalLink } from '../../../lib/internalLink'
-import { irBlocks, irReset } from '../../../lib/irDom'
+import { blockIndexAtPoint, irBlocks, irReset } from '../../../lib/irDom'
 
 export interface NotionEditingProps {
   /** Vditor 挂载的外层元素（滚动容器），用来定位手柄与监听事件 */
@@ -61,8 +61,32 @@ export interface NotionEditingProps {
   ready: boolean
 }
 
-/** 手柄距块左边缘的横向偏移 */
+/** 手柄距块左边缘的横向偏移（仅用于手柄定位） */
 const HANDLE_OFFSET = 26
+/** 块左侧「触发带」宽度：鼠标在块左缘向左此范围内即视为命中该块，
+ *  避免移向手柄时（左缘到手柄之间为空白留白带）手柄立刻消失（BUG 1）。 */
+const HANDLE_GUTTER = 50
+
+/** 合法的「转换为」叶子类型：用于拦截「标题 / 列表」这类仅有子菜单的父级 key，
+ *  避免其被当成真实转换而误清整块前缀。 */
+const CONVERT_KINDS = new Set<BlockKind>([
+  'paragraph',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'task',
+  'quote',
+  'code',
+  'hr',
+  'table',
+  'callout',
+  'details',
+])
 
 const CONVERT_ICON: Partial<Record<BlockKind, React.ReactNode>> = {
   paragraph: <FormOutlined />,
@@ -225,27 +249,26 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
   )
 
   /**
-   * 取鼠标下的「顶层块」与其对应的源行号。
-   * 主路径：鼠标落在某块内任意位置 → 向上解析顶层块；
-   * 兜底：鼠标在块左侧留白带内（-26px ~ +8px）也命中。
+   * 取鼠标下的「顶层块」与其对应的源行号（文档序索引）。
+   *
+   * 关键修正（BUG 1 / BUG 2）：不再依赖 `elementFromPoint` 命中块元素本身，而是用
+   * `blockIndexAtPoint` 以**纵向坐标**锁定光标所在顶层块、再判断横向是否在块内或其左侧
+   * 触发带（HANDLE_GUTTER）内。这样左侧留白带里命中容器元素也不会解析失败、手柄消失，
+   * 且命中的块索引一定是光标所在行的顶层块。
    */
   const blockAtPoint = useCallback(
     (x: number, y: number): { el: HTMLElement; block: number } | null => {
       const host = hostRef.current
       if (!host) return null
-      const el = document.elementFromPoint(x, y) as HTMLElement | null
-      if (!el || !host.contains(el)) return null
-      const hit = resolveBlock(el)
-      if (!hit) return null
-      // 命中条件：纵向在该块内，横向要么在块左侧留白带（-26~+8px），要么在块本身之内
-      const r = hit.el.getBoundingClientRect()
-      if (!(y >= r.top && y <= r.bottom)) return null
-      const inGutter = x >= r.left - HANDLE_OFFSET && x <= r.left + 8
-      const inBlock = x >= r.left && x <= r.right
-      if (!inGutter && !inBlock) return null
-      return hit
+      const reset = irReset(host)
+      if (!reset) return null
+      const blocks = irBlocks(host)
+      if (blocks.length === 0) return null
+      const idx = blockIndexAtPoint(blocks, x, y, HANDLE_GUTTER)
+      if (idx < 0) return null
+      return { el: blocks[idx], block: idx }
     },
-    [hostRef, resolveBlock],
+    [hostRef],
   )
 
   // 悬停手柄
@@ -448,6 +471,9 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
       }
       if (key.startsWith('convert:')) {
         const kind = key.slice('convert:'.length) as BlockKind
+        // 拦截「标题 / 列表」等仅有子菜单的父级 key（如 convert:h / convert:list），
+        // 否则会落到 default 分支把整块前缀清掉
+        if (!CONVERT_KINDS.has(kind)) return
         const converted = convertBlock(lines, range, kind)
         const next = [...lines.slice(0, range.start), ...converted, ...lines.slice(range.end + 1)]
         writeValue(next.join('\n'), range.start)

@@ -38,6 +38,13 @@ for f in server/internal/static/dist/*; do mv "$f" "$BK2/"; done
 shopt -u nullglob
 mkdir -p server/internal/static/dist
 cp -r web/dist/. server/internal/static/dist/
+# 还原/补全 .gitkeep：早期 `rsync --delete` 曾把它一并删掉，而脚本断言它恒在（否则下方检查必失败、
+# 且 go build 被跳过导致二进制仍是旧的）。这里幂等兜底：HEAD 有则用 HEAD，否则补占位说明。
+if ! git -C "$REPO" cat-file -e HEAD:server/internal/static/dist/.gitkeep 2>/dev/null; then
+  printf '此目录为 Go embed 占位；构建时由 web/dist 填充，禁止提交实际产物。\n' > server/internal/static/dist/.gitkeep
+else
+  git -C "$REPO" show HEAD:server/internal/static/dist/.gitkeep > server/internal/static/dist/.gitkeep 2>/dev/null || true
+fi
 test -f server/internal/static/dist/.gitkeep || { echo "❌ .gitkeep 丢失"; exit 1; }
 echo "静态资源：$(find server/internal/static/dist -type f | wc -l) 个文件，$(du -sh server/internal/static/dist | cut -f1)"
 

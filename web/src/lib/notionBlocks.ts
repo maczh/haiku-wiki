@@ -78,10 +78,6 @@ export const CONVERT_TARGETS: { kind: BlockKind; label: string }[] = [
   { kind: 'hr', label: '分割线' },
 ]
 
-/** 空列表项等内容占位文案 */
-const LIST_PLACEHOLDER = '列表项'
-const QUOTE_PLACEHOLDER = '引用内容'
-
 /**
  * 把一行内容转成目标块类型。
  *
@@ -100,22 +96,27 @@ export function convertLine(line: string, kind: BlockKind): string {
     case 'h5':
     case 'h6': {
       const level = Number(kind.slice(1))
-      return `${indent}${'#'.repeat(level)} ${text || '标题'}`
+      const head = '#'.repeat(level)
+      // 空内容只保留前缀（`## ` 才是合法空标题），绝不写入「标题」字样
+      return text ? `${indent}${head} ${text}` : `${indent}${head} `
     }
     case 'ul':
-      return `${indent}- ${text || LIST_PLACEHOLDER}`
+      // 空内容只保留 `- ` 前缀，不写「列表项」字样
+      return `${indent}- ${text}`
     case 'ol':
-      return `${indent}1. ${text || LIST_PLACEHOLDER}`
+      // 空内容只保留 `1. ` 前缀，不写「列表项」字样
+      return `${indent}1. ${text}`
     case 'task':
-      return `${indent}- [ ] ${text || LIST_PLACEHOLDER}`
+      // 空内容只保留 `- [ ] ` 前缀，不写「列表项」字样
+      return `${indent}- [ ] ${text}`
     case 'quote':
-      // 引用可能多行：逐行加 > 前缀，空行保留为孤立 >
+      // 引用可能多行：逐行加 > 前缀；空内容只保留 `> ` 前缀，不写「引用内容」字样
       return text
         ? text
             .split('\n')
             .map((l) => `${indent}> ${l}`)
             .join('\n')
-        : `${indent}> ${QUOTE_PLACEHOLDER}`
+        : `${indent}> `
     case 'code':
       // 已经是代码块就不再套一层（避免 ``` 嵌套）
       if (detectBlockKind(line) === 'code') return line
@@ -394,15 +395,20 @@ export function convertBlock(lines: string[], range: BlockRange, kind: BlockKind
     case 'details':
       return ['<details>', '<summary>折叠块</summary>', '', text || '内容', '</details>']
     case 'callout':
-      return [`> 💡 ${text.replace(/\s*\n\s*/g, ' ')}`]
+      // 空内容只保留 `> 💡 ` 前缀，不写「提示内容」字样
+      return [text ? `> 💡 ${text.replace(/\s*\n\s*/g, ' ')}` : '> 💡 ']
     case 'quote':
-      return (rows.length ? rows : ['引用内容']).map((l) => `> ${l}`)
+      // 空内容只保留 `> ` 前缀，不写「引用内容」字样；非空则逐行加 > 前缀
+      return rows.length ? rows.map((l) => `> ${l}`) : ['> ']
     case 'ul':
-      return (rows.length ? rows : ['列表项']).map((l) => `- ${l}`)
+      // 空内容只保留 `- ` 前缀，不写「列表项」字样
+      return rows.length ? rows.map((l) => `- ${l}`) : ['- ']
     case 'ol':
-      return (rows.length ? rows : ['列表项']).map((l, i) => `${i + 1}. ${l}`)
+      // 空内容只保留 `1. ` 前缀，不写「列表项」字样
+      return rows.length ? rows.map((l, i) => `${i + 1}. ${l}`) : ['1. ']
     case 'task':
-      return (rows.length ? rows : ['列表项']).map((l) => `- [ ] ${l}`)
+      // 空内容只保留 `- [ ] ` 前缀，不写「列表项」字样
+      return rows.length ? rows.map((l) => `- [ ] ${l}`) : ['- [ ] ']
     case 'h1':
     case 'h2':
     case 'h3':
@@ -410,11 +416,14 @@ export function convertBlock(lines: string[], range: BlockRange, kind: BlockKind
     case 'h5':
     case 'h6': {
       const level = Number(kind.slice(1))
-      return [`${'#'.repeat(level)} ${text.replace(/\s*\n\s*/g, ' ') || '标题'}`]
+      const head = '#'.repeat(level)
+      // 空内容只保留 `## ` 前缀（合法空标题），绝不写入「标题」字样
+      return [text ? `${head} ${text.replace(/\s*\n\s*/g, ' ')}` : `${head} `]
     }
     case 'paragraph':
     default:
-      return [text || '正文']
+      // 空块转正文时返回空行，绝不写入「正文」字样
+      return [text]
   }
 }
 

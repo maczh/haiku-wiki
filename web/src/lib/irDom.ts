@@ -39,3 +39,43 @@ export function irBlockIndex(host: HTMLElement, el: HTMLElement): number {
   if (!top) return -1
   return irBlocks(host).indexOf(top)
 }
+
+/** 仅需要 getBoundingClientRect 的形状（便于单测用桩对象） */
+export interface RectLike {
+  getBoundingClientRect(): { top: number; bottom: number; left: number; right: number }
+}
+
+/**
+ * 给定一组顶层块元素，返回包含坐标 (x, y) 的块在 `blocks` 中的索引；找不到返回 -1。
+ *
+ * 命中规则（修复 BUG 1 / BUG 2）：
+ *  - 先按**纵向**命中：光标 y 落在某块 [top, bottom] 内即命中该块；否则取纵向距离
+ *    最近（≤16px）的块，避免块间小间隙导致手柄闪没；
+ *  - 再判断**横向**：落在块本身之内，或在块左侧触发带（gutter，含手柄）之内。
+ * 不依赖 `document.elementFromPoint`，因此左侧留白带里命中容器元素也不会解析失败、手柄消失。
+ */
+export function blockIndexAtPoint(blocks: RectLike[], x: number, y: number, gutter: number): number {
+  let best = -1
+  let bestDist = Infinity
+  const rects = blocks.map((b) => b.getBoundingClientRect())
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i]
+    if (y >= r.top && y <= r.bottom) {
+      best = i
+      bestDist = 0
+      break
+    }
+    const d = y < r.top ? r.top - y : y - r.bottom
+    if (d < bestDist && d <= 16) {
+      bestDist = d
+      best = i
+    }
+  }
+  if (best < 0) return -1
+  const r = rects[best]
+  const inGutter = x >= r.left - gutter && x <= r.left + 8
+  const inBlock = x >= r.left && x <= r.right
+  if (!inGutter && !inBlock) return -1
+  return best
+}
+
