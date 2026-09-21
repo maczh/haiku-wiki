@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Input, Avatar, Dropdown, Tooltip } from 'antd'
 import {
+  AppstoreOutlined,
   BookOutlined,
   DeleteOutlined,
   LogoutOutlined,
@@ -76,6 +77,9 @@ export default function AppLayout() {
         </Tooltip>
         <Tooltip title="团队（团队文库与成员管理）">
           <TeamOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/teams')} />
+        </Tooltip>
+        <Tooltip title="模板中心（企业办公常用模板）">
+          <AppstoreOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/templates')} />
         </Tooltip>
         <Tooltip title="回收站">
           <DeleteOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/trash')} />

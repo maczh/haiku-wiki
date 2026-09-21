@@ -157,6 +157,8 @@ func AutoMigrate(g *gorm.DB) error {
 		// 文档点评 / 讨论区（owner/admin/team-admin 可管理）
 		&model.Comment{},
 		&model.CommentSetting{},
+		// 文档模板（仿语雀/WPS 内置模板，种子数据见 templates_seed.go）
+		&model.DocTemplate{},
 	)
 }
 
@@ -217,6 +219,11 @@ func SeedData(g *gorm.DB) error {
 	// 系统自动创建「公司知识库」（全员只读，管理员可授权协作编辑）
 	if err := EnsureCompanyKB(); err != nil {
 		return fmt.Errorf("auto create company kb: %w", err)
+	}
+
+	// 内置文档模板（仿语雀/WPS）：首次启动灌入，幂等，不覆盖用户自定义模板
+	if err := SeedTemplates(g); err != nil {
+		return fmt.Errorf("seed doc templates: %w", err)
 	}
 	return nil
 }

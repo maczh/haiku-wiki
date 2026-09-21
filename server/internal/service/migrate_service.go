@@ -246,6 +246,8 @@ var migrateTables = []tableCopier{
 	// 文档点评 / 讨论区（owner/admin/team-admin 可管理）
 	{"comments", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.Comment](d, s, ow) }},
 	{"comment_settings", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.CommentSetting](d, s, ow) }},
+	// 文档模板（仿语雀/WPS 内置模板；迁移时整表复制，保持源库模板集）
+	{"doc_templates", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.DocTemplate](d, s, ow) }},
 }
 
 // copyRows 分批复制一张表，返回成功批次涉及的记录数。

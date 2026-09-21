@@ -43,6 +43,8 @@ import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNo
 import { COVER_COLORS, DOC_TYPES, DOC_TYPE_LABEL } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
 import { ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../lib/dirOptions'
+import TemplateGallery from '../components/template/TemplateGallery'
+import type { DocTemplate } from '../api/templates'
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
@@ -159,6 +161,9 @@ export default function BookPage() {
   const [newDocName, setNewDocName] = useState('')
   const [dirOptions, setDirOptions] = useState<DirOption[]>([])
   const [dirLoading, setDirLoading] = useState(false)
+  // 模板画廊：新建文档先经画廊选模板 / 空白文档，再进入「选择位置」两步流程
+  const [newDocGalleryOpen, setNewDocGalleryOpen] = useState(false)
+  const [newDocContent, setNewDocContent] = useState<string | null>(null)
 
   // 导入：两步（先选知识库+目录，再选方式）
   const [importStep, setImportStep] = useState(0)
@@ -420,17 +425,44 @@ export default function BookPage() {
   }
 
   async function openNewDoc(bookId?: number, parentId?: number, kind: 'doc' | 'folder' = 'doc') {
-    setNewDocStep(1)
     setNewDocBookId(bookId ?? null)
     setNewDocParentId(parentId ?? ROOT_DIR_VALUE)
     setNewDocKind(kind)
     setNewDocType('markdown')
     setNewDocName('')
-    if (bookId != null) {
-      await loadDirOptions(bookId)
+    setNewDocContent(null)
+    if (kind === 'folder') {
+      // 目录无正文、不用模板，直接进入「选择位置」两步流程
+      setNewDocStep(1)
+      if (bookId != null) {
+        await loadDirOptions(bookId)
+      } else {
+        setDirOptions([])
+      }
     } else {
-      setDirOptions([])
+      // 文档：先弹模板画廊，选定后再进入「选择位置」
+      setNewDocGalleryOpen(true)
     }
+  }
+
+  /** 画廊选中模板：回填类型/标题/正文，进入「选择位置」 */
+  function handlePickTemplate(t: DocTemplate) {
+    setNewDocType(t.doc_type)
+    setNewDocName(t.title)
+    setNewDocContent(t.content)
+    setNewDocGalleryOpen(false)
+    setNewDocStep(1)
+    if (newDocBookId != null) void loadDirOptions(newDocBookId)
+  }
+
+  /** 画廊选中「空白文档」：以当前筛选类型新建空白文档 */
+  function handlePickBlank(dt: DocType) {
+    setNewDocType(dt)
+    setNewDocName('')
+    setNewDocContent('')
+    setNewDocGalleryOpen(false)
+    setNewDocStep(1)
+    if (newDocBookId != null) void loadDirOptions(newDocBookId)
   }
 
   async function onNewDocBookChange(bookId: number) {
@@ -445,8 +477,9 @@ export default function BookPage() {
     // 目录：doc_type=folder，不选类型，正文恒为空
     const docType: DocType = newDocKind === 'folder' ? 'folder' : newDocType
     try {
-      const d = await createDoc(newDocBookId, newDocParentId, name, docType)
+      const d = await createDoc(newDocBookId, newDocParentId, name, docType, newDocContent ?? undefined)
       setNewDocStep(0)
+      setNewDocContent(null)
       message.success(newDocKind === 'folder' ? '目录已创建' : '文档已创建')
       setReloadBookId(newDocBookId)
       setReloadNonce((n) => n + 1)
@@ -1296,6 +1329,25 @@ export default function BookPage() {
             </div>
           </div>
         </Form>
+      </Modal>
+
+      {/* 新建文档：模板画廊（先选模板 / 空白文档，再进入「选择位置」两步流程） */}
+      <Modal
+        title="选择模板创建文档"
+        open={newDocGalleryOpen}
+        onCancel={() => setNewDocGalleryOpen(false)}
+        footer={null}
+        width={860}
+        destroyOnClose
+        style={{ top: 48 }}
+        bodyStyle={{ height: 460, padding: '4px 0' }}
+      >
+        <TemplateGallery
+          initialDocType={undefined}
+          onSelect={handlePickTemplate}
+          onSelectBlank={handlePickBlank}
+          showBlank
+        />
       </Modal>
 
       {/* 新建：第一步 选择知识库 + 目录（文档与目录共用；kind 决定第二步是否选类型） */}

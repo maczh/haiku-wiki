@@ -147,6 +147,13 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		// 接口文档「在线调试」服务端代理转发（SSRF 防护，CORS 绕行）
 		jwt.POST("/proxy", handler.ProxyRequest)
 
+		// 文档模板（仿语雀/WPS）：按业务分类 + 文档类型筛选，供「新建文档」套用
+		tpl := jwt.Group("/templates")
+		{
+			tpl.GET("", handler.ListTemplates)
+			tpl.GET("/categories", handler.ListTemplateCategories)
+		}
+
 		// 管理员用户管理（仅 admin）
 		admin := jwt.Group("/admin", middleware.RequireAdmin())
 		{

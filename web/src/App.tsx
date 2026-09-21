@@ -32,6 +32,8 @@ const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'))
 const SystemConfigPage = lazy(() => import('./pages/SystemConfigPage'))
 const DatabaseMigrationPage = lazy(() => import('./pages/DatabaseMigrationPage'))
 const StorageMigrationPage = lazy(() => import('./pages/StorageMigrationPage'))
+// 模板中心（仿语雀/WPS 的文档模板画廊）
+const TemplateGalleryPage = lazy(() => import('./pages/TemplateGalleryPage'))
 
 /** 路由守卫：未登录跳 /login */
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -172,6 +174,14 @@ export default function App() {
                 <StorageMigrationPage />
               </LazyBoundary>
             </RequireAdmin>
+          }
+        />
+        <Route
+          path="/templates"
+          element={
+            <LazyBoundary fill tip="正在加载模板中心…">
+              <TemplateGalleryPage />
+            </LazyBoundary>
           }
         />
       </Route>
