@@ -216,6 +216,7 @@ function TreeRow(p: RowProps) {
           className="hk-tree-actions"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <Dropdown
             menu={{ items: buildTreeMenuItems(treeMenuCtx) }}

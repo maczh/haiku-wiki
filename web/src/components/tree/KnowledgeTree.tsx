@@ -384,7 +384,7 @@ export default function KnowledgeTree(p: Props) {
             </Tooltip>
           )}
           {/* 语雀式 hover 操作区：⋮（更多操作）与 +（快速新建），默认隐藏，行 hover 出现 */}
-          <span className="hk-tree-actions" onClick={(e) => e.stopPropagation()}>
+          <span className="hk-tree-actions" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
             <Dropdown menu={{ items: buildTreeMenuItems(treeMenuCtx) }} trigger={['click']} placement="bottomRight">
               <span
                 role="button"
