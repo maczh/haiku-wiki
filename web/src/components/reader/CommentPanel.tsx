@@ -222,7 +222,7 @@ export default function CommentPanel({ docId, slug, anon, password }: Props) {
               <div style={{ color: '#bfbfbf', fontSize: 13, padding: '4px 0' }}>[该帖已被删除]</div>
             ) : (
               <>
-                <div style={{ fontSize: 14, marginTop: 2, wordBreak: 'break-word' }}>
+                <div className="hk-comment-md" style={{ fontSize: 14, marginTop: 2, wordBreak: 'break-word' }}>
                   <Suspense fallback={<span />}>
                     <MarkdownView content={node.body} />
                   </Suspense>
@@ -326,7 +326,7 @@ export default function CommentPanel({ docId, slug, anon, password }: Props) {
             />
           )}
           {preview ? (
-            <div style={{ minHeight: 48, border: '1px solid #ebedf0', borderRadius: 6, padding: 8, background: '#fff', marginBottom: 6, maxHeight: 220, overflow: 'auto' }}>
+            <div className="hk-comment-md" style={{ minHeight: 48, border: '1px solid #ebedf0', borderRadius: 6, padding: 8, background: '#fff', marginBottom: 6, maxHeight: 220, overflow: 'auto' }}>
               <Suspense fallback={<span />}>
                 <MarkdownView content={draft} />
               </Suspense>

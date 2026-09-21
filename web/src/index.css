@@ -12,6 +12,18 @@ body,
   background: #f7f8fa;
 }
 
+/*
+ * 应用式布局（height:100% + 内部滚动区），文档级横向滚动永远不该出现。
+ * 必须显式禁掉：右侧点评面板头部的 Tooltip 在屏幕最右缘居中弹出时会超出视口约 8px，
+ * 触发文档级横向滚动条 → 可用高度变化连锁引发纵向滚动条 → 整个 flex 布局左右平移
+ * → 触发器重新定位 Tooltip → 滚动条又消失 …… 自激成「整页持续剧烈抖动」。
+ * overflow-x:hidden 掐断这条反馈链（Tooltip 自身的 autoAdjustOverflow 仍会把它收回视口内）。
+ */
+html,
+body {
+  overflow-x: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -31,6 +43,15 @@ a {
 /* Vditor 渲染容器基础样式微调 */
 .doc-content img {
   max-width: 100%;
+}
+
+/*
+ * 点评/讨论区里的 Markdown 正文：MarkdownView 复用阅读页的 .doc-content，
+ * 其 padding(32/24/80) 是为整篇阅读页设计的，放进窄面板会出现上下两大块空白。
+ * 这里在点评容器内收紧为行间距级别的 padding，阅读页不受影响。
+ */
+.hk-comment-md .doc-content {
+  padding: 2px 0 4px;
 }
 
 /* 目录树行 */
