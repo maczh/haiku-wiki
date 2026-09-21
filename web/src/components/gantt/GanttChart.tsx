@@ -55,7 +55,8 @@ function StatusCell({ row }: { row?: Record<string, unknown> }) {
         style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color, flexShrink: 0 }}
         aria-hidden
       />
-      <span style={{ color: '#4b5563' }}>{meta.label}</span>
+      {/* nowrap：最长的状态文案是「正常进行中」（5 个汉字），窄列下换行会把行高撑成两行 */}
+      <span style={{ color: '#4b5563', whiteSpace: 'nowrap' }}>{meta.label}</span>
     </span>
   )
 }
@@ -110,7 +111,7 @@ function PriorityCell({ row }: { row?: Record<string, unknown> }) {
 const READ_COLUMNS: IColumnConfig[] = [
   { id: 'text', header: '任务名称', width: 176 },
   { id: 'assignees', header: '负责人', width: 100, align: 'left', cell: AssigneesCell },
-  { id: 'status', header: '状态', width: 92, align: 'left', cell: StatusCell },
+  { id: 'status', header: '状态', width: 108, align: 'left', cell: StatusCell },
   { id: 'priority', header: '优先级', width: 74, align: 'center', cell: PriorityCell },
   { id: 'start', header: '开始日期', width: 96, align: 'center' },
   { id: 'duration', header: '工期(天)', width: 68, align: 'center' },
@@ -121,7 +122,7 @@ const READ_COLUMNS: IColumnConfig[] = [
 const EDIT_COLUMNS: IColumnConfig[] = [
   { id: 'text', header: '任务名称', width: 176, editor: 'text', sort: true },
   { id: 'assignees', header: '负责人', width: 100, align: 'left', cell: AssigneesCell },
-  { id: 'status', header: '状态', width: 92, align: 'left', cell: StatusCell },
+  { id: 'status', header: '状态', width: 108, align: 'left', cell: StatusCell },
   { id: 'priority', header: '优先级', width: 74, align: 'center', cell: PriorityCell, editor: 'text' },
   { id: 'start', header: '开始日期', width: 96, align: 'center', editor: 'datepicker' },
   { id: 'duration', header: '工期(天)', width: 68, align: 'center', editor: 'text' },

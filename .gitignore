@@ -31,3 +31,10 @@ data/
 .idea/
 .vscode/
 .DS_Store
+
+# Python 字节码（tools/templates/*.py 会被反复执行）
+__pycache__/
+*.pyc
+
+# 容器镜像导出物（`docker save` 产出，约 180MB，绝不入库）
+*.tar

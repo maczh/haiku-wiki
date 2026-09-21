@@ -4,7 +4,9 @@
 # 2026-09-19 修活记录（此前因三处交互漂移整体失效：11 ✓ / 9 ✗ → 现 21/21）：
 #   ① 「新建文档」入口已改到**知识库节点的「⋯」菜单**（KnowledgeTree.tsx 的 bookMenu，trigger=click），
 #      且知识库节点挂在「私人知识库」分组下，**必须先 expandNode 展开**才在 DOM 里；
-#      该菜单只打开「新建文档 · 选择位置」，点「下一步」后第二步才是「文档类型」下拉。
+#      2026-09-22 起该菜单的「新建」是**子菜单**（children = DOC_TYPES + 新建分组），不再有顶层「新建文档」项；
+#      点类型 → 模板画廊（类型锁定只出同类型模板 + 空白文档卡）→ 选空白 → 「选择位置」→ 「填写信息」，
+#      第二步类型为**只读 Tag**（无「文档类型」下拉）。
 #   ② 编辑态「新增任务 / 新增子任务」现在是**弹窗表单**（GanttEditor.tsx 的 openTaskModal → Modal）：
 #      填 input[placeholder="例如：接口联调"] → 点页脚「新增」（两个汉字，AntD 会插空格，比对前归一化）。
 #   ③ 所谓「读正文拿回空响应」其实是**新建文档的 content 本来就是空串**（默认 3 条任务是前端默认值，
@@ -105,9 +107,17 @@ expandNode(){ # expandNode <节点文本子串>
 }
 closeMenus(){ q "document.body.click(); 'ok'" >/dev/null; "$AB" wait 300 >/dev/null 2>&1; "$AB" press Escape >/dev/null 2>&1; "$AB" wait 400 >/dev/null 2>&1; }
 
-echo "== 1) 知识库菜单「新建文档」→ 文档类型下拉含甘特图 =="
+echo "== 1) 知识库菜单「新建」子菜单 → 选甘特图 → 画廊空白文档 → 两步流程 =="
 # 入口已从「页面上的新建文档按钮」改到**知识库节点的「⋯」菜单**（KnowledgeTree.tsx bookMenu，
 # trigger=click）。这里按「树节点文本定位 → 点 .anticon-more → 读下拉项」来走。
+#
+# ⚠️ 2026-09-22 该菜单结构变了（此前本段两条断言盯的是旧 UI，长期红）：
+#   旧：菜单里是顶层「新建文档」项，点它直开「新建文档 · 选择位置」，
+#       第二步用**可选的「文档类型」下拉**（断言 grep '甘特图' 于 .ant-select-item-option）。
+#   新：菜单里是**子菜单**「新建」（label '新建'，children = DOC_TYPES + 新建分组），
+#       点类型 → 先开**模板画廊**「选择模板创建文档」（类型锁定只出同类型模板 + 空白文档卡）
+#       → 选空白文档 → 「新建文档 · 选择位置」→ 「新建文档 · 填写信息」，
+#       此时类型被锁，第二步是**只读 Tag**（BookPage.tsx:1623-1628），**没有** Select。
 visit "$BASE/books/$BID?docId=$MID&tab=read" 4500
 # 知识库节点挂在「私人知识库」分组下，**必须先把分组展开**否则节点不在 DOM 里
 expandNode '私人知识库'
@@ -118,21 +128,42 @@ echo "    打开库菜单: $OPEN"
 vis_dd="[...document.querySelectorAll('.ant-dropdown')].filter(d=>!d.classList.contains('ant-dropdown-hidden')&&getComputedStyle(d).display!=='none')"
 MENU=$(q "(()=>{const ds=$vis_dd;if(!ds.length)return 'no-menu';return ds[ds.length-1].innerText.replace(/\n/g,'|')})()")
 echo "    菜单项: $MENU"
-printf '%s' "$MENU" | grep -q '新建文档' && ok "知识库菜单含「新建文档」" || no "知识库菜单缺「新建文档」"
-q "(()=>{const ds=$vis_dd;if(!ds.length)return 'no-menu';const it=[...ds[ds.length-1].querySelectorAll('.ant-dropdown-menu-item')].find(x=>x.textContent.includes('新建文档'));if(!it)return 'no-item';it.click();return 'ok'})()" >/dev/null
+printf '%s' "$MENU" | grep -q '新建' && ok "知识库菜单含「新建」" || no "知识库菜单缺「新建」"
+printf '%s' "$MENU" | grep -q '导入' && ok "知识库菜单含「导入」" || no "知识库菜单缺「导入」"
+printf '%s' "$MENU" | grep -q '新建文档' && no "菜单仍残留旧的顶层「新建文档」项" || ok "旧的顶层「新建文档」项已移除"
+
+# 「新建」是子菜单（.ant-dropdown-menu-submenu-title），子项含全部可新建类型
+SUB=$(q "(()=>{const ds=$vis_dd;if(!ds.length)return 'no-menu';const t=ds[ds.length-1].querySelector('.ant-dropdown-menu-submenu-title');if(!t)return 'no-submenu';t.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));t.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true}));return 'ok'})()")
+echo "    展开「新建」子菜单: $SUB"
 "$AB" wait 900 >/dev/null 2>&1
-# 第一步「新建文档 · 选择位置」→ 下一步（旧脚本在这里就断了：它以为下拉是「文档类型」）
-NEXT=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('新建文档 · 选择位置')});if(!m)return 'no-modal';const b=[...m.querySelectorAll('.ant-modal-footer button')].find(x=>/下一/.test(x.textContent));if(!b)return 'no-btn';b.click();return 'ok'})()")
+# ⚠️ 子菜单弹层是**独立**的 .ant-dropdown-menu-submenu-popup，不在父 dropdown 内
+submenu_js="[...document.querySelectorAll('.ant-dropdown-menu-submenu-popup')].filter(d=>!d.classList.contains('ant-dropdown-hidden')&&getComputedStyle(d).display!=='none')"
+SUBMENU=$(q "(()=>{const ps=$submenu_js;if(!ps.length)return 'no-popup';return [...ps[ps.length-1].querySelectorAll('.ant-dropdown-menu-item')].map(x=>x.textContent.trim()).filter(Boolean).join('/')})()")
+echo "    子菜单项: $SUBMENU"
+printf '%s' "$SUBMENU" | grep -q '甘特图' && ok "「新建」子菜单含「甘特图」" || no "「新建」子菜单缺「甘特图」"
+
+CLICK=$(q "(()=>{const ps=$submenu_js;if(!ps.length)return 'no-popup';const it=[...ps[ps.length-1].querySelectorAll('.ant-dropdown-menu-item')].find(x=>x.textContent.includes('甘特图'));if(!it)return 'no-item';it.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));it.click();return 'ok'})()")
+echo "    点击「甘特图」: $CLICK"
+"$AB" wait 1400 >/dev/null 2>&1
+# 类型锁定 → 先开模板画廊（只出甘特图类模板 + 空白文档卡）
+GALLERY=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('选择模板创建文档')});if(!m)return 'no-modal';const blank=[...m.querySelectorAll('button')].find(b=>b.textContent.includes('空白文档'));return blank?'yes':'no-blank-card'})()")
+chk "点类型后先开模板画廊（含「空白文档」卡）" "yes" "$GALLERY"
+BLANK=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('选择模板创建文档')});if(!m)return 'no-modal';const b=[...m.querySelectorAll('button')].find(x=>x.textContent.includes('空白文档'));if(!b)return 'no-blank-card';b.click();return 'ok'})()")
+echo "    选空白文档: $BLANK"
+"$AB" wait 1100 >/dev/null 2>&1
+# 文库手柄「新建」保留两步：第一步「新建文档 · 选择位置」
+STEP1=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('选择位置')});return m?'yes':'no'})()")
+chk "进入第一步「新建文档 · 选择位置」" "yes" "$STEP1"
+NEXT=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('选择位置')});if(!m)return 'no-modal';const b=[...m.querySelectorAll('.ant-modal-footer button')].find(x=>/下一/.test(x.textContent));if(!b)return 'no-btn';b.click();return 'ok'})()")
 echo "    进入第二步: $NEXT"
 "$AB" wait 900 >/dev/null 2>&1
-# 第二步「新建文档 · 填写信息」的「文档类型」下拉
-q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('新建文档 · 填写信息')});if(!m)return 'no-modal';const s=m.querySelector('.ant-select-selector');if(!s)return 'no-select';s.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));return 'ok'})()" >/dev/null
-"$AB" wait 800 >/dev/null 2>&1
-TYPES=$(q "(()=>{const ds=[...document.querySelectorAll('.ant-select-dropdown')].filter(d=>!d.classList.contains('ant-select-dropdown-hidden'));if(!ds.length)return 'no-dropdown';return [...ds[ds.length-1].querySelectorAll('.ant-select-item-option')].map(x=>x.textContent.trim()).join('/')})()")
-echo "    类型选项: $TYPES"
-printf '%s' "$TYPES" | grep -q '甘特图' && ok "「文档类型」下拉含「甘特图」" || no "「文档类型」下拉缺「甘特图」"
-"$AB" press Escape >/dev/null 2>&1
-q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('填写信息')});if(!m)return 'no-modal';const b=[...m.querySelectorAll('.ant-modal-footer button')].find(x=>/取消/.test(x.textContent));if(b)b.click();return 'ok'})()" >/dev/null
+# 第二步「新建文档 · 填写信息」：类型被锁 → 只读 Tag，且**没有**「文档类型」下拉
+STEP2=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('填写信息')});if(!m)return 'no-modal';const tags=[...m.querySelectorAll('.ant-tag')].map(x=>x.textContent.trim()).join('/');const sel=m.querySelector('.ant-select-selector');return tags+'|select='+(sel?'yes':'no')})()")
+echo "    第二步类型区: $STEP2"
+printf '%s' "$STEP2" | grep -q '甘特图' && ok "第二步以只读 Tag 显示锁定类型「甘特图」" || no "第二步未显示锁定类型「甘特图」"
+printf '%s' "$STEP2" | grep -q 'select=no' && ok "锁定时不再出现「文档类型」下拉" || no "锁定时仍出现「文档类型」下拉"
+CANCEL=$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('填写信息')});if(!m)return 'no-modal';const b=[...m.querySelectorAll('.ant-modal-footer button')].find(x=>/取消/.test(x.textContent));if(!b)return 'no-btn';b.click();return 'ok'})()")
+echo "    取消: $CANCEL"
 "$AB" wait 700 >/dev/null 2>&1
 
 echo "== 2) 编辑态渲染 =="

@@ -2,6 +2,7 @@
 // 说明：simple-mind-map 未提供 TS 类型，这里只声明本项目用到的成员。
 
 import type MindMap from 'simple-mind-map'
+import { MM_EXTRA_THEME_PRESETS } from './mmThemePresets.generated'
 
 /** 节点实例（仅取用到的成员） */
 export interface MmNodeLike {
@@ -164,6 +165,9 @@ export const MM_THEME_PRESETS: MmThemePreset[] = [
       node: { ...level('#d1d5db', '#1b1f26', '#3f4650') },
     },
   },
+  // 精编色卡（墨蓝 / 青玉 / 绛玫 / 石墨）：与内置文档模板里的脑图主题快照同源，
+  // 见 mmThemePresets.generated.ts（由 tools/templates/gen-mindmap-themes.mjs 生成）。
+  ...MM_EXTRA_THEME_PRESETS,
 ]
 
 /** 字体候选（右下工具条字体选择） */

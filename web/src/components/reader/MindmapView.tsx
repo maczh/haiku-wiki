@@ -34,10 +34,39 @@ export default function MindmapView({ content }: Props) {
         /* 主题格式异常时忽略，按默认渲染 */
       }
     }
-    const onRenderEnd = () => mm.view.fit()
+    // 自适应缩放：
+    //   1) 渲染结束后 fit 一次；
+    //   2) 再补一次延时 fit —— 模板预览弹窗有入场动画，首帧拿到的容器宽度偏小，
+    //      只 fit 一次会让导图右侧被裁掉（弹窗稳定后不会再有渲染事件，必须补这一刀）；
+    //   3) 容器尺寸变化（窗口缩放 / 侧栏收起 / 弹窗尺寸变化）时重新 fit。
+    const fit = () => {
+      try {
+        mm.view.fit()
+      } catch {
+        /* 实例已销毁或尚未就绪时忽略 */
+      }
+    }
+    const onRenderEnd = () => fit()
     mm.on('node_tree_render_end', onRenderEnd)
+    const timers = [setTimeout(fit, 320), setTimeout(fit, 760)]
+    let raf = 0
+    let lastW = host.clientWidth
+    let lastH = host.clientHeight
+    const ro = new ResizeObserver(() => {
+      const w = host.clientWidth
+      const h = host.clientHeight
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return
+      lastW = w
+      lastH = h
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(fit)
+    })
+    ro.observe(host)
 
     return () => {
+      ro.disconnect()
+      timers.forEach(clearTimeout)
+      if (raf) cancelAnimationFrame(raf)
       mm.off('node_tree_render_end', onRenderEnd)
       try {
         mm.destroy()

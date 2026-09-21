@@ -1,3 +1,307 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   文档排版主题（阅读态 / 模板预览）
+   ─────────────────────────────────────────────────────────────────────────────
+   Vditor 默认样式是「GitHub README 风」：标题字号跳变剧烈、表格丢边框、
+   引用块是裸灰条 —— 用作正式文档观感偏弱。这里在 .doc-content 上叠一层排版主题：
+     · 标题：无衬线 + 层级克制，H2 带强调色竖条、H3 带圆点（都排在折叠箭头之后）
+     · 表格：圆角外框 + 表头底色 + 行分隔 + 斑马纹 + hover 高亮
+     · 引用块：左侧强调条 + 浅底圆角，`> **提示**：` 形式即成「提示块」
+     · 其余：分隔线、清单标记、代码块、图片、mermaid 容器统一收敛
+   作用域限 .doc-content（阅读视图与模板预览共用），编辑器不受影响。
+   注意：.hk-heading 会给标题预留 22px 左内边距放折叠箭头，标题装饰必须排在 22px 之后。
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.doc-content {
+  --hk-accent: #2f54eb;
+  --hk-accent-soft: #eef3ff;
+  --hk-ink: #1f2329;
+  --hk-text: #333b47;
+  --hk-line: #e6eaf2;
+  --hk-line-soft: #f0f3f8;
+  --hk-head-bg: #f4f7fb;
+  --hk-zebra: #fbfcfe;
+}
+
+.doc-content .vditor-reset {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+  color: var(--hk-text);
+}
+
+.doc-content .vditor-reset p {
+  margin: 0 0 14px;
+}
+
+.doc-content .vditor-reset strong {
+  color: var(--hk-ink);
+  font-weight: 600;
+}
+
+/* ── 标题 ── */
+.doc-content .vditor-reset h1,
+.doc-content .vditor-reset h2,
+.doc-content .vditor-reset h3,
+.doc-content .vditor-reset h4,
+.doc-content .vditor-reset h5,
+.doc-content .vditor-reset h6 {
+  font-family: inherit;
+  color: var(--hk-ink);
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.doc-content .vditor-reset h1 {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-bottom: 12px;
+  margin: 4px 0 20px;
+  border-bottom: 1px solid var(--hk-line);
+}
+
+.doc-content .vditor-reset h2 {
+  position: relative;
+  font-size: 18px;
+  margin: 30px 0 14px;
+  padding-left: 36px;
+}
+
+.doc-content .vditor-reset h2::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 17px;
+  border-radius: 2px;
+  background: var(--hk-accent);
+}
+
+.doc-content .vditor-reset h3 {
+  position: relative;
+  font-size: 16px;
+  margin: 22px 0 10px;
+  padding-left: 36px;
+}
+
+.doc-content .vditor-reset h3::before {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hk-accent);
+  opacity: 0.7;
+}
+
+.doc-content .vditor-reset h4 {
+  font-size: 15px;
+  color: #2b3646;
+  margin: 18px 0 8px;
+}
+
+.doc-content .vditor-reset h5,
+.doc-content .vditor-reset h6 {
+  font-size: 14.5px;
+  color: #54606f;
+  margin: 16px 0 6px;
+}
+
+/* ── 引用块 =「提示 / 说明 / 文档信息条」 ── */
+.doc-content .vditor-reset blockquote {
+  margin: 14px 0;
+  padding: 11px 16px;
+  border-left: 3px solid #b9c8e6;
+  border-radius: 0 8px 8px 0;
+  background: #f7f9fd;
+  color: #4b5563;
+}
+
+.doc-content .vditor-reset blockquote p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.doc-content .vditor-reset blockquote p + p {
+  margin-top: 8px;
+}
+
+.doc-content .vditor-reset blockquote strong {
+  color: var(--hk-accent);
+}
+
+/* ── 表格 ──
+   Vditor 默认把 table 设成 display:block（为了横向滚动），宽表会被容器裁切；
+   这里改回 table 布局并用 word-break 兜住超长内容，视觉上给出圆角外框与表头底色。 */
+.doc-content .vditor-reset table {
+  display: table;
+  width: 100%;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 14px 0 18px;
+  border: 1px solid var(--hk-line);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
+.doc-content .vditor-reset th {
+  background: var(--hk-head-bg);
+  color: #34404f;
+  font-weight: 600;
+  text-align: left;
+  padding: 9px 12px;
+  border-right: 1px solid var(--hk-line-soft);
+  border-bottom: 1px solid var(--hk-line);
+}
+
+.doc-content .vditor-reset td {
+  padding: 8px 12px;
+  color: var(--hk-text);
+  vertical-align: top;
+  line-height: 1.7;
+  border-right: 1px solid var(--hk-line-soft);
+  border-bottom: 1px solid var(--hk-line-soft);
+}
+
+.doc-content .vditor-reset th:last-child,
+.doc-content .vditor-reset td:last-child {
+  border-right: 0;
+}
+
+.doc-content .vditor-reset tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.doc-content .vditor-reset tbody tr:nth-child(even) {
+  background: var(--hk-zebra);
+}
+
+.doc-content .vditor-reset tbody tr:hover {
+  background: var(--hk-accent-soft);
+}
+
+/* ── 分隔线 ── */
+.doc-content .vditor-reset hr {
+  height: 1px;
+  margin: 26px 0;
+  padding: 0;
+  border: 0;
+  background: var(--hk-line);
+}
+
+/* ── 清单 ── */
+.doc-content .vditor-reset ul,
+.doc-content .vditor-reset ol {
+  padding-left: 26px;
+  margin: 0 0 14px;
+}
+
+.doc-content .vditor-reset li {
+  margin: 6px 0;
+  line-height: 1.75;
+}
+
+.doc-content .vditor-reset li::marker {
+  color: var(--hk-accent);
+  font-weight: 600;
+}
+
+.doc-content .vditor-reset li > ul,
+.doc-content .vditor-reset li > ol {
+  margin: 6px 0 2px;
+}
+
+.doc-content .vditor-reset li.vditor-task {
+  list-style: none;
+  margin-left: -20px;
+}
+
+.doc-content .vditor-reset li.vditor-task input {
+  margin-right: 8px;
+  accent-color: var(--hk-accent);
+  transform: translateY(1px);
+}
+
+/* ── 代码 ── */
+.doc-content .vditor-reset code:not(.hljs) {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #f2f5fa;
+  color: #23405f;
+  font-family: mononoki, Consolas, Menlo, monospace;
+  font-size: 13px;
+}
+
+.doc-content .vditor-reset pre {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--hk-line);
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: auto;
+}
+
+.doc-content .vditor-reset pre code,
+.doc-content .vditor-reset pre code.hljs {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* 阅读态 JSON 折叠器（injectJsonFold 生成的容器，不是 pre） */
+.doc-content .hk-jsonfold-scroll {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--hk-line);
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: auto;
+  max-height: 420px;
+}
+
+/* ── 图片 / 图表 / 链接 ── */
+.doc-content .vditor-reset img:not(.emoji) {
+  max-width: 100%;
+  border: 1px solid var(--hk-line-soft);
+  border-radius: 8px;
+}
+
+.doc-content .vditor-reset a {
+  color: var(--hk-accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(47, 84, 235, 0.28);
+}
+
+.doc-content .vditor-reset a:hover {
+  border-bottom-color: var(--hk-accent);
+}
+
+.doc-content .vditor-reset .vditor-mermaid,
+.doc-content .vditor-reset pre.vditor-mermaid {
+  padding: 14px;
+  border: 1px dashed #dbe3f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  text-align: center;
+  overflow: auto;
+}
+
+.doc-content .vditor-reset svg {
+  max-width: 100%;
+}
+
 /* 阅读视图标题折叠（语雀交互复刻） */
 
 /* 标题本身预留左内边距，给折叠箭头让位；箭头默认隐藏，行 hover 时出现 */
