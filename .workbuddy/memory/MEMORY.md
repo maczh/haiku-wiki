@@ -47,3 +47,6 @@
 
 ## 回归套件（tools/verify/，登记 run-all.sh）
 - 改前端必须先构建+rsync embed。套件须顺序执行（共用 8080/Chrome profile）；夹具账号 `e2e@example.com/secret123`（book 1=md 2=sheet 3=mindmap 4=flowchart 5=file）。`$TMPDIR` 下 haiku-wiki 二进制等不可删。
+- **`rsync -a --delete web/dist/ server/internal/static/dist/` 会删掉 `.gitkeep`**（web/dist 里没有它，而 `build-embed.sh` 断言它恒在、否则静默跳过 go build）→ rsync 之后必须补回：`git show HEAD:server/internal/static/dist/.gitkeep > server/internal/static/dist/.gitkeep`。
+- **`gantt-ui-check.sh` 第 1 段盯的是「新建文档」入口链路**（2026-09-22 重写）：菜单「⋯」→ 子菜单「新建」（`children` = DOC_TYPES + 新建分组，**没有**顶层「新建文档」项）→ 点类型先开**模板画廊**「选择模板创建文档」（类型锁定只出同类型模板 + 空白文档卡）→ 选空白 →「新建文档 · 选择位置」→「填写信息」（类型为**只读 Tag**，无 Select）。子菜单弹层是**独立**的 `.ant-dropdown-menu-submenu-popup`，不在父 `.ant-dropdown` 内，且要派发 `mouseover`/`mouseenter` 才展开（AntD Menu 子菜单默认 hover 触发）。曾长期 2 红无人察觉（该套件不在旧 6 套回归名单里），现 30/30。
+- **提交前必须 `git status --short` 逐行核对**：仓库根曾出现 `haiku.tar`（`docker save` 导出物，**179MB**，root 属主），`git add -A` 会直接把它卷进提交（.git 瞬间 217MB）。已加 `.gitignore`：`*.tar`、`__pycache__/`、`*.pyc`。若已误提交：`git rm --cached` + `git commit --amend`，再 `git reflog expire --expire=now --all && git gc --prune=now` 回收（217MB → 36MB）。

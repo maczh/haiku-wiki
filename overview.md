@@ -53,7 +53,16 @@
 | `polish.py` 覆盖 | 38 表格 `config.hkStyle==1` 全通过；39 脑图均有完整 39 键 theme；5 甘特状态混合（正常 8 / 已结束 12 / 未开始 56，无满屏超期） |
 | `tsc --noEmit` | 零报错 |
 | `vite build` + embed + `go build` | 通过；入口 CSS `grep -c vditor` = **0**（按需加载未破），embed 目录 3033 个文件 |
+| 回归 `run-all.sh`（12 套） | **293/293 全绿**：embed-prod-check / e2e-folder-dir / e2e-dashboard / ui-doc-types / gantt-fold-check / gantt-fold-edge-check / gantt-api-check / gantt-ui-check(30) / check-lazy-routes / check-route-fallback / ui-shot / mermaid-render-check |
 | 无头 Chrome 实拍 | 四类模板 before/after 对比全部改善；阅读态表格 / 提示块 / 清单 / 代码块样式生效 |
+
+### 顺带修活的过期套件
+
+`gantt-ui-check.sh` 第 1 段原有 2 条断言盯着**旧 UI**（顶层「新建文档」菜单项、第二步可选的「文档类型」下拉），自上一轮新建入口改造后一直红着、无人察觉（该套件不在当时跑的 6 套名单里）。本次按新链路重写为 8 条断言：菜单含「新建」「导入」+ 旧顶层项已移除 + 「新建」子菜单含「甘特图」+ 点类型先开模板画廊（含空白文档卡）+ 进入「选择位置」+ 第二步只读 Tag 且无 Select。套件由 25 项（2 红）→ **30/30 全绿**。
+
+## 提交
+
+commit `7b8d005`（85 files changed, 40543 insertions(+), 10230 deletions(-)）。提交前发现根目录混入 `haiku.tar`（`docker save` 导出物，179MB）与 `tools/templates/__pycache__/`，已从提交剔除并在 `.gitignore` 补 `*.tar` / `__pycache__/` / `*.pyc`；`git reflog expire + gc --prune=now` 回收，`.git` 由 217MB 回到 36MB。
 
 ## 使用方式（给后续维护者）
 
