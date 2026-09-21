@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strings"
 
@@ -185,6 +186,49 @@ func SeedTemplates(g *gorm.DB) error {
 		}
 		return nil
 	})
+}
+
+// RepairBuiltinFlag 把「不在内置集里却标着 builtin=true」的模板归位为自定义模板（幂等）。
+//
+// 背景：Builtin 字段早期带 `default:true` 标签，GORM 对带默认值的字段会跳过零值，
+// 于是「批量导入 / 另存为」写入的 builtin=false 根本没进 SQL，被数据库默认值翻成 true。
+// 后果是导入与另存的模板都成了「系统内置」，管理员改不动也删不掉。
+// 内置集是权威来源，因此用内置集的 (category, doc_type, name) 三元组反查修正。
+func RepairBuiltinFlag(g *gorm.DB) error {
+	items, err := LoadBuiltinTemplates()
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	// 逐个内置模板把「同名同分类同类型」的行标回内置（顺带覆盖历史脏数据里的 false），
+	// 再把剩下的 builtin=true 全部降级为自定义模板。两步都是幂等的。
+	keys := make([][3]string, 0, len(items))
+	for _, t := range items {
+		keys = append(keys, [3]string{t.Category, t.DocType, t.Name})
+	}
+	// 第一步：把不在内置集内的 builtin=true 行降级
+	q := g.Model(&model.DocTemplate{}).Where("builtin = ?", true)
+	for _, k := range keys {
+		q = q.Where("NOT (category = ? AND doc_type = ? AND name = ?)", k[0], k[1], k[2])
+	}
+	res := q.Update("builtin", false)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected > 0 {
+		log.Printf("[haiku] 模板归属修复：%d 条误标为内置的模板已归位为自定义模板", res.RowsAffected)
+	}
+	// 第二步：内置集内的行统一标回内置（防止历史数据把内置模板标成了 false）
+	for _, k := range keys {
+		if err := g.Model(&model.DocTemplate{}).
+			Where("category = ? AND doc_type = ? AND name = ? AND builtin = ?", k[0], k[1], k[2], false).
+			Update("builtin", true).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ImportTemplates 管理员导入模板数据（builtin=false）。

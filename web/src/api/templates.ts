@@ -10,9 +10,21 @@ export interface DocTemplate {
   title: string
   content: string
   builtin: boolean
+  /** 另存为模板的用户；内置模板为 0 */
+  created_by: number
   sort: number
   created_at: string
   updated_at: string
+}
+
+/** 模板写入字段（另存为 / 管理员编辑共用） */
+export interface TemplateInput {
+  category: string
+  doc_type: DocType
+  name: string
+  title?: string
+  content: string
+  sort?: number
 }
 
 /** 模板分类聚合：某分类下涵盖的文档类型与模板数量 */
@@ -74,9 +86,24 @@ export async function importTemplates(
   }) as Promise<TemplateImportResult>
 }
 
+/** 「另存为模板」：把自建文档存成自定义模板（任意登录用户） */
+export async function createTemplate(input: TemplateInput): Promise<DocTemplate> {
+  return request.post('/templates', input) as Promise<DocTemplate>
+}
+
+/** 管理员修改模板（内置模板后端拒绝） */
+export async function updateTemplate(id: number, input: TemplateInput): Promise<DocTemplate> {
+  return request.put(`/admin/templates/${id}`, input) as Promise<DocTemplate>
+}
+
 /** 管理员删除导入的模板（内置模板后端拒绝删除） */
 export async function deleteTemplate(id: number): Promise<void> {
   await request.delete(`/admin/templates/${id}`)
+}
+
+/** 删除自己另存的模板（他人的模板与内置模板后端拒绝） */
+export async function deleteOwnTemplate(id: number): Promise<void> {
+  await request.delete(`/templates/${id}`)
 }
 
 /**

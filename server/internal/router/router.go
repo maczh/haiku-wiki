@@ -152,6 +152,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		{
 			tpl.GET("", handler.ListTemplates)
 			tpl.GET("/categories", handler.ListTemplateCategories)
+			// 「另存为模板」：任意登录用户可把自己写的文档存成自定义模板（可删自己存的）
+			tpl.POST("", handler.CreateTemplate)
+			tpl.DELETE("/:id", handler.DeleteOwnTemplate)
 		}
 
 		// 管理员用户管理（仅 admin）
@@ -190,8 +193,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.POST("/migrate/storage/test", handler.TestStorageConnection)
 			// 接口文档刷新：最近一次任务汇总（仅管理员；P1-3）
 			admin.GET("/api-refresh/last", handler.GetApiRefreshLastRun)
-			// 文档模板管理（仅管理员）：导入模板数据文件 / 模板目录，删除导入的模板
+			// 文档模板管理（仅管理员）：导入模板数据文件 / 模板目录，修改 / 删除模板
 			admin.POST("/templates/import", handler.ImportTemplates)
+			admin.PUT("/templates/:id", handler.UpdateTemplate)
 			admin.DELETE("/templates/:id", handler.DeleteTemplate)
 		}
 

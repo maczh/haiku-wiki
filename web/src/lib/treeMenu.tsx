@@ -20,6 +20,7 @@ import {
   ImportOutlined,
   LinkOutlined,
   PushpinFilled,
+  SaveOutlined,
   ShareAltOutlined,
 } from '@ant-design/icons'
 import type { DocNode, DocType } from '../types'
@@ -37,6 +38,8 @@ export interface TreeMenuHandlers {
   onMove: () => void
   onExport: () => void
   onPin: () => void
+  /** 把该文档另存为模板（目录 / 附件无正文，调用方会置灰） */
+  onSaveAsTemplate: () => void
   onDelete: () => void
 }
 
@@ -121,6 +124,16 @@ export function buildTreeMenuItems(ctx: TreeMenuContext): MenuProps['items'] {
       label: node.pinned_at ? '取消置顶' : '置顶',
       disabled: !canWrite,
       onClick: handlers.onPin,
+    },
+    { type: 'divider' },
+    {
+      // 「另存为模板」：把这篇文档（正文 + 类型）存成自定义模板，之后可在新建文档时套用。
+      // 目录不承载正文、附件是上传的二进制文件，都没有可复用的正文，一律置灰。
+      key: 'saveAsTemplate',
+      icon: <SaveOutlined />,
+      label: '另存为模板',
+      disabled: !canWrite || isFolder || isFile,
+      onClick: handlers.onSaveAsTemplate,
     },
     { type: 'divider' },
     {

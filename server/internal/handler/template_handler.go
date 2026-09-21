@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"haiku-wiki/server/internal/middleware"
 	"haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service"
@@ -64,7 +65,9 @@ func ImportTemplates(c *gin.Context) {
 	}
 	var (
 		created, updated, skipped int
-		failed                    []fileErr
+		// 必须初始化为空切片而非 nil：nil slice 会被序列化成 JSON null，
+		// 前端 `result.errors.length` 会直接抛 TypeError 白屏（批量导入全部成功时必现）。
+		failed = []fileErr{}
 	)
 	for i, fh := range fhs {
 		label := fh.Filename
@@ -104,6 +107,58 @@ func ImportTemplates(c *gin.Context) {
 		"errors":    failed,
 		"overwrite": overwrite,
 	})
+}
+
+// CreateTemplate POST /api/templates —— 把自建文档另存为模板（任意登录用户）。
+//
+// 与「管理员批量导入」的区别：这里一次只存一条，builtin=false 且记录 created_by，
+// 创建者本人可删，管理员可改可删。内置模板不受影响。
+func CreateTemplate(c *gin.Context) {
+	var req service.TemplateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	t, err := templateService.CreateTemplate(middleware.UID(c), req)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, t)
+}
+
+// DeleteOwnTemplate DELETE /api/templates/:id —— 删除自己另存的模板。
+func DeleteOwnTemplate(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		resp.Error(c, paramMsg("模板 ID 无效"))
+		return
+	}
+	if err := templateService.DeleteOwnTemplate(id, middleware.UID(c)); err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"id": id})
+}
+
+// UpdateTemplate PUT /api/admin/templates/:id —— 管理员修改模板（内置模板拒绝）。
+func UpdateTemplate(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		resp.Error(c, paramMsg("模板 ID 无效"))
+		return
+	}
+	var req service.TemplateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	t, err := templateService.UpdateTemplate(id, req)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, t)
 }
 
 // DeleteTemplate DELETE /api/admin/templates/:id —— 删除管理员导入的模板（内置模板不可删）。

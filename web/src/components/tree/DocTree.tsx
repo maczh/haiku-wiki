@@ -188,6 +188,8 @@ function TreeRow(p: RowProps) {
     onMove: () => p.onMove(p.node),
     onExport: () => p.onExport(p.node),
     onPin: () => p.onPin(p.node),
+    // 死代码分支：DocTree 未被任何路由引用，另存为模板入口不走这里
+    onSaveAsTemplate: () => undefined,
     onDelete: () => p.onDelete(p.node),
   }
   const treeMenuCtx = { node: p.node, bookId: p.bookId, canWrite: p.canWrite, handlers: treeMenuHandlers }

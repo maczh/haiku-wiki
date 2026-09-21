@@ -14,8 +14,13 @@ type DocTemplate struct {
 	Name     string `gorm:"size:128" json:"name"`                                     // 模板名（卡片标题）
 	Title    string `gorm:"size:256" json:"title"`                                    // 用模板创建文档时的默认标题
 	Content  string `gorm:"type:longtext" json:"content"`                             // 模板正文（与各 doc_type 契约一致）
-	Builtin  bool   `gorm:"default:true;index" json:"builtin"`                        // true=系统预置，false=用户另存为的自定义模板
-	Sort     int    `gorm:"default:0" json:"sort"`                                    // 分类内排序
+	// 注意：这里**不能**写 gorm 的 `default:true`。GORM 对带 default 标签的字段会跳过
+	// 零值（false）交给数据库默认值填充，结果就是「另存为模板 / 批量导入」插入的
+	// builtin=false 全部被数据库默认值翻成 true —— 导入的模板会变成内置模板，管理员删不掉。
+	// 去掉 default 标签后，GORM 每次都会显式写入该字段，true / false 都由代码决定。
+	Builtin   bool      `gorm:"index" json:"builtin"`      // true=系统预置，false=用户另存为 / 管理员导入的自定义模板
+	CreatedBy uint64    `gorm:"index" json:"created_by"`             // 另存为模板的用户；内置模板为 0
+	Sort      int       `gorm:"default:0" json:"sort"`               // 分类内排序
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

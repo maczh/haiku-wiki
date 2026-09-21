@@ -1,6 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Button, Dropdown, Empty, Form, Input, Modal, Popconfirm, Radio, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
+import { Button, AutoComplete, Dropdown, Empty, Form, Input, Modal, Popconfirm, Radio, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
 import {
   CloseOutlined,
   CopyOutlined,
@@ -44,7 +44,8 @@ import { COVER_COLORS, DOC_TYPES, DOC_TYPE_LABEL } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
 import { ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../lib/dirOptions'
 import TemplateGallery from '../components/template/TemplateGallery'
-import type { DocTemplate } from '../api/templates'
+import TemplatePreview from '../components/template/TemplatePreview'
+import { createTemplate, listTemplateCategories, type DocTemplate } from '../api/templates'
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
@@ -168,6 +169,18 @@ export default function BookPage() {
   // 模板画廊：新建文档先经画廊选模板 / 空白文档，再进入「选择位置」两步流程
   const [newDocGalleryOpen, setNewDocGalleryOpen] = useState(false)
   const [newDocContent, setNewDocContent] = useState<string | null>(null)
+  // 独立预览弹窗（文库工作台「常用模板」等入口：先预览、点「使用」才走新建流程）
+  const [previewTpl, setPreviewTpl] = useState<DocTemplate | null>(null)
+
+  // 另存为模板：从目录树文档「⋮」菜单进入，把该文档正文 + 类型存成自定义模板
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
+  const [saveAsCategory, setSaveAsCategory] = useState('')
+  const [saveAsName, setSaveAsName] = useState('')
+  const [saveAsTitle, setSaveAsTitle] = useState('')
+  const [saveAsContent, setSaveAsContent] = useState('')
+  const [saveAsDocType, setSaveAsDocType] = useState<DocType>('markdown')
+  const [saveAsSaving, setSaveAsSaving] = useState(false)
+  const [tplCategories, setTplCategories] = useState<string[]>([])
 
   // 导入：两步（先选知识库+目录，再选方式）
   const [importStep, setImportStep] = useState(0)
@@ -508,19 +521,13 @@ export default function BookPage() {
     }
   }
 
-  /** 文库工作台「常用模板」：跳过模板画廊，直接带模板正文进入「选择位置」两步流程 */
+  /** 文库工作台「常用模板」：先弹预览，点「使用此模板」才走新建流程（与新建文档画廊一致，不直建） */
   function openNewDocFromTemplate(t: DocTemplate) {
     setNewDocBookId(bookID)
-    setNewDocParentId(ROOT_DIR_VALUE)
-    setNewDocKind('doc')
-    setNewDocType(t.doc_type)
-    setNewDocLockedType(t.doc_type)
-    setNewDocName(t.title)
-    setNewDocContent(t.content)
-    setNewDocGalleryOpen(false)
     setNewDocSkipLocation(false)
-    setNewDocStep(1)
-    void loadDirOptions(bookID)
+    setNewDocLockedType(null)
+    setNewDocGalleryOpen(false)
+    setPreviewTpl(t)
   }
 
   /** 画廊选中「空白文档」：以当前筛选类型新建空白文档 */
@@ -534,6 +541,60 @@ export default function BookPage() {
     } else {
       setNewDocStep(1)
       if (newDocBookId != null) void loadDirOptions(newDocBookId)
+    }
+  }
+
+  /**
+   * 目录树文档「⋮」→「另存为模板」。
+   * 目录树节点不带正文，需要按 id 拉一次详情；正文为空直接拦下（空模板没意义）。
+   */
+  async function openSaveAsTemplate(_bookId: number, doc: DocNode) {
+    if (tplCategories.length === 0) {
+      // 分类下拉：既有分类 + 可手输新分类，只在首次打开时拉一次
+      try {
+        const cats = await listTemplateCategories()
+        setTplCategories(cats.map((c) => c.category))
+      } catch {
+        setTplCategories([])
+      }
+    }
+    setSaveAsDocType(doc.doc_type)
+    setSaveAsName(doc.title)
+    setSaveAsTitle(doc.title)
+    setSaveAsCategory('')
+    setSaveAsContent('')
+    setSaveAsOpen(true)
+    try {
+      const detail = await getDoc(doc.id)
+      setSaveAsContent(detail.doc.content || '')
+      if (!detail.doc.content?.trim()) {
+        message.warning('该文档正文为空，不能存为模板')
+      }
+    } catch {
+      message.error('读取文档正文失败')
+    }
+  }
+
+  async function submitSaveAsTemplate() {
+    if (!saveAsCategory.trim() || !saveAsName.trim()) {
+      message.warning('请填写模板分类与模板名称')
+      return
+    }
+    setSaveAsSaving(true)
+    try {
+      await createTemplate({
+        category: saveAsCategory.trim(),
+        doc_type: saveAsDocType,
+        name: saveAsName.trim(),
+        title: saveAsTitle.trim() || saveAsName.trim(),
+        content: saveAsContent,
+      })
+      message.success(`已存为模板「${saveAsName.trim()}」，可在新建文档时套用`)
+      setSaveAsOpen(false)
+    } catch {
+      /* 拦截器已提示 */
+    } finally {
+      setSaveAsSaving(false)
     }
   }
 
@@ -941,6 +1002,7 @@ export default function BookPage() {
                   onExportDoc={(_bid, d) => openExportDoc(d)}
                   onCollaborators={(_bid, d) => openCollaborators(d)}
                   onTogglePublicEdit={(_bid, d) => void handleTogglePublicEdit(_bid, d)}
+                  onSaveAsTemplate={(_bid, d) => void openSaveAsTemplate(_bid, d)}
                   reloadBookId={reloadBookId}
                   reloadNonce={reloadNonce}
                 />
@@ -1431,6 +1493,65 @@ export default function BookPage() {
           onSelectBlank={handlePickBlank}
           showBlank
         />
+      </Modal>
+
+      {/* 独立模板预览（文库工作台「常用模板」等入口：先预览，点「使用此模板」才走新建流程） */}
+      <TemplatePreview
+        tpl={previewTpl}
+        onUse={(t) => {
+          setPreviewTpl(null)
+          handlePickTemplate(t)
+        }}
+        onCancel={() => setPreviewTpl(null)}
+      />
+
+      {/* 另存为模板：把当前文档正文 + 类型存成自定义模板，之后可在新建文档 / 模板中心套用 */}
+      <Modal
+        title="另存为模板"
+        open={saveAsOpen}
+        onCancel={() => setSaveAsOpen(false)}
+        okText="保存为模板"
+        cancelText="取消"
+        okButtonProps={{ loading: saveAsSaving }}
+        onOk={() => void submitSaveAsTemplate()}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>模板分类 *</div>
+          <AutoComplete
+            style={{ width: '100%' }}
+            placeholder="选择已有分类，或直接输入新分类"
+            value={saveAsCategory}
+            onChange={setSaveAsCategory}
+            options={tplCategories.map((c) => ({ value: c }))}
+            filterOption={(input, option) =>
+              ((option?.value as string) ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>模板名称 *</div>
+          <Input
+            value={saveAsName}
+            onChange={(e) => setSaveAsName(e.target.value)}
+            placeholder="例如：项目周报模板"
+            maxLength={128}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>用模板创建文档时的默认标题</div>
+          <Input
+            value={saveAsTitle}
+            onChange={(e) => setSaveAsTitle(e.target.value)}
+            placeholder="留空则与模板名称相同"
+            maxLength={256}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: '#8a919f' }}>
+          文档类型：<Tag bordered={false}>{DOC_TYPE_LABEL[saveAsDocType] ?? saveAsDocType}</Tag>
+          正文长度 {saveAsContent.length} 字符
+          {saveAsContent.trim() === '' && <span style={{ color: '#cf1322' }}>　正文为空，无法保存</span>}
+        </div>
       </Modal>
 
       {/* 新建：第一步 选择知识库 + 目录（文档与目录共用；kind 决定第二步是否选类型） */}

@@ -5,6 +5,7 @@ import {
   Card,
   Col,
   Empty,
+  Input,
   Row,
   Space,
   Statistic,
@@ -13,18 +14,30 @@ import {
   Tag,
   Tooltip,
   Typography,
+  AutoComplete,
+  Modal,
+  Select,
   message,
 } from 'antd'
 import {
   DeleteOutlined,
+  EditOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
   ImportOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { deleteTemplate, importTemplates, listTemplates, type DocTemplate } from '../api/templates'
-import { DOC_TYPE_LABEL, type DocType } from '../types'
+import {
+  createTemplate,
+  deleteTemplate,
+  importTemplates,
+  listTemplateCategories,
+  listTemplates,
+  updateTemplate,
+  type DocTemplate,
+} from '../api/templates'
+import { DOC_TYPES, DOC_TYPE_LABEL, type DocType } from '../types'
 import { iconForDocType } from '../lib/fileIcon'
 
 /**
@@ -36,11 +49,24 @@ import { iconForDocType } from '../lib/fileIcon'
  *
  * 导入进来的模板 builtin=false：与内置模板同名同类型时默认跳过（可开「覆盖」开关强制覆盖），
  * 启动时的内置模板同步也不会覆盖它们。
+ *
+ * 管理员在这里还可以「修改 / 删除」自定义模板。内置模板由内置集维护，改了会在下次启动时
+ * 被同步回去，因此一律拒绝修改与删除，引导先另存为自定义模板。
  */
 export default function AdminTemplatesPage() {
   const [builtin, setBuiltin] = useState<DocTemplate[]>([])
   const [imported, setImported] = useState<DocTemplate[]>([])
   const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<string[]>([])
+
+  // 编辑模板弹窗
+  const [editing, setEditing] = useState<DocTemplate | null>(null)
+  const [editCategory, setEditCategory] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editTitle, setEditTitle] = useState('')
+  const [editDocType, setEditDocType] = useState<DocType>('markdown')
+  const [editContent, setEditContent] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   const [files, setFiles] = useState<File[]>([])
   const [paths, setPaths] = useState<string[]>([])
@@ -60,12 +86,14 @@ export default function AdminTemplatesPage() {
   async function reload() {
     setLoading(true)
     try {
-      const [b, i] = await Promise.all([
+      const [b, i, cats] = await Promise.all([
         listTemplates({ builtin: true }),
         listTemplates({ builtin: false }),
+        listTemplateCategories(),
       ])
       setBuiltin(b)
       setImported(i)
+      setCategories(cats.map((c) => c.category))
     } catch {
       message.error('加载模板列表失败')
     } finally {
@@ -111,15 +139,74 @@ export default function AdminTemplatesPage() {
     setSubmitting(true)
     try {
       const r = await importTemplates(files, overwrite, paths)
-      setResult(r)
+      // 后端正常返回 errors 为数组；老版本 / 异常路径可能是 null，这里兜底避免 result.errors.length 抛错
+      const errs = r.errors ?? []
+      setResult({ ...r, errors: errs })
       if (r.failed > 0) message.warning(`导入完成，${r.failed} 个文件解析失败`)
-      else message.success(`导入完成：新增 ${r.created} 条，更新 ${r.updated} 条，跳过 ${r.skipped} 条`)
+      else if (r.created === 0 && r.updated === 0 && r.skipped > 0) {
+        message.warning(`全部 ${r.skipped} 条已存在并被跳过，勾选「覆盖」可强制更新`)
+      } else message.success(`导入完成：新增 ${r.created} 条，更新 ${r.updated} 条，跳过 ${r.skipped} 条`)
       await reload()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       message.error(msg || '导入失败')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function openEdit(t: DocTemplate) {
+    setEditing(t)
+    setEditCategory(t.category)
+    setEditName(t.name)
+    setEditTitle(t.title)
+    setEditDocType(t.doc_type)
+    setEditContent(t.content)
+  }
+
+  async function submitEdit() {
+    if (!editing) return
+    if (!editCategory.trim() || !editName.trim()) {
+      message.warning('模板分类与模板名称不能为空')
+      return
+    }
+    setEditSaving(true)
+    try {
+      await updateTemplate(editing.id, {
+        category: editCategory.trim(),
+        name: editName.trim(),
+        title: editTitle.trim() || editName.trim(),
+        doc_type: editDocType,
+        content: editContent,
+        sort: editing.sort,
+      })
+      message.success(`已保存模板「${editName.trim()}」`)
+      setEditing(null)
+      await reload()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '保存失败')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  /** 把内置模板复制成一份可编辑的自定义模板（内置模板本身不允许改） */
+  async function duplicateBuiltin(t: DocTemplate) {
+    try {
+      await createTemplate({
+        category: t.category,
+        name: `${t.name}（自定义）`,
+        title: t.title,
+        doc_type: t.doc_type,
+        content: t.content,
+        sort: t.sort,
+      })
+      message.success(`已复制为自定义模板「${t.name}（自定义）」，可自由修改`)
+      await reload()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '复制失败')
     }
   }
 
@@ -155,11 +242,37 @@ export default function AdminTemplatesPage() {
     { title: '默认标题', dataIndex: 'title', ellipsis: true },
     {
       title: '操作',
-      width: 80,
+      width: 150,
       render: (_v, t) => (
-        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => void onDelete(t)}>
-          删除
-        </Button>
+        <Space size={0}>
+          {t.builtin ? (
+            <Tooltip title="内置模板不可修改；可复制一份成自定义模板后再改">
+              <Button
+                size="small"
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => void duplicateBuiltin(t)}
+              >
+                复制为自定义
+              </Button>
+            </Tooltip>
+          ) : (
+            <>
+              <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEdit(t)}>
+                编辑
+              </Button>
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => void onDelete(t)}
+              >
+                删除
+              </Button>
+            </>
+          )}
+        </Space>
       ),
     },
   ]
@@ -258,7 +371,7 @@ export default function AdminTemplatesPage() {
           <Card
             size="small"
             title={`自定义模板（${imported.length}）`}
-            extra={<span style={{ fontSize: 12, color: '#8a919f' }}>管理员导入，可删除</span>}
+            extra={<span style={{ fontSize: 12, color: '#8a919f' }}>管理员导入或用户另存，可修改 / 删除</span>}
           >
             {imported.length === 0 ? (
               <Empty
@@ -326,6 +439,75 @@ export default function AdminTemplatesPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* 修改模板（仅自定义模板；内置模板后端拒绝修改） */}
+      <Modal
+        title={`修改模板${editing ? `：${editing.name}` : ''}`}
+        open={editing != null}
+        onCancel={() => setEditing(null)}
+        okText="保存"
+        cancelText="取消"
+        okButtonProps={{ loading: editSaving }}
+        onOk={() => void submitEdit()}
+        width={720}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>业务分类 *</div>
+          <AutoComplete
+            style={{ width: '100%' }}
+            value={editCategory}
+            onChange={setEditCategory}
+            options={categories.map((c) => ({ value: c }))}
+            filterOption={(input, option) =>
+              ((option?.value as string) ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            placeholder="选择已有分类，或输入新分类"
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>模板名称 *</div>
+          <Input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            maxLength={128}
+            placeholder="卡片上展示的名称"
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>默认标题</div>
+          <Input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            maxLength={256}
+            placeholder="用模板创建文档时的初始标题"
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
+          <Select
+            style={{ width: 220 }}
+            value={editDocType}
+            onChange={setEditDocType}
+            options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
+          />
+          <span style={{ marginLeft: 12, fontSize: 12, color: '#8a919f' }}>
+            改类型后正文必须与新类型的正文契约一致
+          </span>
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, color: '#5f6672' }}>模板正文</div>
+          <Input.TextArea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={14}
+            style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}
+          />
+          <div style={{ marginTop: 6, fontSize: 12, color: '#8a919f' }}>
+            markdown 直接写正文；表格 / 脑图 / 甘特图填对应 JSON。共 {editContent.length} 字符。
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

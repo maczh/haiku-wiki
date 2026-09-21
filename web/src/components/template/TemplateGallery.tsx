@@ -9,13 +9,14 @@ import {
 } from '../../api/templates'
 import { DOC_TYPE_LABEL, type DocType } from '../../types'
 import { iconForDocType } from '../../lib/fileIcon'
+import TemplatePreview from './TemplatePreview'
 
 interface Props {
   /** 初次进入时预选的文档类型（来自「新建文档」下拉所选的类型） */
   initialDocType?: DocType
   /** 锁定文档类型：隐藏类型筛选 chips、切分类不重置类型，模板恒按该类型过滤 */
   lockDocType?: boolean
-  /** 选中某个模板（使用该模板创建文档） */
+  /** 选中某个模板（使用该模板创建文档）——由预览弹窗里的「使用此模板」触发 */
   onSelect: (t: DocTemplate) => void
   /** 选中「空白文档」入口（仅在 showBlank 时渲染，且 gallery 内嵌在弹窗时由调用方决定） */
   onSelectBlank?: (docType: DocType) => void
@@ -46,6 +47,8 @@ export default function TemplateGallery({
   const [keyword, setKeyword] = useState('')
   const [templates, setTemplates] = useState<DocTemplate[]>([])
   const [tplLoading, setTplLoading] = useState(true)
+  // 预览中的模板：点卡片先进预览，「使用此模板」才真正回调 onSelect
+  const [preview, setPreview] = useState<DocTemplate | null>(null)
 
   // 分类聚合（左侧导航），与类型筛选相互独立
   useEffect(() => {
@@ -96,6 +99,7 @@ export default function TemplateGallery({
   }
 
   return (
+    <>
     <div style={{ display: 'flex', height: '100%', minHeight: 360 }}>
       {/* 左侧分类导航 */}
       <div
@@ -198,7 +202,7 @@ export default function TemplateGallery({
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => onSelect(t)}
+                  onClick={() => setPreview(t)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -247,6 +251,17 @@ export default function TemplateGallery({
         )}
       </div>
     </div>
+    {preview && (
+      <TemplatePreview
+        tpl={preview}
+        onUse={(t) => {
+          setPreview(null)
+          onSelect(t)
+        }}
+        onCancel={() => setPreview(null)}
+      />
+    )}
+  </>
   )
 }
 

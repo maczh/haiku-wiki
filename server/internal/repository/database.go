@@ -196,6 +196,12 @@ func SeedData(g *gorm.DB) error {
 	if err := SeedTemplates(g); err != nil {
 		return fmt.Errorf("seed doc templates: %w", err)
 	}
+	// 历史数据修复：builtin 字段曾被 GORM 的 default:true 标签坑过（零值 false 被跳过、
+	// 由数据库默认值填成 true），导致批量导入 / 另存为的模板全被标成内置模板、管理员删不掉。
+	// 内置集是权威来源：凡是「不在内置集里却标着 builtin=true」的，一律归位为自定义模板。
+	if err := RepairBuiltinFlag(g); err != nil {
+		return fmt.Errorf("repair template builtin flag: %w", err)
+	}
 
 	// 内置管理员种子
 	var cnt int64

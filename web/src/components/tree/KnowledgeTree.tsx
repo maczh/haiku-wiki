@@ -107,6 +107,8 @@ interface Props {
    * 仅在公司知识库且当前用户是管理员或该库 owner 时由组件渲染入口。
    */
   onTogglePublicEdit?: (bookId: number, doc: DocNode) => void
+  /** 菜单：把该文档另存为自定义模板（正文 + 类型一起存） */
+  onSaveAsTemplate?: (bookId: number, doc: DocNode) => void
 }
 
 const CAT_LABEL: Record<'private' | 'team' | 'company', string> = {
@@ -330,6 +332,7 @@ export default function KnowledgeTree(p: Props) {
       onMove: () => p.onMoveDoc?.(bookId, doc),
       onExport: () => p.onExportDoc?.(bookId, doc),
       onPin: () => p.onPinDoc?.(bookId, doc),
+      onSaveAsTemplate: () => p.onSaveAsTemplate?.(bookId, doc),
       onDelete: () => confirmDeleteDoc(bookId, doc),
     }
     const treeMenuCtx = { node: doc, bookId, canWrite, handlers: treeMenuHandlers }
