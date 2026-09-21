@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Tree, Dropdown, Empty, Modal, Input, Tooltip, message } from 'antd'
-import type { TreeProps } from 'antd'
+import type { TreeProps, MenuProps } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
   BookOutlined,
@@ -22,7 +22,8 @@ import {
   TeamOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
-import type { BookWithCount, Bookshelf, DocNode } from '../../types'
+import type { BookWithCount, Bookshelf, DocNode, DocType } from '../../types'
+import { DOC_TYPES, DOC_TYPE_LABEL } from '../../types'
 import { getTree, deleteDoc, patchDoc, moveDoc, moveDocToBook } from '../../api/docs'
 import { buildChildrenMap } from '../../stores/docTreeStore'
 import { iconForDocType } from '../../lib/fileIcon'
@@ -57,8 +58,14 @@ interface Props {
   /** 新建节点（可预选书籍与目录；parentId=父文档 id，0=根目录）。
    *  kind='doc' 新建文档（走类型选择），kind='folder' 新建目录（doc_type=folder）。 */
   onNewDoc: (bookId?: number, parentId?: number, kind?: 'doc' | 'folder') => void
-  /** 导入（可预选书籍与目录） */
+  /** 行尾「+」快速新建：位置已定（该节点之下）且类型已定，锁定类型走模板过滤 + 直接命名（跳过「选择位置」） */
+  onNewDocAt?: (bookId: number, parentId: number, docType: DocType) => void
+  /** 文库手柄「新建」子菜单：类型已定但保留「选择位置」两步流程 */
+  onNewDocWithType?: (bookId: number, parentId: number, docType: DocType) => void
+  /** 导入（可预选书籍与目录，走「选择位置」两步） */
   onImport: (bookId?: number, parentId?: number) => void
+  /** 行尾「+」导入：位置已定，直接打开文件导入对话框（跳过「选择位置」） */
+  onImportDirect?: (bookId: number, parentId: number) => void
   /** 新建知识库（可选预选分类） */
   onNewBook: (cat?: 'private' | 'team' | 'company') => void
   /** 编辑知识库元信息 */
@@ -246,9 +253,30 @@ export default function KnowledgeTree(p: Props) {
   }
 
   function bookMenu(book: BookWithCount): ReactNode {
-    const items: { key: string; icon: ReactNode; label: ReactNode; onClick: () => void; danger?: boolean }[] = [
-      { key: 'new', icon: <FileAddOutlined />, label: '新建文档', onClick: () => p.onNewDoc(book.id, 0, 'doc') },
-      { key: 'newFolder', icon: <FolderAddOutlined />, label: '新建目录', onClick: () => p.onNewDoc(book.id, 0, 'folder') },
+    // 「新建」下级子菜单：直接选择所有可新建的文档类型（仍保留「选择位置」两步流程）
+    const newSubItems: MenuProps['items'] = [
+      ...DOC_TYPES.map((dt) => {
+        const spec = iconForDocType(dt)
+        return {
+          key: `new:${dt}`,
+          icon: <span style={{ color: spec.color }}>{spec.icon}</span>,
+          label: DOC_TYPE_LABEL[dt],
+          onClick: () =>
+            p.onNewDocWithType
+              ? p.onNewDocWithType(book.id, 0, dt)
+              : p.onNewDoc(book.id, 0, dt === 'folder' ? 'folder' : 'doc'),
+        }
+      }),
+      { type: 'divider' as const },
+      {
+        key: 'new:folder',
+        icon: <FolderAddOutlined />,
+        label: '新建分组',
+        onClick: () => (p.onNewDocWithType ? p.onNewDocWithType(book.id, 0, 'folder') : p.onNewDoc(book.id, 0, 'folder')),
+      },
+    ]
+    const items: MenuProps['items'] = [
+      { key: 'new', icon: <FileAddOutlined />, label: '新建', children: newSubItems },
       { key: 'import', icon: <ImportOutlined />, label: '导入', onClick: () => p.onImport(book.id, 0) },
       { key: 'edit', icon: <EditOutlined />, label: '设置', onClick: () => p.onEditBook(book) },
     ]
@@ -264,9 +292,7 @@ export default function KnowledgeTree(p: Props) {
     })
     return (
       <Dropdown
-        menu={{
-          items: items.map((it) => ({ key: it.key, icon: it.icon, label: it.label, danger: it.danger, onClick: it.onClick })),
-        }}
+        menu={{ items }}
         trigger={['click']}
       >
         <MoreOutlined onClick={(e) => e.stopPropagation()} style={{ color: '#8a919f', padding: '0 4px', cursor: 'pointer' }} />
@@ -307,9 +333,17 @@ export default function KnowledgeTree(p: Props) {
       onDelete: () => confirmDeleteDoc(bookId, doc),
     }
     const treeMenuCtx = { node: doc, bookId, canWrite, handlers: treeMenuHandlers }
-    // 「+」快速新建：文档/表格/画板/思维导图/流程图/新建分组（folder 走 onNewDoc 的 folder 分支）
+    // 「+」快速新建：全部可新建类型 + 新建分组 + 导入文件。
+    // 类型已定且位置已定（该节点之下）→ onNewDocAt 走「模板过滤 + 跳过选择位置」直达流程
     const onPlusCreate = (dt: import('../../types').DocType) =>
-      dt === 'folder' ? p.onNewDoc(bookId, doc.id, 'folder') : p.onNewDoc(bookId, doc.id, 'doc')
+      dt === 'folder'
+        ? p.onNewDocAt
+          ? p.onNewDocAt(bookId, doc.id, 'folder')
+          : p.onNewDoc(bookId, doc.id, 'folder')
+        : p.onNewDocAt
+          ? p.onNewDocAt(bookId, doc.id, dt)
+          : p.onNewDoc(bookId, doc.id, 'doc')
+    const onPlusImport = () => (p.onImportDirect ? p.onImportDirect(bookId, doc.id) : p.onImport(bookId, doc.id))
 
     const items: any[] = [
       { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
@@ -396,7 +430,7 @@ export default function KnowledgeTree(p: Props) {
               </span>
             </Dropdown>
             {canWrite && (
-              <Dropdown menu={{ items: buildPlusMenuItems(doc, onPlusCreate) }} trigger={['click']} placement="bottomRight">
+              <Dropdown menu={{ items: buildPlusMenuItems(doc, onPlusCreate, onPlusImport) }} trigger={['click']} placement="bottomRight">
                 <span
                   role="button"
                   aria-label="新建子文档"

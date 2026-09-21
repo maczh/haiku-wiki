@@ -13,6 +13,8 @@ import { iconForDocType } from '../../lib/fileIcon'
 interface Props {
   /** 初次进入时预选的文档类型（来自「新建文档」下拉所选的类型） */
   initialDocType?: DocType
+  /** 锁定文档类型：隐藏类型筛选 chips、切分类不重置类型，模板恒按该类型过滤 */
+  lockDocType?: boolean
   /** 选中某个模板（使用该模板创建文档） */
   onSelect: (t: DocTemplate) => void
   /** 选中「空白文档」入口（仅在 showBlank 时渲染，且 gallery 内嵌在弹窗时由调用方决定） */
@@ -32,6 +34,7 @@ const ALL = 'all'
  */
 export default function TemplateGallery({
   initialDocType,
+  lockDocType = false,
   onSelect,
   onSelectBlank,
   showBlank = true,
@@ -83,8 +86,9 @@ export default function TemplateGallery({
 
   function pickCat(cat: string) {
     setActiveCat(cat)
-    // 切换分类后，当前类型可能不在新分类里 —— 重置为「全部类型」
-    setDocType(ALL)
+    // 切换分类后，当前类型可能不在新分类里 —— 重置为「全部类型」；
+    // 锁定类型时不重置（该类型是入口指定的，必须贯穿整个画廊会话）
+    if (!lockDocType) setDocType(ALL)
   }
 
   function blankType(): DocType {
@@ -124,19 +128,21 @@ export default function TemplateGallery({
 
       {/* 右侧内容 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, padding: '8px 12px' }}>
-        {/* 顶部工具条：类型筛选 + 搜索 */}
+        {/* 顶部工具条：类型筛选 + 搜索（锁定类型时隐藏 chips，模板恒按该类型过滤） */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <TypeChip label="全部类型" active={docType === ALL} onClick={() => setDocType(ALL)} />
-            {typeOptions.map((t) => (
-              <TypeChip
-                key={t}
-                label={DOC_TYPE_LABEL[t]}
-                active={docType === t}
-                onClick={() => setDocType(t)}
-              />
-            ))}
-          </div>
+          {!lockDocType && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <TypeChip label="全部类型" active={docType === ALL} onClick={() => setDocType(ALL)} />
+              {typeOptions.map((t) => (
+                <TypeChip
+                  key={t}
+                  label={DOC_TYPE_LABEL[t]}
+                  active={docType === t}
+                  onClick={() => setDocType(t)}
+                />
+              ))}
+            </div>
+          )}
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
             <Input
               allowClear

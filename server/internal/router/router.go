@@ -190,6 +190,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 			admin.POST("/migrate/storage/test", handler.TestStorageConnection)
 			// 接口文档刷新：最近一次任务汇总（仅管理员；P1-3）
 			admin.GET("/api-refresh/last", handler.GetApiRefreshLastRun)
+			// 文档模板管理（仅管理员）：导入模板数据文件 / 模板目录，删除导入的模板
+			admin.POST("/templates/import", handler.ImportTemplates)
+			admin.DELETE("/templates/:id", handler.DeleteTemplate)
 		}
 
 		// 团队管理

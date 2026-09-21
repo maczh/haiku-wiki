@@ -1,0 +1,2049 @@
+{
+  "category": "营销方案类脑图",
+  "templates": [
+    {
+      "name": "整合营销推广方案脑图",
+      "title": "整合营销推广方案",
+      "doc_type": "mindmap",
+      "sort": 1,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "整合营销方案",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "目标与定位",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "营销目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人群定位",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心卖点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌调性",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "渠道组合",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "线上",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "线下",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "私域",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "异业合作",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "内容创意",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "主题",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "素材",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容形式矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "创意脚本",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "预算与排期",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "预算分配",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "节奏",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资源位采购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人力分工",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "效果评估",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "KPI",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "复盘",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "转化归因",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投入产出 ROI",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "新品上市推广脑图",
+      "title": "新品上市推广脑图",
+      "doc_type": "mindmap",
+      "sort": 2,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "新品上市推广",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "上市目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "销量目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "声量目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场份额目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "渠道覆盖目标",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "预热期",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "种草内容",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "KOL 合作",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预约蓄水",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "悬念海报",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "爆发期",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "首发活动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "直播带货",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "平台会场",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "媒体公关",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "持续期",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "口碑运营",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "复购激励",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户 UGC",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "长尾投放",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "上市复盘",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "销售达成分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "渠道效率对比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户反馈沉淀",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "下一波改进",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "品牌定位与传播脑图",
+      "title": "品牌定位与传播脑图",
+      "doc_type": "mindmap",
+      "sort": 3,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "品牌定位与传播",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "市场洞察",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "行业趋势研判",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "竞品定位扫描",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品类机会识别",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "消费者心智地图",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "目标人群",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "人群画像标签",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需求与购买动机",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "媒体接触习惯",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "购买决策链路",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "品牌定位",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "核心价值主张",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异化关键词",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌调性与人格",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌故事线",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "定位工具",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "SWOT 态势分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "定位感知地图",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "价值曲线重构",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌金字塔",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "传播策略",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "核心传播主张",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "信息屋架构",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "媒介组合策略",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容与形式设计",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "落地执行",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "视觉与 VI 规范",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "传播节奏排期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "渠道预算分配",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "媒体与达人名单",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "效果度量",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "品牌搜索指数",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "无提示提及率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "净推荐值 NPS",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "传播声量 ROI",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "内容营销策略脑图",
+      "title": "内容营销策略脑图",
+      "doc_type": "mindmap",
+      "sort": 4,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "内容营销策略",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "内容目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "扩大品牌认知",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "获取销售线索",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "促进转化成交",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "提升用户留存",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "受众洞察",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用户画像与分层",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容消费场景",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "信息诉求差异",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "平台使用偏好",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "内容策略",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "内容定位与调性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容支柱主题",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "选题方向储备",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "与竞品差异化",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "内容形式",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "深度图文长文",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "短视频内容",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "直播与访谈",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "白皮书与报告",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社群话题互动",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "生产流程",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "选题会与排期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "创作与三级审核",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "发布与分发节奏",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "素材库沉淀复用",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "分发渠道",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "官方自媒体矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "行业垂直媒体",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社区与专业论坛",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "私域社群",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "付费精准投放",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "数据与优化",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "阅读与播放量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "互动与转发率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "留资转化数量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容复用率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "私域运营体系脑图",
+      "title": "私域运营体系脑图",
+      "doc_type": "mindmap",
+      "sort": 5,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "私域运营体系",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "私域目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用户资产沉淀",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "复购频次提升",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "获客成本下降",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "口碑推荐增长",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "流量入口",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "公域投放承接",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "线下门店导流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "包裹卡扫码引流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "老客邀请裂变",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "载体矩阵",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "企业微信好友",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "微信社群运营",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "公众号内容",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "小程序商城",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "视频号直播",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "用户分层",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "新客首单转化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "活跃用户提频",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "沉睡用户召回",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "高价值专属服务",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "内容与活动",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "日常种草内容",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "会员专属权益",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社群互动玩法",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "节日主题活动",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "运营 SOP",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "加好友欢迎语",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "标签体系打标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "朋友圈发布节奏",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自动化触达流程",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "指标体系",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "好友净增与留存",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社群活跃率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "复购率水平",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "私域 GMV 占比",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "电商大促活动方案脑图",
+      "title": "电商大促活动方案脑图",
+      "doc_type": "mindmap",
+      "sort": 6,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "电商大促活动方案",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "大促目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "GMV 目标拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "访客量目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "新客占比目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品类结构目标",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "目标人群",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "潜客拉新",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "老客召回",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "会员专享",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "沉睡用户激活",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "货品策略",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "引流款策略",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "主推爆款",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "利润款组合",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "尾货清仓款",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "流量渠道",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "平台会场报名",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "搜索与推荐优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "达人直播排期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "站外种草引流",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "促销玩法",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "满减满赠",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "限时秒杀",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "跨店津贴",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "会员权益加倍",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "节奏排期",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "蓄水预热期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "开门红爆发",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品类日轮动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "返场收尾期",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "预算与监控",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "资源位采购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投放预算分配",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "实时战报看板",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "库存与发货预警",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "渠道拓展策略脑图",
+      "title": "渠道拓展策略脑图",
+      "doc_type": "mindmap",
+      "sort": 7,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "渠道拓展策略",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "渠道目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "覆盖增量市场",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "降低获客成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "提升渠道效率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "构建渠道壁垒",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "渠道类型",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "直销团队",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "代理商与经销商",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "电商平台渠道",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "行业解决方案伙伴",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "异业联盟",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "渠道筛选",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "目标客群匹配度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "区域覆盖能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金与履约能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "合作意愿评估",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "合作政策",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "价格与折扣体系",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "返利与激励机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "区域保护约定",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "账期与结算方式",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "赋能支持",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "产品培训认证",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售物料包",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "线索分配机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "技术支持响应",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "过程管理",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "渠道分级管理",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "目标设定与考核",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "进销存可视化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "窜货与价格管控",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "效果评估",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "渠道产出占比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "单渠道 ROI",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "渠道健康度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "淘汰与优化机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "用户增长漏斗脑图",
+      "title": "用户增长漏斗脑图",
+      "doc_type": "mindmap",
+      "sort": 8,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "用户增长 AARRR 漏斗",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "增长目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "北极星指标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "阶段性增长目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增长模型假设",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增长团队分工",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "获客获取",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "渠道矩阵组合",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投放素材迭代",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "搜索与应用商店优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "邀请裂变机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "激活转化",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "新手引导流程",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "首次关键行为",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "注册链路优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "新人激励设计",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "留存提升",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "新手期留存",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内容与消息触达",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "会员与积分体系",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流失预警召回",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "变现收入",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "付费转化路径",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "定价与套餐设计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增值服务收入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "复购与续费",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "推荐传播",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "邀请奖励机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "口碑分享触点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社群扩散玩法",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "KOC 培育计划",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "实验与数据",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "A/B 实验流程",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "漏斗转化分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户分群运营",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增长复盘机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

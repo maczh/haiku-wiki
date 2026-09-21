@@ -1,0 +1,1962 @@
+{
+  "category": "需求分析类脑图",
+  "templates": [
+    {
+      "name": "产品需求分析脑图",
+      "title": "产品需求分析脑图",
+      "doc_type": "mindmap",
+      "sort": 1,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "产品需求分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "用户与场景",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "目标用户画像",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心使用场景",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "痛点与诉求",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户规模与增长",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "决策与使用角色",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "功能需求",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "基础功能",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心功能",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增值功能",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需求优先级分层",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "MVP 范围界定",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "非功能需求",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "性能",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "安全合规",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "易用性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "兼容性与可维护性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "可扩展能力",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "竞品对比",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "优势",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差距",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异化机会点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "功能对标结论",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "需求管理",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "需求来源渠道",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需求评审流程",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "变更控制机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "验收标准定义",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "用户故事地图",
+      "title": "用户故事地图",
+      "doc_type": "mindmap",
+      "sort": 2,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "用户故事地图",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "活动 / 主干",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "发现",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "使用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "付费",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "留存",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "推荐传播",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "用户角色",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "新用户",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "活跃用户",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "管理员",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "付费用户",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "运营人员",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "支撑能力",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "后端服务",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据中台",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "前端体验",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "基础设施",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "故事拆解",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用户任务拆分",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "故事点估算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "验收条件定义",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "依赖关系梳理",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "版本规划",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "MVP 骨架",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "二期增强",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "远期规划",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "发布节奏",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "业务流程梳理脑图",
+      "title": "业务流程梳理脑图",
+      "doc_type": "mindmap",
+      "sort": 3,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "业务流程梳理",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "流程总览",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "流程边界与范围",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流程起点与终点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关键角色与职责",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流程层级 L1-L3",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "现状流程梳理",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "流程步骤全拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "等待与返工点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "手工环节识别",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "系统支撑断点",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "痛点诊断",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "业务周期过长",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "审批层级冗余",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "部门信息孤岛",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据口径不统一",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "优化设计",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "步骤合并与删减",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自动化改造点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "并行处理设计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "处理时效 SLA",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "表单与字段精简",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "流程管控",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "关键控制点 KCP",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "合规与授权要求",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "异常与回退机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流程责任人机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "落地与度量",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "制度文件配套",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "系统配置改造",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "培训与推广宣贯",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "效率指标前后对比",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "竞品功能对比脑图",
+      "title": "竞品功能对比脑图",
+      "doc_type": "mindmap",
+      "sort": 4,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "竞品功能对比",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "对比对象",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "直接竞品",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "间接竞品",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "替代解决方案",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "行业标杆产品",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "对比维度",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "核心功能覆盖",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "性能与稳定性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "交互体验设计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "生态开放能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "价格与授权",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "服务与支持",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "功能矩阵",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "基础必备能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异化能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "期望型能力",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "信息渠道",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "官方产品文档",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "免费试用体验",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "客户与销售访谈",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "第三方评测报告",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "差距与机会",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "我方优势项",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "我方短板项",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场空白机会点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "潜在替代威胁",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "行动建议",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "功能补齐优先级",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异化卖点提炼",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "版本迭代节奏",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "竞争壁垒构建",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "用户调研洞察脑图",
+      "title": "用户调研洞察脑图",
+      "doc_type": "mindmap",
+      "sort": 5,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "用户调研洞察",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "调研目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "验证需求假设",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "发现未满足需求",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "评估产品满意度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "明确购买决策链",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "调研方法",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "一对一深度访谈",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "定量问卷调查",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "可用性走查测试",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "行为数据分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "焦点小组座谈",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "样本设计",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "目标人群筛选条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "样本量与配额",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "招募渠道选择",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "参与激励设计",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "执行要点",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "访谈提纲设计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "中立提问原则",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现场记录与归档",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "避免引导性偏差",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "洞察提炼",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用户原话聚类",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "痛点强度排序",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户画像修正",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "旅程关键时刻",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "结论转化",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "假设验证结论表",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "机会点清单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产品改进行动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "后续验证计划",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "需求优先级评估脑图",
+      "title": "需求优先级评估脑图",
+      "doc_type": "mindmap",
+      "sort": 6,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "需求优先级评估",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "评估原则",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用户价值导向",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "实现成本可控",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "战略方向对齐",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "技术风险可控",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "评估模型",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "RICE 评分模型",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "MoSCoW 分层法",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "KANO 需求属性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "加权打分卡",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "价值维度",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "商业收益贡献",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "用户价值强度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "战略匹配程度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌与口碑影响",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "成本维度",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "研发工作量估算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "设计与交互投入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "测试与回归成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "运维与支持负担",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险维度",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "技术不确定性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "合规与法务风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "外部依赖阻塞",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "回滚与兼容难度",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "决策机制",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "需求评审例会",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "打分卡填写规范",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "争议仲裁机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "版本窗口分配",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "输出与跟踪",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "优先级矩阵图",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "版本需求清单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "变更记录留痕",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "上线后效果复盘",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "系统用例分析脑图",
+      "title": "系统用例分析脑图",
+      "doc_type": "mindmap",
+      "sort": 7,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "系统用例分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "系统边界",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "系统职责范围",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "外部对接系统",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "前置触发条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "后置成功状态",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "参与者识别",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "主业务角色",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "辅助配合角色",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "外部系统调用方",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "后台运营管理员",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "用例清单",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "核心业务用例",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "支撑保障用例",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "运营配置用例",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "用例描述",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "用例编号与目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "前置与后置条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "基本事件流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "扩展与异常流",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "规则与约束",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "业务校验规则",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "权限与角色校验",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据合法性校验",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "并发与限流策略",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "非功能要求",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "响应时间指标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "系统可用性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "操作可审计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "横向扩展能力",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "验证与追踪",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "场景测试用例",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需求追溯矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "验收标准定义",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "变更影响分析",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "B端客户实施需求脑图",
+      "title": "B端客户实施需求脑图",
+      "doc_type": "mindmap",
+      "sort": 8,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "B端客户实施需求",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "客户背景",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "所属行业与规模",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "组织架构现状",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心业务痛点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "决策链与预算",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "干系人地图",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "决策者负责拍板",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "管理者推动落地",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "一线使用者",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "IT 与财务把关",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "业务需求",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "业务流程匹配度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现有系统对接",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据统计口径",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "多组织权限模型",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "实施范围",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "功能模块清单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "组织与人员范围",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "历史数据迁移",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "集成接口清单",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "交付方案",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "实施里程碑节点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "培训与赋能计划",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "试点到全面推广",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "验收标准与签字",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险与保障",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "需求蔓延控制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据迁移风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "上线切换方案",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "服务响应 SLA",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "价值度量",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "流程效率提升",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人力成本节约",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "账号活跃度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "续约与扩购机会",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

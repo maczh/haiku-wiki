@@ -37,3 +37,72 @@ export async function listTemplates(query: TemplateQuery = {}): Promise<DocTempl
 export async function listTemplateCategories(): Promise<TemplateCategory[]> {
   return request.get('/templates/categories') as Promise<TemplateCategory[]>
 }
+
+/** 单个模板数据文件（或目录）导入结果 */
+export interface ImportFileError {
+  file: string
+  error: string
+}
+
+export interface TemplateImportResult {
+  files: number
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  errors: ImportFileError[]
+  overwrite: boolean
+}
+
+/**
+ * 管理员批量导入模板（POST /api/admin/templates/import）。
+ * files 可多文件；目录导入时前端把 webkitRelativePath 通过 paths 一并提交，便于报错定位。
+ */
+export async function importTemplates(
+  files: File[],
+  overwrite = false,
+  paths?: string[],
+): Promise<TemplateImportResult> {
+  const form = new FormData()
+  files.forEach((f) => form.append('files', f))
+  form.append('overwrite', overwrite ? '1' : '0')
+  if (paths && paths.length) form.append('paths', JSON.stringify(paths))
+  return request.post('/admin/templates/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    // 目录导入可能上百个文件，给足时间
+    timeout: 120000,
+  }) as Promise<TemplateImportResult>
+}
+
+/** 管理员删除导入的模板（内置模板后端拒绝删除） */
+export async function deleteTemplate(id: number): Promise<void> {
+  await request.delete(`/admin/templates/${id}`)
+}
+
+/**
+ * 「常用模板」抽取：按分类轮转取样，保证首页/文库面板里各业务分类都能露脸，
+ * 而不是被某一类（或某一字母序靠前的分类）占满。
+ */
+export function pickCommonTemplates(list: DocTemplate[], limit = 12): DocTemplate[] {
+  const byCat = new Map<string, DocTemplate[]>()
+  for (const t of list) {
+    const arr = byCat.get(t.category)
+    if (arr) arr.push(t)
+    else byCat.set(t.category, [t])
+  }
+  const cats = [...byCat.values()]
+  const out: DocTemplate[] = []
+  // 每个分类内部已按 sort 排好；轮转 rounds 轮直到取够
+  for (let round = 0; out.length < limit; round++) {
+    let added = false
+    for (const arr of cats) {
+      if (out.length >= limit) break
+      if (round < arr.length) {
+        out.push(arr[round])
+        added = true
+      }
+    }
+    if (!added) break
+  }
+  return out
+}

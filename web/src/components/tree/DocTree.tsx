@@ -234,7 +234,7 @@ function TreeRow(p: RowProps) {
           </Dropdown>
           {p.canWrite && (
             <Dropdown
-              menu={{ items: buildPlusMenuItems(p.node, (dt) => p.onCreateChildTyped(p.node, dt)) }}
+              menu={{ items: buildPlusMenuItems(p.node, (dt) => p.onCreateChildTyped(p.node, dt), () => undefined) }}
               trigger={['click']}
               placement="bottomRight"
             >

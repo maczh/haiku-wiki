@@ -24,6 +24,8 @@ import {
   LibrarySearchCard,
   TodoWorkbenchCard,
 } from '../components/dashboard/WorkbenchCards'
+import TemplateQuickPanel from '../components/dashboard/TemplateQuickPanel'
+import type { DocTemplate } from '../api/templates'
 import { hasWorkbench, pickWorkbenchDocs } from '../lib/workbench'
 import {
   INTRO_DISMISS_KEY,
@@ -82,6 +84,8 @@ export default function DashboardPage() {
   const [recent, setRecent] = useState<RecentDocItem[]>([])
   const [recentLoading, setRecentLoading] = useState(true)
   const [quickModal, setQuickModal] = useState<QuickStartMode | null>(null)
+  /** 「常用模板」板块选中的模板：带上它打开快捷新建弹窗，创建时正文直接用模板正文 */
+  const [pickedTemplate, setPickedTemplate] = useState<DocTemplate | null>(null)
 
   // 工作台：待办 / 甘特图 / 工作日历（后端只给每类最近 8 篇，故卡片会标注口径）
   const [workbench, setWorkbench] = useState<WorkbenchView>({ items: [], counts: {} })
@@ -191,6 +195,12 @@ export default function DashboardPage() {
     return true
   }
 
+  /** 常用模板板块：点模板 → 选知识库/目录 → 直接按模板创建并进编辑页 */
+  function createFromTemplate(t: DocTemplate) {
+    if (!requireBook('doc')) return
+    setPickedTemplate(t)
+  }
+
   return (
     <div className="hk-dash">
       <div className="hk-dash-inner">
@@ -283,6 +293,16 @@ export default function DashboardPage() {
             <LibrarySearchCard onSearch={runSearch} />
           </Col>
         </Row>
+
+        {/* ---------- 常用模板：点一下就按模板建文档 ----------
+            放在最近更新之后、快捷操作之前：先看手头有什么，再是「从模板起一份新的」。 */}
+        <div className="hk-dash-section" data-testid="hk-template-quick-section">
+          <div className="hk-dash-section-head">
+            <h3 className="hk-dash-section-title">常用模板</h3>
+            <span className="hk-dash-section-extra">选一个模板，选好知识库即可创建文档</span>
+          </div>
+          <TemplateQuickPanel onPickTemplate={createFromTemplate} onMore={() => navigate('/templates')} limit={12} />
+        </div>
 
         {/* ---------- 快捷操作 | 团队速览 ---------- */}
         <Row gutter={[16, 16]} className="hk-dash-section" align="top">
@@ -404,7 +424,11 @@ export default function DashboardPage() {
           open
           mode={quickModal}
           books={allBooks}
-          onClose={() => setQuickModal(null)}
+          template={pickedTemplate}
+          onClose={() => {
+            setQuickModal(null)
+            setPickedTemplate(null)
+          }}
           onCreated={(bookId, docId) => navigate(`/books/${bookId}?docId=${docId}&tab=edit`)}
           onPickBook={(bookId, parentId) =>
             // 目录层级经 URL 传给知识库页，由它打开导入对话框时作为初始存放位置

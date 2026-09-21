@@ -82,8 +82,8 @@ setInput() { # setInput <弹窗标题子串> <弹窗内输入框选择器> <值>
     const setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
     setter.call(el,'$3'); el.dispatchEvent(new Event('input',{bubbles:true})); return 'ok'})()"
 }
-clickLink() { # 点内容区空态里的文字链接
-  q "(()=>{const a=[...document.querySelectorAll('a')].find(x=>x.textContent.trim()==='$1'); if(!a)return 'no-link'; a.click(); return 'ok'})()"
+clickLink() { # 点内容区概览条里的「新建文档 / 新建目录」入口（2026-09-21 工作台改版后是 Button，兼容 a）
+  q "(()=>{const norm=t=>t.replace(/\s+/g,'');const el=[...document.querySelectorAll('a,button')].find(x=>norm(x.textContent)==='$1'); if(!el)return 'no-link'; el.click(); return 'ok'})()"
 }
 expandNode() { # expandNode <节点文本子串>（父节点必须已展开，逐个点+等，批量点会因重渲染失联）
   q "(()=>{const w=[...document.querySelectorAll('.ant-tree-treenode')].find(t=>t.textContent.includes('$1')&&!t.querySelector('.ant-tree-switcher_open'));
@@ -169,9 +169,23 @@ q "(()=>{const n=[...document.querySelectorAll('.ant-tree-treenode')].find(t=>t.
   const m=n&&n.querySelector('.anticon-more'); if(!m)return 'no-more'; m.click(); return 'ok'})()" >/dev/null
 "$AB" wait 900 >/dev/null 2>&1
 ITEMS=$(menuItems)
-ckc "知识库菜单含「新建文档」" "新建文档" "$ITEMS"
-ckc "知识库菜单含「新建目录」" "新建目录" "$ITEMS"
+# 2026-09-22 起：文库菜单「新建」变为下级子菜单（直接选择所有可新建类型），不再有独立「新建文档/新建目录」项
 ckc "知识库菜单含「导入」" "导入" "$ITEMS"
+SUB=$(q "(()=>{const ds=[...document.querySelectorAll('.ant-dropdown')].filter(d=>!d.classList.contains('ant-dropdown-hidden'));
+  if(!ds.length)return '(无菜单)';
+  const s=[...ds[ds.length-1].querySelectorAll('.ant-dropdown-menu-submenu-title')].find(i=>i.textContent.includes('新建'));
+  return s?'新建子菜单':'(无新建子菜单)'})()")
+ckc "知识库菜单「新建」为下级子菜单" "新建子菜单" "$SUB"
+# 悬浮展开子菜单，断言含全部类型与「新建分组」
+q "(()=>{const ds=[...document.querySelectorAll('.ant-dropdown')].filter(d=>!d.classList.contains('ant-dropdown-hidden'));
+  const s=ds.length&&[...ds[ds.length-1].querySelectorAll('.ant-dropdown-menu-submenu-title')].find(i=>i.textContent.includes('新建'));
+  if(!s)return 'no-sub'; s.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); s.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true})); return 'ok'})()" >/dev/null
+"$AB" wait 900 >/dev/null 2>&1
+SUBITEMS=$(q "(()=>{const its=[...document.querySelectorAll('.ant-dropdown-menu-item')].filter(x=>x.offsetParent!==null);
+  return its.map(i=>i.textContent.trim()).join('/')||'(无)'})()")
+for WANT in 文档 表格 思维导图 流程图 绘图 待办清单 工作日历 甘特图 接口 图片库 需求原型 新建分组; do
+  ckc "新建子菜单含「$WANT」" "$WANT" "$SUBITEMS"
+done
 shot 01-book-menu.png
 closeMenus
 
@@ -189,13 +203,19 @@ ITEMS=$(menuItems)
 ckc "目录菜单含「新建子目录」" "新建子目录" "$ITEMS"
 ckn "目录菜单不含「导出」" "导出" "$ITEMS"
 ckn "目录菜单不含「分享」" "分享" "$ITEMS"
-ckc "目录的「复制」被禁用" "复制(禁用)" "$ITEMS"
+# 2026-09-20 起复制递归复制整棵子树（POST /docs/:id/copy），目录也可复制
+ckc "目录菜单含「复制」" "复制" "$ITEMS"
+ckn "目录的「复制」未被禁用" "复制(禁用)" "$ITEMS"
 shot 03-folder-menu.png
 closeMenus
 
-echo "== 4. 新建文档：目录框显示名称（不是 0），且真的落到所选子目录 =="
+echo "== 4. 新建文档：模板画廊 → 目录框显示名称（不是 0），且真的落到所选子目录 =="
 go "$BASE/books/$BOOK" 5000
-ck "空态「新建文档」链接" "ok" "$(clickLink '新建文档')"
+ck "概览条「新建文档」按钮" "ok" "$(clickLink '新建文档')"
+"$AB" wait 1500 >/dev/null 2>&1
+# 2026-09-21 起新建文档先经模板画廊
+ckc "模板画廊弹出" "选择模板创建文档" "$(modalTitles)"
+ck "画廊选「空白文档」" "ok" "$(q "(()=>{const m=[...document.querySelectorAll('.ant-modal')].find(x=>{const t=x.querySelector('.ant-modal-title');return t&&t.textContent.includes('选择模板')}); const b=m&&[...m.querySelectorAll('button')].find(b=>b.textContent.includes('空白文档')); if(!b)return 'no-blank'; b.click(); return 'ok'})()")"
 "$AB" wait 1500 >/dev/null 2>&1
 ckc "弹窗标题" "新建文档 · 选择位置" "$(modalTitles)"
 TXT=$(selTexts '新建文档 · 选择位置')
@@ -221,7 +241,7 @@ ck "新文档落在所选子目录下（不是 0）" "$F2" "$(field "${NEW%%,*}"
 
 echo "== 5. 新建目录（第二步只填名称、不选类型）=="
 go "$BASE/books/$BOOK" 5000
-ck "空态「新建目录」链接" "ok" "$(clickLink '新建目录')"
+ck "概览条「新建目录」按钮" "ok" "$(clickLink '新建目录')"
 "$AB" wait 1500 >/dev/null 2>&1
 ckc "弹窗标题" "新建目录 · 选择位置" "$(modalTitles)"
 ck "选中「RIS项目」" "picked" "$(pick '新建目录 · 选择位置' 1 'RIS项目')"

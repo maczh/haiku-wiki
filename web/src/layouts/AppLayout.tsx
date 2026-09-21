@@ -108,6 +108,11 @@ export default function AppLayout() {
                           onClick: () => navigate('/admin/users'),
                         },
                         {
+                          key: 'admin-templates',
+                          label: '导入模板',
+                          onClick: () => navigate('/admin/templates'),
+                        },
+                        {
                           key: 'system-config',
                           label: '系统配置',
                           onClick: () => navigate('/admin/system-config'),

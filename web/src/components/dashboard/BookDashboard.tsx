@@ -15,10 +15,12 @@ import { search } from '../../api/search'
 // 文库工作台样式随组件走：BookPage 与 DashboardPage 是两个路由 chunk，
 // 在页面里导 CSS 会让「样式加载与否」取决于用户先访问了哪一页
 import './dashboard.css'
+import { CalendarWorkbenchCard, GanttWorkbenchCard, TodoWorkbenchCard } from './WorkbenchCards'
+import TemplateQuickPanel from './TemplateQuickPanel'
+import type { DocTemplate } from '../../api/templates'
 import { DOC_TYPE_LABEL, type DocNode, type DocType, type SearchHit, type WorkbenchDoc } from '../../types'
 import { hasWorkbench, pickWorkbenchDocs } from '../../lib/workbench'
 import { relativeTime } from '../../lib/dashboard'
-import { CalendarWorkbenchCard, GanttWorkbenchCard, TodoWorkbenchCard } from './WorkbenchCards'
 
 /**
  * BookDashboard —— 知识库页右侧**未选中文档时**的「文库工作台」。
@@ -45,6 +47,8 @@ interface BookDashboardProps {
   onNewDoc: () => void
   onNewFolder: () => void
   onImport: () => void
+  /** 常用模板板块：选中模板后按它在本库内创建文档（跳过模板画廊，仍可改存放位置） */
+  onCreateFromTemplate?: (t: DocTemplate) => void
 }
 
 /** 搜索防抖间隔（ms）：比打字慢一点点，比请求快很多 */
@@ -61,6 +65,7 @@ export default function BookDashboard({
   onNewDoc,
   onNewFolder,
   onImport,
+  onCreateFromTemplate,
 }: BookDashboardProps) {
   const [wb, setWb] = useState<{ items: WorkbenchDoc[]; counts: Record<string, number> } | null>(null)
   const [wbLoading, setWbLoading] = useState(true)
@@ -242,6 +247,19 @@ export default function BookDashboard({
       {wbLoading && (
         <div className="hk-bdash-loading">
           <Spin size="small" />
+        </div>
+      )}
+
+      {/* ---------- 常用模板：在本库内一键按模板建文档 ----------
+          仅可写时展示（只读库里建不了文档）；放在工作台之后、搜索/最近更新之前。 */}
+      {canWrite && onCreateFromTemplate && (
+        <div className="hk-bdash-section" data-testid="hk-book-template-quick">
+          <TemplateQuickPanel
+            compact
+            limit={8}
+            onPickTemplate={onCreateFromTemplate}
+            onMore={() => window.open('/templates', '_blank')}
+          />
         </div>
       )}
 

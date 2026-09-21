@@ -2,6 +2,7 @@ package service
 
 import (
 	"haiku-wiki/server/internal/model"
+	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 )
 
@@ -34,6 +35,32 @@ func (s *TemplateService) ListTemplates(category, docType string, builtin *bool)
 		return nil, err
 	}
 	return list, nil
+}
+
+// ImportResult 管理员导入结果统计。
+type ImportResult struct {
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+	Skipped int `json:"skipped"`
+}
+
+// ImportTemplates 管理员批量导入模板数据（builtin=false，不与内置模板冲突）。
+// overwrite=true 覆盖同名同分类同类型的既有模板；false 只补新模板。
+func (s *TemplateService) ImportTemplates(items []model.DocTemplate, overwrite bool) (created, updated, skipped int, err error) {
+	return repository.ImportTemplates(repository.DB(), items, overwrite)
+}
+
+// DeleteTemplate 删除管理员导入的模板；内置模板（builtin=true）不允许删除。
+func (s *TemplateService) DeleteTemplate(id uint64) error {
+	db := repository.DB()
+	var t model.DocTemplate
+	if err := db.Where("id = ?", id).First(&t).Error; err != nil {
+		return err
+	}
+	if t.Builtin {
+		return hkerr.New(400, 400, "系统内置模板不可删除")
+	}
+	return db.Delete(&model.DocTemplate{}, id).Error
 }
 
 // ListCategories 聚合出所有分类及其包含的类型与模板数。

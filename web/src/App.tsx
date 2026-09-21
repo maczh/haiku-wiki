@@ -32,6 +32,8 @@ const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'))
 const SystemConfigPage = lazy(() => import('./pages/SystemConfigPage'))
 const DatabaseMigrationPage = lazy(() => import('./pages/DatabaseMigrationPage'))
 const StorageMigrationPage = lazy(() => import('./pages/StorageMigrationPage'))
+// 管理员：文档模板导入（外部模板数据文件 / 模板目录批量导入）
+const AdminTemplatesPage = lazy(() => import('./pages/AdminTemplatesPage'))
 // 模板中心（仿语雀/WPS 的文档模板画廊）
 const TemplateGalleryPage = lazy(() => import('./pages/TemplateGalleryPage'))
 
@@ -152,6 +154,16 @@ export default function App() {
             <RequireAdmin>
               <LazyBoundary fill tip="正在加载系统配置…">
                 <SystemConfigPage />
+              </LazyBoundary>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/templates"
+          element={
+            <RequireAdmin>
+              <LazyBoundary fill tip="正在加载模板导入…">
+                <AdminTemplatesPage />
               </LazyBoundary>
             </RequireAdmin>
           }

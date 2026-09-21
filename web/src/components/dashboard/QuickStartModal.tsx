@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, Modal, Select, Typography, message } from 'antd'
+import { Form, Input, Modal, Select, Tag, Typography, message } from 'antd'
 import { createDoc, getTree } from '../../api/docs'
 import { defaultTitleOf, firstWritableBook } from '../../lib/dashboard'
 import { PICK_BOOK_FIRST, ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../../lib/dirOptions'
+import type { DocTemplate } from '../../api/templates'
 import { DOC_TYPE_LABEL, DOC_TYPES, type BookWithCount, type DocType } from '../../types'
 
 export type QuickStartMode = 'doc' | 'import-file' | 'import-url'
@@ -13,6 +14,11 @@ interface Props {
   /** 候选知识库（书架里可写的排前面） */
   books: BookWithCount[]
   defaultBookId?: number
+  /**
+   * 从「常用模板」板块进入时带上的模板：类型与默认标题由此决定，正文直接落进新文档。
+   * 不传就是原来的空白文档流程。
+   */
+  template?: DocTemplate | null
   onClose: () => void
   /** mode='doc'：创建成功后回调 */
   onCreated: (bookId: number, docId: number) => void
@@ -45,6 +51,7 @@ export default function QuickStartModal({
   mode,
   books,
   defaultBookId,
+  template = null,
   onClose,
   onCreated,
   onPickBook,
@@ -59,13 +66,15 @@ export default function QuickStartModal({
   useEffect(() => {
     if (!open) return
     const preferred = defaultBookId || firstWritableBook(books)?.id
+    // 带模板进来：类型与默认标题都取自模板，用户仍可改标题
+    const docType = (template?.doc_type ?? 'markdown') as DocType
     form.setFieldsValue({
       book_id: preferred,
-      doc_type: 'markdown' as DocType,
-      title: defaultTitleOf('markdown'),
+      doc_type: docType,
+      title: template?.title || defaultTitleOf(docType),
       parent_id: ROOT_DIR_VALUE,
     })
-  }, [open, defaultBookId, books, form])
+  }, [open, defaultBookId, books, template, form])
 
   // 打开时若已预选知识库，目录下拉也要跟上（否则用户看到的是禁用空框）
   useEffect(() => {
@@ -118,6 +127,7 @@ export default function QuickStartModal({
         parentId,
         (values.title as string)?.trim() || defaultTitleOf(values.doc_type),
         values.doc_type,
+        template?.content, // 模板正文：与模板中心/新建文档里的画廊同一份数据
       )
       message.success('文档已创建')
       onClose()
@@ -141,7 +151,18 @@ export default function QuickStartModal({
       data-testid="hk-quick-modal"
     >
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
-        {HINT[mode]}
+        {template ? (
+          <span>
+            已选模板
+            <Tag bordered={false} color="blue" style={{ margin: '0 6px' }}>
+              {template.name}
+            </Tag>
+            （{DOC_TYPE_LABEL[template.doc_type] ?? template.doc_type}）·
+            选好知识库与目录即可创建，正文来自模板，创建后可直接改。
+          </span>
+        ) : (
+          HINT[mode]
+        )}
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item label="知识库" name="book_id" rules={[{ required: true, message: '请选择知识库' }]}>

@@ -1,0 +1,2631 @@
+{
+  "category": "投资分析类脑图",
+  "templates": [
+    {
+      "name": "投资项目评估脑图",
+      "title": "投资项目评估脑图",
+      "doc_type": "mindmap",
+      "sort": 1,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "投资项目评估",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "项目概况",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "行业与赛道",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "团队",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "商业模式",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "发展阶段",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "财务预测",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入模型",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "回报周期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金流预测",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "敏感性测算",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "估值与条款",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "估值方法",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关键条款",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "对价安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "保护性条款",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "退出机制",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "IPO / 并购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "回购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股权转让",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "清算安排",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "投决结论",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "投资亮点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投资建议",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投后管理要点",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "投资风险评估脑图",
+      "title": "投资风险评估脑图",
+      "doc_type": "mindmap",
+      "sort": 2,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "投资风险评估",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "市场风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "需求波动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "竞争加剧",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "价格战",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "行业周期",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "运营风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "执行偏差",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人才流失",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "供应链中断",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "扩张失控",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "财务风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "现金流断裂",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "估值过高",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收与坏账",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "融资不及预期",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "政策与法律风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "监管政策变化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "合规瑕疵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "知识产权争议",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "税务风险",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "应对措施",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "分期投入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "对赌保护",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "优先清算权",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "风险预警机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "尽职调查清单脑图",
+      "title": "尽职调查清单脑图",
+      "doc_type": "mindmap",
+      "sort": 3,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "尽职调查清单",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "业务尽调",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "商业模式验证",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场空间测算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "客户与销售核查",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "供应链稳定性",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "财务尽调",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入真实性核查",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本与费用归集",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资产负债表质量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金流与利润匹配",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关联交易核查",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "法律尽调",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "股权结构清晰性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "主体资质与许可",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "重大合同审阅",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "诉讼与仲裁",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "知识产权归属",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "团队尽调",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "创始人与核心团队",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "组织架构与梯队",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股权激励安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "竞业限制与劳动合规",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "技术与 ESG",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "技术路线与壁垒",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "研发投入与专利",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据安全合规",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "环保与安全生产",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "尽调方法",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "资料清单索取",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "管理层访谈",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现场走访核查",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "上下游交叉验证",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "成果输出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "问题与风险清单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "估值调整建议",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "交易先决条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投决会汇报材料",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "行业研究分析脑图",
+      "title": "行业研究分析脑图",
+      "doc_type": "mindmap",
+      "sort": 4,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "行业研究分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "行业界定",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "行业边界与分类",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "所处产业链位置",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "细分赛道划分",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "统计口径说明",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "市场规模",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "TAM/SAM/SOM 测算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "历史增速复盘",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "未来五年 CAGR",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "量价驱动拆解",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "竞争格局",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "波特五力模型",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场集中度 CR5",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "进入与退出壁垒",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "替代品威胁",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "潜在进入者",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "产业链拆解",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "上游原料与技术",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "中游制造与服务",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "下游渠道与终端",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "利润分布格局",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "驱动因素",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "政策与监管导向",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "技术迭代变革",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需求结构升级",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "全球化与出海",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "标杆企业",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "龙头商业模式",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心财务对比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "竞争护城河",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "最新战略动向",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "趋势与风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "结构性增长点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "国产替代空间",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "政策与周期风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "技术路线颠覆",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "商业模式画布脑图",
+      "title": "商业模式画布脑图",
+      "doc_type": "mindmap",
+      "sort": 5,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "商业模式画布",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "客户细分",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "目标客群画像",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "细分市场选择",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "多边平台结构",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "付费方与使用方",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "价值主张",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "核心痛点解决",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异化价值点",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产品服务组合",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "性能与价格定位",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "渠道与关系",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "直销与代理体系",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "线上线下组合",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "获客方式设计",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "留存与复购机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社群与品牌运营",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "收入来源",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "定价与收费模式",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "订阅与买断",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增值与分成收入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "收入结构占比",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "核心资源",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "技术与专利",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "品牌与数据资产",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关键人才团队",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金与资质牌照",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "关键活动与合作",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "产品研发迭代",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "供应链与运营",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "营销与销售体系",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "战略合作伙伴",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "生态联盟",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "成本结构",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "固定成本构成",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "变动成本构成",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "规模经济效应",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本驱动型特征",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "估值方法与测算脑图",
+      "title": "估值方法与测算脑图",
+      "doc_type": "mindmap",
+      "sort": 6,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "估值方法与测算",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "估值基础",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "估值目的与场景",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "估值基准日确定",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "报表口径调整",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "可比公司选取",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "相对估值",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "市盈率 PE",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市销率 PS",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市净率 PB",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "企业价值倍数 EBITDA",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成长调整 PEG",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "绝对估值",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "自由现金流折现 DCF",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "加权资本成本 WACC",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "终值与永续增长",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股利折现 DDM",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "其他方法",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "可比交易先例法",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "净资产重置成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "实物期权定价",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "分部加总 SOTP",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "关键假设",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入增长率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "毛利率走势",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资本开支强度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "营运资本变动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "永续增长率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "情景与敏感性",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "乐观中性悲观三档",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "单变量敏感性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "双变量矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "蒙特卡洛模拟",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "校准与陷阱",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "估值区间收敛",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场案例校准",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "交易条款调整",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增长率过于乐观",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "折现率误用",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "投后管理要点脑图",
+      "title": "投后管理要点脑图",
+      "doc_type": "mindmap",
+      "sort": 7,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "投后管理要点",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "管理目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "保障投资安全",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "推动价值增长",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "信息对称透明",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "退出条件准备",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "治理参与",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "董事会席位安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "保护性条款",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "重大事项审批权",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "章程与股东协议",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "经营跟踪",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "月度经营报表",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预算执行对比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心业务指标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "重大合同披露",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "财务监控",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "资金流水监控",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "大额支出审批",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收账款账龄",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "再融资安排",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "增值赋能",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "战略方向梳理",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关键人才引荐",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "后续融资支持",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产业资源对接",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险预警",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "业绩对赌偏离",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "核心人员流失",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金流预警",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "合规与舆情事件",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "退出准备",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "退出窗口跟踪",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "估值动态重估",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股权架构优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资料与合规整理",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "退出路径设计脑图",
+      "title": "退出路径设计脑图",
+      "doc_type": "mindmap",
+      "sort": 8,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "退出路径设计",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "退出目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "回报倍数目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内部收益率 IRR",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "退出时间窗口",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金回流安排",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "IPO 上市退出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "上市板块选择",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "上市条件与节奏",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股份锁定期安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "发行估值预期",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "并购退出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "潜在收购方名单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "战略与财务买家",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "交易协同逻辑",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "谈判时点选择",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "股权转让退出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "老股协议转让",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "二级市场基金受让",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "管理层收购 MBO",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产业同行接盘",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "回购退出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "回购触发条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "回购定价公式",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "创始人回购能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "担保与增信安排",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "清算退出",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "清算触发情形",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资产处置顺序",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "优先清算权",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "回收比例测算",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "决策与执行",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "退出方式比较矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "税务成本测算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "法律与合规流程",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "中介机构选择",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "并购交易结构脑图",
+      "title": "并购交易结构脑图",
+      "doc_type": "mindmap",
+      "sort": 9,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "并购交易结构",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "交易目标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "战略协同效应",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "市场份额扩张",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "技术与人才获取",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "并表财务收益",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "交易架构",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收购主体设立",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "SPV 与持股层级",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金来源安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "税负测算与筹划",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "交易方式",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "股权收购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资产收购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增资控股",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "换股合并",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "对价安排",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "现金对价",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股份对价",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金加股份混合",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "分期支付安排",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "估值定价",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "估值方法与基准",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "净资产调整项",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "营运资本调整",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "价格调整机制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险分配",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "陈述与保证条款",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "赔偿条款与上限",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "托管账户安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "业绩对赌承诺",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "交割与整合",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "先决条件清单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "交割文件与账务",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "过渡期安排",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "组织与文化整合",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ESG投资评估脑图",
+      "title": "ESG投资评估脑图",
+      "doc_type": "mindmap",
+      "sort": 10,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "ESG 投资评估",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "评估框架",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "评价体系选择",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "议题重要性矩阵",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "数据口径与来源",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "评级结果应用",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "环境维度 E",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "碳排放强度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "能耗与能效水平",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "污染物排放管理",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资源循环利用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "气候变化风险",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "社会维度 S",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "员工权益与多元化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "安全生产管理",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产品责任与安全",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "社区关系维护",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "供应链劳工标准",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "治理维度 G",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "董事会独立性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "股权结构透明度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "内控与审计机制",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "反腐败与商业道德",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "披露与鉴证",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "监管披露要求",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "GRI 与 TCFD 标准",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "第三方独立鉴证",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "重大争议事件",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险与机遇",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "低碳转型风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "物理气候风险",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "绿色市场机遇",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "声誉与诉讼风险",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "投资决策",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "负面清单剔除",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "ESG 评分加权",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投后改善目标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "影响力指标跟踪",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -32,6 +32,9 @@
 - 甘特图（SVAR @2.7.3）：只给有子节点的父节点写 `open:true`；`lib/gantt.ts resolveSvarTask` 兜底数字/字符串 id；回归 `npm run verify:gantt-ids`。
 - 点评区：根主题=docs.ID；comments/comment_settings 两处注册（database.go+migrate_service.go）；禁言名单对外走 `CommentSettingOutput.banned_uids`，前端始终带当前名单不可默认 `[]`。
 - 接口文档刷新：`apidoc.Parse`→`mergeApiDoc` 原地合并，绝不重建文档/改 endpoint id；失效接口进 `g_stale` 保留；失败只记结果不覆盖正文（hkerr.Param=400）；SSRF 校验独立在 `api_refresh_service.go`；每日 02:00 只对新导入文档生效。
+- **新建文档入口主路径是 `BookPage.openNewDoc`**（KnowledgeTree 侧栏/书头右键菜单/内容区「新建文档」全部经此），走两步 Modal（选择位置→填写信息）。`components/tree/DocTree.tsx` 是**死代码**（未被任何路由 import，只有 store 在用它），勿再改动它。
+- **新建/导入入口流程（2026-09-22 改造）**：①行尾「+」菜单（`buildPlusMenuItems`，全部 DOC_TYPES+新建分组+导入文件）走**直达流程**——`openNewDocAt`（位置已定+类型锁定 `newDocLockedType`→画廊 `lockDocType` 过滤→选模板/空白后跳过「选择位置」直达命名）、folder 直达命名、`openImportDirect` 直接开 ImportDialog 抽屉；②文库手柄「新建」是**子菜单**（`onNewDocWithType`，锁定类型但**保留**「选择位置」），「导入」保留两步。模板仅覆盖 markdown/sheet/mindmap/gantt（`validTemplateDocTypes`），其余 7 类画廊只有空白文档卡。step2 弹窗在锁定时用只读 Tag 显示类型。
+- **文档模板（2026-09-21 新增）**：后端 `doc_templates` 表 + 种子（`repository/templates_seed.go`，34 模板 / 14 业务分类，幂等 `SeedTemplates`）；接口 `GET /api/templates`（可按 `category`/`doc_type` 筛选）与 `GET /api/templates/categories`（分类聚合）；前端画廊 `components/template/TemplateGallery.tsx` 同时用于「新建文档」弹窗与独立 `/templates` 页面（`TemplateGalleryPage`）；选中模板后回填类型/标题/正文再走两步流程，`createDoc` 第 5 参 `content` 负责回写正文。顶栏 `AppLayout` 新增「模板中心」图标入口。
 
 ## 回归套件（tools/verify/，登记 run-all.sh）
 - 改前端必须先构建+rsync embed。套件须顺序执行（共用 8080/Chrome profile）；夹具账号 `e2e@example.com/secret123`（book 1=md 2=sheet 3=mindmap 4=flowchart 5=file）。`$TMPDIR` 下 haiku-wiki 二进制等不可删。

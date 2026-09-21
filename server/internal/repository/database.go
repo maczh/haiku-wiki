@@ -191,6 +191,12 @@ func SeedData(g *gorm.DB) error {
 		return fmt.Errorf("ensure upload stat row: %w", err)
 	}
 
+	// 内置文档模板（仿语雀/WPS）：表由 AutoMigrate 自动创建，这里灌入/同步内置模板。
+	// 放在「admin 已存在则提前返回」**之前**：老库里 admin 一定已存在，否则模板表永远不会被初始化。
+	if err := SeedTemplates(g); err != nil {
+		return fmt.Errorf("seed doc templates: %w", err)
+	}
+
 	// 内置管理员种子
 	var cnt int64
 	if err := g.Model(&model.User{}).Where("username = ?", "admin").Count(&cnt).Error; err != nil {
@@ -219,11 +225,6 @@ func SeedData(g *gorm.DB) error {
 	// 系统自动创建「公司知识库」（全员只读，管理员可授权协作编辑）
 	if err := EnsureCompanyKB(); err != nil {
 		return fmt.Errorf("auto create company kb: %w", err)
-	}
-
-	// 内置文档模板（仿语雀/WPS）：首次启动灌入，幂等，不覆盖用户自定义模板
-	if err := SeedTemplates(g); err != nil {
-		return fmt.Errorf("seed doc templates: %w", err)
 	}
 	return nil
 }

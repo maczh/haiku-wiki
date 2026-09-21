@@ -1,0 +1,2042 @@
+{
+  "category": "财务分析类脑图",
+  "templates": [
+    {
+      "name": "财务报表分析脑图",
+      "title": "财务报表分析脑图",
+      "doc_type": "mindmap",
+      "sort": 1,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "财务报表分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "资产负债表",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "偿债能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "结构分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资产质量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "表外事项",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "利润表",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "盈利能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本费用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "收入质量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "非经常性损益",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "现金流量表",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投资现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "筹资现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自由现金流",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "综合指标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "ROE / ROA",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "周转率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "杜邦分解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "同业对标",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "分析结论",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "财务健康度判断",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "风险提示",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "改善建议",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "后续跟踪",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "成本结构分析脑图",
+      "title": "成本结构分析脑图",
+      "doc_type": "mindmap",
+      "sort": 2,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "成本结构分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "固定成本",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "房租 / 折旧",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人员固定",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "设备摊销",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "长期租赁",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "变动成本",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "原材料",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售提成",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "物流运费",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "包装耗材",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "期间费用",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "管理费用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售费用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "财务费用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "研发费用",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "降本空间",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "采购优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "效率提升",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流程自动化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产能利用率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "管控机制",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "成本核算口径",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预算与定额",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异分析",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "责任到人",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "盈利能力分析脑图",
+      "title": "盈利能力分析脑图",
+      "doc_type": "mindmap",
+      "sort": 3,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "盈利能力分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "盈利概览",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "营业收入规模",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "毛利与毛利率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "净利与净利率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "盈利现金含量",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "收入分析",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入结构拆分",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "量价因素拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "客户集中度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "单品贡献度",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "成本费用",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "营业成本率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售费用率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "管理费用率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "研发费用率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "财务费用率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "核心指标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "净资产收益率 ROE",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "总资产收益率 ROA",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投入资本回报 ROIC",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "毛利率与净利率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "驱动因素",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "产品提价能力",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "规模效应释放",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产品结构升级",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "费用管控成效",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "同业对标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "行业均值对比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "头部企业对标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "历史趋势对比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "指标差异归因",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "改善建议",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "高毛利业务倾斜",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "低效业务剥离",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "费用预算约束",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "人效提升路径",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "现金流健康度分析脑图",
+      "title": "现金流健康度分析脑图",
+      "doc_type": "mindmap",
+      "sort": 4,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "现金流健康度分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "现金流结构",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营活动现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "投资活动现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "筹资活动现金流",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自由现金流",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "经营现金",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "销售回款率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收账款周转",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "存货资金占用",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应付账款账期",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "关键指标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "现金转换周期",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "经营现金流/净利润",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流动比率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "速动比率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金短债比",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "造血能力",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "自我造血判断",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资本开支强度",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "分红与回购",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "外部融资依赖度",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "风险信号",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营现金流持续为负",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收增速超收入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "存货积压呆滞",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "短期债务覆盖不足",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "改善措施",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "应收账款催收",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "客户账期谈判",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "库存周转优化",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资本开支节奏控制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "预测管理",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "滚动十三周预测",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金流预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "压力测试情景",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金安全备付线",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "预算管理与控制脑图",
+      "title": "预算管理与控制脑图",
+      "doc_type": "mindmap",
+      "sort": 5,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "预算管理与控制",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "预算体系",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资本支出预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "财务预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "专项项目预算",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "编制方法",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "零基预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "增量预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "滚动预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "弹性预算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "作业基础预算",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "编制流程",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营目标下达",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "部门编报与提报",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "财务汇总平衡",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预算委员会审议",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "执行控制",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "预算额度刚性管控",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "事前申请与审批",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "超预算预警提醒",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "付款节奏控制",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "差异分析",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入差异拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本差异拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "量差与价差",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "差异责任归属",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "考核激励",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "预算达成率考核",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "费用率指标考核",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本节约分享",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "与绩效结果挂钩",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "调整机制",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "调整触发条件",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "调整审批流程",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "年度中期重估",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "滚动修正规则",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "杜邦分析体系脑图",
+      "title": "杜邦分析体系脑图",
+      "doc_type": "mindmap",
+      "sort": 6,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "杜邦分析体系",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "核心公式",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "净资产收益率 ROE",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售净利率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "总资产周转率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "权益乘数",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "盈利能力",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "销售净利率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "营业利润率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本费用率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "所得税负担",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "营运能力",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "总资产周转率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收账款周转率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "存货周转率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "固定资产周转率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "资本结构",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "资产负债率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "权益乘数",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "有息负债占比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "平均融资成本",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "驱动模式",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "高利润率驱动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "高周转率驱动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "高杠杆驱动",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "对比诊断",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "同业横向对标",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "历史纵向趋势",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "驱动因子拆解",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "异常波动归因",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "改进路径",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "提升产品毛利",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "加速库存周转",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "优化债务结构",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "剥离低效资产",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "本量利CVP分析脑图",
+      "title": "本量利CVP分析脑图",
+      "doc_type": "mindmap",
+      "sort": 7,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "本量利 CVP 分析",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "基本假设",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "收入与成本线性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "成本性态可划分",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销售结构稳定",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产销量一致",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "成本性态",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "固定成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "变动成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "混合成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "阶梯式成本",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "高低点分解法",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "核心指标",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "单位边际贡献",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "边际贡献率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "盈亏平衡产量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "安全边际率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "测算模型",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "保本销量测算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "保本销售额测算",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "目标利润销量",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "经营杠杆系数",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "敏感性分析",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "销售单价变动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "单位变动成本变动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "固定成本变动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "销量变动",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "决策应用",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "产品线取舍决策",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "是否接受低价订单",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自制或外购决策",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "产能扩张评估",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "局限提醒",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "多品种结构影响",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "规模经济非线性",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "短期静态假设",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "需结合现金流",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "财务风险预警指标脑图",
+      "title": "财务风险预警指标脑图",
+      "doc_type": "mindmap",
+      "sort": 8,
+      "content": {
+        "version": 2,
+        "layout": "logicalStructure",
+        "root": {
+          "data": {
+            "text": "财务风险预警指标",
+            "expand": true
+          },
+          "children": [
+            {
+              "data": {
+                "text": "预警体系",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "指标阈值设定",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "红黄绿灯分级",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预警触发与推送",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "责任人与响应",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "偿债风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "资产负债率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "流动比率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "利息保障倍数",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "现金短债比",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "盈利风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "净利率连续下滑",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "毛利率异常波动",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "非经常性损益占比",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "扣非净利为负",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "营运风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "应收账款周转天数",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "存货周转天数",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "营收现金比率",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "总资产周转率",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "现金流风险",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "经营现金流为负",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "自由现金流缺口",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "外部融资依赖",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资金链压力测试",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "操纵可疑信号",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "存贷双高",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "关联交易异常",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "应收增速远超收入",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "毛利率背离同业",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            },
+            {
+              "data": {
+                "text": "应对与治理",
+                "expand": true
+              },
+              "children": [
+                {
+                  "data": {
+                    "text": "债务结构调整",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "资产处置回血",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "预算刚性约束",
+                    "expand": false
+                  },
+                  "children": null
+                },
+                {
+                  "data": {
+                    "text": "融资备选预案",
+                    "expand": false
+                  },
+                  "children": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

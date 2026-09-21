@@ -651,3 +651,61 @@
   font-size: 12px;
   color: #a8b0bd;
 }
+
+/* ───────────────────────── 常用模板快捷创建 ─────────────────────────
+   首页 Dashboard 与文库 Dashboard 共用（TemplateQuickPanel）。
+   卡片走「图标 + 名称」两行式，名称单行省略，保证一排能放下 6~8 个模板。 */
+.hk-tplq-card .ant-card-head {
+  min-height: 40px;
+}
+
+.hk-tplq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.hk-tplq-grid-compact {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+
+.hk-tplq-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border: 1px solid #eceff3;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.hk-tplq-item:hover {
+  border-color: #adc6ff;
+  background: #f7f9ff;
+  box-shadow: 0 2px 8px rgba(47, 84, 235, 0.08);
+}
+
+.hk-tplq-item:focus-visible {
+  outline: 2px solid #2f54eb;
+  outline-offset: 1px;
+}
+
+.hk-tplq-icon {
+  font-size: 18px;
+  color: #2f54eb;
+  line-height: 1;
+}
+
+.hk-tplq-name {
+  font-size: 12px;
+  color: #1f2329;
+  text-align: center;
+  line-height: 1.35;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -159,6 +159,10 @@ export default function BookPage() {
   const [newDocKind, setNewDocKind] = useState<'doc' | 'folder'>('doc')
   const [newDocType, setNewDocType] = useState<DocType>('markdown')
   const [newDocName, setNewDocName] = useState('')
+  // 类型锁定：从「+」菜单或文库「新建」子菜单指定类型时，模板画廊按该类型过滤且第二步不可改类型
+  const [newDocLockedType, setNewDocLockedType] = useState<DocType | null>(null)
+  // 位置已定（「+」菜单场景，存放位置=当前文档/目录之下）：选定模板后跳过「选择位置」直接命名
+  const [newDocSkipLocation, setNewDocSkipLocation] = useState(false)
   const [dirOptions, setDirOptions] = useState<DirOption[]>([])
   const [dirLoading, setDirLoading] = useState(false)
   // 模板画廊：新建文档先经画廊选模板 / 空白文档，再进入「选择位置」两步流程
@@ -431,6 +435,8 @@ export default function BookPage() {
     setNewDocType('markdown')
     setNewDocName('')
     setNewDocContent(null)
+    setNewDocLockedType(null)
+    setNewDocSkipLocation(false)
     if (kind === 'folder') {
       // 目录无正文、不用模板，直接进入「选择位置」两步流程
       setNewDocStep(1)
@@ -445,14 +451,76 @@ export default function BookPage() {
     }
   }
 
-  /** 画廊选中模板：回填类型/标题/正文，进入「选择位置」 */
+  /**
+   * 行尾「+」快速新建（docType='folder' 即新建分组）：
+   * 位置已定（当前文档/目录之下）、类型已定 → 模板画廊按类型过滤，
+   * 选定模板后跳过「选择位置」直接命名落档。
+   */
+  function openNewDocAt(bookId: number, parentId: number, docType: DocType) {
+    setNewDocBookId(bookId)
+    setNewDocParentId(parentId)
+    setNewDocKind(docType === 'folder' ? 'folder' : 'doc')
+    setNewDocType(docType === 'folder' ? 'markdown' : docType)
+    setNewDocLockedType(docType === 'folder' ? null : docType)
+    setNewDocName('')
+    setNewDocContent(null)
+    setNewDocSkipLocation(true)
+    if (docType === 'folder') {
+      // 分组没有模板，直接进入命名一步
+      setNewDocGalleryOpen(false)
+      setNewDocStep(2)
+    } else {
+      setNewDocGalleryOpen(true)
+    }
+  }
+
+  /**
+   * 文库名称手柄「新建」子菜单（docType='folder' 即新建分组）：
+   * 类型已定但**保留「选择位置」两步流程**——文库层新建允许换库存放。
+   */
+  function openNewDocWithType(bookId: number, parentId: number, docType: DocType) {
+    if (docType === 'folder') {
+      void openNewDoc(bookId, parentId, 'folder')
+      return
+    }
+    setNewDocBookId(bookId)
+    setNewDocParentId(parentId)
+    setNewDocKind('doc')
+    setNewDocType(docType)
+    setNewDocLockedType(docType)
+    setNewDocName('')
+    setNewDocContent(null)
+    setNewDocSkipLocation(false)
+    setNewDocGalleryOpen(true)
+  }
+
+  /** 画廊选中模板：回填类型/标题/正文；位置已定时直接命名，否则进入「选择位置」 */
   function handlePickTemplate(t: DocTemplate) {
     setNewDocType(t.doc_type)
     setNewDocName(t.title)
     setNewDocContent(t.content)
     setNewDocGalleryOpen(false)
+    if (newDocSkipLocation && newDocBookId != null) {
+      setNewDocStep(2)
+    } else {
+      setNewDocStep(1)
+      if (newDocBookId != null) void loadDirOptions(newDocBookId)
+    }
+  }
+
+  /** 文库工作台「常用模板」：跳过模板画廊，直接带模板正文进入「选择位置」两步流程 */
+  function openNewDocFromTemplate(t: DocTemplate) {
+    setNewDocBookId(bookID)
+    setNewDocParentId(ROOT_DIR_VALUE)
+    setNewDocKind('doc')
+    setNewDocType(t.doc_type)
+    setNewDocLockedType(t.doc_type)
+    setNewDocName(t.title)
+    setNewDocContent(t.content)
+    setNewDocGalleryOpen(false)
+    setNewDocSkipLocation(false)
     setNewDocStep(1)
-    if (newDocBookId != null) void loadDirOptions(newDocBookId)
+    void loadDirOptions(bookID)
   }
 
   /** 画廊选中「空白文档」：以当前筛选类型新建空白文档 */
@@ -461,8 +529,12 @@ export default function BookPage() {
     setNewDocName('')
     setNewDocContent('')
     setNewDocGalleryOpen(false)
-    setNewDocStep(1)
-    if (newDocBookId != null) void loadDirOptions(newDocBookId)
+    if (newDocSkipLocation && newDocBookId != null) {
+      setNewDocStep(2)
+    } else {
+      setNewDocStep(1)
+      if (newDocBookId != null) void loadDirOptions(newDocBookId)
+    }
   }
 
   async function onNewDocBookChange(bookId: number) {
@@ -506,6 +578,11 @@ export default function BookPage() {
     setImportBookId(bookId)
     setImportParentId(ROOT_DIR_VALUE)
     await loadDirOptions(bookId)
+  }
+
+  /** 行尾「+」导入文件：位置已定（当前文档/目录之下），跳过「选择位置」直接打开文件导入对话框 */
+  function openImportDirect(bookId: number, parentId: number) {
+    setFileImport({ open: true, bookId, parentId })
   }
 
   function confirmImport() {
@@ -836,7 +913,10 @@ export default function BookPage() {
                   onOpenBook={(id) => navigate(`/books/${id}`)}
                   onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
                   onNewDoc={(bid, pid, kind) => void openNewDoc(bid, pid, kind)}
+                  onNewDocAt={openNewDocAt}
+                  onNewDocWithType={openNewDocWithType}
                   onImport={(bid, pid) => void openImport(bid, pid)}
+                  onImportDirect={openImportDirect}
                   onNewBook={(cat) => openCreateBook(cat)}
                   onEditBook={(b) => openEditBook(b)}
                   onDeleteBook={(b) => void handleDeleteBook(b)}
@@ -980,6 +1060,7 @@ export default function BookPage() {
                     onNewDoc={() => void openNewDoc(bookID, 0, 'doc')}
                     onNewFolder={() => void openNewDoc(bookID, 0, 'folder')}
                     onImport={() => void openImport(bookID)}
+                    onCreateFromTemplate={openNewDocFromTemplate}
                   />
                 )}
                 {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
@@ -1331,7 +1412,8 @@ export default function BookPage() {
         </Form>
       </Modal>
 
-      {/* 新建文档：模板画廊（先选模板 / 空白文档，再进入「选择位置」两步流程） */}
+      {/* 新建文档：模板画廊（先选模板 / 空白文档，再进入后续流程）。
+          类型锁定时（「+」菜单 / 文库「新建」子菜单指定类型）画廊只出现同类型模板 */}
       <Modal
         title="选择模板创建文档"
         open={newDocGalleryOpen}
@@ -1343,7 +1425,8 @@ export default function BookPage() {
         bodyStyle={{ height: 460, padding: '4px 0' }}
       >
         <TemplateGallery
-          initialDocType={undefined}
+          initialDocType={newDocLockedType ?? undefined}
+          lockDocType={newDocLockedType != null}
           onSelect={handlePickTemplate}
           onSelectBlank={handlePickBlank}
           showBlank
@@ -1405,7 +1488,7 @@ export default function BookPage() {
         onOk={() => void submitNewDoc()}
         destroyOnClose
       >
-        {newDocKind === 'doc' && (
+        {newDocKind === 'doc' && newDocLockedType == null && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
             <Select
@@ -1414,6 +1497,12 @@ export default function BookPage() {
               onChange={setNewDocType}
               options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_LABEL[t] }))}
             />
+          </div>
+        )}
+        {newDocKind === 'doc' && newDocLockedType != null && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 4, color: '#5f6672' }}>文档类型</div>
+            <Tag style={{ margin: 0 }}>{DOC_TYPE_LABEL[newDocLockedType]}</Tag>
           </div>
         )}
         <div>

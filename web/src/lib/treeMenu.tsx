@@ -17,13 +17,14 @@ import {
   ExportOutlined,
   FileTextOutlined,
   FolderAddOutlined,
+  ImportOutlined,
   LinkOutlined,
-  PictureOutlined,
   PushpinFilled,
   ShareAltOutlined,
-  TableOutlined,
 } from '@ant-design/icons'
 import type { DocNode, DocType } from '../types'
+import { DOC_TYPES, DOC_TYPE_LABEL } from '../types'
+import { iconForDocType } from './fileIcon'
 
 /** ⋮ 菜单所需的全部回调（调用方需绑定到具体 node） */
 export interface TreeMenuHandlers {
@@ -135,29 +136,43 @@ export function buildTreeMenuItems(ctx: TreeMenuContext): MenuProps['items'] {
 }
 
 /**
- * 构建文档行行尾「+」快速新建菜单（语雀顺序）：
- *   文档 / 表格 / 画板 / 思维导图 / 流程图
- *   ── 新建分组
+ * 构建文档行行尾「+」快速新建菜单：
+ *   全部可新建类型（DOC_TYPES 顺序：文档/表格/思维导图/流程图/绘图/待办清单/
+ *   工作日历/甘特图/接口/图片库/需求原型）
+ *   ── 新建分组 / 导入文件
  *
- * 点击任一项回调 `onCreate(docType)`；其中「新建分组」对应 doc_type='folder'。
+ * 点击类型项回调 `onCreate(docType)`（folder 对应「新建分组」）；
+ * 点击「导入文件」回调 `onImport`。图标统一走 iconForDocType，与目录树/阅读页一致。
  * （+ 按钮本身在 canWrite=false 时不渲染，故此处无需 disabled 处理。）
  */
 export function buildPlusMenuItems(
   _parent: DocNode,
   onCreate: (docType: DocType) => void,
+  onImport: () => void,
 ): MenuProps['items'] {
+  const typeItems: NonNullable<MenuProps['items']> = DOC_TYPES.map((dt) => {
+    const spec = iconForDocType(dt)
+    return {
+      key: dt,
+      icon: <span style={{ color: spec.color }}>{spec.icon}</span>,
+      label: DOC_TYPE_LABEL[dt],
+      onClick: () => onCreate(dt),
+    }
+  })
   return [
-    { key: 'markdown', icon: <FileTextOutlined />, label: '文档', onClick: () => onCreate('markdown') },
-    { key: 'sheet', icon: <TableOutlined />, label: '表格', onClick: () => onCreate('sheet') },
-    { key: 'drawing', icon: <PictureOutlined />, label: '画板', onClick: () => onCreate('drawing') },
-    { key: 'mindmap', label: '思维导图', onClick: () => onCreate('mindmap') },
-    { key: 'flowchart', label: '流程图', onClick: () => onCreate('flowchart') },
+    ...typeItems,
     { type: 'divider' },
     {
       key: 'folder',
       icon: <FolderAddOutlined />,
       label: '新建分组',
       onClick: () => onCreate('folder'),
+    },
+    {
+      key: 'import',
+      icon: <ImportOutlined />,
+      label: '导入文件',
+      onClick: onImport,
     },
   ]
 }
