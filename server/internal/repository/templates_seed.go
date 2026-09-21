@@ -242,16 +242,18 @@ func ImportTemplates(g *gorm.DB, items []model.DocTemplate, overwrite bool) (cre
 		for _, t := range items {
 			t.Builtin = false
 			var exist model.DocTemplate
-			e := tx.Where("category = ? AND doc_type = ? AND name = ?", t.Category, t.DocType, t.Name).First(&exist).Error
-			if e == gorm.ErrRecordNotFound {
+			// 同 upsertTemplate：用 Find + 判空主键，避免 GORM 对「预期内的查不到」打 record not found
+			//（批量导入上千条时这一处会刷出上千行日志）。
+			if e := tx.Where("category = ? AND doc_type = ? AND name = ?", t.Category, t.DocType, t.Name).
+				Limit(1).Find(&exist).Error; e != nil {
+				return e
+			}
+			if exist.ID == 0 {
 				if err := tx.Create(&t).Error; err != nil {
 					return err
 				}
 				created++
 				continue
-			}
-			if e != nil {
-				return e
 			}
 			if !overwrite {
 				skipped++
@@ -272,12 +274,16 @@ func ImportTemplates(g *gorm.DB, items []model.DocTemplate, overwrite bool) (cre
 // upsertTemplate 单条模板 upsert。overwrite=false 时：不存在则插入，存在则仅在 builtin 模板上同步内置正文。
 func upsertTemplate(tx *gorm.DB, t model.DocTemplate, overwrite bool) error {
 	var exist model.DocTemplate
-	err := tx.Where("category = ? AND doc_type = ? AND name = ?", t.Category, t.DocType, t.Name).First(&exist).Error
-	if err == gorm.ErrRecordNotFound {
-		return tx.Create(&t).Error
-	}
-	if err != nil {
+	// ⚠️ 这里用 Find + 判空主键，**不要**用 First：First 查不到会返回 gorm.ErrRecordNotFound，
+	// 而 GORM 对该错误照默认 Error 级别打印 `record not found` —— 属于「预期内的查不到」，
+	// 每次启动会为库里缺失的每条内置模板各打一行（实测首次灌库 136 行，占启动日志 1/3），
+	// 把真正的错误淹掉、也让运维 grep 日志时误判。Find 不产生该错误，语义上也更贴合「探查是否存在」。
+	if err := tx.Where("category = ? AND doc_type = ? AND name = ?", t.Category, t.DocType, t.Name).
+		Limit(1).Find(&exist).Error; err != nil {
 		return err
+	}
+	if exist.ID == 0 {
+		return tx.Create(&t).Error
 	}
 	if !exist.Builtin {
 		// 同名自定义模板（管理员导入）优先，内置集不覆盖
