@@ -8,6 +8,7 @@ import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import NotionEditing, { type NotionEditingProps } from './notion/NotionEditing'
 import FormatToolbar from './notion/FormatToolbar'
+import { irBlocks } from '../../lib/irDom'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
 import { uploadWithDedup } from '../../lib/uploadFlow'
@@ -77,7 +78,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     const host = elRef.current
     const vd = vdRef.current
     if (!host || !vd) return
-    const el = host.querySelector<HTMLElement>(`[data-block="${block}"]`)
+    // data-block 的值是静态占位 "0"（见 lib/irDom.ts），按值查询只会命中第一个块，必须按文档序取
+    const el = irBlocks(host)[block]
     if (!el) return
     vd.focus()
     const sel = window.getSelection()

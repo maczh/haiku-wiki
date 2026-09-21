@@ -82,6 +82,7 @@ export default function DocSharePage() {
   }
 
   const isMarkdown = content.doc_type === 'markdown'
+  const isApi = content.doc_type === 'api'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff' }}>
@@ -123,16 +124,43 @@ export default function DocSharePage() {
       </header>
 
       <div className="toc-scroll-root" style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'auto' }}>
-        <main style={{ flex: 1, minWidth: 0 }}>
+        <main
+          style={{
+            flex: 1,
+            minWidth: 0,
+            ...(isApi
+              ? // 接口文档：标题固定在顶部，下方双面板各自独立滚动（不随整页滚动），故 main 自身不滚动
+                { display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }
+              : {}),
+          }}
+        >
           {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
-          <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
+          <div
+            style={{
+              // 接口文档双面板占满整幅宽度，不受阅读宽度调节器约束
+              maxWidth: isApi ? undefined : (maxWidth ?? undefined),
+              margin: '0 auto',
+              padding: '28px 24px 0',
+              flexShrink: 0,
+            }}
+          >
             <h1 style={{ fontSize: 26, marginBottom: 8 }}>{content.title}</h1>
           </div>
-          <DocContent
-            docType={content.doc_type}
-            content={content.content}
-            onRendered={isMarkdown ? (el) => setTocContainer(el) : undefined}
-          />
+          {isApi ? (
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <DocContent
+                docType={content.doc_type}
+                content={content.content}
+                onRendered={isMarkdown ? (el) => setTocContainer(el) : undefined}
+              />
+            </div>
+          ) : (
+            <DocContent
+              docType={content.doc_type}
+              content={content.content}
+              onRendered={isMarkdown ? (el) => setTocContainer(el) : undefined}
+            />
+          )}
         </main>
         {/* 点评讨论区（右侧浮动面板，免登录匿名可发帖；文档级分享需带密码） */}
         {content && slug && <CommentPanel slug={slug} docId={content.doc_id} anon password={password} />}

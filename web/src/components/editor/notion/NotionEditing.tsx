@@ -40,6 +40,7 @@ import {
   type InlineStyle,
 } from '../../../lib/notionBlocks'
 import { internalLink } from '../../../lib/internalLink'
+import { irBlocks, irReset } from '../../../lib/irDom'
 
 export interface NotionEditingProps {
   /** Vditor 挂载的外层元素（滚动容器），用来定位手柄与监听事件 */
@@ -107,7 +108,7 @@ const INLINE_ICON: Record<InlineStyle, React.ReactNode> = {
  *      输入关键词（中英皆可）回车即套用，Esc 关闭。
  *
  * 实现约定：所有改动都落到 Markdown 源文本上（见 lib/notionBlocks.ts 的说明），
- * 再整篇写回 Vditor。IR 模式下 `data-block` 就是源文本行号，这个映射是可靠的。
+ * 再整篇写回 Vditor。块定位用「IR 顶层块在文档序中的位置」作锚点（见 lib/irDom.ts）。
  */
 /** 「在下方添加」各块的插入模板（图片走宿主上传，单独处理） */
 const ADD_TEMPLATES: Record<string, string[]> = {
@@ -169,9 +170,17 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
   const [slashActive, setSlashActive] = useState(0)
   const hoverRef = useRef<typeof hover>(null)
   const rafRef = useRef(0)
+  /** 鼠标是否正停留在手柄之上：停留时冻结悬停逻辑，只响应单击（避免光标形状变化引发闪烁） */
+  const overHandleRef = useRef(false)
 
   useEffect(() => {
     hoverRef.current = hover
+  }, [hover])
+
+  // 手柄卸载（hover 清空）时 mouseleave 不会再触发，必须主动复位冻结闩，
+  // 否则 overHandleRef 卡死为 true，手柄从此永远不再出现（「功能丢失」的根因）
+  useEffect(() => {
+    if (!hover) overHandleRef.current = false
   }, [hover])
 
   /** 根据元素位置算出叠加层坐标（相对 host 的 padding box） */
@@ -191,29 +200,52 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
     [hostRef],
   )
 
-  /** 取鼠标下的块元素（只落在行的左侧留白带内才认） */
+  /**
+   * 由任意 DOM 元素解析其所在的「顶层块」与文档序索引（= Markdown 源行锚点）。
+   * 实测铁律（见 lib/irDom.ts）：Vditor 为所有模式各建一个 `.vditor-reset`，必须限定
+   * `.vditor-ir` 内的那个；`data-block` 是静态占位 "0"，只有文档序位置有意义。
+   */
+  const resolveBlock = useCallback(
+    (el: HTMLElement): { el: HTMLElement; block: number } | null => {
+      const host = hostRef.current
+      if (!host || !host.contains(el)) return null
+      const reset = irReset(host)
+      if (!reset || !reset.contains(el)) return null
+      let node: HTMLElement | null = el
+      let top: HTMLElement | null = null
+      while (node && node !== reset) {
+        if (node.hasAttribute('data-block')) top = node
+        node = node.parentElement
+      }
+      if (!top) return null
+      const block = irBlocks(host).indexOf(top)
+      return block < 0 ? null : { el: top, block }
+    },
+    [hostRef],
+  )
+
+  /**
+   * 取鼠标下的「顶层块」与其对应的源行号。
+   * 主路径：鼠标落在某块内任意位置 → 向上解析顶层块；
+   * 兜底：鼠标在块左侧留白带内（-26px ~ +8px）也命中。
+   */
   const blockAtPoint = useCallback(
-    (x: number, y: number): HTMLElement | null => {
+    (x: number, y: number): { el: HTMLElement; block: number } | null => {
       const host = hostRef.current
       if (!host) return null
       const el = document.elementFromPoint(x, y) as HTMLElement | null
       if (!el || !host.contains(el)) return null
-      const blocks = host.querySelectorAll<HTMLElement>('[data-block]')
-      for (const b of blocks) {
-        const r = b.getBoundingClientRect()
-        if (y >= r.top && y <= r.bottom && x >= r.left - HANDLE_OFFSET && x <= r.left + 8) return b
-      }
-      // 兜底：从正文左侧滑入时也能命中（鼠标可能已经落在块内部）
-      let node: HTMLElement | null = el
-      while (node && node !== host) {
-        if (node.hasAttribute('data-block')) {
-          return x <= node.getBoundingClientRect().left + 8 ? node : null
-        }
-        node = node.parentElement
-      }
-      return null
+      const hit = resolveBlock(el)
+      if (!hit) return null
+      // 命中条件：纵向在该块内，横向要么在块左侧留白带（-26~+8px），要么在块本身之内
+      const r = hit.el.getBoundingClientRect()
+      if (!(y >= r.top && y <= r.bottom)) return null
+      const inGutter = x >= r.left - HANDLE_OFFSET && x <= r.left + 8
+      const inBlock = x >= r.left && x <= r.right
+      if (!inGutter && !inBlock) return null
+      return hit
     },
-    [hostRef],
+    [hostRef, resolveBlock],
   )
 
   // 悬停手柄
@@ -224,29 +256,38 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
       if (rafRef.current) return
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = 0
-        // 鼠标停到手柄自身（叠加层）上时保持现状，否则手柄会在指针移过去的一瞬间消失
         const layer = layerRef.current
         const under = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-        if (layer && under && layer.contains(under)) return
+        const overLayer = !!(layer && under && layer.contains(under))
+        if (overHandleRef.current) {
+          if (overLayer) return // 鼠标停在手柄上：冻结，只等单击弹出菜单
+          overHandleRef.current = false // 自愈：闩卡死时（如手柄被卸载）能自动恢复悬停
+        }
+        // 鼠标移到叠加层（手柄/菜单浮层）上时保持现状，否则手柄会在指针移过去的一瞬间消失
+        if (overLayer) return
 
-        const el = blockAtPoint(e.clientX, e.clientY)
-        if (!el) {
+        const hit = blockAtPoint(e.clientX, e.clientY)
+        if (!hit) {
           if (!menuOpen) setHover(null)
           return
         }
-        const pos = place(el)
+        const pos = place(hit.el)
         if (!pos) {
           if (!menuOpen) setHover(null)
           return
         }
-        const raw = el.getAttribute('data-block')
-        const block = raw === null ? -1 : Number(raw)
         setHover((prev) =>
-          prev && prev.el === el && prev.top === pos.top && prev.left === pos.left ? prev : { el, block, ...pos },
+          prev && prev.el === hit.el && prev.top === pos.top && prev.left === pos.left
+            ? prev
+            : { el: hit.el, block: hit.block, ...pos },
         )
       })
     }
-    const onLeave = () => {
+    const onLeave = (e: MouseEvent) => {
+      // 指针移到自家叠加层（手柄/浮层）上不算离开：叠加层是 host 的兄弟节点，
+      // 移过去会触发 host 的 mouseleave，若此时清空 hover 就会造成「闪烁/点不到」
+      const layer = layerRef.current
+      if (layer && e.relatedTarget instanceof Node && layer.contains(e.relatedTarget)) return
       if (!menuOpen) setHover(null)
     }
     // 滚动时按元素实时位置重算（叠加层不在滚动容器内，不会自己跟着走）
@@ -296,15 +337,19 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
         setSlash(null)
         return
       }
-      const pos = place(blockEl)
+      const resolved = resolveBlock(blockEl)
+      if (!resolved) {
+        setSlash(null)
+        return
+      }
+      const pos = place(resolved.el)
       if (!pos) {
         setSlash(null)
         return
       }
-      const raw = blockEl.getAttribute('data-block')
       setSlashActive(0)
       setSlash({
-        block: raw === null ? -1 : Number(raw),
+        block: resolved.block,
         query: m[1],
         top: pos.top,
         left: pos.left + HANDLE_OFFSET,
@@ -317,7 +362,7 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
       host.removeEventListener('input', onInput)
       host.removeEventListener('focusout', onBlur)
     }
-  }, [hostRef, ready, place])
+  }, [hostRef, ready, place, resolveBlock])
 
   /** 把当前行替换成 `replacement`（可多行）后写回 */
   const applyLines = useCallback(
@@ -509,9 +554,9 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
       { key: 'indent:left', label: '向左缩进' },
     ]
 
-    return {
-      items: [
-        { key: 'convert', label: '转化为', children: convertChildren },
+      return {
+        items: [
+          { key: 'convert', label: '样式', children: convertChildren },
         { type: 'divider' as const },
         { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true },
         { key: 'copy', label: '复制' },
@@ -597,11 +642,19 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
         left: hover.left,
         zIndex: 20,
         display: 'flex',
+        flexDirection: 'column',
         gap: 2,
-        alignItems: 'center',
-        // 手柄要"可点"，但不能吃掉编辑器里的文字选择
+        alignItems: 'flex-start',
+        // 手柄纵向堆叠：整体宽度只有 22px，整段落在块左侧留白带内，
+        // 不再向右伸到块正文，避免压住 Vditor IR 标题自带的 H1–H5 徽标导致点不到
         userSelect: 'none',
         pointerEvents: 'auto',
+      }}
+      onMouseEnter={() => {
+        overHandleRef.current = true
+      }}
+      onMouseLeave={() => {
+        overHandleRef.current = false
       }}
     >
       <Dropdown
@@ -624,7 +677,8 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
               height: 22,
               borderRadius: 4,
               color: '#8a919f',
-              cursor: 'pointer',
+              // 光标保持默认箭头：指针形状变化会引起「手柄闪烁」的观感，单击即可弹菜单
+              cursor: 'default',
               background: menuOpen ? '#eef1f6' : 'transparent',
             }}
             onMouseEnter={(e) => {
@@ -647,11 +701,11 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 20,
+            width: 22,
             height: 22,
             borderRadius: 4,
             color: '#bfc4cc',
-            cursor: 'pointer',
+            cursor: 'default',
           }}
           onClick={() => setMenuOpen(true)}
         >

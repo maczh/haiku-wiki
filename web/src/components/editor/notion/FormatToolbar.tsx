@@ -18,6 +18,7 @@ import {
   type BlockKind,
   type InlineStyle,
 } from '../../../lib/notionBlocks'
+import { irBlockIndex } from '../../../lib/irDom'
 
 export interface FormatToolbarProps {
   /** Vditor 挂载的滚动容器，用来定位浮层与判断选区归属 */
@@ -67,11 +68,12 @@ export default function FormatToolbar({ hostRef, getValue, writeValue, ready }: 
       setSel(null)
       return
     }
+    // data-block 的值是静态占位 "0"（见 lib/irDom.ts），必须用文档序索引而非属性值
     const findBlock = (node: Node | null): number => {
-      let cur = node
+      let cur = node instanceof Node ? node : null
       while (cur && cur !== host) {
         if (cur instanceof HTMLElement && cur.hasAttribute('data-block')) {
-          return Number(cur.getAttribute('data-block'))
+          return irBlockIndex(host, cur)
         }
         cur = cur.parentNode
       }

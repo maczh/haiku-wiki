@@ -60,6 +60,7 @@ import {
   type DebugHistoryRecord,
 } from '../../lib/apiHistory'
 import { type SaveStatus } from './SaveIndicator'
+import JsonFoldView from './notion/JsonFoldView'
 
 interface Props {
   /** 文档 ID（只读模式可不传，此时不落库） */
@@ -103,6 +104,12 @@ const BODY_TYPE_OPTIONS = [
   { value: 'form', label: '表单 (x-www-form-urlencoded)' },
   { value: 'raw', label: '原始 (raw)' },
 ]
+
+/** 左栏宽度可拖拽调宽：偏好持久化（编辑/阅读/分享三模式共用同一份）。 */
+const LEFT_WIDTH_KEY = 'hk.api.leftWidth'
+const LEFT_WIDTH_MIN = 180
+const LEFT_WIDTH_MAX = 520
+const LEFT_WIDTH_DEFAULT = 250
 
 const rid = (p: string) => `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
@@ -278,6 +285,9 @@ useEffect(() => {
   // 返回结果示例/字段表折叠：有调试结果返回时自动折叠
   const [exampleOpen, setExampleOpen] = useState(true)
 
+  // 请求体（JSON）「折叠预览」开关：编辑态下在可编辑文本与可折叠只读视图间切换
+  const [bodyFold, setBodyFold] = useState(false)
+
   // 接口右键：重命名 / 移动分组
   const [renameEp, setRenameEp] = useState<{ groupId: string; epId: string; name: string } | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -287,6 +297,39 @@ useEffect(() => {
   // 批量删除（编辑模式）：勾选接口后一次性删除
   const [batchMode, setBatchMode] = useState(false)
   const [selectedEps, setSelectedEps] = useState<Set<string>>(new Set())
+
+  // 左栏宽度（拖拽调宽，localStorage 持久化，三模式共用）
+  const [leftWidth, setLeftWidth] = useState<number>(() => {
+    const v = Number(localStorage.getItem(LEFT_WIDTH_KEY))
+    return Number.isFinite(v) && v >= LEFT_WIDTH_MIN && v <= LEFT_WIDTH_MAX ? v : LEFT_WIDTH_DEFAULT
+  })
+  const leftPanelRef = useRef<HTMLDivElement>(null)
+  const leftWidthRef = useRef(leftWidth)
+  leftWidthRef.current = leftWidth
+
+  /** 左栏右缘拖拽调宽：mousedown 后监听 document，松开时落盘偏好 */
+  const startLeftResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = leftPanelRef.current?.offsetWidth ?? leftWidthRef.current
+    const clamp = (w: number) => Math.min(LEFT_WIDTH_MAX, Math.max(LEFT_WIDTH_MIN, w))
+    const onMove = (ev: MouseEvent) => {
+      const w = clamp(startW + (ev.clientX - startX))
+      leftWidthRef.current = w
+      setLeftWidth(w)
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      localStorage.setItem(LEFT_WIDTH_KEY, String(leftWidthRef.current))
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dirtyRef = useRef(false)
@@ -888,16 +931,16 @@ useEffect(() => {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* 左栏：分组 / 接口树 */}
-        <div
-          style={{
-            width: 250,
-            flexShrink: 0,
-            borderRight: '1px solid #f0f2f5',
-            overflow: 'auto',
-            padding: '8px 0',
-          }}
-        >
+        {/* 左栏：分组 / 接口树（宽度可拖拽调节；滚动容器与拖拽把手分层，保证把手不随内容滚走） */}
+        <div style={{ width: leftWidth, flexShrink: 0, position: 'relative' }}>
+          <div
+            style={{
+              height: '100%',
+              borderRight: '1px solid #f0f2f5',
+              overflow: 'auto',
+              padding: '8px 0',
+            }}
+          >
           {!readOnly && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 8px' }}>
               {batchMode ? (
@@ -1077,6 +1120,9 @@ useEffect(() => {
               </Button>
             </div>
           )}
+          </div>
+          {/* 左栏右缘拖拽把手：调整左栏宽度（编辑/阅读/分享三模式均可用） */}
+          <div className="hk-side-resizer" onMouseDown={startLeftResize} />
         </div>
 
         {/* 右栏：接口配置 + 调试 */}
@@ -1291,19 +1337,34 @@ useEffect(() => {
                           )}
                           {(current.ep.body_type === 'json' || current.ep.body_type === 'raw') && (
                             <div>
-                              {/* 请求体框：阅读模式也可编辑；JSON 时下方展示字段参数说明表 */}
-                              <Input.TextArea
-                                value={current.ep.body}
-                                disabled={false}
-                                onChange={(e) => patchEndpoint({ body: e.target.value })}
-                                placeholder={
-                                  current.ep.body_type === 'json'
-                                    ? '{\n  "key": "value"\n}'
-                                    : '原始请求体'
-                                }
-                                autoSize={{ minRows: 8, maxRows: 20 }}
-                                style={{ fontFamily: 'monospace', fontSize: 13 }}
-                              />
+                              {/* JSON 请求体：编辑态下可在可编辑文本与可折叠只读预览间切换 */}
+                              {current.ep.body_type === 'json' && (
+                                <div style={{ textAlign: 'right', marginBottom: 6 }}>
+                                  <Button
+                                    size="small"
+                                    type={bodyFold ? 'primary' : 'default'}
+                                    onClick={() => setBodyFold((v) => !v)}
+                                  >
+                                    {bodyFold ? '返回编辑' : '折叠预览'}
+                                  </Button>
+                                </div>
+                              )}
+                              {current.ep.body_type === 'json' && bodyFold ? (
+                                <JsonFoldView value={current.ep.body} empty="（请求体为空）" />
+                              ) : (
+                                <Input.TextArea
+                                  value={current.ep.body}
+                                  disabled={false}
+                                  onChange={(e) => patchEndpoint({ body: e.target.value })}
+                                  placeholder={
+                                    current.ep.body_type === 'json'
+                                      ? '{\n  "key": "value"\n}'
+                                      : '原始请求体'
+                                  }
+                                  autoSize={{ minRows: 8, maxRows: 20 }}
+                                  style={{ fontFamily: 'monospace', fontSize: 13 }}
+                                />
+                              )}
                               {current.ep.body_type === 'json' && (
                                 <>
                                   <Divider orientation="left" plain style={{ margin: '12px 0 4px' }}>
@@ -1363,19 +1424,7 @@ useEffect(() => {
                               <Divider orientation="left" plain style={{ margin: '8px 0' }}>
                                 响应体
                               </Divider>
-                              <pre
-                                style={{
-                                  background: '#f7f8fa',
-                                  padding: 12,
-                                  borderRadius: 6,
-                                  fontSize: 13,
-                                  overflow: 'auto',
-                                  maxHeight: 360,
-                                  fontFamily: 'monospace',
-                                }}
-                              >
-                                {prettyBody}
-                              </pre>
+                              <JsonFoldView value={prettyBody} empty="（无响应体）" />
                             </div>
                           )}
                           {respPretty && (
@@ -1384,19 +1433,7 @@ useEffect(() => {
                               onChange={(keys) => setExampleOpen((keys as string[]).includes('example'))}
                             >
                               <Collapse.Panel header="返回结果示例（文档说明）" key="example">
-                                <pre
-                                  style={{
-                                    background: '#f7f8fa',
-                                    padding: 12,
-                                    borderRadius: 6,
-                                    fontSize: 13,
-                                    overflow: 'auto',
-                                    maxHeight: 360,
-                                    fontFamily: 'monospace',
-                                  }}
-                                >
-                                  {respPretty}
-                                </pre>
+                                <JsonFoldView value={respPretty} empty="（无示例）" />
                                 <FieldTable
                                   fields={
                                     current.ep.response_fields && current.ep.response_fields.length

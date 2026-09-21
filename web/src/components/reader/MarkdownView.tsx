@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import Vditor from 'vditor'
 import { sanitizePreservingMermaid, waitForMermaidBlocks } from '../../lib/mermaidRender'
 import { loadFoldState, toggleFoldState } from '../../lib/headingFold'
+import { jsonFoldFromText } from '../../lib/jsonFold'
 
 // Vditor 样式随本组件一起按需加载：只有渲染 Markdown 才需要，
 // 放在 main.tsx 会让 ~40KB CSS 阻塞首屏（本文件已是 React.lazy 组件）。
@@ -43,6 +44,27 @@ function hideRange(h: HTMLElement, hide: boolean): void {
     el.style.display = hide ? 'none' : ''
     el = el.nextElementSibling as HTMLElement | null
   }
+}
+
+/**
+ * 阅读视图 JSON 代码块对象折叠：把 `language-json` 代码块换成可折叠的 JSON 树。
+ * 必须在「二次 mermaid 清洗」之后注入，否则会被 DOMPurify 重建销毁。
+ */
+function injectJsonFold(container: HTMLElement): void {
+  const blocks = Array.from(
+    container.querySelectorAll<HTMLElement>('pre > code.language-json, pre > code.language-jsonc'),
+  )
+  if (blocks.length === 0) return
+  blocks.forEach((code) => {
+    const pre = code.parentElement as HTMLElement | null
+    if (!pre) return
+    const node = jsonFoldFromText(code.textContent ?? '')
+    if (!node) return
+    const wrap = document.createElement('div')
+    wrap.className = 'hk-jsonfold-scroll'
+    wrap.appendChild(node)
+    pre.replaceWith(wrap)
+  })
 }
 
 /**
@@ -128,6 +150,7 @@ export default function MarkdownView({ content, onRendered, docId }: Props) {
           if (cancelled || !el.isConnected) return
           sanitizePreservingMermaid(el)
           injectHeadingFold(el, docId)
+          injectJsonFold(el)
         })().catch(() => undefined)
       },
     })

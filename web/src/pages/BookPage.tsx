@@ -1023,35 +1023,59 @@ export default function BookPage() {
                   <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
                 )}
                 {docIdParam && !docLoading && doc && tab === 'read' && (
-                  <div>
-                    {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
-                    <div
-                      style={{
-                        // 未手动调宽时沿用原有分档（宽类 1100 / 正文类 780）；
-                        // 用户一旦调过宽度，标题块与正文一起跟随其选择
-                        maxWidth: customized ? (maxWidth ?? undefined) : isWideDoc ? 1100 : 780,
-                        margin: '0 auto',
-                        paddingTop: 28,
-                        paddingLeft: 24,
-                        paddingRight: 24,
-                      }}
-                    >
-                      <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
-                      <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
-                        更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                  docTypeNow === 'api' ? (
+                    /* 接口文档：标题固定在顶部，下方「左接口树 + 右调试」双面板填满剩余高度、各自独立滚动（不随整页滚动） */
+                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ flexShrink: 0, padding: '28px 24px 8px' }}>
+                        <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                        <div style={{ color: '#8a919f', fontSize: 12 }}>
+                          更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
+                        <DocContent
+                          docType={docTypeNow}
+                          content={doc.content}
+                          docId={doc.id}
+                          canWrite={canWrite}
+                          onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
+                          bookId={bookID}
+                          onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
+                        />
                       </div>
                     </div>
-                    {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
-                    <DocContent
-                      docType={docTypeNow}
-                      content={doc.content}
-                      docId={doc.id}
-                      canWrite={canWrite}
-                      onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
-                      bookId={bookID}
-                      onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
-                    />
-                  </div>
+                  ) : (
+                    <div>
+                      {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
+                      <div
+                        style={{
+                          // 未手动调宽时沿用原有分档（宽类 1100 / 正文类 780）；
+                          // 用户一旦调过宽度，标题块与正文一起跟随其选择
+                          maxWidth: customized ? (maxWidth ?? undefined) : isWideDoc ? 1100 : 780,
+                          margin: '0 auto',
+                          paddingTop: 28,
+                          paddingLeft: 24,
+                          paddingRight: 24,
+                        }}
+                      >
+                        <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                        <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
+                          更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                        </div>
+                      </div>
+                      {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
+                      <DocContent
+                        docType={docTypeNow}
+                        content={doc.content}
+                        docId={doc.id}
+                        canWrite={canWrite}
+                        onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
+                        bookId={bookID}
+                        onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
+                      />
+                    </div>
+                  )
                 )}
               </div>
             </div>

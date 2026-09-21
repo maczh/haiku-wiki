@@ -394,3 +394,67 @@ mark.hk-hit {
   background: #eef1f6;
   color: #2f54eb;
 }
+
+/* 隐藏 Vditor IR 标题左侧的 H1–H6 灰色徽标（::before 伪元素）。
+   该徽标以 margin-left:-29px 悬在左侧留白带里，与块手柄（⋮⋮）位置叠加，
+   导致手柄被遮挡、点不到；按产品决策直接隐藏（2026-09-21）。 */
+.vditor-ir .vditor-reset > h1::before,
+.vditor-ir .vditor-reset > h2::before,
+.vditor-ir .vditor-reset > h3::before,
+.vditor-ir .vditor-reset > h4::before,
+.vditor-ir .vditor-reset > h5::before,
+.vditor-ir .vditor-reset > h6::before {
+  display: none;
+}
+
+/* JSON 对象折叠（阅读态代码块 + 接口文档请求体/返回结果/范例） */
+.hk-jsonfold-scroll {
+  line-height: 1.7;
+}
+.hk-jsonfold {
+  white-space: normal;
+}
+.hk-jsonfold-node {
+  padding-left: 14px;
+  position: relative;
+}
+.hk-jsonfold-toggle {
+  cursor: pointer;
+  color: #8a919f;
+  display: inline-block;
+  width: 12px;
+  user-select: none;
+}
+.hk-jsonfold-toggle:hover {
+  color: #2f54eb;
+}
+.hk-jsonfold-key {
+  color: #0b7216;
+}
+.hk-jsonfold-val.jk-string {
+  color: #0a8043;
+}
+.hk-jsonfold-val.jk-number {
+  color: #1750d0;
+}
+.hk-jsonfold-val.jk-boolean {
+  color: #aa3cc0;
+}
+.hk-jsonfold-val.jk-null {
+  color: #999;
+}
+.hk-jsonfold-brace {
+  color: #555;
+}
+.hk-jsonfold-preview {
+  display: none;
+  color: #999;
+  margin-left: 4px;
+}
+.hk-jsonfold-collapsed > .hk-jsonfold-children,
+.hk-jsonfold-collapsed > .hk-close {
+  display: none;
+}
+.hk-jsonfold-collapsed > .hk-jsonfold-preview {
+  display: inline;
+}

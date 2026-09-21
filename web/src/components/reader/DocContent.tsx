@@ -180,12 +180,22 @@ export default function DocContent({
   }
 
   // 甘特图要横向铺满；网页 iframe 同样需要整幅宽度（原型页常按固定画布宽度设计）；
-  // 图片库/需求原型的网格在窄栏下也会被压得没法看
-  const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype'
-  // 目录没有正文，宽度调节器无意义
+  // 图片库/需求原型的网格在窄栏下也会被压得没法看；接口文档是「左侧接口树 + 右侧调试」双面板布局，
+  // 需要占满整幅宽度、且不受阅读宽度调节器约束（见 ApiEditor 自身拖拽调宽）。
+  const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype' || docType === 'api'
+  // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
+  // 接口文档：让高度链传导到 ApiEditor（height:100%），使其在阅读/分享模式下双面板各自独立滚动
+  const fillHeight = docType === 'api'
   return (
-    <div style={{ maxWidth: fullWidth ? undefined : (maxWidth ?? undefined), margin: '0 auto', width: '100%' }}>
+    <div
+      style={{
+        maxWidth: fullWidth ? undefined : (maxWidth ?? undefined),
+        margin: '0 auto',
+        width: '100%',
+        ...(fillHeight ? { height: '100%' } : null),
+      }}
+    >
       {showWidthControl && <WidthControl compact />}
       {body}
     </div>
