@@ -47,11 +47,14 @@ a {
 
 /*
  * 点评/讨论区里的 Markdown 正文：MarkdownView 复用阅读页的 .doc-content，
- * 其 padding(32/24/80) 是为整篇阅读页设计的，放进窄面板会出现上下两大块空白。
- * 这里在点评容器内收紧为行间距级别的 padding，阅读页不受影响。
+ * 其 padding(32/24/80) 与 15px 字号是为整篇阅读页设计的，放进窄面板会出现
+ * 上下两大块空白且字偏大。这里在点评容器内收紧为小字号 + 行间距级别 padding，
+ * 阅读页不受影响。
  */
 .hk-comment-md .doc-content {
   padding: 2px 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 /* 目录树行 */
