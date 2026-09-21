@@ -28,6 +28,8 @@ export npm_config_cache=/home/macro/.workbuddy/npm-cache TMPDIR=/home/macro/.wor
 （HOME 为空时 go 退出码仍为 0 但报 `module cache not found`；GOMODCACHE 不设会重新下载全部依赖。`/tmp` 是 10MB tmpfs，`go build` 会 `no space left on device`，故必须设 `TMPDIR`。）
 
 ## 已知陷阱
+- **html/body 已设 `overflow-x: hidden`（勿移除，2026-09-21）**：应用式布局不允许文档级横向滚动。缘由：右缘固定元素的 Tooltip（如点评面板头部按钮）居中弹出会超出视口约 8px，一旦放开横向滚动就会形成「滚动条出现→布局平移→Tooltip 重定位→滚动条消失」的整页剧烈抖动自激回路。任何在视口右/左缘新增浮层（Tooltip/Popover）时注意此级联。
+- **点评区 Markdown 用 `.hk-comment-md` 容器**：`MarkdownView` 渲染的 `.doc-content` 自带阅读页大 padding(32/24/80)，点评面板内必须包在 `.hk-comment-md` 里收紧为 2px/4px，否则窄面板内出现上下大留白。
 - `127.0.0.1` 代理会劫持 localhost → curl 加 `--noproxy '*'`。
 - safe-delete shim：单 turn 删除/覆盖 >50 文件被拦；用 `mv` 腾目录、大小相同即跳过。
 - 静态 SPA 兜底：`io/fs` 的 `fs.ValidPath` 拒尾斜杠，`fs.Stat("drawio/")` 返回 `invalid argument` 而非「不存在」→ 目录型请求误判为应用；`router.staticProbePath()` 补 `<dir>/index.html` 再判。
