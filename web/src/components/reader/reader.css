@@ -1,0 +1,39 @@
+/* 阅读视图标题折叠（语雀交互复刻） */
+
+/* 标题本身预留左内边距，给折叠箭头让位；箭头默认隐藏，行 hover 时出现 */
+.doc-content .hk-heading {
+  position: relative;
+  padding-left: 22px;
+}
+
+.doc-content .hk-fold-arrow {
+  position: absolute;
+  left: 0;
+  top: 0.18em;
+  width: 18px;
+  height: 1.2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a919f;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s, color 0.12s;
+}
+
+.doc-content .hk-heading:hover > .hk-fold-arrow {
+  opacity: 1;
+}
+
+.doc-content .hk-fold-arrow:hover {
+  color: #2f54eb;
+}
+
+/* 折叠态：箭头旋转朝上 */
+.doc-content .hk-heading.hk-fold-collapsed > .hk-fold-arrow {
+  opacity: 1;
+  transform: rotate(-90deg);
+}

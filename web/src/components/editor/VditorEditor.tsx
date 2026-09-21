@@ -7,6 +7,7 @@ import { HistoryOutlined, InboxOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import NotionEditing, { type NotionEditingProps } from './notion/NotionEditing'
+import FormatToolbar from './notion/FormatToolbar'
 import { fetchTitle, patchDoc } from '../../api/docs'
 import { getToken } from '../../api/request'
 import { uploadWithDedup } from '../../lib/uploadFlow'
@@ -355,6 +356,7 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
           onHostInsert={onHostInsert}
           ready={ready}
         />
+        <FormatToolbar hostRef={elRef} getValue={getValue} writeValue={writeValue} ready={ready} />
       </div>
 
       {/* 隐藏文件选择框：图片 / 附件插入 */}

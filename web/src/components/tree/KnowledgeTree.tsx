@@ -27,6 +27,8 @@ import { getTree, deleteDoc, patchDoc, moveDoc, moveDocToBook } from '../../api/
 import { buildChildrenMap } from '../../stores/docTreeStore'
 import { iconForDocType } from '../../lib/fileIcon'
 import { isDescendantOf } from '../../lib/docTree'
+import { internalLink } from '../../lib/internalLink'
+import { buildPlusMenuItems, buildTreeMenuItems, type TreeMenuHandlers } from '../../lib/treeMenu'
 import type { ReactNode } from 'react'
 
 interface NodeRaw {
@@ -279,6 +281,36 @@ export default function KnowledgeTree(p: Props) {
     // 目录（folder）不承载正文：不能编辑、导出、分享。复制与移动现在是支持的
     // ——复制会递归带上子文档（后端 /docs/:id/copy），移动只改 parent_id。
     const isFolder = doc.doc_type === 'folder'
+
+    // 语雀式 hover「⋮」菜单：与右键 contextMenu 共用同一组 handlers（顺序/禁用按语雀清单）
+    const treeMenuHandlers: TreeMenuHandlers = {
+      onRename: () => beginRename(bookId, doc),
+      onEdit: () => p.onEditDoc?.(bookId, doc),
+      onCopyLink: () => {
+        const link = internalLink(bookId, doc.id)
+        void navigator.clipboard?.writeText(link)
+        message.success('链接已复制')
+      },
+      onOpenInNewTab: () => window.open(internalLink(bookId, doc.id), '_blank'),
+      onMoveOut: () => {
+        void moveDoc(doc.id, { parent_id: 0 })
+          .then(() => {
+            message.success('已移出目录')
+            return loadBookDocs(bookId, true)
+          })
+          .catch(() => undefined)
+      },
+      onDuplicate: () => p.onDuplicateDoc?.(bookId, doc),
+      onMove: () => p.onMoveDoc?.(bookId, doc),
+      onExport: () => p.onExportDoc?.(bookId, doc),
+      onPin: () => p.onPinDoc?.(bookId, doc),
+      onDelete: () => confirmDeleteDoc(bookId, doc),
+    }
+    const treeMenuCtx = { node: doc, bookId, canWrite, handlers: treeMenuHandlers }
+    // 「+」快速新建：文档/表格/画板/思维导图/流程图/新建分组（folder 走 onNewDoc 的 folder 分支）
+    const onPlusCreate = (dt: import('../../types').DocType) =>
+      dt === 'folder' ? p.onNewDoc(bookId, doc.id, 'folder') : p.onNewDoc(bookId, doc.id, 'doc')
+
     const items: any[] = [
       { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
     ]
@@ -351,6 +383,31 @@ export default function KnowledgeTree(p: Props) {
               <TeamOutlined style={{ color: '#722ed1', flexShrink: 0 }} />
             </Tooltip>
           )}
+          {/* 语雀式 hover 操作区：⋮（更多操作）与 +（快速新建），默认隐藏，行 hover 出现 */}
+          <span className="hk-tree-actions" onClick={(e) => e.stopPropagation()}>
+            <Dropdown menu={{ items: buildTreeMenuItems(treeMenuCtx) }} trigger={['click']} placement="bottomRight">
+              <span
+                role="button"
+                aria-label="更多操作"
+                className="hk-tree-action-btn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreOutlined style={{ fontSize: 13 }} />
+              </span>
+            </Dropdown>
+            {canWrite && (
+              <Dropdown menu={{ items: buildPlusMenuItems(doc, onPlusCreate) }} trigger={['click']} placement="bottomRight">
+                <span
+                  role="button"
+                  aria-label="新建子文档"
+                  className="hk-tree-action-btn"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <PlusOutlined style={{ fontSize: 12 }} />
+                </span>
+              </Dropdown>
+            )}
+          </span>
         </span>
       </Dropdown>
     )

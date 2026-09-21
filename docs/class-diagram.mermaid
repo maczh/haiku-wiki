@@ -1,0 +1,109 @@
+classDiagram
+    direction TB
+
+    class InternalLink {
+        +static link(bookId: number, docId?: number, tab?: string): string
+        +static absolute(bookId: number, docId?: number, tab?: string): string
+    }
+
+    class HeadingFoldState {
+        -static key(docId: number): string
+        +static load(docId: number): Set~string~
+        +static save(docId: number, ids: Set~string~): void
+        +static toggle(docId: number, headingId: string): Set~string~
+    }
+
+    class TreeMenuFactory {
+        +static buildItems(ctx: TreeMenuContext): MenuProps['items']
+        +static buildPlusItems(ctx: PlusMenuContext): MenuProps['items']
+    }
+
+    class BlockMenuFactory {
+        +static buildMainItems(ctx: BlockMenuContext): MenuProps['items']
+        +static buildConvertItems(ctx: BlockMenuContext): MenuProps['items']
+        +static buildIndentItems(ctx: BlockMenuContext): MenuProps['items']
+        +static buildAddBelowItems(ctx: BlockMenuContext): MenuProps['items']
+    }
+
+    class MarkdownBlockOps {
+        +static deleteBlock(lines: string[], start: number, end?: number): string[]
+        +static copyBlock(lines: string[], start: number, end?: number): string
+        +static cutBlock(lines: string[], start: number, end?: number): [string[], string]
+        +static indentBlock(lines: string[], start: number, end?: number, delta: number): string[]
+        +static insertBelow(lines: string[], index: number, tpl: string[]): string[]
+    }
+
+    class NotionBlocks {
+        <<existing utility>>
+        +detectBlockKind(line: string): BlockKind
+        +convertLine(line: string, kind: BlockKind): string
+        +applyInlineStyle(line: string, style: InlineStyle): string
+        +replaceLine(lines: string[], index: number, replacement: string[]): string[]
+        +insertAfterLine(lines: string[], index: number, addition: string[]): string[]
+    }
+
+    class MarkdownView {
+        -content: string
+        -onRendered?: (el: HTMLElement) => void
+        +render(): JSX.Element
+    }
+
+    class HeadingFolder {
+        +static inject(container: HTMLElement, docId: number): void
+        +static bind(container: HTMLElement, docId: number): void
+        -static findBoundary(start: HTMLElement): HTMLElement | null
+    }
+
+    class NotionEditing {
+        -hostRef: RefObject~HTMLDivElement~
+        -getValue(): string
+        -writeValue(md: string, caretBlock?: number): void
+        -onHostInsert(...): void
+        -ready: boolean
+        +render(): JSX.Element
+    }
+
+    class FormatToolbar {
+        -hostRef: RefObject~HTMLDivElement~
+        -getValue(): string
+        -writeValue(md: string, caretBlock?: number): void
+        +render(): JSX.Element | null
+    }
+
+    class DocTree {
+        -bookId: number
+        -selectedId: number | null
+        -onSelect(id: number): void
+        +render(): JSX.Element
+    }
+
+    class TreeRow {
+        -node: DocNode
+        -depth: number
+        -canWrite: boolean
+        -onCreateChild(parent: DocNode): void
+        -onRename(node: DocNode): void
+        -onEdit(node: DocNode): void
+        -onDuplicate(node: DocNode): void
+        -onMove(node: DocNode): void
+        -onExport(node: DocNode): void
+        -onShare(node: DocNode): void
+        -onPin(node: DocNode): void
+        -onDelete(node: DocNode): void
+        -onOpenInNewTab(node: DocNode): void
+        -onCopyLink(node: DocNode): void
+        -onMoveOut(node: DocNode): void
+        +render(): JSX.Element
+    }
+
+    DocTree "1" *-- "0..*" TreeRow : renders
+    TreeRow ..> TreeMenuFactory : uses
+    TreeMenuFactory ..> InternalLink : generates link
+    MarkdownView ..> HeadingFolder : post-process
+    HeadingFolder ..> HeadingFoldState : persists state
+    NotionEditing ..> BlockMenuFactory : builds menu
+    NotionEditing ..> MarkdownBlockOps : block actions
+    NotionEditing ..> NotionBlocks : convert / insert
+    FormatToolbar ..> NotionBlocks : apply format
+    VditorEditor "1" *-- "1" NotionEditing : contains
+    VditorEditor "1" *-- "1" FormatToolbar : contains

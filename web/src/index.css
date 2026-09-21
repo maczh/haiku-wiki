@@ -358,3 +358,39 @@ mark.hk-hit {
   min-width: 0;
   overflow: hidden;
 }
+
+/* ---------- 语雀式目录树 hover 操作区（⋮ / +） ---------- */
+
+/* 操作区默认隐藏，行/节点 hover 时淡入；不占布局位，不干扰 dnd-kit 拖拽命中区 */
+.hk-tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tree-row:hover .hk-tree-actions,
+.ant-tree-treenode:hover .hk-tree-actions,
+.hk-knowledge-tree .ant-tree-node-content-wrapper:hover .hk-tree-actions {
+  opacity: 1;
+}
+
+.hk-tree-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: #8a919f;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.hk-tree-action-btn:hover {
+  background: #eef1f6;
+  color: #2f54eb;
+}

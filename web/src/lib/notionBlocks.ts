@@ -14,6 +14,8 @@ export type BlockKind =
   | 'h2'
   | 'h3'
   | 'h4'
+  | 'h5'
+  | 'h6'
   | 'ul'
   | 'ol'
   | 'task'
@@ -21,6 +23,9 @@ export type BlockKind =
   | 'code'
   | 'hr'
   | 'table'
+  // 增量（语雀交互复刻）：高亮块（带 emoji 前缀的 blockquote）与折叠块（HTML details）
+  | 'callout'
+  | 'details'
 
 /** 行内样式 */
 export type InlineStyle = 'bold' | 'italic' | 'strike' | 'code' | 'mark'
@@ -41,7 +46,13 @@ export function detectBlockKind(line: string): BlockKind {
   if (t.startsWith('```') || t.startsWith('~~~')) return 'code'
   // 表格必须在列表之前判断：| - | 这样的分隔行也以 | 开头
   if (/^\|.*\|$/.test(t)) return 'table'
-  if (/^>\s?/.test(t)) return 'quote'
+  // 折叠块：HTML <details> 标签（整块多行，此处只判首行）
+  if (/^\s*<details>/i.test(t)) return 'details'
+  if (/^>\s?/.test(t)) {
+    // 高亮块：带 emoji 前缀的 blockquote（小图标集合，避免把中文引用误判为 callout）
+    if (/^>\s*(💡|📌|⚠️|✅|🔥|📝|💬|🎯|🚀|⭐|📎|🔔|📢|✔️|❗|📍|💡|🔆|📦|🧭|🛠️|♻️|📌)\s/.test(t)) return 'callout'
+    return 'quote'
+  }
   if (/^[-*+]\s+\[[ xX]\](\s|$)/.test(t)) return 'task'
   if (/^\d+[.)]\s+/.test(t)) return 'ol'
   if (/^[-*+]\s+/.test(t)) return 'ul'
@@ -84,7 +95,9 @@ export function convertLine(line: string, kind: BlockKind): string {
     case 'h1':
     case 'h2':
     case 'h3':
-    case 'h4': {
+    case 'h4':
+    case 'h5':
+    case 'h6': {
       const level = Number(kind.slice(1))
       return `${indent}${'#'.repeat(level)} ${text || '标题'}`
     }
@@ -111,6 +124,12 @@ export function convertLine(line: string, kind: BlockKind): string {
     case 'table':
       if (detectBlockKind(line) === 'table') return line
       return `${indent}| 列 1 | 列 2 |\n${indent}| --- | --- |\n${indent}| ${text || ' '} |  |`
+    case 'callout':
+      // 高亮块：带 emoji 前缀的 blockquote（语雀 callout 风格）
+      return `${indent}> 💡 ${text || '提示内容'}`
+    case 'details':
+      // 折叠块：HTML <details>（Vditor IR 与阅读态均按原始 HTML 渲染/保留）
+      return `${indent}<details>\n${indent}<summary>折叠块</summary>\n${indent}\n${indent}${text || '内容'}\n${indent}</details>`
     default:
       return indent + text
   }
@@ -224,4 +243,192 @@ export function insertAfterLine(lines: string[], index: number, addition: string
   const at = Math.min(Math.max(index + 1, 0), next.length)
   next.splice(at, 0, ...addition)
   return next
+}
+
+// ---------- 增量（语雀交互复刻）：块级边界识别与多行块操作 ----------
+
+/** 块的起止行（含端点），用于删除 / 复制 / 缩进等多行块操作 */
+export interface BlockRange {
+  start: number
+  end: number
+}
+
+const LIST_ITEM_RE = /^\s*([-*+]|\d+[.)])\s+/
+
+/**
+ * 把单行索引扩展为整个块的边界（代码块围栏、表格、details、连续引用/列表等）。
+ *
+ * 处理规则：
+ *  - code：从首行围栏找到下一个 ``` / ~~~ 闭合行为止；
+ *  - details：从 <details> 找到 </details> 为止；
+ *  - table：连续以 `|` 开头的行为止；
+ *  - quote / callout：连续以 `>` 开头的行为止；
+ *  - ul / ol / task：连续列表项（含同级续行缩进行）为止；
+ *  - 其余（标题 / 段落 / hr 等）单行处理。
+ */
+export function detectBlockRange(lines: string[], index: number): BlockRange {
+  const n = lines.length
+  if (index < 0 || index >= n) {
+    const clamped = Math.max(0, Math.min(index, n - 1))
+    return { start: clamped, end: clamped }
+  }
+  const kind = detectBlockKind(lines[index] ?? '')
+  const line = (i: number) => lines[i] ?? ''
+
+  if (kind === 'code') {
+    let end = index
+    for (let i = index + 1; i < n; i++) {
+      if (/^\s*```|^\s*~~~/i.test(line(i).trim())) {
+        end = i
+        break
+      }
+      end = i
+    }
+    return { start: index, end }
+  }
+  if (kind === 'details') {
+    let end = index
+    for (let i = index + 1; i < n; i++) {
+      if (/^\s*<\/details>/i.test(line(i).trim())) {
+        end = i
+        break
+      }
+      end = i
+    }
+    return { start: index, end }
+  }
+  if (kind === 'table') {
+    let end = index
+    while (end + 1 < n && /^\|.*\|$/.test(line(end + 1).trim())) end++
+    return { start: index, end }
+  }
+  if (kind === 'quote' || kind === 'callout') {
+    let end = index
+    while (end + 1 < n && /^>\s?/.test(line(end + 1))) end++
+    return { start: index, end }
+  }
+  if (kind === 'ul' || kind === 'ol' || kind === 'task') {
+    let end = index
+    while (end + 1 < n) {
+      const next = line(end + 1)
+      if (LIST_ITEM_RE.test(next) || (next.trim() !== '' && /^\s+\S/.test(next))) end++
+      else break
+    }
+    return { start: index, end }
+  }
+  // 单行块（标题 / 段落 / hr / 等）
+  return { start: index, end: index }
+}
+
+/** 删除 [start, end] 区间（含端点）的块，返回新行数组 */
+export function deleteBlock(lines: string[], range: BlockRange): string[] {
+  const next = lines.slice()
+  next.splice(range.start, range.end - range.start + 1)
+  return next
+}
+
+/** 取出块的 Markdown 源串（用于复制到剪贴板） */
+export function copyBlock(lines: string[], range: BlockRange): string {
+  return lines.slice(range.start, range.end + 1).join('\n')
+}
+
+/**
+ * 对区间内的每一行统一加减前导空格（delta>0 右缩进，delta<0 左缩进）。
+ * 空行不缩进；左缩进时最多去掉 |delta| 个空格，避免越过上一行。
+ */
+export function indentBlock(lines: string[], range: BlockRange, delta: number): string[] {
+  if (!Number.isFinite(delta) || delta === 0) return lines.slice()
+  return lines.map((l, i) => {
+    if (i < range.start || i > range.end) return l
+    if (l.trim() === '') return l
+    if (delta > 0) return ' '.repeat(delta) + l
+    const cur = /^(\s*)/.exec(l)?.[1].length ?? 0
+    const remove = Math.min(cur, -delta)
+    return l.slice(remove)
+  })
+}
+
+/**
+ * 在第 index 行之后插入模板（在模板前补一个空行，保证与上文块分隔）。
+ * 返回新行数组。
+ */
+export function insertBelow(lines: string[], index: number, tpl: string[]): string[] {
+  const next = lines.slice()
+  const at = Math.min(Math.max(index + 1, 0), next.length)
+  // 若上文不是空行，先补一个空行做分隔；模板自身为空时直接跳过
+  const needGap = at > 0 && next[at - 1].trim() !== ''
+  const addition = needGap ? ['', ...tpl] : tpl
+  next.splice(at, 0, ...addition)
+  return next
+}
+
+/** 提取块内纯文本（去掉块标记 / 围栏 / details 标签），用于「转化为」目标为单行块类型 */
+function extractBlockText(lines: string[], range: BlockRange): string {
+  const block = lines.slice(range.start, range.end + 1)
+  if (block.length === 0) return ''
+  const firstKind = detectBlockKind(block[0] ?? '')
+  if (firstKind === 'code') {
+    return block.filter((l) => !/^\s*```|^\s*~~~/i.test(l.trim())).join('\n').trim()
+  }
+  if (firstKind === 'details') {
+    return block
+      .filter((l) => !/^\s*<\/?details>/i.test(l.trim()))
+      .map((l) => l.replace(/^\s*<summary>(.*)<\/summary>\s*$/i, '$1'))
+      .join('\n')
+      .trim()
+  }
+  return block.map((l) => stripBlockPrefix(l)).join('\n').replace(/^\n+|\n+$/g, '').trim()
+}
+
+/**
+ * 把整块转换为目标块类型，返回转换后的多行结果。
+ * 对多行块（代码 / 表格 / details / callout）也能正确提取正文后重建。
+ */
+export function convertBlock(lines: string[], range: BlockRange, kind: BlockKind): string[] {
+  const text = extractBlockText(lines, range) || ''
+  const rows = text.split('\n').filter((l) => l.trim() !== '')
+  switch (kind) {
+    case 'code':
+      return ['```', text, '```']
+    case 'details':
+      return ['<details>', '<summary>折叠块</summary>', '', text || '内容', '</details>']
+    case 'callout':
+      return [`> 💡 ${text.replace(/\s*\n\s*/g, ' ')}`]
+    case 'quote':
+      return (rows.length ? rows : ['引用内容']).map((l) => `> ${l}`)
+    case 'ul':
+      return (rows.length ? rows : ['列表项']).map((l) => `- ${l}`)
+    case 'ol':
+      return (rows.length ? rows : ['列表项']).map((l, i) => `${i + 1}. ${l}`)
+    case 'task':
+      return (rows.length ? rows : ['列表项']).map((l) => `- [ ] ${l}`)
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+    case 'h5':
+    case 'h6': {
+      const level = Number(kind.slice(1))
+      return [`${'#'.repeat(level)} ${text.replace(/\s*\n\s*/g, ' ') || '标题'}`]
+    }
+    case 'paragraph':
+    default:
+      return [text || '正文']
+  }
+}
+
+/**
+ * 在单行文本中对选中片段施加行内样式（加粗 / 代码 / 高亮等）。
+ * 已包裹时取消该样式（与所见即所得「再点一次取消」一致）；未命中选中片段则原样返回。
+ */
+export function wrapSelection(line: string, selected: string, style: InlineStyle): string {
+  if (!selected) return line
+  const [open, close] = INLINE_WRAPPERS[style]
+  const idx = line.indexOf(selected)
+  if (idx < 0) return line
+  // 已包裹 → 去掉
+  if (line.slice(0, idx).endsWith(open) && line.slice(idx + selected.length).startsWith(close)) {
+    return line.slice(0, idx - open.length) + selected + line.slice(idx + selected.length + close.length)
+  }
+  return line.slice(0, idx) + open + selected + close + line.slice(idx + selected.length)
 }

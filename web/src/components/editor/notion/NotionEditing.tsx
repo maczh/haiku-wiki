@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown, Tooltip, message } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   BgColorsOutlined,
@@ -25,15 +25,21 @@ import {
   INLINE_STYLES,
   INSERT_TEMPLATES,
   applyInlineStyle,
+  convertBlock,
   convertLine,
-  detectBlockKind,
+  copyBlock,
+  deleteBlock,
+  detectBlockRange,
   formatDate,
   formatDateTime,
+  indentBlock,
   insertAfterLine,
   replaceLine,
   type BlockKind,
+  type BlockRange,
   type InlineStyle,
 } from '../../../lib/notionBlocks'
+import { internalLink } from '../../../lib/internalLink'
 
 export interface NotionEditingProps {
   /** Vditor 挂载的外层元素（滚动容器），用来定位手柄与监听事件 */
@@ -103,6 +109,57 @@ const INLINE_ICON: Record<InlineStyle, React.ReactNode> = {
  * 实现约定：所有改动都落到 Markdown 源文本上（见 lib/notionBlocks.ts 的说明），
  * 再整篇写回 Vditor。IR 模式下 `data-block` 就是源文本行号，这个映射是可靠的。
  */
+/** 「在下方添加」各块的插入模板（图片走宿主上传，单独处理） */
+const ADD_TEMPLATES: Record<string, string[]> = {
+  table: ['| 列 1 | 列 2 |', '| --- | --- |', '|  |  |'],
+  code: ['```', '', '```'],
+  quote: ['> 引用内容'],
+  callout: ['> 💡 提示内容'],
+  math: ['$$', '', '$$'],
+  h1: ['# 标题'],
+  h2: ['## 标题'],
+  h3: ['### 标题'],
+  h4: ['#### 标题'],
+  h5: ['##### 标题'],
+  h6: ['###### 标题'],
+  ul: ['- 列表项'],
+  ol: ['1. 列表项'],
+  mindmap: ['```mermaid', 'mindmap', '  root((中心主题))', '    - 分支一', '    - 分支二', '```'],
+  flowchart: [
+    '```mermaid',
+    'flowchart TD',
+    '  A[开始] --> B{判断}',
+    '  B -->|是| C[执行]',
+    '  B -->|否| D[结束]',
+    '```',
+  ],
+}
+
+/** 复制文本到剪贴板（失败静默） */
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard?.writeText(text)
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/** 当前文档的语雀风格深链（块手柄「复制链接」语义 = 文档级深链） */
+function currentDocLink(): string {
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('tab')
+    const m = url.pathname.match(/\/books\/(\d+)/)
+    const bookId = m ? Number(m[1]) : 0
+    const docIdRaw = url.searchParams.get('docId')
+    const docId = docIdRaw ? Number(docIdRaw) : 0
+    if (bookId > 0) return internalLink(bookId, docId > 0 ? docId : undefined)
+  } catch {
+    /* 回退到当前 URL */
+  }
+  return window.location.href
+}
+
 export default function NotionEditing({ hostRef, getValue, writeValue, onHostInsert, ready }: NotionEditingProps) {
   const layerRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<{ el: HTMLElement; block: number; top: number; left: number } | null>(null)
@@ -281,10 +338,82 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
     [getValue],
   )
 
-  /** 菜单动作：转换 / 插入 / 行内 / 宿主接管 */
+  /** 「在下方添加」某块：图片走宿主上传，其余直接插模板并写回 */
+  const handleAdd = useCallback(
+    (sub: string, lines: string[], range: BlockRange) => {
+      const prevLine = range.end >= 0 ? (lines[range.end] ?? '') : ''
+      const needGap = range.end + 1 > 0 && prevLine.trim() !== ''
+      if (sub === 'image') {
+        const insertAt = range.end + 1
+        const next = [...lines.slice(0, insertAt), '', ...lines.slice(insertAt)]
+        writeValue(next.join('\n'), insertAt)
+        onHostInsert('image', {
+          line: insertAt,
+          stripped: '',
+          replace: (replacement, caretBlock) => applyLines(insertAt, replacement, caretBlock),
+        })
+        return
+      }
+      const tpl = ADD_TEMPLATES[sub]
+      if (!tpl) return
+      const insertAt = range.end + 1
+      const addition = needGap ? ['', ...tpl] : tpl
+      const next = [...lines.slice(0, insertAt), ...addition, ...lines.slice(insertAt)]
+      writeValue(next.join('\n'), insertAt + (needGap ? 1 : 0))
+    },
+    [applyLines, writeValue, onHostInsert],
+  )
+
+  /** 菜单动作：语雀块菜单（删除/复制/剪切/缩进/复制链接/转化为/在下方添加）+ 保留 / 快捷菜单 */
   const runAction = useCallback(
     (block: number, key: string) => {
       if (block < 0) return
+      const lines = getValue().split('\n')
+      const range = detectBlockRange(lines, block)
+
+      // —— 语雀块菜单 ——
+      if (key === 'delete') {
+        const next = deleteBlock(lines, range)
+        writeValue(next.join('\n'), Math.min(range.start, next.length - 1))
+        return
+      }
+      if (key === 'copy') {
+        void copyToClipboard(copyBlock(lines, range))
+        message.success('已复制块')
+        return
+      }
+      if (key === 'cut') {
+        void copyToClipboard(copyBlock(lines, range))
+        const next = deleteBlock(lines, range)
+        writeValue(next.join('\n'), Math.min(range.start, next.length - 1))
+        return
+      }
+      if (key === 'indent:right') {
+        writeValue(indentBlock(lines, range, 2).join('\n'), block)
+        return
+      }
+      if (key === 'indent:left') {
+        writeValue(indentBlock(lines, range, -2).join('\n'), block)
+        return
+      }
+      if (key === 'copyLink') {
+        void copyToClipboard(currentDocLink())
+        message.success('链接已复制')
+        return
+      }
+      if (key.startsWith('convert:')) {
+        const kind = key.slice('convert:'.length) as BlockKind
+        const converted = convertBlock(lines, range, kind)
+        const next = [...lines.slice(0, range.start), ...converted, ...lines.slice(range.end + 1)]
+        writeValue(next.join('\n'), range.start)
+        return
+      }
+      if (key.startsWith('add:')) {
+        handleAdd(key.slice('add:'.length), lines, range)
+        return
+      }
+
+      // —— 保留原 `/` 快捷菜单动作（向后兼容）——
       const kindTarget = CONVERT_TARGETS.find((c) => `convert:${c.kind}` === key)
       if (kindTarget) {
         applyLines(block, convertLine(readStripped(block), kindTarget.kind).split('\n'), block)
@@ -314,44 +443,82 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
       const keep = stripped.trim() ? [stripped] : []
       applyLines(block, [...keep, ...body], block + keep.length)
     },
-    [applyLines, readStripped, onHostInsert],
+    [applyLines, readStripped, handleAdd, onHostInsert, getValue, writeValue],
   )
 
-  // 悬停手柄点击后的菜单
+  // 悬停手柄点击后的菜单（语雀结构）：转化为 / 删除 / 复制 / 剪切 / 缩进 / 复制链接 / 在下方添加
   const menu: MenuProps = useMemo(() => {
     const block = hover?.block ?? -1
-    const kind = block >= 0 ? detectBlockKind(getValue().split('\n')[block] ?? '') : 'paragraph'
+
+    // 转化为：标题(H1-H6) / 段落 / 引用 / 高亮块 / 列表(无序/有序) / 待办 / 代码块
+    const convertChildren: NonNullable<MenuProps['items']> = [
+      {
+        key: 'convert:h',
+        label: '标题',
+        children: (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as BlockKind[]).map((k) => ({
+          key: `convert:${k}`,
+          label: `标题 ${k.slice(1)}`,
+        })),
+      },
+      { key: 'convert:paragraph', label: '正文' },
+      { key: 'convert:quote', label: '引用' },
+      { key: 'convert:callout', label: '高亮块' },
+      {
+        key: 'convert:list',
+        label: '列表',
+        children: [
+          { key: 'convert:ul', label: '无序列表' },
+          { key: 'convert:ol', label: '有序列表' },
+        ],
+      },
+      { key: 'convert:task', label: '待办清单' },
+      { key: 'convert:code', label: '代码块' },
+    ]
+
+    // 在下方添加：图片/表格/代码块/引用/高亮块/标题(H1-H6)/列表(无序/有序)/思维导图/流程图/公式
+    const addChildren: NonNullable<MenuProps['items']> = [
+      { key: 'add:image', label: '图片' },
+      { key: 'add:table', label: '表格' },
+      { key: 'add:code', label: '代码块' },
+      { key: 'add:quote', label: '引用' },
+      { key: 'add:callout', label: '高亮块' },
+      {
+        key: 'add:h',
+        label: '标题',
+        children: (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as BlockKind[]).map((k) => ({
+          key: `add:${k}`,
+          label: `标题 ${k.slice(1)}`,
+        })),
+      },
+      {
+        key: 'add:list',
+        label: '列表',
+        children: [
+          { key: 'add:ul', label: '无序列表' },
+          { key: 'add:ol', label: '有序列表' },
+        ],
+      },
+      { key: 'add:mindmap', label: '思维导图' },
+      { key: 'add:flowchart', label: '流程图' },
+      { key: 'add:math', label: '数学公式' },
+    ]
+
+    // 缩进：向右 / 向左
+    const indentChildren: NonNullable<MenuProps['items']> = [
+      { key: 'indent:right', label: '向右缩进' },
+      { key: 'indent:left', label: '向左缩进' },
+    ]
+
     return {
       items: [
-        {
-          type: 'group',
-          label: '转换为',
-          children: CONVERT_TARGETS.map((c) => ({
-            key: `convert:${c.kind}`,
-            icon: CONVERT_ICON[c.kind] ?? <FormOutlined />,
-            label: c.label,
-            // 已是指定类型时置灰，避免"点了没反应"
-            disabled: c.kind === kind,
-          })),
-        },
-        {
-          type: 'group',
-          label: '插入',
-          children: [...INSERT_TEMPLATES, ...HOST_INSERT_ITEMS].map((t) => ({
-            key: `insert:${t.key}`,
-            icon: INSERT_ICON[t.key] ?? <PlusOutlined />,
-            label: t.label,
-          })),
-        },
-        {
-          type: 'group',
-          label: '行内样式（作用于本行文字）',
-          children: INLINE_STYLES.map((s) => ({
-            key: `inline:${s.style}`,
-            icon: INLINE_ICON[s.style],
-            label: s.label,
-          })),
-        },
+        { key: 'convert', label: '转化为', children: convertChildren },
+        { type: 'divider' as const },
+        { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true },
+        { key: 'copy', label: '复制' },
+        { key: 'cut', label: '剪切' },
+        { key: 'indent', label: '缩进', children: indentChildren },
+        { key: 'copyLink', label: '复制链接' },
+        { key: 'add', label: '在下方添加', children: addChildren },
       ],
       onClick: ({ key }) => {
         setMenuOpen(false)
@@ -359,8 +526,7 @@ export default function NotionEditing({ hostRef, getValue, writeValue, onHostIns
         runAction(block, key)
       },
     }
-    // getValue 是稳定引用（内部读 ref），不会造成额外重建
-  }, [hover, getValue, runAction])
+  }, [hover, runAction])
 
   // `/` 菜单的候选项（转换 + 插入，搜索过滤）
   const slashItems = useMemo(() => {

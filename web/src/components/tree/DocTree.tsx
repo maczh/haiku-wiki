@@ -12,11 +12,13 @@ import {
   EditOutlined,
   FileAddOutlined,
   FileTextOutlined,
-  FolderOutlined,
   FolderOpenOutlined,
+  FolderOutlined,
   HolderOutlined,
   ImportOutlined,
   LinkOutlined,
+  MoreOutlined,
+  PlusOutlined,
   PushpinFilled,
   ShareAltOutlined,
   UserAddOutlined,
@@ -36,6 +38,8 @@ import { DOC_TYPES, DOC_TYPE_LABEL, type BookWithCount, type DocNode, type DocTy
 import LazyBoundary from '../common/LazyBoundary'
 import { IMPORT_FORMATS, IMPORT_URL_KEY } from '../../lib/import/formats'
 import { iconForDocType } from '../../lib/fileIcon'
+import { internalLink } from '../../lib/internalLink'
+import { buildPlusMenuItems, buildTreeMenuItems, type TreeMenuHandlers } from '../../lib/treeMenu'
 import UrlImportDialog from '../import/UrlImportDialog'
 
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts，
@@ -85,9 +89,11 @@ interface RowProps {
   expanded: boolean
   hasChildren: boolean
   canWrite: boolean
+  bookId: number
   onToggle: (id: number) => void
   onSelect: (id: number) => void
-  onCreateChild: (parent: DocNode) => void
+  /** 复用现有「新建子文档」弹窗：在 parent 下以指定类型新建（走 openCreate） */
+  onCreateChildTyped: (parent: DocNode, docType: DocType) => void
   onRename: (node: DocNode) => void
   onDelete: (node: DocNode) => void
   onEdit: (node: DocNode) => void
@@ -96,6 +102,8 @@ interface RowProps {
   onExport: (node: DocNode) => void
   onShare: (node: DocNode) => void
   onPin: (node: DocNode) => void
+  /** 移出目录：把文档移到当前书根级（parent_id=0） */
+  onMoveOut: (node: DocNode) => void
 }
 
 /** 单行节点：dnd-kit useSortable + 右键菜单（第四轮 R4 增强） */
@@ -150,7 +158,7 @@ function TreeRow(p: RowProps) {
       { key: 'delete', icon: <DeleteOutlined />, label: '删除（进回收站）', danger: true, disabled: !p.canWrite },
     ],
     onClick: ({ key }: { key: string }) => {
-      if (key === 'create') p.onCreateChild(p.node)
+      if (key === 'create') p.onCreateChildTyped(p.node, 'markdown')
       if (key === 'rename') p.onRename(p.node)
       if (key === 'edit') p.onEdit(p.node)
       if (key === 'copy') p.onDuplicate(p.node)
@@ -161,6 +169,28 @@ function TreeRow(p: RowProps) {
       if (key === 'delete') p.onDelete(p.node)
     },
   }
+
+  // 语雀式 hover「⋮」菜单：与右键菜单共用同样的 handlers，但顺序/分组按语雀清单
+  const treeMenuHandlers: TreeMenuHandlers = {
+    onRename: () => p.onRename(p.node),
+    onEdit: () => p.onEdit(p.node),
+    onCopyLink: () => {
+      const link = internalLink(p.bookId, p.node.id)
+      void navigator.clipboard?.writeText(link)
+      message.success('链接已复制')
+    },
+    onOpenInNewTab: () => {
+      const link = internalLink(p.bookId, p.node.id)
+      window.open(link, '_blank')
+    },
+    onMoveOut: () => p.onMoveOut(p.node),
+    onDuplicate: () => p.onDuplicate(p.node),
+    onMove: () => p.onMove(p.node),
+    onExport: () => p.onExport(p.node),
+    onPin: () => p.onPin(p.node),
+    onDelete: () => p.onDelete(p.node),
+  }
+  const treeMenuCtx = { node: p.node, bookId: p.bookId, canWrite: p.canWrite, handlers: treeMenuHandlers }
 
   return (
     <Dropdown menu={menu} trigger={['contextMenu']}>
@@ -181,6 +211,43 @@ function TreeRow(p: RowProps) {
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.node.title}</span>
         {/* 置顶标识（R4） */}
         {p.node.pinned_at && <PushpinFilled style={{ color: '#fa8c16', fontSize: 12, marginRight: 2 }} />}
+        {/* 语雀式 hover 操作区：⋮（更多操作）与 +（快速新建），默认隐藏，行 hover 出现 */}
+        <span
+          className="hk-tree-actions"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <Dropdown
+            menu={{ items: buildTreeMenuItems(treeMenuCtx) }}
+            trigger={['click']}
+            placement="bottomRight"
+          >
+            <span
+              role="button"
+              aria-label="更多操作"
+              className="hk-tree-action-btn"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreOutlined style={{ fontSize: 13 }} />
+            </span>
+          </Dropdown>
+          {p.canWrite && (
+            <Dropdown
+              menu={{ items: buildPlusMenuItems(p.node, (dt) => p.onCreateChildTyped(p.node, dt)) }}
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <span
+                role="button"
+                aria-label="新建子文档"
+                className="hk-tree-action-btn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <PlusOutlined style={{ fontSize: 12 }} />
+              </span>
+            </Dropdown>
+          )}
+        </span>
         <HolderOutlined style={{ opacity: 0.25 }} />
       </div>
     </Dropdown>
@@ -458,6 +525,17 @@ export default function DocTree({
     }
   }
 
+  /** 移出目录：把文档移到当前知识库根级（parent_id=0，后端已做防环校验） */
+  async function handleMoveOut(node: DocNode) {
+    try {
+      await moveDoc(node.id, { parent_id: 0 })
+      message.success('已移出目录')
+      await loadTree(bookId)
+    } catch {
+      /* 拦截器已提示 */
+    }
+  }
+
   // ---------- R3：导入 ----------
 
   /** 选择导入格式：限定 accept 并打开文件选择器（允许多选） */
@@ -551,6 +629,7 @@ export default function DocTree({
                 expanded={expanded.has(r.node.id)}
                 hasChildren={(childrenMap.get(r.node.id) || []).length > 0}
                 canWrite={canWrite}
+                bookId={bookId}
                 onToggle={(id) =>
                   setExpanded((s) => {
                     const next = new Set(s)
@@ -560,7 +639,7 @@ export default function DocTree({
                   })
                 }
                 onSelect={onSelect}
-                onCreateChild={(n) => openCreate('markdown', n)}
+                onCreateChildTyped={(parent, dt) => openCreate(dt, parent)}
                 onRename={(n) => {
                   setRenameValue(n.title)
                   setRenameNode(n)
@@ -572,6 +651,7 @@ export default function DocTree({
                 onExport={onExportDoc}
                 onShare={onShare}
                 onPin={handlePin}
+                onMoveOut={handleMoveOut}
               />
             ))}
           </SortableContext>

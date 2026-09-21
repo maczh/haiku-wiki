@@ -1,0 +1,106 @@
+%% 语雀交互复刻 · 核心时序图
+%% 包含 4 个关键操作：
+%%   1) 目录树 hover「⋮」菜单点「复制链接」
+%%   2) 目录树「+」快速新建
+%%   3) 阅读视图标题折叠
+%%   4) 编辑器块手柄「在下方添加」
+
+sequenceDiagram
+    autonumber
+
+    %% ==================== 1) 目录树 hover「⋮」菜单点「复制链接」 ====================
+    actor U1 as 用户
+    participant Row1 as TreeRow
+    participant Factory1 as TreeMenuFactory
+    participant Link1 as InternalLink
+    participant DD1 as Antd Dropdown
+    participant API1 as 浏览器 Clipboard
+
+    U1->>Row1: 鼠标悬停目录树条目
+    Row1->>Row1: 显示 ⋮ 按钮（hover 显隐）
+    U1->>Row1: 点击 ⋮
+    Row1->>Factory1: buildTreeMenuItems(ctx)
+    Factory1-->>Row1: MenuProps['items']
+    Row1->>DD1: 渲染 Dropdown
+    U1->>DD1: 点击「复制链接」
+    DD1->>Row1: onClick('copyLink')
+    Row1->>Link1: internalLink(bookId, node.id)
+    Link1-->>Row1: /books/:bookId?docId=:id
+    Row1->>API1: navigator.clipboard.writeText(link)
+    Row1->>message: message.success('链接已复制')
+
+    %% ==================== 2) 目录树「+」快速新建 ====================
+    actor U2 as 用户
+    participant Row2 as TreeRow
+    participant Factory2 as TreeMenuFactory
+    participant DD2 as Antd Dropdown
+    participant DocAPI as createDoc API
+    participant Store as docTreeStore
+
+    U2->>Row2: 悬停条目，显示 +
+    U2->>Row2: 点击 +
+    Row2->>Factory2: buildPlusMenuItems(parent, onCreate)
+    Factory2-->>Row2: 6 项菜单（文档/表格/画板/思维导图/流程图/新建分组）
+    Row2->>DD2: 渲染 Dropdown
+    U2->>DD2: 选择「思维导图」
+    DD2->>Row2: onClick('mindmap')
+    Row2->>DocAPI: POST /books/:bookId/docs {parent_id: parent.id, doc_type:'mindmap', title:'未命名思维导图'}
+    DocAPI-->>Row2: DocDetail
+    Row2->>Store: loadTree(bookId)
+    Row2->>Row2: 展开父节点
+    Row2->>onSelect: 打开新建文档
+
+    %% ==================== 3) 阅读视图标题折叠 ====================
+    participant BP as BookPage
+    participant MV as MarkdownView
+    participant VP as Vditor.preview
+    participant HF as HeadingFolder
+    participant LS as HeadingFoldState
+    actor U3 as 用户
+
+    BP->>MV: 传入 content / docId
+    MV->>VP: preview(el, content, {after})
+    VP-->>MV: after 回调
+    MV->>HF: inject(container, docId)
+    HF->>container: querySelectorAll('h1-h6')
+    HF->>HF: 给每个标题加 data-heading-id 与折叠按钮
+    HF->>LS: loadFoldState(docId)
+    LS-->>HF: Set~headingId~
+    HF->>container: 对已折叠标题隐藏后续兄弟节点
+    U3->>HF: 点击某个标题的折叠按钮
+    HF->>HF: findBoundary(startHeading) 找到下一个同级/更高级标题
+    HF->>LS: toggleFoldState(docId, headingId)
+    HF->>container: 切换该区段的 display 类
+
+    %% ==================== 4) 编辑器块手柄「在下方添加」 ====================
+    actor U4 as 用户
+    participant NE as NotionEditing
+    participant Host as Vditor DOM 容器
+    participant Factory4 as BlockMenuFactory
+    participant DD4 as Antd Dropdown
+    participant Ops as MarkdownBlockOps
+    participant NB as NotionBlocks
+    participant VE as VditorEditor
+    participant Vd as Vditor
+
+    U4->>Host: 鼠标移到块左侧留白
+    NE->>Host: mousemove 监听
+    NE->>NE: blockAtPoint → 命中 data-block 元素
+    NE->>NE: setHover({el, block, top, left})
+    U4->>NE: 点击 ⋮⋮ 手柄
+    NE->>Factory4: buildMainItems(block, kind)
+    Factory4-->>NE: 主菜单项
+    NE->>DD4: 渲染 Dropdown
+    U4->>DD4: hover「在下方添加」
+    DD4->>Factory4: buildAddBelowItems()
+    Factory4-->>DD4: 二级菜单（图片/表格/代码块/引用/高亮块/标题/列表/思维导图/流程图/公式）
+    U4->>DD4: 点击「流程图(mermaid)」
+    DD4->>NE: onClick('add:flowchart')
+    NE->>NB: mermaidFlowTemplate
+    NB-->>NE: ['```mermaid', 'flowchart TD', '    A --> B', '```']
+    NE->>Ops: insertBelow(lines, block, tpl)
+    Ops-->>NE: newLines
+    NE->>VE: writeValue(newMd, caretBlock)
+    VE->>Vd: setValue(newMd)
+    VE->>VE: latestRef.current = newMd; dirtyRef.current = true
+    VE->>VE: setTimeout(doSave('auto'), 3000)

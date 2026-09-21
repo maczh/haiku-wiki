@@ -78,7 +78,7 @@ export default function DocContent({
   if (docType === 'markdown') {
     body = (
       <LazyBoundary tip={TIP.markdown}>
-        <MarkdownView content={content} onRendered={onRendered} />
+        <MarkdownView content={content} docId={docId} onRendered={onRendered} />
       </LazyBoundary>
     )
   } else if (docType === 'sheet') {

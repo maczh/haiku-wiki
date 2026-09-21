@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Vditor from 'vditor'
 import { sanitizePreservingMermaid, waitForMermaidBlocks } from '../../lib/mermaidRender'
+import { loadFoldState, toggleFoldState } from '../../lib/headingFold'
 
 // Vditor 样式随本组件一起按需加载：只有渲染 Markdown 才需要，
 // 放在 main.tsx 会让 ~40KB CSS 阻塞首屏（本文件已是 React.lazy 组件）。
@@ -10,13 +11,79 @@ interface Props {
   content: string
   /** 渲染完成回调（用于提取标题生成大纲） */
   onRendered?: (container: HTMLElement) => void
+  /**
+   * 文档 id：用于按文档隔离「标题折叠」状态（localStorage）。
+   * 不传（分享页 / 点评 / 历史版本预览）时仍注入折叠箭头，但不做持久化。
+   */
+  docId?: number
+}
+
+/** 把标题文本转成稳定的 id 片段（去非词符，保留中文） */
+function slug(text: string): string {
+  const s = text
+    .toLowerCase()
+    .replace(/[^\w一-龥]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return s || 'h'
+}
+
+/**
+ * 折叠区间：从 heading 开始，向后隐藏其后的兄弟节点，
+ * 直到遇到「同级或更高级」的标题（level <= 当前 level）为止。
+ */
+function hideRange(h: HTMLElement, hide: boolean): void {
+  const level = Number(h.tagName.slice(1)) // 1..6
+  let el: HTMLElement | null = h.nextElementSibling as HTMLElement | null
+  while (el) {
+    if (/^H[1-6]$/i.test(el.tagName)) {
+      const lv = Number(el.tagName.slice(1))
+      if (lv <= level) break
+    }
+    // 仅在我们自己标记的区间上改 display；mermaid 等节点一并隐藏/恢复（不重渲染）
+    el.style.display = hide ? 'none' : ''
+    el = el.nextElementSibling as HTMLElement | null
+  }
+}
+
+/**
+ * 阅读视图标题折叠：在 Vditor.preview 渲染完成后，给每个 h1-h6 注入一枚 hover 折叠箭头，
+ * 点击折叠/展开该标题到下一个同级或更高级标题之间的 DOM 区间。
+ * 折叠状态按 docId 读 localStorage 恢复（docId 缺省时不持久化）。
+ */
+function injectHeadingFold(container: HTMLElement, docId?: number): void {
+  const heads = Array.from(container.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
+  if (heads.length === 0) return
+  const folded = docId && docId > 0 ? loadFoldState(docId) : null
+  heads.forEach((h, i) => {
+    const id = `${slug((h.textContent ?? '').trim())}-${i}`
+    h.setAttribute('data-heading-id', id)
+    h.classList.add('hk-heading')
+    if (folded && folded.has(id)) {
+      h.classList.add('hk-fold-collapsed')
+      hideRange(h, true)
+    }
+    const arrow = document.createElement('span')
+    arrow.className = 'hk-fold-arrow'
+    arrow.setAttribute('data-heading-id', id)
+    arrow.setAttribute('role', 'button')
+    arrow.setAttribute('aria-label', '折叠/展开章节')
+    arrow.textContent = '▾'
+    arrow.addEventListener('click', (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      const collapsed = h.classList.toggle('hk-fold-collapsed')
+      hideRange(h, collapsed)
+      if (docId && docId > 0) toggleFoldState(docId, id)
+    })
+    h.insertBefore(arrow, h.firstChild)
+  })
 }
 
 /**
  * Markdown 阅读渲染：Vditor preview + DOMPurify 二次过滤（防 XSS）。
  * 后端只存 Markdown 原文，所有渲染路径统一走这里。
  */
-export default function MarkdownView({ content, onRendered }: Props) {
+export default function MarkdownView({ content, onRendered, docId }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const cbRef = useRef(onRendered)
   cbRef.current = onRendered
@@ -54,10 +121,13 @@ export default function MarkdownView({ content, onRendered }: Props) {
         //      直接整体 DOMPurify 会连内容删掉 `<foreignObject>`（图变空框且无报错）；
         //      而完全不处理又会让 securityLevel:'loose' 下注入的 SVG 完全未经清洗。
         //   首次加载 mermaid.min.js 约 3.5MB，超时放宽到 10s；命中即返回，不影响正常速度。
+        //   第二步清洗会重建非 mermaid 的 DOM（含标题），故标题折叠注入必须放在其后，
+        //   否则注入的箭头按钮会被 second-sanitize 一并销毁。
         void (async () => {
           await waitForMermaidBlocks(el, 10000)
           if (cancelled || !el.isConnected) return
           sanitizePreservingMermaid(el)
+          injectHeadingFold(el, docId)
         })().catch(() => undefined)
       },
     })
@@ -65,7 +135,7 @@ export default function MarkdownView({ content, onRendered }: Props) {
       cancelled = true
       el.innerHTML = ''
     }
-  }, [content])
+  }, [content, docId])
 
   return <div className="doc-content" ref={ref} />
 }
