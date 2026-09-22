@@ -194,12 +194,17 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
 
   /**
    * 文字颜色 / 单元格背景色：Luckysheet 自带 textColor/fillColor 下拉在自托管环境（无外链字体、
-   * jQuery 菜单样式缺失）下无法弹出取色框，故改为本组件自管取色器，直接调用 Luckysheet 实例的
-   * setCellFormat 写到当前选区并 refresh 重绘。attr: 'fc' 字体色 / 'bg' 背景色；color 为空串表示清除。
+   * jQuery 菜单样式缺失）下无法弹出取色框，故改为本组件自管取色器。Luckysheet 公共 API
+   * setCellFormat(row, column, attr, value) 只写「单个单元格坐标」、不读选区，因此这里遍历
+   * 当前选区 luckysheet_select_save 的每一格逐个写入，再 refresh 重绘。
+   * attr: 'fc' 字体色 / 'bg' 背景色；color 为空串表示清除。
    */
   const applyCellColor = useCallback((attr: 'fc' | 'bg', color: string) => {
     const api = apiRef.current as (LuckysheetApi & {
-      setCellFormat?: (r: number, c: number, a: string, v: string) => void
+      // Luckysheet 真实公共 API：setCellFormat(row, column, attr, value)
+      // 操作单个单元格坐标（行、列从 0 起），不读取选区；旧版 (attr,value,op?,sheetIndex?)
+      // 的签名在本项目使用的 2.1.13 中并不存在，误用会被内部行/列校验直接早退。
+      setCellFormat?: (row: number, column: number, a: string, v: string) => void
       refresh?: () => void
       getluckysheet_select_save?: () => { row: number[]; column: number[] }[]
     }) | null
@@ -214,16 +219,19 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
       message.info('请先选中要设置颜色的单元格')
       return
     }
-    for (const r of ranges) {
-      for (let row = r.row[0]; row <= r.row[1]; row++) {
-        for (let col = r.column[0]; col <= r.column[1]; col++) {
-          try {
-            api.setCellFormat?.(row, col, attr, color)
-          } catch {
-            /* 跳过非法格 */
+    // 遍历选区逐格写入：setCellFormat(row, column, attr, value)
+    try {
+      for (const range of ranges) {
+        const [r1, r2] = range.row
+        const [c1, c2] = range.column
+        for (let r = r1; r <= r2; r++) {
+          for (let c = c1; c <= c2; c++) {
+            api.setCellFormat?.(r, c, attr, color)
           }
         }
       }
+    } catch {
+      /* 忽略非法参数 */
     }
     try {
       api.refresh?.()

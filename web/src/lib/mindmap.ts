@@ -55,7 +55,16 @@ const DEFAULT_IMAGE_SIZE = 120
  */
 function normalizeImageSize(rest: SmmNodeData): SmmNodeData {
   const image = rest.image
-  if (typeof image !== 'string' || image === '') return rest
+  // simple-mind-map 的 setImage({url,title,width,height}) 把 image 存成「对象」而非字符串，
+  // 故「是否有图片」需同时兼容字符串 URL 与带 url 字段的对象（见改动 3）。
+  const hasImage =
+    image != null &&
+    (typeof image === 'string'
+      ? image !== ''
+      : typeof image === 'object' &&
+        typeof (image as { url?: unknown }).url === 'string' &&
+        (image as { url?: string }).url !== '')
+  if (!hasImage) return rest
   const raw = rest.imageSize as { width?: unknown; height?: unknown; custom?: unknown } | undefined
   const w = Number(raw?.width)
   const h = Number(raw?.height)

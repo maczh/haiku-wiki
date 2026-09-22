@@ -458,3 +458,32 @@ mark.hk-hit {
 .hk-jsonfold-collapsed > .hk-jsonfold-preview {
   display: inline;
 }
+
+/* ── 右键菜单新增块类型：高亮块 / 分栏 / 折叠块（阅读态渲染） ── */
+.doc-content .hk-callout {
+  border-left: 4px solid #f5a623;
+  background: #fff8e6;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.doc-content .hk-columns {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0;
+}
+.doc-content .hk-col {
+  flex: 1;
+  min-width: 0;
+}
+.doc-content details.hk-toggle {
+  border: 1px solid #ebedf0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin: 8px 0;
+}
+.doc-content details.hk-toggle > summary {
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}

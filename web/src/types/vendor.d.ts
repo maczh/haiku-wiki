@@ -29,6 +29,20 @@ declare module 'jquery-mousewheel' {
   const install: (jquery: typeof import('jquery')) => void
   export default install
 }
+
+/**
+ * spectrum-colorpicker（v1.8.1）：UMD 包，无官方 TS 类型。
+ * 它会在加载时把 `$.fn.spectrum` 挂到 require('jquery') 返回的同一个 jQuery 实例上，
+ * 而本项目的 window.$ / window.jQuery 正是该实例，因此 Luckysheet 内部
+ * `$(".luckysheet-color-selected").spectrum(...)` 可以正常调用（修复 Bug A）。
+ */
+declare module 'spectrum-colorpicker' {
+  const spectrum: unknown
+  export default spectrum
+}
+
+/** spectrum 自带样式（取色面板必备，否则面板无样式/不可交互） */
+declare module 'spectrum-colorpicker/spectrum.css'
 // simple-mind-map（wanglin2）：仅声明本项目用到的 API（v0.14.x）
 declare module 'simple-mind-map' {
   /** simple-mind-map 节点数据树（与 docs.content v2 契约同构） */

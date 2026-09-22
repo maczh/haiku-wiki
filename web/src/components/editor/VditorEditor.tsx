@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Vditor from 'vditor'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
-import { Button, Menu, Space, Tooltip } from 'antd'
+import { Button, Menu, Space, Tooltip, message } from 'antd'
 import type { MenuProps } from 'antd'
 import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
@@ -14,6 +14,8 @@ import {
   setBlockType,
   deleteLine,
   insertContent,
+  blockText,
+  indentBlock,
   applySelectionOp,
   applySelectionOpDom,
   tableOp,
@@ -78,32 +80,63 @@ function buildMenuItems(c: CtxState): MenuProps['items'] {
   }
   return [
     {
-      key: 'style',
-      label: '样式',
+      key: 'transform',
+      label: '转化为',
       children: [
-        { key: 'h1', label: '标题 1（H1）' },
-        { key: 'h2', label: '标题 2（H2）' },
-        { key: 'h3', label: '标题 3（H3）' },
+        { key: 'h1', label: '标题 1' },
+        { key: 'h2', label: '标题 2' },
+        { key: 'h3', label: '标题 3' },
+        { key: 'h4', label: '标题 4' },
+        { key: 'h5', label: '标题 5' },
+        { key: 'h6', label: '标题 6' },
         { key: 'p', label: '正文' },
-        { key: 'quote', label: '引用' },
         { key: 'ul', label: '无序列表' },
         { key: 'ol', label: '有序列表' },
+        { key: 'todo', label: '待办' },
+        { key: 'code', label: '代码' },
+        { key: 'callout', label: '高亮块' },
+        { key: 'quote', label: '引用' },
+        { key: 'columns', label: '分栏' },
+        { key: 'toggle', label: '折叠块' },
+      ],
+    },
+    { key: 'delete', label: '删除' },
+    { key: 'copy', label: '复制' },
+    { key: 'cut', label: '剪切' },
+    {
+      key: 'indent',
+      label: '缩进',
+      children: [
+        { key: 'indent-in', label: '增加缩进' },
+        { key: 'indent-out', label: '减少缩进' },
       ],
     },
     {
-      key: 'insert',
-      label: '插入',
+      key: 'addbelow',
+      label: '在下方添加',
       children: [
-        { key: 'table', label: '表格' },
-        { key: 'image', label: '图片' },
-        { key: 'link', label: '链接' },
-        { key: 'hr', label: '分割线' },
-        { key: 'seq', label: '时序图' },
-        { key: 'flow', label: '流程图' },
+        {
+          key: 'add-basic',
+          label: '基础',
+          children: [
+            { key: 'image', label: '图片' },
+            { key: 'table', label: '表格' },
+            { key: 'attach', label: '附件' },
+            { key: 'status', label: '状态' },
+          ],
+        },
+        {
+          key: 'add-canvas',
+          label: '画板类',
+          children: [
+            { key: 'board', label: '画板' },
+            { key: 'mindmap', label: '思维导图' },
+            { key: 'flow', label: '流程图' },
+          ],
+        },
+        { key: 'datatable', label: '数据表' },
       ],
     },
-    { type: 'divider' },
-    { key: 'delete-line', label: '删除行' },
   ]
 }
 
@@ -271,10 +304,17 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       if (overlay) overlay.style.display = prevDisplay ?? ''
       setCtx(next)
     }
-    // 点击菜单以外区域即关闭（菜单自身 mousedown 不关闭，保证 onClick 能命中）
+    // 点击菜单以外区域即关闭（菜单自身 mousedown 不关闭，保证 onClick 能命中）。
+    // 关键：antd Menu 的子菜单弹层默认渲染到 document.body（.ant-menu-submenu-popup），
+    // 不在 data-vd-cm 浮层内 —— 真实用户悬停子菜单、mousedown 先落在 body 弹层上，
+    // 若此处直接 setCtx(null) 卸载菜单，click 永远命中不到子菜单项的 onClick（Bug B）。
+    // 因此浮层内（data-vd-cm）或子菜单弹层内（.ant-menu-submenu-popup）一律放行；
+    // 并配合下方 Menu 的 getPopupContainer 把子菜单弹层渲染进浮层，从根上消除该路径。
     const onDocDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null
-      if (t && t.closest('[data-vd-cm]')) return
+      if (!t) return
+      if (t.closest('[data-vd-cm]')) return
+      if (t.closest('.ant-menu-submenu-popup')) return
       setCtx(null)
     }
     elRef.current?.addEventListener('contextmenu', onCtx, true)
@@ -357,21 +397,58 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       case 'h1':
       case 'h2':
       case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6':
       case 'p':
       case 'quote':
       case 'ul':
       case 'ol':
+      case 'todo':
+      case 'code':
+      case 'callout':
+      case 'columns':
+      case 'toggle':
         next = setBlockType(vd, c.blockIndex, key as BlockType)
         break
-      case 'delete-line':
+      case 'delete':
         next = deleteLine(vd, c.blockIndex)
         break
+      case 'indent-in':
+      case 'indent-out':
+        next = indentBlock(vd, c.blockIndex, key === 'indent-in' ? 'in' : 'out')
+        break
+      case 'copy':
+      case 'cut': {
+        const text = blockText(vd, c.blockIndex)
+        if (key === 'cut') {
+          const cut = deleteLine(vd, c.blockIndex)
+          if (cut !== null) {
+            vd.setValue(cut)
+            markChanged(vd)
+          }
+        }
+        if (text != null) {
+          try {
+            void navigator.clipboard?.writeText(text)
+            message.info(key === 'cut' ? '已剪切到剪贴板' : '已复制到剪贴板')
+          } catch {
+            message.info(key === 'cut' ? '已剪切' : '已复制')
+          }
+        }
+        return
+      }
+      case 'image':
+      case 'link':
       case 'table':
+      case 'attach':
+      case 'status':
+      case 'board':
+      case 'mindmap':
+      case 'datatable':
       case 'hr':
       case 'seq':
       case 'flow':
-      case 'image':
-      case 'link':
         next = insertContent(vd, key as InsertKind, c.blockIndex)
         break
     }
@@ -451,6 +528,10 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
             selectable={false}
             style={{ border: 'none', minWidth: 180 }}
             items={buildMenuItems(ctx)}
+            // 子菜单弹层默认渲染到 body，会落到浮层（data-vd-cm）之外；
+            // 指定到触发节点的父元素（即浮层内部）后，子菜单项点击的 mousedown 也在浮层内，
+            // onDocDown 自然放行，onClick 可正常命中（修复 Bug B 的根因）。
+            getPopupContainer={(t) => t.parentElement as HTMLElement}
             onClick={({ key }) => {
               runAction(key, ctx)
               setCtx(null)

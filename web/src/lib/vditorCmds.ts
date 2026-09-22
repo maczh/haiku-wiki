@@ -203,11 +203,39 @@ function spliceInsert(full: string, parts: string[], index: number, newPart: str
   return `${before}\n\n${newPart}${after.startsWith('\n') ? '' : '\n\n'}${after}`
 }
 
-/** 去掉每行行首的块级标记（标题 / 引用 / 列表 / 有序列表） */
-const BLOCK_MARK_RE = /^[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+)/
+/** 去掉每行行首的块级标记（标题 / 引用 / 列表 / 有序列表 / 待办） */
+const BLOCK_MARK_RE = /^[ \t]{0,3}(?:#{1,6}[ \t]+|>[ \t]?|[-*+][ \t]+|\d+[.)][ \t]+|- \[[ xX]\][ \t]+)/
 
 function stripBlockMarks(md: string): string[] {
   return md.split('\n').map((l) => l.replace(BLOCK_MARK_RE, ''))
+}
+
+/** 若整段被围栏代码块包裹，去掉首尾围栏行 */
+function stripFence(md: string): string {
+  const lines = md.replace(/\n+$/, '').split('\n')
+  if (lines.length >= 2 && /^```/.test(lines[0]) && /^```/.test(lines[lines.length - 1])) {
+    return lines.slice(1, -1).join('\n')
+  }
+  return md
+}
+
+/** 若整段被高亮块 / 分栏 / 折叠块 HTML 包裹，提取内部正文（降级为普通文本用） */
+function stripHtmlWrap(md: string): string {
+  const s = md.trim()
+  const callout = s.match(/^<div class="hk-callout(?:"[^"]*)?">\n?([\s\S]*?)\n?<\/div>$/)
+  if (callout) return callout[1]
+  const columns = s.match(/^<div class="hk-columns">\n?([\s\S]*?)\n?<\/div>$/)
+  if (columns) {
+    return columns[1].replace(/<div class="hk-col">\n?/g, '').replace(/<\/div>/g, '\n').trim()
+  }
+  const toggle = s.match(/^<details class="hk-toggle"(?:"[^"]*)?>\n?<summary>[\s\S]*?<\/summary>\n?([\s\S]*?)\n?<\/details>$/)
+  if (toggle) return toggle[1]
+  return md
+}
+
+/** 把一段 markdown 降级为「普通正文」：剥掉围栏 / HTML 包裹 / 块级标记 */
+function toPlain(md: string): string {
+  return stripBlockMarks(stripHtmlWrap(stripFence(md))).join('\n')
 }
 
 /** 把 block 序号定位到当前 markdown（越界返回 null） */
@@ -220,22 +248,53 @@ function partsAt(vd: Vditor, index: number | undefined): (DocParts & { index: nu
 
 /* ---------------------------------- 行/块操作 ---------------------------------- */
 
-export type BlockType = 'h1' | 'h2' | 'h3' | 'p' | 'quote' | 'ul' | 'ol'
+export type BlockType =
+  | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  | 'p' | 'quote' | 'ul' | 'ol' | 'todo'
+  | 'code' | 'callout' | 'columns' | 'toggle'
 
 const BLOCK_PREFIX: Record<BlockType, string> = {
   h1: '# ',
   h2: '## ',
   h3: '### ',
+  h4: '#### ',
+  h5: '##### ',
+  h6: '###### ',
   p: '',
   quote: '> ',
   ul: '- ',
   ol: '1. ',
+  todo: '- [ ] ',
+  code: '',
+  callout: '',
+  columns: '',
+  toggle: '',
 }
 
-/** 把一段 markdown 改写成目标块类型（列表/引用逐行加标记，标题/正文只改首个非空行） */
+/**
+ * 把一段 markdown 改写成目标块类型。
+ *  - 代码 / 高亮块 / 分栏 / 折叠块：整体包裹（先剥掉旧围栏 / 旧 HTML 包裹）；
+ *  - 前缀型（标题 / 正文 / 引用 / 列表 / 待办）：先降级为普通正文，再统一去旧标记后加新标记。
+ */
 function restyle(md: string, type: BlockType): string {
-  const lines = stripBlockMarks(md)
-  if (type === 'quote' || type === 'ul' || type === 'ol') {
+  if (type === 'code') {
+    const body = stripFence(stripHtmlWrap(md))
+    return '```\n' + body + '\n```'
+  }
+  if (type === 'callout') {
+    return '<div class="hk-callout">\n' + toPlain(md) + '\n</div>'
+  }
+  if (type === 'columns') {
+    const body = toPlain(md)
+    return '<div class="hk-columns">\n<div class="hk-col">\n' + body + '\n</div>\n<div class="hk-col">\n\n</div>\n</div>'
+  }
+  if (type === 'toggle') {
+    const body = toPlain(md)
+    return '<details class="hk-toggle" open>\n<summary>折叠标题（点击展开）</summary>\n\n' + body + '\n</details>'
+  }
+  // 前缀型：先剥掉旧围栏 / 旧 HTML 包裹，再统一去块级标记后加新标记（保证来回转换幂等）
+  const lines = stripBlockMarks(stripHtmlWrap(stripFence(md)))
+  if (type === 'quote' || type === 'ul' || type === 'ol' || type === 'todo') {
     const prefix = BLOCK_PREFIX[type]
     return lines.map((l) => (l.trim() === '' ? l : prefix + l)).join('\n')
   }
@@ -246,13 +305,36 @@ function restyle(md: string, type: BlockType): string {
 }
 
 /**
- * 设置当前行的样式（H1~H3/正文/引用/列表）。
+ * 设置当前行的样式（标题 / 正文 / 引用 / 列表 / 待办 / 代码 / 高亮块 / 分栏 / 折叠块）。
  * @returns 新的整篇 markdown；null 表示无法处理（调用方不做写回）
  */
 export function setBlockType(vd: Vditor, blockIndex: number | undefined, type: BlockType): string | null {
   const info = partsAt(vd, blockIndex)
   if (!info) return null
   const next = restyle(info.parts[info.index], type)
+  return spliceReplace(info.full, info.parts, info.index, next)
+}
+
+/** 取当前块的正文文本（用于复制 / 剪切） */
+export function blockText(vd: Vditor, blockIndex: number | undefined): string | null {
+  const info = partsAt(vd, blockIndex)
+  if (!info) return null
+  return info.parts[info.index]
+}
+
+/** 缩进 / 取消缩进当前块（每行前导空格 ±2；列表项缩进即嵌套） */
+export function indentBlock(vd: Vditor, blockIndex: number | undefined, dir: 'in' | 'out'): string | null {
+  const info = partsAt(vd, blockIndex)
+  if (!info) return null
+  const md = info.parts[info.index]
+  const next = md
+    .split('\n')
+    .map((l) => {
+      if (l.trim() === '') return l
+      if (dir === 'in') return '  ' + l
+      return l.replace(/^( {1,2}|\t)/, '')
+    })
+    .join('\n')
   return spliceReplace(info.full, info.parts, info.index, next)
 }
 
@@ -265,14 +347,24 @@ export function deleteLine(vd: Vditor, blockIndex: number | undefined): string |
 
 /* ---------------------------------- 插入操作 ---------------------------------- */
 
-export type InsertKind = 'table' | 'image' | 'link' | 'hr' | 'seq' | 'flow'
+export type InsertKind =
+  | 'table' | 'image' | 'link' | 'hr' | 'seq' | 'flow'
+  | 'attach' | 'status' | 'board' | 'mindmap' | 'datatable'
 
 /** 块级插入（作为独立块，插在当前行之后） */
-const INSERT_BLOCK_MD: Record<'table' | 'hr' | 'seq' | 'flow', string> = {
+const INSERT_BLOCK_MD: Record<
+  'table' | 'hr' | 'seq' | 'flow' | 'attach' | 'status' | 'board' | 'mindmap' | 'datatable',
+  string
+> = {
   table: '| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 单元格 | 单元格 | 单元格 |\n| 单元格 | 单元格 | 单元格 |',
   hr: '---',
   seq: '```mermaid\nsequenceDiagram\n    participant A as 用户\n    participant B as 系统\n    A->>B: 请求\n    B-->>A: 响应\n```',
   flow: '```mermaid\nflowchart TD\n    A[开始] --> B{判断}\n    B -->|是| C[处理]\n    B -->|否| D[结束]\n```',
+  attach: '[附件名称](附件链接)',
+  status: '> 🏷️ **状态**：待处理',
+  board: '```mermaid\nflowchart LR\n    A[想法] --> B[想法]\n    B --> C[想法]\n```',
+  mindmap: '```mermaid\nmindmap\n  root((主题))\n    分支一\n    分支二\n```',
+  datatable: '| 字段 | 类型 | 说明 |\n| --- | --- | --- |\n| id | int | 主键 |\n| name | string | 名称 |',
 }
 
 /** 行内插入（插在光标处） */
