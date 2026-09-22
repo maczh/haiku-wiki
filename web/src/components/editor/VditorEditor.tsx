@@ -15,11 +15,13 @@ import {
   deleteLine,
   insertContent,
   applySelectionOp,
+  applySelectionOpDom,
   tableOp,
   type CtxState,
   type BlockType,
   type SelectionOp,
   type TableOp,
+  type InsertKind,
 } from '../../lib/vditorCmds'
 
 // Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
@@ -117,6 +119,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
   const [versionOpen, setVersionOpen] = useState(false)
   /** 右键上下文菜单状态（null 表示关闭） */
   const [ctx, setCtx] = useState<CtxState | null>(null)
+  /** 菜单浮层 DOM（解析下一个右键上下文时需临时隐藏，避免坐标命中浮层） */
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   // docId 变化时重建编辑器
   useEffect(() => {
@@ -257,7 +261,15 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       if (target && target.closest('.vditor-toolbar, .vditor-counter')) return
       e.preventDefault()
       e.stopPropagation()
-      setCtx(resolveContext(vd, e.clientX, e.clientY))
+      // 菜单浮层是 position:fixed 且正好盖在鼠标处；若上一次的菜单尚未卸载（React 渲染是异步的），
+      // elementFromPoint / caretRangeFromPoint 都会命中浮层 → 上下文被解析成菜单自己。
+      // 解析期间先把浮层藏掉，解析完立即还原。
+      const overlay = overlayRef.current
+      const prevDisplay = overlay?.style.display
+      if (overlay) overlay.style.display = 'none'
+      const next = resolveContext(vd, e.clientX, e.clientY)
+      if (overlay) overlay.style.display = prevDisplay ?? ''
+      setCtx(next)
     }
     // 点击菜单以外区域即关闭（菜单自身 mousedown 不关闭，保证 onClick 能命中）
     const onDocDown = (e: MouseEvent) => {
@@ -305,19 +317,42 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     }
   }
 
+  /** 内容被程序化改写后同步本地副本并触发自动保存（Vditor 的 setValue 不会触发 input 回调） */
+  function markChanged(vd: Vditor) {
+    latestRef.current = vd.getValue()
+    dirtyRef.current = true
+    setStatus('editing')
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
+  }
+
   /** 执行右键菜单项 */
   function runAction(key: string, c: CtxState) {
     const vd = vdRef.current
     if (!vd) return
     if (c.kind === 'selection') {
-      applySelectionOp(vd, key as SelectionOp)
+      const next = applySelectionOp(vd, key as SelectionOp, c.selText ?? '', c.blockIndex)
+      if (next !== null) {
+        vd.setValue(next)
+        markChanged(vd)
+      } else {
+        // markdown 级改写不可用 → 退回 DOM 执行命令（尽力而为）
+        applySelectionOpDom(vd, key as SelectionOp)
+        markChanged(vd)
+      }
       return
     }
     if (c.kind === 'table') {
-      if (c.td) tableOp(vd, c.td, key as TableOp)
+      if (!c.td) return
+      const next = tableOp(vd, c.td, key as TableOp)
+      if (next !== null) {
+        vd.setValue(next)
+        markChanged(vd)
+      }
       return
     }
-    // line 上下文
+    // line 上下文：目标是右键那一刻记下的 block 序号
+    let next: string | null = null
     switch (key) {
       case 'h1':
       case 'h2':
@@ -326,29 +361,26 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       case 'quote':
       case 'ul':
       case 'ol':
-        setBlockType(vd, c.x, c.y, key as BlockType)
+        next = setBlockType(vd, c.blockIndex, key as BlockType)
         break
       case 'delete-line':
-        deleteLine(vd, c.x, c.y)
+        next = deleteLine(vd, c.blockIndex)
         break
       case 'table':
-        insertContent(vd, 'table')
-        break
-      case 'image':
-        insertContent(vd, 'image')
-        break
-      case 'link':
-        insertContent(vd, 'link')
-        break
       case 'hr':
-        insertContent(vd, 'hr')
-        break
       case 'seq':
-        insertContent(vd, 'seq')
-        break
       case 'flow':
-        insertContent(vd, 'flow')
+      case 'image':
+      case 'link':
+        next = insertContent(vd, key as InsertKind, c.blockIndex)
         break
+    }
+    if (next !== null) {
+      vd.setValue(next)
+      markChanged(vd)
+    } else if (key === 'image' || key === 'link') {
+      // 行内插入直接改了 DOM，未触发 input
+      markChanged(vd)
     }
   }
 
@@ -400,6 +432,7 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       {/* 右键上下文菜单浮层：fixed 定位在鼠标处，data-vd-cm 标记使其自身点击不触发关闭 */}
       {ctx && (
         <div
+          ref={overlayRef}
           data-vd-cm="1"
           style={{
             position: 'fixed',

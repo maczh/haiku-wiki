@@ -230,7 +230,13 @@ export default function SheetEditor({ docId, initialContent, title, docType }: P
     } catch {
       /* 忽略 */
     }
-    // 程序化刷新不会触发 Luckysheet 的 updated/cellUpdated 钩子，显式标记改动并触发防抖保存
+    // setCellFormat 不经 Luckysheet 的 updated/cellUpdated 钩子，latestRef 不会自动刷新；
+    // 必须在此重新取一次格数据，否则自动保存写回的仍是旧内容（颜色会丢）。
+    try {
+      latestRef.current = luckysheetToSheetJSON(api.getAllSheets())
+    } catch {
+      /* 取不到就保留旧副本，至少不崩 */
+    }
     dirtyRef.current = true
     setStatus('editing')
     if (timerRef.current) clearTimeout(timerRef.current)

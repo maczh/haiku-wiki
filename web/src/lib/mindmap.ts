@@ -39,7 +39,39 @@ export function defaultRoot(): SmmNode {
   return { data: { text: DEFAULT_ROOT_TEXT, expand: true }, children: [] }
 }
 
-/** v2 节点树归一化：缺 expand 补 true，children 递归；结构非法返回 null */
+/** 节点图片的兜底宽高（与编辑器插入图片时的默认值一致） */
+const DEFAULT_IMAGE_SIZE = 120
+
+/**
+ * 节点图片字段兜底修复。
+ *
+ * ⚠️ simple-mind-map 的 `getImgShowSize()` 会直接对 `imageSize` 做解构：
+ *     `const { custom, width, height } = this.getData('imageSize')`
+ * 因此只要节点带了 `image` 却没有 `imageSize`（外部导入 / 手写 / 历史版本产出的数据），
+ * 渲染时就会抛 `TypeError: Cannot destructure property 'custom' of 'undefined'`，
+ * **整棵树渲染中断 → 预览/阅读页一片空白**（模板预览报错即此因）。
+ * 宽高缺失或非有限值同样会让 `resizeImgSize` 算出 NaN。
+ * 这里在内容归一化阶段一次性补齐，编辑器 / 阅读态 / 模板预览 / 分享页共用同一入口。
+ */
+function normalizeImageSize(rest: SmmNodeData): SmmNodeData {
+  const image = rest.image
+  if (typeof image !== 'string' || image === '') return rest
+  const raw = rest.imageSize as { width?: unknown; height?: unknown; custom?: unknown } | undefined
+  const w = Number(raw?.width)
+  const h = Number(raw?.height)
+  if (raw && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) return rest
+  const custom = typeof raw?.custom === 'boolean' ? raw.custom : false
+  return {
+    ...rest,
+    imageSize: {
+      width: Number.isFinite(w) && w > 0 ? w : DEFAULT_IMAGE_SIZE,
+      height: Number.isFinite(h) && h > 0 ? h : DEFAULT_IMAGE_SIZE,
+      custom,
+    },
+  }
+}
+
+/** v2 节点树归一化：缺 expand 补 true，图片节点补 imageSize，children 递归；结构非法返回 null */
 function toSmm(n: unknown): SmmNode | null {
   if (!n || typeof n !== 'object') return null
   const d = (n as { data?: unknown }).data
@@ -52,7 +84,7 @@ function toSmm(n: unknown): SmmNode | null {
   const children = Array.isArray(rawChildren)
     ? rawChildren.map(toSmm).filter((x): x is SmmNode => x !== null)
     : []
-  return { data: { ...rest, text, expand }, children }
+  return { data: normalizeImageSize({ ...rest, text, expand }), children }
 }
 
 /** v1 树 → v2 节点树（文本透传，expand 恒为 true） */

@@ -38,3 +38,6 @@ __pycache__/
 
 # 容器镜像导出物（`docker save` 产出，约 180MB，绝不入库）
 *.tar
+
+# Vite 配置探测残留（dev/build 中断时可能落在 web/ 下，属临时文件，勿提交）
+web/vite.config.ts.timestamp-*.mjs

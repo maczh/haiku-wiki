@@ -39,6 +39,7 @@ DEFAULT_SUITES=(
   pptx-zoom-check
   comment-api-check
   api-refresh-check
+  e2e-editor-context-menu
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -65,6 +66,7 @@ declare -A PORT_OF=(
   [pptx-zoom-check]=18092
   [comment-api-check]=8100
   [api-refresh-check]=8101
+  [e2e-editor-context-menu]=8192
   [sim-docker-web]=0
 )
 
