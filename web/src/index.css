@@ -487,3 +487,6 @@ mark.hk-hit {
   font-weight: 600;
   user-select: none;
 }
+
+/* ── 右键上下文菜单（自定义 Notion 风格浮层，非 antd Menu） ── */
+.vd-cm-item:hover { background: #f2f3f5 !important; }

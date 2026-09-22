@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import Vditor from 'vditor'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
-import { Button, Menu, Space, Tooltip, message } from 'antd'
-import type { MenuProps } from 'antd'
-import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
+import { Button, Space, Tooltip, message } from 'antd'
+import {
+  HistoryOutlined, SaveOutlined,
+  SyncOutlined, DeleteOutlined, CopyOutlined, ScissorOutlined, AlignLeftOutlined, PlusOutlined, RightOutlined,
+  BoldOutlined, ItalicOutlined, StrikethroughOutlined, UnderlineOutlined, CodeOutlined, HighlightOutlined,
+  PictureOutlined, TableOutlined, FolderOutlined, TagOutlined, LayoutOutlined, ApartmentOutlined,
+  DeploymentUnitOutlined, DatabaseOutlined,
+  InsertRowAboveOutlined, InsertRowBelowOutlined, InsertRowLeftOutlined, InsertRowRightOutlined,
+  DeleteRowOutlined, DeleteColumnOutlined,
+  UnorderedListOutlined, OrderedListOutlined, CheckSquareOutlined,
+} from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import { fetchTitle, patchDoc } from '../../api/docs'
@@ -56,88 +65,226 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  *  - 右键上下文菜单：行样式/插入/删除行、选区格式化、表格行列增删
  */
 
-/** 按上下文构造右键菜单项 */
-function buildMenuItems(c: CtxState): MenuProps['items'] {
-  if (c.kind === 'selection') {
-    return [
-      { key: 'bold', label: '加粗' },
-      { key: 'italic', label: '斜体' },
-      { key: 'strike', label: '删除线' },
-      { key: 'underline', label: '下划线' },
-      { key: 'code', label: '行内代码' },
-      { key: 'codeblock', label: '代码块' },
-    ]
-  }
-  if (c.kind === 'table') {
-    return [
-      { key: 'row-up', label: '在上方插入行' },
-      { key: 'row-down', label: '在下方插入行' },
-      { key: 'col-left', label: '在左侧插入列' },
-      { key: 'col-right', label: '在右侧插入列' },
-      { key: 'row-del', label: '删除本行' },
-      { key: 'col-del', label: '删除本列' },
-    ]
-  }
+/* ---------------- 右键菜单（Notion 风格：图标 + 分组面板） ---------------- */
+
+/** 15px 线性 SVG 图标容器（antd 没有的字形用内联 SVG 补齐，与截图外观一致） */
+function G({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  )
+}
+const IcoT = (
+  <G>
+    <path d="M3.5 4h9M8 4v8.5" />
+  </G>
+)
+const IcoQuote = (
+  <G>
+    <path d="M4.5 3v10" />
+    <path d="M7.5 4.5h5M7.5 8h5M7.5 11.5h3" />
+  </G>
+)
+const IcoColumns = (
+  <G>
+    <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+    <path d="M8 3v10" />
+  </G>
+)
+const IcoToggle = (
+  <G>
+    <path d="M5 5l3 3-3 3" />
+    <path d="M10.5 4.5h3M10.5 8h3M10.5 11.5h3" />
+  </G>
+)
+const IcoCodeblock = (
+  <G>
+    <rect x="2" y="3" width="12" height="10" rx="1.5" />
+    <path d="M6.5 6.5 5 8l1.5 1.5M9.5 6.5 11 8l-1.5 1.5" />
+  </G>
+)
+const IcoIndentIn = (
+  <G>
+    <path d="M4 4h10M4 8h10M4 12h10" />
+    <path d="M8 6l3 2-3 2" />
+  </G>
+)
+const IcoIndentOut = (
+  <G>
+    <path d="M4 4h10M4 8h10M4 12h10" />
+    <path d="M11 6l-3 2 3 2" />
+  </G>
+)
+
+/** 菜单项模型：panel 非空表示悬停展开对应二级面板 */
+interface CtxItem {
+  key: string
+  label: string
+  icon: ReactNode
+  desc?: string
+  panel?: 'transform' | 'indent' | 'addbelow'
+}
+
+/** 行上下文主菜单（对应截图：转化为/删除/复制/剪切/缩进/在下方添加） */
+function lineMenuItems(): CtxItem[] {
   return [
-    {
-      key: 'transform',
-      label: '转化为',
-      children: [
-        { key: 'h1', label: '标题 1' },
-        { key: 'h2', label: '标题 2' },
-        { key: 'h3', label: '标题 3' },
-        { key: 'h4', label: '标题 4' },
-        { key: 'h5', label: '标题 5' },
-        { key: 'h6', label: '标题 6' },
-        { key: 'p', label: '正文' },
-        { key: 'ul', label: '无序列表' },
-        { key: 'ol', label: '有序列表' },
-        { key: 'todo', label: '待办' },
-        { key: 'code', label: '代码' },
-        { key: 'callout', label: '高亮块' },
-        { key: 'quote', label: '引用' },
-        { key: 'columns', label: '分栏' },
-        { key: 'toggle', label: '折叠块' },
-      ],
-    },
-    { key: 'delete', label: '删除' },
-    { key: 'copy', label: '复制' },
-    { key: 'cut', label: '剪切' },
-    {
-      key: 'indent',
-      label: '缩进',
-      children: [
-        { key: 'indent-in', label: '增加缩进' },
-        { key: 'indent-out', label: '减少缩进' },
-      ],
-    },
-    {
-      key: 'addbelow',
-      label: '在下方添加',
-      children: [
-        {
-          key: 'add-basic',
-          label: '基础',
-          children: [
-            { key: 'image', label: '图片' },
-            { key: 'table', label: '表格' },
-            { key: 'attach', label: '附件' },
-            { key: 'status', label: '状态' },
-          ],
-        },
-        {
-          key: 'add-canvas',
-          label: '画板类',
-          children: [
-            { key: 'board', label: '画板' },
-            { key: 'mindmap', label: '思维导图' },
-            { key: 'flow', label: '流程图' },
-          ],
-        },
-        { key: 'datatable', label: '数据表' },
-      ],
-    },
+    { key: 'transform', label: '转化为', icon: <SyncOutlined />, panel: 'transform' },
+    { key: 'delete', label: '删除', icon: <DeleteOutlined /> },
+    { key: 'copy', label: '复制', icon: <CopyOutlined /> },
+    { key: 'cut', label: '剪切', icon: <ScissorOutlined /> },
+    { key: 'indent', label: '缩进', icon: <AlignLeftOutlined />, panel: 'indent' },
+    { key: 'addbelow', label: '在下方添加', icon: <PlusOutlined />, panel: 'addbelow' },
   ]
+}
+
+/** 选区上下文菜单 */
+function selectionMenuItems(): CtxItem[] {
+  return [
+    { key: 'bold', label: '加粗', icon: <BoldOutlined /> },
+    { key: 'italic', label: '斜体', icon: <ItalicOutlined /> },
+    { key: 'strike', label: '删除线', icon: <StrikethroughOutlined /> },
+    { key: 'underline', label: '下划线', icon: <UnderlineOutlined /> },
+    { key: 'code', label: '行内代码', icon: <CodeOutlined /> },
+    { key: 'codeblock', label: '代码块', icon: IcoCodeblock },
+  ]
+}
+
+/** 表格内上下文菜单 */
+function tableMenuItems(): CtxItem[] {
+  return [
+    { key: 'row-up', label: '在上方插入行', icon: <InsertRowAboveOutlined /> },
+    { key: 'row-down', label: '在下方插入行', icon: <InsertRowBelowOutlined /> },
+    { key: 'col-left', label: '在左侧插入列', icon: <InsertRowLeftOutlined /> },
+    { key: 'col-right', label: '在右侧插入列', icon: <InsertRowRightOutlined /> },
+    { key: 'row-del', label: '删除本行', icon: <DeleteRowOutlined /> },
+    { key: 'col-del', label: '删除本列', icon: <DeleteColumnOutlined /> },
+  ]
+}
+
+/* ---------------- 二级面板数据 + 渲染（全自定义 React 浮层，不用 antd Menu） ---------------- */
+
+/** 标题徽标（H1~H6 用文字小标，贴近 Notion 外观） */
+function hBadge(n: number) {
+  return <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1, color: '#5b6168' }}>{'H' + n}</span>
+}
+
+/** 转化为面板：样式 + 块 */
+const TRANSFORM_SECTIONS: { title: string; items: CtxItem[] }[] = [
+  {
+    title: '样式',
+    items: [
+      { key: 'h1', label: '标题 1', icon: hBadge(1) },
+      { key: 'h2', label: '标题 2', icon: hBadge(2) },
+      { key: 'h3', label: '标题 3', icon: hBadge(3) },
+      { key: 'h4', label: '标题 4', icon: hBadge(4) },
+      { key: 'h5', label: '标题 5', icon: hBadge(5) },
+      { key: 'h6', label: '标题 6', icon: hBadge(6) },
+      { key: 'p', label: '正文', icon: IcoT },
+    ],
+  },
+  {
+    title: '块',
+    items: [
+      { key: 'ul', label: '无序列表', icon: <UnorderedListOutlined /> },
+      { key: 'ol', label: '有序列表', icon: <OrderedListOutlined /> },
+      { key: 'todo', label: '待办列表', icon: <CheckSquareOutlined /> },
+      { key: 'code', label: '代码块', icon: IcoCodeblock },
+      { key: 'callout', label: '高亮块', icon: <HighlightOutlined /> },
+      { key: 'quote', label: '引用', icon: IcoQuote },
+      { key: 'columns', label: '分栏', icon: IcoColumns },
+      { key: 'toggle', label: '折叠块', icon: IcoToggle },
+    ],
+  },
+]
+
+const INDENT_ITEMS: CtxItem[] = [
+  { key: 'indent-in', label: '向右缩进', icon: IcoIndentIn },
+  { key: 'indent-out', label: '向左缩进', icon: IcoIndentOut },
+]
+
+const ADDBELOW_SECTIONS: { title: string; items: CtxItem[] }[] = [
+  {
+    title: '基础',
+    items: [
+      { key: 'image', label: '图片', icon: <PictureOutlined /> },
+      { key: 'table', label: '表格', icon: <TableOutlined /> },
+      { key: 'attach', label: '附件', icon: <FolderOutlined /> },
+      { key: 'status', label: '状态', icon: <TagOutlined /> },
+    ],
+  },
+  {
+    title: '画板类',
+    items: [
+      { key: 'board', label: '画板', icon: <LayoutOutlined /> },
+      { key: 'mindmap', label: '思维导图', icon: <ApartmentOutlined /> },
+      { key: 'flow', label: '流程图', icon: <DeploymentUnitOutlined /> },
+    ],
+  },
+]
+
+const ADDBELOW_ROW: CtxItem = { key: 'datatable', label: '数据表', icon: <DatabaseOutlined />, desc: '插入一个数据表' }
+
+/** 单个菜单项（图标 + 文字，可选说明） */
+function ItemRow({
+  item, onPick, onEnter, active,
+}: {
+  item: CtxItem
+  onPick?: (k: string) => void
+  onEnter?: () => void
+  active?: boolean
+}) {
+  return (
+    <div
+      data-ctx-key={item.key}
+      className="vd-cm-item"
+      onMouseEnter={onEnter}
+      onClick={(e) => { e.stopPropagation(); onPick?.(item.key) }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+        borderRadius: 4, cursor: 'pointer', fontSize: 13, color: '#1f2329',
+        whiteSpace: 'nowrap', userSelect: 'none',
+        background: active ? '#f2f3f5' : undefined,
+      }}
+    >
+      <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#5b6168', flexShrink: 0 }}>{item.icon}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
+      {item.desc && <span style={{ color: '#9aa0a6', fontSize: 12 }}>{item.desc}</span>}
+    </div>
+  )
+}
+
+/** 分组面板（标题 + 2 列图标网格） */
+function PanelSections({
+  sections, onPick,
+}: {
+  sections: { title: string; items: CtxItem[] }[]
+  onPick: (k: string) => void
+}) {
+  return (
+    <div className="vd-cm-panel" style={{ borderLeft: '1px solid #f0f0f0', marginLeft: 6, paddingLeft: 6, minWidth: 190 }}>
+      {sections.map((s) => (
+        <div key={s.title} style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: '#9aa0a6', padding: '4px 10px', fontWeight: 600 }}>{s.title}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 2 }}>
+            {s.items.map((it) => (
+              <ItemRow key={it.key} item={it} onPick={onPick} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function VditorEditor({ docId, initialContent, title }: Props) {
@@ -152,6 +299,8 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
   const [versionOpen, setVersionOpen] = useState(false)
   /** 右键上下文菜单状态（null 表示关闭） */
   const [ctx, setCtx] = useState<CtxState | null>(null)
+  /** 当前展开的二级面板（null 表示未展开） */
+  const [activePanel, setActivePanel] = useState<null | 'transform' | 'indent' | 'addbelow'>(null)
   /** 菜单浮层 DOM（解析下一个右键上下文时需临时隐藏，避免坐标命中浮层） */
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -302,19 +451,15 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       if (overlay) overlay.style.display = 'none'
       const next = resolveContext(vd, e.clientX, e.clientY)
       if (overlay) overlay.style.display = prevDisplay ?? ''
+      setActivePanel(null)
       setCtx(next)
     }
-    // 点击菜单以外区域即关闭（菜单自身 mousedown 不关闭，保证 onClick 能命中）。
-    // 关键：antd Menu 的子菜单弹层默认渲染到 document.body（.ant-menu-submenu-popup），
-    // 不在 data-vd-cm 浮层内 —— 真实用户悬停子菜单、mousedown 先落在 body 弹层上，
-    // 若此处直接 setCtx(null) 卸载菜单，click 永远命中不到子菜单项的 onClick（Bug B）。
-    // 因此浮层内（data-vd-cm）或子菜单弹层内（.ant-menu-submenu-popup）一律放行；
-    // 并配合下方 Menu 的 getPopupContainer 把子菜单弹层渲染进浮层，从根上消除该路径。
+    // 点击菜单以外区域即关闭；主菜单与所有二级面板都渲染在同一个 [data-vd-cm] 容器内，
+    // 因此面板项上的 mousedown 一律放行 —— 这是修复 Bug B（子菜单点击无效）的根因。
     const onDocDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null
       if (!t) return
       if (t.closest('[data-vd-cm]')) return
-      if (t.closest('.ant-menu-submenu-popup')) return
       setCtx(null)
     }
     elRef.current?.addEventListener('contextmenu', onCtx, true)
@@ -506,7 +651,9 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
         }}
       />
 
-      {/* 右键上下文菜单浮层：fixed 定位在鼠标处，data-vd-cm 标记使其自身点击不触发关闭 */}
+      {/* 右键上下文菜单浮层：fixed 定位在鼠标处，data-vd-cm 标记使其自身点击不触发关闭。
+          主菜单 + 二级面板全部渲染在「同一个」浮层内（不再用 antd Menu 弹到 body），
+          面板项的 mousedown 始终落在 [data-vd-cm] 内，onDocDown 自然放行、onClick 可正常命中 —— 修复 Bug B。 */}
       {ctx && (
         <div
           ref={overlayRef}
@@ -517,26 +664,86 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
             top: ctx.y,
             zIndex: 1200,
             background: '#fff',
-            borderRadius: 6,
-            boxShadow: '0 3px 14px rgba(0,0,0,0.18)',
-            padding: 4,
+            borderRadius: 8,
+            boxShadow: '0 6px 24px rgba(0,0,0,0.16)',
+            padding: 6,
+            display: 'flex',
+            maxHeight: '80vh',
+            overflow: 'auto',
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <Menu
-            mode="vertical"
-            selectable={false}
-            style={{ border: 'none', minWidth: 180 }}
-            items={buildMenuItems(ctx)}
-            // 子菜单弹层默认渲染到 body，会落到浮层（data-vd-cm）之外；
-            // 指定到触发节点的父元素（即浮层内部）后，子菜单项点击的 mousedown 也在浮层内，
-            // onDocDown 自然放行，onClick 可正常命中（修复 Bug B 的根因）。
-            getPopupContainer={(t) => t.parentElement as HTMLElement}
-            onClick={({ key }) => {
-              runAction(key, ctx)
-              setCtx(null)
-            }}
-          />
+          {ctx.kind === 'line' && (
+            <>
+              <div style={{ minWidth: 184 }}>
+                {lineMenuItems().map((it) => (
+                  <div
+                    key={it.key}
+                    data-ctx-key={it.key}
+                    className="vd-cm-item"
+                    onMouseEnter={() => setActivePanel(it.panel ?? null)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (it.panel) setActivePanel(it.panel)
+                      else {
+                        runAction(it.key, ctx)
+                        setCtx(null)
+                      }
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px',
+                      borderRadius: 4, cursor: 'pointer', fontSize: 13, color: '#1f2329',
+                      whiteSpace: 'nowrap', userSelect: 'none',
+                      background: it.panel && activePanel === it.panel ? '#f2f3f5' : undefined,
+                    }}
+                  >
+                    <span style={{ width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#5b6168', flexShrink: 0 }}>{it.icon}</span>
+                    <span style={{ flex: 1 }}>{it.label}</span>
+                    {it.panel && <RightOutlined style={{ fontSize: 10, color: '#bbb' }} />}
+                  </div>
+                ))}
+              </div>
+              {activePanel === 'transform' && (
+                <PanelSections sections={TRANSFORM_SECTIONS} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+              )}
+              {activePanel === 'indent' && (
+                <div className="vd-cm-panel" style={{ borderLeft: '1px solid #f0f0f0', marginLeft: 6, paddingLeft: 6, minWidth: 150 }}>
+                  {INDENT_ITEMS.map((it) => (
+                    <ItemRow key={it.key} item={it} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+                  ))}
+                </div>
+              )}
+              {activePanel === 'addbelow' && (
+                <div className="vd-cm-panel" style={{ borderLeft: '1px solid #f0f0f0', marginLeft: 6, paddingLeft: 6, minWidth: 200 }}>
+                  {ADDBELOW_SECTIONS.map((s) => (
+                    <div key={s.title} style={{ marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, color: '#9aa0a6', padding: '4px 10px', fontWeight: 600 }}>{s.title}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 2 }}>
+                        {s.items.map((it) => (
+                          <ItemRow key={it.key} item={it} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <ItemRow item={ADDBELOW_ROW} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+                </div>
+              )}
+            </>
+          )}
+          {ctx.kind === 'selection' && (
+            <div style={{ minWidth: 160 }}>
+              {selectionMenuItems().map((it) => (
+                <ItemRow key={it.key} item={it} onEnter={() => setActivePanel(null)} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+              ))}
+            </div>
+          )}
+          {ctx.kind === 'table' && (
+            <div style={{ minWidth: 200 }}>
+              {tableMenuItems().map((it) => (
+                <ItemRow key={it.key} item={it} onEnter={() => setActivePanel(null)} onPick={(k) => { runAction(k, ctx); setCtx(null) }} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
