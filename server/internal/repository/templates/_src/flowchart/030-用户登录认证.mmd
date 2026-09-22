@@ -1,0 +1,44 @@
+---
+name: 用户登录认证
+title: 用户登录认证时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant B as 浏览器
+    participant G as 网关 api-gw
+    participant A as 认证服务 auth-svc
+    participant R as Redis 缓存
+    participant D as 用户库 user_db
+    B->>G: POST /api/v1/auth/login 携带 username 与 password
+    G->>A: POST /internal/session/verify
+    activate A
+    A->>R: GET auth:pwd:fail:username
+    R-->>A: 返回连续失败次数 0
+    alt 失败次数大于等于 5
+        A-->>G: 返回 429 账号锁定 900 秒
+        G-->>B: 提示请 15 分钟后重试
+    else 进入密码校验
+        A->>D: SELECT password_hash, salt, status FROM t_user
+        D-->>A: 返回用户记录与盐值
+        alt 密码不匹配
+            A->>R: INCR auth:pwd:fail:username 过期 900 秒
+            A-->>G: 返回 401 用户名或密码错误
+        else 密码匹配且状态正常
+            A->>R: SETEX auth:token:uid 1800 令牌值
+            A-->>G: 返回 access_token 与 refresh_token
+        end
+        G-->>B: 返回 200 并下发 HttpOnly Cookie
+    end
+    deactivate A
+    par 异步审计
+        A->>G: 投递登录事件 login.result
+    and 风控上报
+        A->>G: 投递风控事件 risk.login
+    end
+    opt 账号已开启二次验证
+        G-->>B: 返回 202 需要短信验证码
+        B->>G: POST /api/v1/auth/login 携带 sms_code
+        G-->>B: 返回 200 登录完成
+    end
+    Note over B,D: 访问令牌 30 分钟有效 刷新令牌 7 天有效

@@ -1,0 +1,52 @@
+---
+name: 酒店预订体系
+title: 酒店预订体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可售资源 {
+        <<接口>>
+        +查询余量(日期 String) Integer
+        +占用(日期 String) Boolean
+    }
+    class 客房资源 {
+        <<抽象类>>
+        #Long 资源编号
+        #String 资源名称
+        #Integer 可住人数
+        #停用() Boolean
+        #改价() Boolean
+    }
+    class 房型 {
+        +Decimal 面积
+        +Boolean 是否含早
+        +String 床型配置
+        +查询余量() Integer
+        +占用() Boolean
+    }
+    class 房价日历 {
+        +String 日期
+        +Decimal 挂牌价
+        +Integer 可售间数
+        +调价() Boolean
+        +关房() Boolean
+    }
+    class 预订单 {
+        +String 预订号
+        +String 入住日期
+        +String 离店日期
+        +创建预订() String
+        +取消预订() Boolean
+    }
+    class 预订状态 {
+        <<枚举>>
+        待确认
+        已确认
+        已入住
+        已取消
+    }
+    客房资源 <|-- 房型 : 继承
+    房型 ..|> 可售资源 : 实现
+    房型 "1" *-- "*" 房价日历 : 组合
+    房型 "1" o-- "*" 预订单 : 聚合
+    预订单 "1" --> "1" 预订状态 : 状态

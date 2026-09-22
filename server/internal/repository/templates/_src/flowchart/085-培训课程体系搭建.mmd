@@ -1,0 +1,34 @@
+---
+name: 培训课程体系搭建
+title: 培训课程体系搭建甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 员工培训课程体系搭建排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 需求调研
+    岗位能力模型梳理     :done,  a1, 2026-09-10, 12d
+    培训需求问卷调研     :done,  a2, after a1, 8d
+    需求调研报告         :milestone, m1, after a2, 0d
+    section 体系设计
+    课程体系框架设计     :done,  b1, after m1, 10d
+    学习地图与进阶路径   :        b2, after b1, 8d
+    认证与考核机制设计   :        b3, after b2, 6d
+    体系评审通过         :milestone, m2, after b3, 0d
+    section 课程开发
+    通用力课程开发       :active, c1, after m2, 15d
+    专业技能课程开发     :crit,  c2, after m2, 20d
+    管理力课程开发       :        c3, after c1, 12d
+    微课与案例库制作     :        c4, after c2, 15d
+    课件与教材定稿       :milestone, m3, after c4, 0d
+    section 师资与试点
+    内部讲师选拔与认证   :        d1, after m3, 10d
+    讲师试讲打磨         :        d2, after d1, 8d
+    试点班级开班         :milestone, m4, after d2, 0d
+    试点教学与反馈收集   :        d3, after m4, 15d
+    section 推广运营
+    学习平台上线配置     :        e1, after d3, 10d
+    全员推广与学习任务   :        e2, after e1, 20d
+    培训效果评估         :        e3, after e2, 8d

@@ -1,0 +1,33 @@
+---
+name: 工厂产线改造
+title: 工厂产线改造甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 三号装配产线自动化改造排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 评估立项
+    现状产能与瓶颈分析   :done,  a1, 2026-09-10, 8d
+    改造方案与投资收益   :done,  a2, after a1, 10d
+    改造立项批准         :milestone, m1, after a2, 0d
+    section 方案设计
+    产线布局设计         :done,  b1, after m1, 12d
+    自动化设备选型       :        b2, after b1, 10d
+    电气与控制系统设计   :        b3, after b1, 12d
+    安全风险评估         :        b4, after b3, 5d
+    section 设备采购安装
+    设备采购下单         :active, crit, c1, after b2, 20d
+    旧设备拆除与基座施工 :        c2, after b4, 12d
+    新设备进场安装       :crit,  c3, after c1, 15d
+    输送线与机器人调试   :        c4, after c3, 12d
+    section 联调试产
+    整线空载联调         :        d1, after c4, 6d
+    小批量试产           :        d2, after d1, 10d
+    工艺参数优化         :        d3, after d2, 8d
+    操作人员培训         :        d4, after d3, 5d
+    section 验收
+    产能达标验证         :        e1, after d4, 6d
+    竣工验收             :milestone, m2, after e1, 0d
+    量产移交             :        e2, after m2, 5d

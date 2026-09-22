@@ -1,0 +1,54 @@
+---
+name: 能源抄表计费领域模型
+title: 能源抄表计费类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 计价规则 {
+        <<接口>>
+        +计算(用量 Decimal) Decimal
+        +阶梯档位() String
+    }
+    class 计量表计 {
+        <<抽象类>>
+        #String 表号
+        #String 安装地址
+        #Decimal 当前读数
+        #换表() Boolean
+        #校验量程() Boolean
+    }
+    class 电表 {
+        +Decimal 峰段读数
+        +Decimal 谷段读数
+        +Integer 电流倍率
+        +抄表() Decimal
+        +计算峰谷() Decimal
+    }
+    class 阶梯计价 {
+        +Decimal 第一档价
+        +Decimal 第二档价
+        +Decimal 第三档价
+        +计算() Decimal
+        +阶梯档位() String
+    }
+    class 计费账单 {
+        +String 账单编号
+        +Decimal 本期用量
+        +Decimal 应收金额
+        +生成账单() String
+        +发起缴费() Boolean
+        +销账() Boolean
+    }
+    class 表计状态 {
+        <<枚举>>
+        正常
+        待检
+        故障
+        已拆除
+    }
+    计量表计 <|-- 电表 : 继承
+    阶梯计价 ..|> 计价规则 : 实现
+    计费账单 "1" *-- "1" 阶梯计价 : 组合
+    电表 "1" o-- "*" 计费账单 : 聚合
+    电表 "1" --> "1" 表计状态 : 状态
+    计费账单 "1" --> "1" 电表 : 结算

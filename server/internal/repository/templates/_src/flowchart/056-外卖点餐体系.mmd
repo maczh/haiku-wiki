@@ -1,0 +1,53 @@
+---
+name: 外卖点餐体系
+title: 外卖点餐体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可下单 {
+        <<接口>>
+        +加入购物车(数量 Integer) Boolean
+        +校验可售() Boolean
+    }
+    class 商品 {
+        <<抽象类>>
+        #Long 商品编号
+        #String 商品名称
+        #Decimal 单价
+        #展示名称() String
+        #校验可售() Boolean
+    }
+    class 菜品 {
+        +Integer 月销量
+        +Boolean 是否售罄
+        +String 规格备注
+        +加入购物车() Boolean
+        +校验可售() Boolean
+    }
+    class 门店 {
+        +Long 门店编号
+        +String 门店名称
+        +Decimal 起送金额
+        +接单() Boolean
+        +打烊() Boolean
+    }
+    class 外卖订单 {
+        +String 订单号
+        +Decimal 餐品金额
+        +String 送达地址
+        +提交() String
+        +支付() Boolean
+    }
+    class 订单状态 {
+        <<枚举>>
+        待支付
+        待接单
+        配送中
+        已送达
+    }
+    商品 <|-- 菜品 : 继承
+    菜品 ..|> 可下单 : 实现
+    门店 "1" o-- "*" 菜品 : 聚合
+    外卖订单 "1" *-- "*" 菜品 : 组合
+    外卖订单 "1" --> "1" 订单状态 : 状态
+    门店 "1" --> "*" 外卖订单 : 接单

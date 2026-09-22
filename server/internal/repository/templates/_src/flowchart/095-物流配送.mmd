@@ -1,0 +1,58 @@
+---
+name: 物流配送
+title: 物流配送ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    分拣中心 ||--o{ 配送站点 : 覆盖
+    配送站点 ||--o{ 快递员 : 派驻
+    分拣中心 ||--o{ 运单 : 始发
+    配送站点 }|--o{ 运单 : 派送
+    客户 ||--o{ 运单 : 托运
+    快递员 ||--o{ 运单 : 揽派
+    运单 ||--o{ 轨迹节点 : 记录
+    运单 ||--|| 签收记录 : 确认
+    分拣中心 {
+        bigint 中心ID PK
+        varchar 中心名称
+        varchar 所在城市
+        varchar 分拣线编号
+    }
+    配送站点 {
+        bigint 站点ID PK
+        bigint 中心ID FK
+        varchar 站点名称
+        varchar 服务片区
+    }
+    快递员 {
+        bigint 快递员ID PK
+        bigint 站点ID FK
+        varchar 姓名
+        varchar 手机号 UK "用于接单与联系"
+        tinyint 在职状态
+    }
+    运单 {
+        bigint 运单ID PK
+        varchar 运单号 UK "快递面单条码号"
+        bigint 客户ID FK
+        decimal 计费重量
+        tinyint 运单状态 "0已下单 4已签收"
+    }
+    客户 {
+        bigint 客户ID PK
+        varchar 客户姓名
+        varchar 联系电话 UK
+        varchar 常用地址
+    }
+    轨迹节点 {
+        bigint 节点ID PK
+        bigint 运单ID FK
+        varchar 操作动作 "揽收发出到达派送"
+        datetime 操作时间
+    }
+    签收记录 {
+        bigint 签收ID PK
+        bigint 运单ID FK
+        varchar 签收人
+        varchar 签收方式 "本人代收快递柜"
+    }

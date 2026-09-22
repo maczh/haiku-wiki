@@ -69,6 +69,7 @@ SUITES="e2e-folder-dir ui-doc-types" bash tools/verify/run-all.sh   # 只跑指�
 | `check-route-fallback.sh` | 14 | 8080 | 有/无布局壳的路由在 `LazyBoundary fill` 下都正常落位、不卡占位 |
 | `ui-shot.sh` | 截图 | 8080 | 各页面截图留证 |
 | `sim-docker-web.sh` | — | — | 无 docker 时逐字复现 `Dockerfile` 的 web-builder 阶段（证明 prebuild 能在干净上下文生成 Vditor 资源）。**要跑一次完整 `npm build`，约 11 分钟** |
+| `template-check.sh` | 6 | — | **非浏览器**、秒级：内置模板「源→JSON」一致性 + 版式/SVG 结构 + 甘特排期基准 + mermaid 语法 + 结构自检（366 个模板） |
 
 `run-all.sh` 会打印每套的实际 ✅/❌，上表项数是 2026-09-19 那次全绿的基线。
 
@@ -173,6 +174,36 @@ CSS 注入，而 DOM 上非数字 id 多一个 `:` 前缀 → 选择器静默失
 其余（`dist-backup*`、`dockersim-web-*`、`e2e-*`、`*-out-*`、`shots-*`、旧 `gocache`/`npmcache`、
 一次性排查脚本 `gantt-diag*.sh` / `gantt-*-probe*.sh` / `capture-video-shots*.sh` 等）都是
 **可再生产物**，可以清。
+
+## 非浏览器套件：`template-check.sh`（2026-09-23 新增）
+
+内置模板走「**源文件 → 生成器 → JSON → `//go:embed`**」管线，手改 JSON 会被下一次生成
+覆盖（或被 `--check` 判为不一致）。这个套件六步都在秒级、不起服务：
+
+1. `gen.py --check`（markdown）、`gen-flowchart.py --check`（`.mmd`）、`gen-drawing.py --check`（绘图 DSL）
+   —— 三者都要求「磁盘 JSON == 由源重新生成」，所以**必须先把源改对再跑生成器**；
+2. `retime-gantt.py --check` —— mermaid 甘特排期不得整图落在过去（见下）；
+3. `check-mermaid.mjs` —— 逐条 `mermaid.parse`（v11）；空集直接判失败，避免校验形同虚设；
+4. 结构自检 —— `doc_type` 白名单、必填字段、drawing 必须同时带 `xml`+`svg`、SVG 结构干净
+   （`</svg>` 闭合、无嵌套 `<defs>`）、flowchart 首行图型在白名单内。
+
+几个**踩过的坑**，改这套管线前务必先读：
+
+- **markdown 源少一个尾换行就会被判「不一致」**：`gen.py` 写的 JSON 末尾是 `}\n`。
+  手工编辑过 JSON 后必定漂移，直接跑一次 `gen.py` 收口即可（它只补这一个字节）。
+- **drawing 的 `xml` 是 draw.io 的完整文件格式**：`<mxfile><diagram><mxGraphModel>…`，
+  **不是**裸 `<mxGraphModel>`。前端 `lib/import/parse.ts` 与 draw.io embed 的 `load` 都两者通吃，
+  断言请用「含 `mxGraphModel`」而不是「以 `<mxGraphModel` 开头」。
+- **SVG 里 `<defs>` 不能嵌套**：网格 pattern 曾用 `out.insert(2, "<defs>…")` 单独插，
+  结果插进了箭头 defs 内部变成 `<defs><defs>`。现在箭头与 pattern 合并进同一个 `<defs>`。
+- **mermaid 甘特模板的日期要锚定基准日**：整图落在过去时 mermaid 不会画 today 竖线，
+  观感像一张作废的排期表。基准约定与 `tools/templates/polish.py` 一致（`2026-09-22` - 12 天），
+  跑 `retime-gantt.py` 平移；「双十一大促」（锚 11-11）、「展会筹办」（跨到 10-14）这类
+  **语义上绑定固定日历事件**的模板会被自动识别并保留原样。
+- **`mermaid.render` 在 jsdom 下必挂**（缺 `getBBox` / `getComputedTextLength`，没有排版引擎），
+  所以自动化只做 `parse`；「图画得出来、排得好不好看」要用真实浏览器，见
+  `tools/templates/preview-flowchart.py`（生成一页联系表并截图）与 `preview-drawing.py`。
+- **`_src/` 不进二进制**：`//go:embed templates/*.json` 只收顶层 JSON，子目录不打包。
 
 ## 非浏览器套件：`cad-render-probe.sh`
 

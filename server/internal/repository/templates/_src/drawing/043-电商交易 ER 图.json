@@ -1,0 +1,142 @@
+{
+  "name": "电商交易 ER 图",
+  "title": "电商交易域实体关系 ER 图",
+  "category": "绘图模板·关系与结构",
+  "w": 1200,
+  "h": 580,
+  "groups": [
+    {
+      "t": "电商交易域实体关系（用户 — 订单 — 明细 — 商品 — 库存 — 支付）",
+      "x": 40,
+      "y": 56,
+      "w": 1120,
+      "h": 460,
+      "palette": "gray"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "u",
+      "t": "用户 user\nPK 用户ID bigint\nUK 手机号 varchar\n会员等级 tinyint\n注册时间 datetime",
+      "x": 60,
+      "y": 90,
+      "w": 300,
+      "h": 170,
+      "shape": "rect",
+      "palette": "blue",
+      "fs": 12
+    },
+    {
+      "id": "o",
+      "t": "订单 order\nPK 订单号 varchar\nFK 用户ID bigint\n应付金额 decimal(12,2)\n订单状态 tinyint\n下单时间 datetime",
+      "x": 480,
+      "y": 90,
+      "w": 300,
+      "h": 170,
+      "shape": "rect",
+      "palette": "green",
+      "fs": 12
+    },
+    {
+      "id": "it",
+      "t": "订单明细 order_item\nPK 明细ID bigint\nFK 订单号 varchar\nFK 商品ID bigint\n数量 int\n成交单价 decimal(10,2)",
+      "x": 900,
+      "y": 90,
+      "w": 260,
+      "h": 170,
+      "shape": "rect",
+      "palette": "teal",
+      "fs": 12
+    },
+    {
+      "id": "p",
+      "t": "商品 product\nPK 商品ID bigint\n商品名称 varchar\n品类ID int\n售价 decimal(10,2)",
+      "x": 60,
+      "y": 330,
+      "w": 300,
+      "h": 140,
+      "shape": "rect",
+      "palette": "indigo",
+      "fs": 12
+    },
+    {
+      "id": "s",
+      "t": "库存 stock\nPK 库存ID bigint\nFK 商品ID bigint\n可用数量 int\n锁定数量 int",
+      "x": 480,
+      "y": 330,
+      "w": 300,
+      "h": 140,
+      "shape": "rect",
+      "palette": "amber",
+      "fs": 12
+    },
+    {
+      "id": "pay",
+      "t": "支付流水 payment\nPK 流水号 varchar\nFK 订单号 varchar\n支付渠道 varchar\n支付状态 tinyint",
+      "x": 900,
+      "y": 330,
+      "w": 260,
+      "h": 140,
+      "shape": "rect",
+      "palette": "purple",
+      "fs": 12
+    }
+  ],
+  "edges": [
+    {
+      "f": "u",
+      "t": "o",
+      "label": "1:N 下单",
+      "dir": "H"
+    },
+    {
+      "f": "o",
+      "t": "it",
+      "label": "1:N 包含",
+      "dir": "H"
+    },
+    {
+      "f": "p",
+      "t": "s",
+      "label": "1:1 库存",
+      "dir": "H"
+    },
+    {
+      "f": "s",
+      "t": "pay",
+      "label": "1:1 结算",
+      "dir": "H"
+    },
+    {
+      "f": "s",
+      "t": "o",
+      "label": "N:1 关联",
+      "dir": "V"
+    },
+    {
+      "f": "o",
+      "t": "pay",
+      "label": "1:N 支付",
+      "dir": "L"
+    },
+    {
+      "f": "p",
+      "t": "u",
+      "label": "N:M 收藏",
+      "dir": "L",
+      "dash": true,
+      "palette": "gray"
+    }
+  ],
+  "notes": [
+    {
+      "t": "填写说明：本图为示例模板，实体、字段与基数请按实际库表结构替换。",
+      "x": 40,
+      "y": 536,
+      "w": 1120,
+      "h": 44,
+      "shape": "note",
+      "palette": "gray"
+    }
+  ]
+}

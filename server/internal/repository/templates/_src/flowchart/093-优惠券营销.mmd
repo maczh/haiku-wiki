@@ -1,0 +1,60 @@
+---
+name: 优惠券营销
+title: 优惠券营销ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    营销活动 ||--o{ 优惠券模板 : 配置
+    优惠券模板 ||--o{ 优惠券批次 : 投放
+    优惠券批次 ||--o{ 用户优惠券 : 发放
+    用户 ||--o{ 用户优惠券 : 领取
+    优惠券模板 }o--o{ 商品 : 限定适用
+    用户 ||--o{ 订单 : 提交
+    用户优惠券 }o--|| 订单 : 核销
+    营销活动 {
+        bigint 活动ID PK
+        varchar 活动名称
+        datetime 开始时间
+        datetime 结束时间
+        tinyint 活动状态
+    }
+    优惠券模板 {
+        bigint 模板ID PK
+        bigint 活动ID FK
+        varchar 券类型 "满减券折扣券包邮券"
+        decimal 优惠力度 "满减金额或折扣率"
+        decimal 使用门槛
+    }
+    优惠券批次 {
+        bigint 批次ID PK
+        bigint 模板ID FK
+        int 发行总量
+        int 已领取量
+        date 有效期止
+    }
+    用户优惠券 {
+        bigint 领券ID PK
+        bigint 批次ID FK
+        bigint 用户ID FK
+        varchar 券码 UK "核销时出示"
+        tinyint 使用状态 "0未使用 1已核销"
+    }
+    用户 {
+        bigint 用户ID PK
+        varchar 手机号 UK
+        varchar 昵称
+        datetime 注册时间
+    }
+    商品 {
+        bigint 商品ID PK
+        varchar 商品名称
+        decimal 售价
+        bigint 类目ID FK
+    }
+    订单 {
+        bigint 订单ID PK
+        varchar 订单号 UK
+        bigint 用户ID FK
+        decimal 实付金额
+        datetime 下单时间
+    }

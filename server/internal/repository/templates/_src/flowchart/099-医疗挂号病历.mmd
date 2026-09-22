@@ -1,0 +1,60 @@
+---
+name: 医疗挂号病历
+title: 医疗挂号病历ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    科室 ||--o{ 医生 : 隶属
+    医生 ||--o{ 排班 : 出诊
+    患者 ||--o{ 挂号单 : 预约
+    排班 ||--o{ 挂号单 : 占用号源
+    挂号单 ||--|| 病历 : 产生
+    病历 ||--o{ 处方 : 开具
+    处方 }o--o{ 药品 : 配药
+    患者 {
+        bigint 患者ID PK
+        varchar 就诊卡号 UK "院内唯一就诊卡"
+        varchar 姓名
+        varchar 身份证号 UK "用于实名建档"
+        tinyint 性别
+    }
+    科室 {
+        bigint 科室ID PK
+        varchar 科室名称
+        varchar 科室编码 UK "院内标准编码"
+        varchar 门诊电话
+    }
+    医生 {
+        bigint 医生ID PK
+        bigint 科室ID FK
+        varchar 执业证号 UK "医师执业证书编号"
+        varchar 职称 "主任医师副主任医师"
+    }
+    排班 {
+        bigint 排班ID PK
+        bigint 医生ID FK
+        date 出诊日期
+        int 号源总数
+        int 剩余号源
+    }
+    挂号单 {
+        bigint 挂号ID PK
+        varchar 挂号单号 UK
+        bigint 患者ID FK
+        bigint 排班ID FK
+        tinyint 挂号状态 "1已约 2已退 3已就诊"
+    }
+    病历 {
+        bigint 病历ID PK
+        bigint 挂号ID FK
+        text 主诉
+        text 诊断结论
+        datetime 接诊时间
+    }
+    处方 {
+        bigint 处方ID PK
+        bigint 病历ID FK
+        bigint 药品ID FK
+        varchar 用法用量 "每日三次每次一片"
+        int 开药数量
+    }

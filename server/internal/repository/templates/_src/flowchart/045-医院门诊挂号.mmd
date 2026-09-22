@@ -1,0 +1,45 @@
+---
+name: 医院门诊挂号
+title: 医院门诊挂号时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant P as 患者
+    participant A as 挂号平台
+    participant S as 号源服务 schedule-svc
+    participant H as 医院 HIS
+    participant D as 医生工作站
+    P->>A: 选择院区 科室 心血管内科 与日期
+    A->>S: GET /schedule/list 携带 dept_code 与 date
+    P->>A: 提交挂号 选择就诊人 card_no
+    A->>+H: POST /his/patient/verify 校验就诊卡与实名
+    alt 就诊卡无效或黑名单
+        A-->>P: 返回 400 请到窗口核实身份
+    else 校验通过
+        A->>S: POST /schedule/lock 锁号 号源序号 8
+        alt 锁号失败
+            S-->>A: 返回 409 号源已被抢占
+            A-->>P: 提示换医生或换时段
+        else 锁号成功 有效期 600 秒
+            A->>H: POST /pay/reg 挂号费 医保统筹 3000 分
+            A->>H: POST /his/register/confirm 确认挂号
+            H-->>-A: 返回就诊号 8 与候诊队列位置 3
+        end
+    end
+    P->>A: 到院签到 刷就诊卡
+    A->>+H: POST /his/checkin 更新候诊状态
+    loop 候诊叫号
+        D->>H: 呼叫下一位患者
+        A-->>P: 提示请到 3 号诊室就诊
+        opt 患者过号
+            A->>H: 重新排入队列 顺延 2 位
+        end
+    end
+    par 检验检查开单
+        D->>H: 开立心电图与血常规申请单
+        H-->>-P: 推送检查费待缴费提醒
+    and 电子病历归档
+        D->>H: 提交诊断与处方
+    end
+    Note over P,D: 锁号 10 分钟未支付自动释放 支持就诊前 24 小时退号

@@ -1,0 +1,33 @@
+---
+name: 展会筹办
+title: 展会筹办甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 国际智能制造展参展筹办排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 立项与招商
+    展会目标与预算确定   :done,  a1, 2026-05-06, 6d
+    展位预订与签约       :done,  a2, after a1, 8d
+    参展产品清单确认     :        a3, after a2, 5d
+    section 展台设计搭建
+    展台创意方案设计     :done,  b1, after a2, 12d
+    施工图与物料制作     :        b2, after b1, 15d
+    展具运输与进场       :crit,  b3, after b2, 6d
+    现场搭建与调试       :active, crit, b4, after b3, 4d
+    展台验收             :milestone, m1, after b4, 0d
+    section 宣传与观众
+    展前媒体预热         :        c1, after a3, 20d
+    客户邀约与预约登记   :        c2, after c1, 15d
+    宣传物料与礼品准备   :        c3, after c2, 8d
+    section 现场执行
+    展前人员培训         :        d1, after m1, 2d
+    展会正式开幕         :milestone, m2, 2026-10-14, 0d
+    现场接待与商机登记   :active, d2, after m2, 4d
+    媒体专访与直播       :        d3, after m2, 3d
+    section 撤展复盘
+    撤展与物料回运       :        e1, after d2, 3d
+    线索跟进与转化       :        e2, after e1, 20d
+    参展效果复盘         :        e3, after e2, 4d

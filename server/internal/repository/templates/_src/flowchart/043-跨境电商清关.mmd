@@ -1,0 +1,45 @@
+---
+name: 跨境电商清关
+title: 跨境电商清关时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant B as 海外买家
+    participant O as 履约中心 oms
+    participant C as 报关系统 customs-decl
+    participant H as 海关系统
+    participant W as 保税仓 WMS
+    B->>O: 提交订单 商品 2 件 实付 26800 分
+    O->>O: 校验跨境正面清单与单笔限额 500000 分
+    B->>O: 完成支付 订单进入待申报
+    O->>C: POST /decl/order 提交订单申报清单
+    activate C
+    C->>C: 计算综合税 关税 0 增值税与消费税
+    C->>H: POST /customs/order/push 订单 支付 运单三单
+    H-->>C: 返回申报接收回执 与清单编号
+    loop 每 10 分钟查询 最多 12 次
+        C->>H: GET /customs/order/status 携带清单编号
+        H-->>C: 返回审核状态
+        alt 海关放行
+            O->>W: POST /wms/outbound 生成出库单
+            W-->>O: 返回出库完成与运单号
+        else 海关查验
+            C->>H: 提交补充材料 发票与成分说明
+            H-->>C: 返回查验结论
+            opt 查验不通过
+                C->>O: 触发退运或销毁流程
+                O-->>B: 全额退款到账通知
+            end
+        end
+    end
+    deactivate C
+    par 税费缴纳
+        C->>H: 推送税单 2412 分
+    and 物流轨迹回传
+        W->>O: 回传轨迹节点 已揽收 起飞 派送
+    end
+    opt 买家拒收退回
+        B->>W: 发起拒收并退回保税仓
+    end
+    Note over B,W: 三单对碰一致才可申报 清单有效期 30 天

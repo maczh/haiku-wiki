@@ -1,0 +1,45 @@
+---
+name: CI 构建发布
+title: CI 构建发布时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant D as 开发者
+    participant G as 代码仓 GitLab
+    participant J as 流水线 Jenkins
+    participant R as 镜像仓库 Harbor
+    participant K as 集群 K8s
+    D->>G: git push 分支 release/1.8.0
+    G->>J: 触发 Webhook 携带 commit_id 与分支
+    activate J
+    J->>G: clone 代码并切换至 commit_id
+    par 并行质量门禁
+        J->>J: 触发单元测试 通过率 98.6 覆盖率 82
+    and 静态扫描
+        J->>J: 触发 golangci-lint 与漏洞扫描
+    end
+    alt 门禁未通过
+        J-->>D: 发送构建失败通知 与失败用例
+    else 门禁通过
+        J->>R: docker build 推送镜像 order-svc:1.8.0
+        J->>K: kubectl apply 灰度 2 个副本
+        activate K
+        alt 就绪探针失败
+            K->>J: 返回升级失败 触发自动回滚
+            J->>K: 回滚至 1.7.9 版本
+        else 灰度实例就绪
+            loop 观察 10 分钟 每分钟采样
+                opt 错误率高于 1
+                    J->>K: 暂停发布并执行回滚
+                end
+            end
+            J->>-K: 全量扩容至 10 个副本
+            K-->>-J: 返回全量发布完成
+        end
+    end
+    opt 需要人工审批
+        J->>D: 发送审批卡片给值班负责人
+        D-->>J: 返回审批通过并继续发布
+    end
+    Note over D,K: 流水线超时 30 分钟自动中止 探针 10 秒一次

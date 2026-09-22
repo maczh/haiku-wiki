@@ -1,0 +1,57 @@
+---
+name: SaaS多租户权限数据模型
+title: SaaS多租户权限ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    订阅套餐 ||--o{ 租户 : 订购
+    租户 ||--o{ 组织部门 : 建立
+    组织部门 ||--o{ 用户 : 归属
+    用户 }o--o{ 角色 : 分配
+    角色 }o--o{ 权限 : 授权
+    用户 ||--o{ 操作日志 : 产生
+    租户 ||--o{ 操作日志 : 留存
+    租户 {
+        bigint 租户ID PK
+        varchar 租户编码 UK "二级域名前缀"
+        bigint 套餐ID FK
+        tinyint 租户状态 "1试用 2正式 3停用"
+    }
+    订阅套餐 {
+        bigint 套餐ID PK
+        varchar 套餐名称
+        int 最大用户数
+        decimal 年度费用
+    }
+    组织部门 {
+        bigint 部门ID PK
+        bigint 租户ID FK
+        varchar 部门名称
+        bigint 上级部门ID FK
+    }
+    用户 {
+        bigint 用户ID PK
+        bigint 租户ID FK
+        bigint 部门ID FK
+        varchar 登录账号 UK "租户内唯一"
+        tinyint 账号状态 "1启用 0禁用"
+    }
+    角色 {
+        bigint 角色ID PK
+        bigint 租户ID FK
+        varchar 角色名称
+        varchar 角色类型 "内置角色或自定义"
+    }
+    权限 {
+        bigint 权限ID PK
+        varchar 权限编码 UK "资源冒号操作"
+        varchar 所属模块
+        varchar 请求路径
+    }
+    操作日志 {
+        bigint 日志ID PK
+        bigint 租户ID FK
+        bigint 用户ID FK
+        varchar 操作动作 "新增导出审批登录"
+        varchar 来源IP
+    }

@@ -1,0 +1,35 @@
+---
+name: 游戏版本上线
+title: 游戏版本上线甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 手游二点零大版本上线排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 内容制作
+    新主线剧情脚本       :done,  a1, 2026-09-10, 15d
+    新角色与美术资源     :done,  a2, after a1, 25d
+    新地图场景搭建       :active, crit, a3, after a1, 20d
+    音效与配音制作       :        a4, after a2, 15d
+    section 系统开发
+    新玩法战斗系统       :active, crit, b1, after a2, 25d
+    社交组队系统开发     :        b2, after b1, 12d
+    赛季通行证系统       :        b3, after b1, 15d
+    反外挂与风控升级     :        b4, after b2, 10d
+    section 测试调优
+    内部封测             :        c1, after b1, 12d
+    数值平衡调优         :crit,  c2, after c1, 15d
+    性能与机型适配       :        c3, after c2, 10d
+    付费删档测试         :        c4, after c3, 10d
+    版本内容锁定         :milestone, m1, after c4, 0d
+    section 版号与合规
+    版号变更申报         :        d1, after m1, 20d
+    防沉迷与实名校验     :        d2, after m1, 10d
+    内容合规审查         :        d3, after c4, 8d
+    section 发行运营
+    预下载与预约开启     :        e1, after d3, 10d
+    全平台首发上线       :milestone, m2, after e1, 0d
+    上线活动与买量投放   :crit,  e2, after m2, 15d
+    版本数据复盘         :        e3, after e2, 7d

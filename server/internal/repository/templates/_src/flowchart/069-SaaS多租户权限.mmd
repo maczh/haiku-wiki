@@ -1,0 +1,53 @@
+---
+name: SaaS多租户权限领域模型
+title: SaaS多租户权限类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 鉴权服务 {
+        <<接口>>
+        +鉴权(令牌 String) Boolean
+        +可访问(权限码 String) Boolean
+    }
+    class 权限主体 {
+        <<抽象类>>
+        #Long 主体编号
+        #String 主体名称
+        #String 所属租户
+        #归属校验() Boolean
+        #同步目录() Boolean
+    }
+    class 租户用户 {
+        +String 登录邮箱
+        +String 显示名
+        +String 所属部门
+        +邀请() Long
+        +禁用() Boolean
+    }
+    class 角色 {
+        +Long 角色编号
+        +String 角色类型
+        +Boolean 是否内置
+        +授权() Boolean
+        +回收权限() Boolean
+    }
+    class 权限点 {
+        +Long 权限编号
+        +String 权限码
+        +String 操作动作
+        +注册() Boolean
+        +失效() Boolean
+    }
+    class 租户状态 {
+        <<枚举>>
+        试用
+        正常
+        欠费
+        已停用
+    }
+    权限主体 <|-- 租户用户 : 继承
+    权限点 ..|> 鉴权服务 : 实现
+    租户用户 "1" *-- "*" 角色 : 组合
+    角色 "1" o-- "*" 权限点 : 聚合
+    租户用户 "1" --> "1" 租户状态 : 状态
+    权限点 "*" --> "1" 角色 : 挂载

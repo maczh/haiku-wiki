@@ -1,0 +1,54 @@
+---
+name: 库存与仓储模型
+title: 库存与仓储模型类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 库存操作 {
+        <<接口>>
+        +入库(数量 Integer) Boolean
+        +出库(数量 Integer) Boolean
+    }
+    class 仓储单据 {
+        <<抽象类>>
+        #String 单据号
+        #LocalDateTime 制单时间
+        #String 制单人
+        +生成单号() String
+        +过账() Boolean
+    }
+    class 入库单 {
+        +String 供应商编码
+        +String 采购单号
+        +LocalDateTime 到货时间
+        +收货() Boolean
+        +上架() Boolean
+    }
+    class 出库单 {
+        +String 关联订单号
+        +String 承运商
+        +LocalDateTime 发货时间
+        +拣货() Boolean
+        +复核() Boolean
+    }
+    class 库存台账 {
+        +Long 台账编号
+        +String 商品编码
+        +Integer 可用数量
+        +Integer 锁定数量
+        +占用() Boolean
+        +释放() Boolean
+    }
+    class 库存状态 {
+        <<枚举>>
+        正常
+        锁定
+        残次
+        已冻结
+    }
+    仓储单据 <|-- 入库单 : 继承
+    仓储单据 <|-- 出库单 : 继承
+    库存台账 ..|> 库存操作 : 实现
+    入库单 "1" *-- "*" 库存台账 : 组合
+    出库单 "1" o-- "*" 库存台账 : 聚合
+    库存台账 "1" --> "1" 库存状态 : 状态

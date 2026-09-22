@@ -1,0 +1,45 @@
+---
+name: 消息可靠投递
+title: 消息可靠投递时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant P as 生产者 order-svc
+    participant T as 本地事务表 tx_message
+    participant B as MQ Broker
+    participant C as 消费者 settle-svc
+    participant K as 对账服务 reconcile-svc
+    P->>T: INSERT 业务数据与待发消息 状态 INIT
+    P->>B: 发送消息 topic=order.paid 携带 msg_id
+    alt 发送成功
+        B-->>P: 返回 ACK 与分区偏移
+        P->>T: 更新消息状态 SENT
+    else 发送超时
+        B-->>P: 返回超时异常
+        P->>T: 保持状态 INIT 等待补偿
+    loop 补偿任务每 10 秒扫描
+        P->>T: 查询 30 秒仍为 INIT 的记录
+        opt 存在待补偿消息
+            P->>B: 重新投递 最多 3 次 间隔 5 秒
+        end
+    end
+    B->>C: 推送消息 order.paid
+    activate C
+    alt 已消费过
+        C-->>B: 直接提交 ACK 并丢弃
+    else 首次消费
+        C->>C: 执行结算逻辑扣减佣金 120 分
+        C-->>B: 返回 ACK 提交位点
+    end
+    deactivate C
+    opt 重试 3 次仍失败
+        B->>K: 转入死信队列 DLQ_ORDER_PAID
+    end
+    par 定时对账
+        K->>T: 拉取当日 SENT 消息流水
+    and 消费侧核对
+        K->>C: 拉取已消费 msg_id 集合
+    end
+    end
+    Note over P,K: 本地事务表加最大努力通知保证最终一致

@@ -1,0 +1,53 @@
+---
+name: 用户与会员体系
+title: 用户与会员体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 登录凭证 {
+        <<接口>>
+        +校验(凭证 String) Boolean
+        +换取令牌() String
+    }
+    class 账号 {
+        <<抽象类>>
+        #Long 账号编号
+        #String 登录名
+        #String 密码摘要
+        #登录() String
+        #风控校验() Boolean
+    }
+    class 会员账号 {
+        +Long 会员号
+        +String 昵称
+        +Integer 成长值
+        +完善资料() Boolean
+        +脱敏展示() String
+    }
+    class 会员等级 {
+        +Integer 等级编号
+        +String 等级名称
+        +Decimal 折扣率
+        +计算折扣(金额 Decimal) Decimal
+        +评估升级() Boolean
+    }
+    class 积分账户 {
+        +Long 账户编号
+        +Integer 可用积分
+        +Integer 冻结积分
+        +增加() Boolean
+        +扣减() Boolean
+    }
+    class 账号状态 {
+        <<枚举>>
+        正常
+        未激活
+        冻结
+        注销
+    }
+    账号 <|-- 会员账号 : 继承
+    会员账号 ..|> 登录凭证 : 实现
+    会员账号 "1" *-- "1" 积分账户 : 组合
+    会员等级 "1" o-- "*" 会员账号 : 聚合
+    会员账号 "1" --> "1" 账号状态 : 状态
+    积分账户 "1" --> "1" 会员等级 : 权益

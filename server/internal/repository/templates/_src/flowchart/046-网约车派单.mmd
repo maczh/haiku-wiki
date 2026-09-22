@@ -1,0 +1,45 @@
+---
+name: 网约车派单
+title: 网约车派单时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant R as 乘客端
+    participant O as 订单服务 order-svc
+    participant D as 派单引擎 dispatch-svc
+    participant S as 司机端
+    participant B as 计价服务 billing-svc
+    R->>O: POST /ride/create 起点 终点 与用车类型 快车
+    O->>D: POST /dispatch/match 携带起点经纬度
+    activate D
+    loop 每 5 秒一轮 最多 5 轮
+        D->>S: 推送指派 倒计时 15 秒
+        alt 司机接单
+            S-->>D: 返回接单确认与当前位置
+            D->>O: 绑定司机与车辆 车牌与司机编号
+            O-->>R: 推送司机信息 预计 6 分钟到达
+        else 司机超时未响应
+            D->>D: 扩大半径至 5 公里 加价 3 分调度费
+            opt 第五轮仍未匹配
+                O-->>R: 提示当前用车高峰 建议加价或等待
+            end
+        end
+    end
+    deactivate D
+    S->>B: POST /billing/start 记录起点与开始时间
+    activate B
+    loop 行程中每 15 秒上报
+        opt 偏离导航路线
+            B-->>R: 推送偏航提醒
+        end
+    end
+    S->>B: POST /billing/end 结束行程
+    B->>B: 计算总价 2890 分 含动态调价 1.2 倍
+    deactivate B
+    par 司机收入结算
+        B-->>S: 入账当日收入
+    and 服务评价
+        O->>D: 更新司机服务分与派单权重
+    end
+    Note over R,B: 派单超时 60 秒转人工调度 轨迹保留 180 天

@@ -1,0 +1,45 @@
+---
+name: 银行跨行转账
+title: 银行跨行转账时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant U as 手机银行
+    participant C as 行内核心 core-banking
+    participant F as 清算前置
+    participant N as 网联清算平台
+    participant R as 收款行核心
+    U->>C: POST /transfer 付款账号 收款账号 金额 500000 分
+    activate C
+    C->>C: 冻结付款方资金 500000 分
+    C->>F: 组包 报文类型 100 与业务编号
+    F->>N: POST /clearing/submit 携带报文与数字签名
+    N->>R: 转发贷记报文至收款行
+    activate R
+    alt 收款账户异常
+        R-->>N: 返回拒绝码 RJ09 账户状态异常
+        N-->>F: 转发拒绝报文
+        C-->>U: 推送转账失败通知
+    else 收款账户正常
+        R->>R: 入账 500000 分 并生成回单
+        R-->>-N: 返回成功应答 与清算日期
+        N-->>F: 转发成功应答
+        F->>C: 记账扣款并解除冻结
+        C-->>-U: 推送到账通知
+    end
+    par 日终对账
+        N->>F: 下发当日清算对账文件
+        F->>C: 逐笔勾兑 以清算流水号为准
+    and 差错处理
+        C->>F: 上报长款或短款差错
+        F->>N: 提交差错调整申请
+    end
+    loop 每 5 分钟扫描挂账
+        F->>F: 查询超 15 分钟未终态交易
+        opt 存在挂账交易
+            F->>N: 发起交易状态查询
+            F->>C: 按终态冲正或继续挂账
+        end
+    end
+    Note over U,R: 转账以核心流水号幂等 超时未决走查询冲正

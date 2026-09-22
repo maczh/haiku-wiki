@@ -1,0 +1,53 @@
+---
+name: 电商订单领域模型
+title: 电商订单领域模型类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可支付 {
+        <<接口>>
+        +支付(金额 Decimal) Boolean
+        +退款(金额 Decimal) Boolean
+    }
+    class 抽象单据 {
+        <<抽象类>>
+        #String 单据号
+        #LocalDateTime 创建时间
+        #String 创建人
+        +生成单号() String
+        +审核() Boolean
+    }
+    class 订单 {
+        +String 订单号
+        +Decimal 应付金额
+        +Decimal 优惠金额
+        +LocalDateTime 下单时间
+        +支付() Boolean
+        +计算优惠() Decimal
+    }
+    class 订单明细 {
+        +Long 明细编号
+        +String 商品编码
+        +Integer 购买数量
+        +行小计() Decimal
+        +申请售后() Boolean
+    }
+    class 会员 {
+        +Long 会员号
+        +String 昵称
+        +Integer 成长值
+        +累计消费() Decimal
+        +冻结(原因 String) Boolean
+    }
+    class 订单状态 {
+        <<枚举>>
+        待支付
+        已支付
+        已发货
+        已取消
+    }
+    抽象单据 <|-- 订单 : 继承
+    订单 ..|> 可支付 : 实现
+    订单 "1" *-- "*" 订单明细 : 组合
+    会员 "1" o-- "*" 订单 : 聚合
+    订单 "1" --> "1" 订单状态 : 状态

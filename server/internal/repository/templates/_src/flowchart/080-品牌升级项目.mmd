@@ -1,0 +1,32 @@
+---
+name: 品牌升级项目
+title: 品牌升级项目甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 集团品牌升级项目排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 调研诊断
+    品牌资产盘点         :done,  a1, 2026-09-10, 8d
+    用户与竞品调研       :done,  a2, after a1, 12d
+    品牌诊断报告         :milestone, m1, after a2, 0d
+    section 策略定位
+    品牌定位与核心价值   :done,  b1, after m1, 10d
+    品牌口号与故事体系   :        b2, after b1, 8d
+    品牌架构梳理         :        b3, after b1, 7d
+    section 视觉体系
+    标志再设计           :active, crit, c1, after b2, 15d
+    色彩与字体规范       :        c2, after c1, 8d
+    品牌应用物料设计     :        c3, after c2, 12d
+    视觉手册编制         :        c4, after c3, 10d
+    section 触点落地
+    官网与社媒视觉换装   :        d1, after c4, 12d
+    办公与门店环境更新   :        d2, after c3, 15d
+    产品包装更新         :        d3, after c4, 18d
+    员工品牌内训         :        d4, after d1, 5d
+    section 发布
+    品牌发布会           :milestone, m2, after d4, 0d
+    媒体传播战役         :        e1, after m2, 20d
+    品牌效果评估         :        e2, after e1, 8d

@@ -1,0 +1,54 @@
+---
+name: 金融风控授信
+title: 金融风控授信类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 风控规则 {
+        <<接口>>
+        +执行(申请编号 String) Boolean
+        +风险分值() Integer
+    }
+    class 授信主体 {
+        <<抽象类>>
+        #Long 主体编号
+        #String 主体名称
+        #String 证件号
+        #实名认证() Boolean
+        #反洗钱筛查() Boolean
+    }
+    class 授信申请 {
+        +String 申请编号
+        +Decimal 申请额度
+        +Integer 申请期限
+        +提交() String
+        +补充材料() Boolean
+    }
+    class 反欺诈规则 {
+        +String 设备指纹
+        +String 申请地址
+        +Integer 短时申请次数
+        +执行() Boolean
+        +风险分值() Integer
+    }
+    class 额度 {
+        +Long 额度编号
+        +Decimal 总额度
+        +Decimal 已用额度
+        +激活() Boolean
+        +占用() Boolean
+        +冻结() Boolean
+    }
+    class 授信决策 {
+        <<枚举>>
+        通过
+        拒绝
+        转人工
+        退回补件
+    }
+    授信主体 <|-- 授信申请 : 继承
+    反欺诈规则 ..|> 风控规则 : 实现
+    授信申请 "1" *-- "*" 反欺诈规则 : 组合
+    授信申请 "1" o-- "*" 额度 : 聚合
+    授信申请 "1" --> "1" 授信决策 : 决策
+    额度 "1" --> "1" 授信申请 : 核定

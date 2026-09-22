@@ -1,0 +1,322 @@
+{
+  "name": "用户旅程地图",
+  "title": "用户旅程地图",
+  "category": "绘图模板·分析决策",
+  "w": 1200,
+  "h": 610,
+  "groups": [
+    {
+      "t": "阶段",
+      "x": 40,
+      "y": 56,
+      "w": 1120,
+      "h": 108,
+      "palette": "gray"
+    },
+    {
+      "t": "用户行为",
+      "x": 40,
+      "y": 176,
+      "w": 1120,
+      "h": 108,
+      "palette": "blue"
+    },
+    {
+      "t": "触点与渠道",
+      "x": 40,
+      "y": 296,
+      "w": 1120,
+      "h": 108,
+      "palette": "teal"
+    },
+    {
+      "t": "情绪与痛点",
+      "x": 40,
+      "y": 416,
+      "w": 1120,
+      "h": 108,
+      "palette": "amber"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "st0",
+      "t": "认知 · 看直播被种草",
+      "x": 55,
+      "y": 88,
+      "w": 244,
+      "h": 56,
+      "shape": "pill",
+      "palette": "indigo",
+      "fs": 12
+    },
+    {
+      "id": "bh0",
+      "t": "刷到海鲜火锅直播，点进商品详情",
+      "x": 55,
+      "y": 208,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "blue",
+      "fs": 12
+    },
+    {
+      "id": "tc0",
+      "t": "抖音短视频 · 直播间小黄车",
+      "x": 55,
+      "y": 328,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "teal",
+      "fs": 12
+    },
+    {
+      "id": "em0",
+      "t": "兴趣高但担心不新鲜",
+      "x": 55,
+      "y": 448,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "amber",
+      "fs": 12
+    },
+    {
+      "id": "st1",
+      "t": "考虑 · 比价与看评价",
+      "x": 337,
+      "y": 88,
+      "w": 244,
+      "h": 56,
+      "shape": "pill",
+      "palette": "indigo",
+      "fs": 12
+    },
+    {
+      "id": "bh1",
+      "t": "对比 3 家同类商品，查看差评与溯源",
+      "x": 337,
+      "y": 208,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "blue",
+      "fs": 12
+    },
+    {
+      "id": "tc1",
+      "t": "商品详情页 · 评价区 · 客服咨询",
+      "x": 337,
+      "y": 328,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "teal",
+      "fs": 12
+    },
+    {
+      "id": "em1",
+      "t": "价格敏感，犹豫比价耗时",
+      "x": 337,
+      "y": 448,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "amber",
+      "fs": 12
+    },
+    {
+      "id": "st2",
+      "t": "首购 · 下单与收货",
+      "x": 619,
+      "y": 88,
+      "w": 244,
+      "h": 56,
+      "shape": "pill",
+      "palette": "indigo",
+      "fs": 12
+    },
+    {
+      "id": "bh2",
+      "t": "下单支付，等待冷链到家并开箱",
+      "x": 619,
+      "y": 208,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "blue",
+      "fs": 12
+    },
+    {
+      "id": "tc2",
+      "t": "下单页 · 支付渠道 · 物流轨迹",
+      "x": 619,
+      "y": 328,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "teal",
+      "fs": 12
+    },
+    {
+      "id": "em2",
+      "t": "到货新鲜度决定复购意愿",
+      "x": 619,
+      "y": 448,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "amber",
+      "fs": 12
+    },
+    {
+      "id": "st3",
+      "t": "复购 · 会员与推荐",
+      "x": 901,
+      "y": 88,
+      "w": 244,
+      "h": 56,
+      "shape": "pill",
+      "palette": "indigo",
+      "fs": 12
+    },
+    {
+      "id": "bh3",
+      "t": "加入会员，参与拼团并向朋友推荐",
+      "x": 901,
+      "y": 208,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "blue",
+      "fs": 12
+    },
+    {
+      "id": "tc3",
+      "t": "会员中心 · 社群运营 · 推荐有礼",
+      "x": 901,
+      "y": 328,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "teal",
+      "fs": 12
+    },
+    {
+      "id": "em3",
+      "t": "权益感知弱，容易沉睡",
+      "x": 901,
+      "y": 448,
+      "w": 244,
+      "h": 60,
+      "shape": "rect",
+      "palette": "amber",
+      "fs": 12
+    }
+  ],
+  "edges": [
+    {
+      "f": "st0",
+      "t": "st1",
+      "dir": "H",
+      "palette": "slate"
+    },
+    {
+      "f": "st1",
+      "t": "st2",
+      "dir": "H",
+      "palette": "slate"
+    },
+    {
+      "f": "st2",
+      "t": "st3",
+      "dir": "H",
+      "palette": "slate"
+    },
+    {
+      "f": "st0",
+      "t": "bh0",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "bh0",
+      "t": "tc0",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "tc0",
+      "t": "em0",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "st1",
+      "t": "bh1",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "bh1",
+      "t": "tc1",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "tc1",
+      "t": "em1",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "st2",
+      "t": "bh2",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "bh2",
+      "t": "tc2",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "tc2",
+      "t": "em2",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "st3",
+      "t": "bh3",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "bh3",
+      "t": "tc3",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "tc3",
+      "t": "em3",
+      "dir": "V",
+      "palette": "slate"
+    }
+  ],
+  "notes": [
+    {
+      "t": "填写说明：本图为示例模板，阶段划分、情绪判定与触点请按真实用户访谈结论替换。",
+      "x": 40,
+      "y": 548,
+      "w": 1120,
+      "h": 44,
+      "shape": "note",
+      "palette": "gray"
+    }
+  ]
+}

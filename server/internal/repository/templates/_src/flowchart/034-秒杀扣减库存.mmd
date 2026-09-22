@@ -1,0 +1,45 @@
+---
+name: 秒杀扣减库存
+title: 秒杀扣减库存时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant C as 秒杀页面
+    participant G as 秒杀网关 seckill-gw
+    participant S as 秒杀服务 seckill-svc
+    participant R as Redis 集群
+    participant D as 库存库 stock_db
+    C->>G: 点击秒杀按钮 携带 activity_id 与 sku_id
+    G->>S: POST /seckill/order 携带 uid 与答题令牌
+    activate S
+    S->>R: SETNX seckill:uid:activity_id 防重复下单
+    alt 防重键已存在
+        S-->>G: 返回 409 请勿重复下单
+        G-->>C: 提示每人限购 1 件
+    else 首次下单
+        S->>R: 执行 Lua 脚本扣减 seckill:stock:sku_id
+        R-->>S: 返回扣减后余量 3288
+        alt 余量小于 0
+            S->>R: 执行 Lua 脚本回滚库存
+            S-->>G: 返回 410 已售罄
+            G-->>C: 提示商品已抢完
+        else 扣减成功
+            S->>D: 投递 seckill.order 消息 含 uid 与 sku_id
+            S-->>G: 返回 202 排队中 请稍后查询
+        end
+    end
+    deactivate S
+    loop 前端每 1 秒轮询 最多 20 次
+        C->>G: GET /seckill/result 携带 uid
+        G->>R: GET seckill:result:uid
+        G-->>C: 返回抢购结果
+    end
+    par 消费落库
+        S->>D: 消费消息并执行乐观锁扣减
+        D-->>S: 返回影响行数 1
+    and 超时释放
+        S->>D: 取消 10 分钟未支付订单
+        D->>R: INCR seckill:stock:sku_id 回补库存
+    end
+    Note over C,D: Redis 预扣与数据库最终一致 依赖对账补偿

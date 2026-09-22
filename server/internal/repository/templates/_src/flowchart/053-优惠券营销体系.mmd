@@ -1,0 +1,54 @@
+---
+name: 优惠券营销体系
+title: 优惠券营销体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 优惠规则 {
+        <<接口>>
+        +匹配(金额 Decimal) Boolean
+        +计算优惠(金额 Decimal) Decimal
+    }
+    class 优惠券模板 {
+        <<抽象类>>
+        #Long 模板编号
+        #String 券名称
+        #String 券类型
+        #发布() Boolean
+        #下架() Boolean
+    }
+    class 满减券 {
+        +Decimal 面额
+        +Decimal 使用门槛
+        +LocalDateTime 有效期起
+        +匹配() Boolean
+        +计算优惠() Decimal
+    }
+    class 折扣券 {
+        +Decimal 折扣率
+        +Decimal 最高优惠
+        +LocalDateTime 有效期止
+        +匹配() Boolean
+        +计算优惠() Decimal
+    }
+    class 用户券包 {
+        +Long 券包编号
+        +Long 会员号
+        +Integer 持有数量
+        +领取() Boolean
+        +核销() Boolean
+    }
+    class 券状态 {
+        <<枚举>>
+        未领取
+        已领取
+        已使用
+        已过期
+    }
+    优惠券模板 <|-- 满减券 : 继承
+    优惠券模板 <|-- 折扣券 : 继承
+    满减券 ..|> 优惠规则 : 实现
+    折扣券 ..|> 优惠规则 : 实现
+    用户券包 "1" *-- "*" 满减券 : 组合
+    用户券包 "1" o-- "*" 折扣券 : 聚合
+    满减券 "1" --> "1" 券状态 : 状态

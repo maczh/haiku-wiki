@@ -1,0 +1,60 @@
+---
+name: 库存仓储
+title: 库存仓储ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    仓库 ||--|{ 库区 : 划分
+    库区 ||--|{ 库位 : 细分
+    库位 ||--o{ 库存批次 : 存放
+    商品 ||--o{ 库存批次 : 生成
+    商品 }|--o{ 入库单 : 采购
+    入库单 ||--|{ 库存批次 : 验收
+    库存批次 ||--o{ 库存变动 : 记录
+    仓库 {
+        bigint 仓库ID PK
+        varchar 仓库名称
+        varchar 所在城市
+        tinyint 仓库类型 "1中心仓 2前置仓"
+    }
+    库区 {
+        bigint 库区ID PK
+        bigint 仓库ID FK
+        varchar 库区编码 UK "库内唯一分区编号"
+        varchar 温层 "常温或冷链"
+    }
+    库位 {
+        bigint 库位ID PK
+        bigint 库区ID FK
+        varchar 库位编码 UK
+        tinyint 占用状态 "0空闲 1已占用"
+    }
+    商品 {
+        bigint 商品ID PK
+        varchar 商品条码 UK "国标商品条码"
+        varchar 商品名称
+        varchar 计量单位
+        decimal 标准进价
+    }
+    库存批次 {
+        bigint 批次ID PK
+        bigint 商品ID FK
+        bigint 库位ID FK
+        bigint 入库单ID FK
+        int 可用数量
+        date 生产日期
+    }
+    入库单 {
+        bigint 入库单ID PK
+        varchar 入库单号 UK
+        bigint 供应商ID FK
+        date 到货日期
+        tinyint 验收状态
+    }
+    库存变动 {
+        bigint 变动ID PK
+        bigint 批次ID FK
+        varchar 变动类型 "入库出库盘点"
+        int 变动数量
+        datetime 变动时间
+    }

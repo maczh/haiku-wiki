@@ -1,0 +1,32 @@
+---
+name: 数据仓库迁移
+title: 数据仓库迁移甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 数据仓库迁移至云原生架构排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 评估与规划
+    存量表与任务盘点     :done,  a1, 2026-09-10, 12d
+    迁移风险与成本评估   :done,  a2, after a1, 6d
+    迁移方案评审通过     :milestone, m1, after a2, 0d
+    section 新仓建设
+    计算与存储资源开通   :done,  b1, after m1, 8d
+    分层模型重建         :        b2, after b1, 15d
+    调度平台部署         :        b3, after b1, 10d
+    section 数据迁移
+    历史数据全量迁移     :active, crit, c1, after b2, 18d
+    增量同步链路搭建     :crit,  c2, after b3, 12d
+    采集脚本改造         :        c3, after c1, 15d
+    报表任务迁移         :        c4, after c2, 10d
+    section 校验与切换
+    数据一致性比对       :        d1, after c3, 8d
+    查询性能压测         :        d2, after c4, 5d
+    业务侧验收           :        d3, after d1, 6d
+    正式切换             :milestone, m2, after d3, 0d
+    section 收尾
+    老仓只读观察         :        e1, after m2, 15d
+    老仓下线             :milestone, m3, after e1, 0d
+    迁移总结归档         :        e2, after m3, 3d

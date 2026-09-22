@@ -1,0 +1,60 @@
+---
+name: 金融授信风控
+title: 金融授信风控ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    客户 ||--o{ 授信申请 : 提交
+    客户 ||--o{ 贷款合同 : 签署
+    授信申请 ||--|| 征信报告 : 查询
+    授信申请 ||--|| 风控评分 : 评估
+    风控规则 }o--o{ 风控评分 : 命中
+    授信申请 ||--|| 授信额度 : 核定
+    授信额度 ||--o{ 贷款合同 : 支用
+    客户 {
+        bigint 客户ID PK
+        varchar 证件号 UK "统一社会信用代码或身份证"
+        varchar 客户类型 "个人或企业"
+        varchar 所属行业
+    }
+    授信申请 {
+        bigint 申请ID PK
+        varchar 申请编号 UK "进件编号"
+        bigint 客户ID FK
+        decimal 申请金额
+        tinyint 审批结论 "1通过 2拒绝 3补充材料"
+    }
+    征信报告 {
+        bigint 报告ID PK
+        bigint 申请ID FK
+        varchar 报告编号 UK "征信中心查询编号"
+        int 逾期次数
+        decimal 负债总额
+    }
+    风控规则 {
+        bigint 规则ID PK
+        varchar 规则类型 "黑名单反欺诈准入"
+        int 扣分值
+        tinyint 启用状态
+    }
+    风控评分 {
+        bigint 评分ID PK
+        bigint 申请ID FK
+        int 综合得分
+        varchar 风险等级 "低中高"
+        datetime 评分时间
+    }
+    授信额度 {
+        bigint 额度ID PK
+        bigint 申请ID FK
+        decimal 核定额度
+        decimal 可用额度
+        tinyint 额度状态 "1正常 2冻结"
+    }
+    贷款合同 {
+        bigint 合同ID PK
+        varchar 合同编号 UK
+        bigint 额度ID FK
+        decimal 放款金额
+        decimal 执行年利率
+    }

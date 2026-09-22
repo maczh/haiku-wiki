@@ -1,0 +1,494 @@
+{
+  "name": "Kubernetes 集群架构",
+  "title": "Kubernetes 集群架构图",
+  "category": "绘图模板·系统架构",
+  "w": 1160,
+  "h": 904,
+  "groups": [
+    {
+      "t": "集群入口 · 南北向流量",
+      "x": 40,
+      "y": 58,
+      "w": 1080,
+      "h": 112,
+      "palette": "gray"
+    },
+    {
+      "t": "控制平面 · Master 节点",
+      "x": 40,
+      "y": 190,
+      "w": 1080,
+      "h": 112,
+      "palette": "slate"
+    },
+    {
+      "t": "工作节点 · Node 池",
+      "x": 40,
+      "y": 322,
+      "w": 1080,
+      "h": 112,
+      "palette": "gray"
+    },
+    {
+      "t": "工作负载 · Workloads",
+      "x": 40,
+      "y": 454,
+      "w": 1080,
+      "h": 112,
+      "palette": "slate"
+    },
+    {
+      "t": "平台组件 · 集群服务",
+      "x": 40,
+      "y": 586,
+      "w": 1080,
+      "h": 112,
+      "palette": "gray"
+    },
+    {
+      "t": "持久化存储 · 基础设施",
+      "x": 40,
+      "y": 718,
+      "w": 1080,
+      "h": 112,
+      "palette": "slate"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n10",
+      "t": "外部客户端请求",
+      "x": 60,
+      "y": 90,
+      "w": 245,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n11",
+      "t": "云负载均衡 SLB",
+      "x": 325,
+      "y": 90,
+      "w": 245,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n12",
+      "t": "NodePort 暴露",
+      "x": 590,
+      "y": 90,
+      "w": 245,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n13",
+      "t": "域名解析 Route53",
+      "x": 855,
+      "y": 90,
+      "w": 245,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n20",
+      "t": "kube-apiserver 6443",
+      "x": 60,
+      "y": 222,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "indigo"
+    },
+    {
+      "id": "n21",
+      "t": "etcd 集群 3 副本",
+      "x": 272,
+      "y": 222,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "indigo"
+    },
+    {
+      "id": "n22",
+      "t": "kube-scheduler",
+      "x": 484,
+      "y": 222,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "indigo"
+    },
+    {
+      "id": "n23",
+      "t": "controller-manager",
+      "x": 696,
+      "y": 222,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "indigo"
+    },
+    {
+      "id": "n24",
+      "t": "cloud-controller",
+      "x": 908,
+      "y": 222,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "indigo"
+    },
+    {
+      "id": "n30",
+      "t": "kubelet 10250",
+      "x": 60,
+      "y": 354,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "teal"
+    },
+    {
+      "id": "n31",
+      "t": "kube-proxy IPVS",
+      "x": 272,
+      "y": 354,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "teal"
+    },
+    {
+      "id": "n32",
+      "t": "Containerd 运行时",
+      "x": 484,
+      "y": 354,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "teal"
+    },
+    {
+      "id": "n33",
+      "t": "CNI Calico 网络",
+      "x": 696,
+      "y": 354,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "teal"
+    },
+    {
+      "id": "n34",
+      "t": "CSI 存储插件",
+      "x": 908,
+      "y": 354,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "teal"
+    },
+    {
+      "id": "n40",
+      "t": "Deployment 无状态",
+      "x": 60,
+      "y": 486,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n41",
+      "t": "StatefulSet 有状态",
+      "x": 272,
+      "y": 486,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n42",
+      "t": "DaemonSet 采集",
+      "x": 484,
+      "y": 486,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n43",
+      "t": "CronJob 定时任务",
+      "x": 696,
+      "y": 486,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n44",
+      "t": "HPA 弹性伸缩",
+      "x": 908,
+      "y": 486,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "blue"
+    },
+    {
+      "id": "n50",
+      "t": "CoreDNS 服务发现",
+      "x": 60,
+      "y": 618,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "cyan"
+    },
+    {
+      "id": "n51",
+      "t": "Ingress-Nginx 入口",
+      "x": 272,
+      "y": 618,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "cyan"
+    },
+    {
+      "id": "n52",
+      "t": "Prometheus 监控",
+      "x": 484,
+      "y": 618,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "cyan"
+    },
+    {
+      "id": "n53",
+      "t": "Harbor 镜像仓库",
+      "x": 696,
+      "y": 618,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "cyan"
+    },
+    {
+      "id": "n54",
+      "t": "Cert-Manager 证书",
+      "x": 908,
+      "y": 618,
+      "w": 192,
+      "h": 60,
+      "shape": "round",
+      "palette": "cyan"
+    },
+    {
+      "id": "n60",
+      "t": "PV/PVC 持久卷",
+      "x": 60,
+      "y": 750,
+      "w": 245,
+      "h": 60,
+      "shape": "cylinder",
+      "palette": "purple"
+    },
+    {
+      "id": "n61",
+      "t": "NFS 共享存储 20T",
+      "x": 325,
+      "y": 750,
+      "w": 245,
+      "h": 60,
+      "shape": "cylinder",
+      "palette": "purple"
+    },
+    {
+      "id": "n62",
+      "t": "Ceph RBD 块存储",
+      "x": 590,
+      "y": 750,
+      "w": 245,
+      "h": 60,
+      "shape": "cylinder",
+      "palette": "purple"
+    },
+    {
+      "id": "n63",
+      "t": "Velero 备份工具",
+      "x": 855,
+      "y": 750,
+      "w": 245,
+      "h": 60,
+      "shape": "cylinder",
+      "palette": "purple"
+    }
+  ],
+  "edges": [
+    {
+      "f": "n10",
+      "t": "n20",
+      "dir": "V",
+      "label": "外部请求"
+    },
+    {
+      "f": "n11",
+      "t": "n22",
+      "dir": "V",
+      "label": "四层转发"
+    },
+    {
+      "f": "n13",
+      "t": "n21",
+      "dir": "V",
+      "label": "域名解析"
+    },
+    {
+      "f": "n20",
+      "t": "n30",
+      "dir": "V",
+      "label": "调度 Pod"
+    },
+    {
+      "f": "n21",
+      "t": "n31",
+      "dir": "V",
+      "label": "集群状态"
+    },
+    {
+      "f": "n23",
+      "t": "n33",
+      "dir": "V",
+      "label": "节点管理"
+    },
+    {
+      "f": "n24",
+      "t": "n34",
+      "dir": "V",
+      "label": "云资源同步"
+    },
+    {
+      "f": "n32",
+      "t": "n33",
+      "dir": "H"
+    },
+    {
+      "f": "n33",
+      "t": "n34",
+      "dir": "H"
+    },
+    {
+      "f": "n32",
+      "t": "n40",
+      "dir": "V",
+      "label": "镜像拉起"
+    },
+    {
+      "f": "n33",
+      "t": "n41",
+      "dir": "V",
+      "label": "网络策略"
+    },
+    {
+      "f": "n34",
+      "t": "n42",
+      "dir": "V",
+      "label": "卷挂载"
+    },
+    {
+      "f": "n40",
+      "t": "n41",
+      "dir": "H"
+    },
+    {
+      "f": "n42",
+      "t": "n43",
+      "dir": "H"
+    },
+    {
+      "f": "n40",
+      "t": "n51",
+      "dir": "V",
+      "label": "Ingress 暴露"
+    },
+    {
+      "f": "n42",
+      "t": "n52",
+      "dir": "V",
+      "label": "指标暴露"
+    },
+    {
+      "f": "n44",
+      "t": "n50",
+      "dir": "V",
+      "label": "指标拉取"
+    },
+    {
+      "f": "n40",
+      "t": "n53",
+      "dir": "V",
+      "label": "镜像拉取"
+    },
+    {
+      "f": "n50",
+      "t": "n51",
+      "dir": "H"
+    },
+    {
+      "f": "n51",
+      "t": "n52",
+      "dir": "H"
+    },
+    {
+      "f": "n52",
+      "t": "n60",
+      "dir": "V",
+      "label": "指标持久化"
+    },
+    {
+      "f": "n53",
+      "t": "n60",
+      "dir": "V",
+      "label": "镜像层存储"
+    },
+    {
+      "f": "n54",
+      "t": "n60",
+      "dir": "V",
+      "label": "证书存储"
+    },
+    {
+      "f": "n60",
+      "t": "n61",
+      "dir": "H"
+    },
+    {
+      "f": "n62",
+      "t": "n63",
+      "dir": "H"
+    }
+  ],
+  "notes": [
+    {
+      "t": "填写说明：本图为示例模板，节点数量、CNI/CSI 插件选型与副本数请按实际集群规模调整。",
+      "x": 40,
+      "y": 850,
+      "w": 1080,
+      "h": 40,
+      "shape": "note",
+      "palette": "gray"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+---
+name: SSO 单点登录跳转
+title: SSO 单点登录跳转时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant U as 用户浏览器
+    participant O as OA 业务系统
+    participant S as SSO 认证中心
+    participant T as 票据服务 ticket-svc
+    participant D as 目录服务 LDAP
+    U->>O: GET /oa/workbench
+    O->>O: 检查本地会话 Cookie oa_sid
+    alt 本地会话有效
+        O-->>U: 返回工作台页面
+    else 本地会话缺失
+        O-->>U: 302 跳转至 sso.company.com/login
+        U->>S: POST /login 提交工号与密码
+        activate S
+        S->>D: bind 校验 dn 与密码
+        D-->>S: 返回 LDAP 校验结果
+        S->>T: POST /tgc 签发全局会话票据
+        T-->>S: 返回 TGC 与 8 小时过期时间
+        S-->>U: 302 回调 service 地址携带 ticket
+        deactivate S
+        U->>O: GET /oa/workbench 携带 ticket
+        O->>S: POST /serviceValidate 校验 ticket
+        S->>T: GET /ticket/check 一次性消费
+        T-->>S: 返回票据有效且未使用
+        S-->>O: 返回 200 与用户属性
+        O->>O: 建立本地会话 30 分钟
+        O-->>U: 返回工作台页面并写入 oa_sid
+    end
+    par 同步用户属性
+        O->>D: 拉取部门与角色列表
+    and 同步登录日志
+        O->>T: 记录 sso.login 事件
+    end
+    opt 用户点击退出
+        U->>S: GET /logout
+        S->>T: 请求销毁全局票据
+        S-->>U: 跳转回登录页
+    end
+    Note over U,D: 票据有效期 5 分钟且仅可使用一次

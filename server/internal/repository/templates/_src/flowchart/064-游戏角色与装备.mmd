@@ -1,0 +1,55 @@
+---
+name: 游戏角色与装备
+title: 游戏角色与装备类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可装备 {
+        <<接口>>
+        +穿戴(角色编号 Long) Boolean
+        +卸下() Boolean
+        +战力加成() Integer
+    }
+    class 游戏角色 {
+        <<抽象类>>
+        #Long 角色编号
+        #String 角色名
+        #Integer 等级
+        #升级() Boolean
+        +释放技能() Boolean
+    }
+    class 战士 {
+        +Integer 物理攻击
+        +Integer 护甲值
+        +Integer 怒气值
+        +冲锋() Boolean
+        +格挡() Boolean
+    }
+    class 武器 {
+        +Long 装备编号
+        +String 装备名称
+        +Integer 攻击上限
+        +穿戴() Boolean
+        +卸下() Boolean
+        +战力加成() Integer
+    }
+    class 背包 {
+        +Long 背包编号
+        +Integer 格子总数
+        +Decimal 负重
+        +放入() Boolean
+        +整理() Boolean
+    }
+    class 装备品质 {
+        <<枚举>>
+        普通
+        精良
+        稀有
+        传说
+    }
+    游戏角色 <|-- 战士 : 继承
+    武器 ..|> 可装备 : 实现
+    战士 "1" *-- "1" 背包 : 组合
+    背包 "1" o-- "*" 武器 : 聚合
+    武器 "*" --> "1" 装备品质 : 品质
+    背包 "1" --> "1" 战士 : 归属

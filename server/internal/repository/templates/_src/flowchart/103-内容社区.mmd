@@ -1,0 +1,58 @@
+---
+name: 内容社区
+title: 内容社区ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    板块 ||--o{ 帖子 : 聚合
+    用户 ||--o{ 帖子 : 发布
+    帖子 ||--o{ 评论 : 收到
+    用户 ||--o{ 评论 : 发表
+    帖子 }o--o{ 标签 : 打标
+    用户 ||--o{ 收藏夹 : 建立
+    收藏夹 }o--o{ 帖子 : 收藏
+    用户 ||--o{ 消息通知 : 接收
+    用户 {
+        bigint 用户ID PK
+        varchar 用户名 UK "社区唯一昵称"
+        int 粉丝数
+        tinyint 账号状态 "1正常 2禁言"
+    }
+    板块 {
+        bigint 板块ID PK
+        varchar 板块编码 UK "路由路径标识"
+        varchar 板块简介
+        int 关注人数
+    }
+    帖子 {
+        bigint 帖子ID PK
+        bigint 板块ID FK
+        bigint 作者ID FK
+        varchar 标题
+        tinyint 审核状态 "0待审 1通过 2下架"
+    }
+    评论 {
+        bigint 评论ID PK
+        bigint 帖子ID FK
+        bigint 用户ID FK
+        text 评论内容
+        int 点赞数
+    }
+    标签 {
+        bigint 标签ID PK
+        varchar 标签名称 UK
+        int 引用次数
+        varchar 标签分类
+    }
+    收藏夹 {
+        bigint 收藏夹ID PK
+        bigint 用户ID FK
+        varchar 收藏夹名称
+        tinyint 是否公开
+    }
+    消息通知 {
+        bigint 通知ID PK
+        bigint 接收人ID FK
+        varchar 通知类型 "点赞评论关注系统"
+        tinyint 已读状态
+    }

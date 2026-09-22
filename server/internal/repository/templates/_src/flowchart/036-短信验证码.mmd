@@ -1,0 +1,45 @@
+---
+name: 短信验证码登录
+title: 短信验证码登录时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant U as 用户手机
+    participant B as 业务服务 biz-svc
+    participant V as 验证码服务 sms-code-svc
+    participant R as Redis 限流
+    participant O as 运营商通道
+    U->>B: POST /api/v1/sms/send 携带手机号
+    B->>V: POST /internal/code/send 携带 biz_type
+    activate V
+    V->>R: GET sms:limit:phone 与 sms:limit:ip
+    R-->>V: 返回当日已发送 2 次
+    alt 超出每日 10 次限制
+        V-->>B: 返回 429 发送过于频繁
+        B-->>U: 提示今日验证码已达上限
+    else 限流通过
+        V->>V: 生成 6 位数字验证码 有效期 300 秒
+        V->>R: SETEX sms:code:phone 300 验证码
+        V->>O: POST /sms/submit 携带模板号 SMS_1023
+        deactivate V
+        O->>U: 下发验证码短信
+        U->>B: POST /api/v1/sms/login 携带验证码
+        B->>V: POST /internal/code/verify
+        V->>R: GET sms:code:phone
+        R-->>V: 返回存储的验证码
+        alt 验证码不一致或已过期
+            V->>R: INCR sms:fail:phone 过期 600 秒
+            V-->>B: 返回 401 验证码错误
+        else 验证码一致
+            V->>R: DEL sms:code:phone
+            V-->>B: 返回校验通过
+            B-->>U: 返回登录令牌 有效期 7200 秒
+        end
+    end
+    par 状态报告回执
+        O->>V: 推送短信状态报告 DELIVRD
+    and 发送量统计
+        V->>R: INCR sms:stat:date 与 sms:stat:channel
+    end
+    Note over U,O: 同一手机号 60 秒冷却 单日上限 10 次

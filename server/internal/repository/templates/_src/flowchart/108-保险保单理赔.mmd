@@ -1,0 +1,60 @@
+---
+name: 保险保单理赔数据模型
+title: 保险保单理赔ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    投保人 ||--o{ 保单 : 投保
+    保险产品 ||--o{ 保单 : 承保
+    保单 ||--o{ 缴费记录 : 续期
+    保单 ||--o{ 报案 : 出险
+    报案 ||--|| 理赔案件 : 立案
+    保单 ||--o{ 理赔案件 : 赔付
+    理赔案件 ||--|{ 定损单 : 核损
+    投保人 {
+        bigint 投保人ID PK
+        varchar 证件号 UK "身份证或统一信用代码"
+        varchar 手机号
+        varchar 联系地址
+    }
+    保险产品 {
+        bigint 产品ID PK
+        varchar 产品代码 UK "监管报备代码"
+        varchar 险种类别 "车险健康险财产险"
+        decimal 基准保费
+    }
+    保单 {
+        bigint 保单ID PK
+        varchar 保单号 UK "保险单印刷号"
+        bigint 投保人ID FK
+        bigint 产品ID FK
+        decimal 保额
+        date 保险止期
+    }
+    缴费记录 {
+        bigint 缴费ID PK
+        bigint 保单ID FK
+        decimal 应缴保费
+        tinyint 缴费状态 "1已缴 2逾期"
+    }
+    报案 {
+        bigint 报案ID PK
+        varchar 报案编号 UK
+        bigint 保单ID FK
+        datetime 出险时间
+        text 事故经过
+    }
+    理赔案件 {
+        bigint 案件ID PK
+        bigint 报案ID FK
+        bigint 保单ID FK
+        decimal 立案金额
+        tinyint 案件状态 "1查勘 2理算 3结案"
+    }
+    定损单 {
+        bigint 定损ID PK
+        bigint 案件ID FK
+        varchar 损失项目 "维修费医疗费物损"
+        decimal 核定金额
+        varchar 查勘员
+    }

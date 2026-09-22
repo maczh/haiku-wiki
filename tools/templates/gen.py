@@ -77,6 +77,10 @@ def load_sources():
         d = os.path.join(SRC_DIR, stem)
         if not os.path.isdir(d):
             continue
+        # 只收 Markdown 源目录：_src/flowchart（.mmd）、_src/drawing（绘图 DSL）等由各自的
+        # 生成器负责，这里的 <stem>.json 不存在或不含 markdown 条目，误收会把它当成空源目录改写。
+        if not any(fn.endswith(".md") for fn in os.listdir(d)):
+            continue
         target = f"{stem}.json"
         entries = []
         for fn in sorted(os.listdir(d)):

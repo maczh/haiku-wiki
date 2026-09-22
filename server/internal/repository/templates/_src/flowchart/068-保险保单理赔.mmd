@@ -1,0 +1,55 @@
+---
+name: 保险保单理赔领域模型
+title: 保险保单理赔类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可理赔 {
+        <<接口>>
+        +校验责任() Boolean
+        +计算赔付额() Decimal
+        +免赔额() Decimal
+    }
+    class 保险标的 {
+        <<抽象类>>
+        #Long 标的编号
+        #String 标的类型
+        #Decimal 保险金额
+        #估值调整() Boolean
+        #录入() Boolean
+    }
+    class 车险标的 {
+        +String 车牌号
+        +String 车架号
+        +String 使用性质
+        +估值调整() Boolean
+        +录入() Boolean
+    }
+    class 保单 {
+        +String 保单号
+        +String 险种代码
+        +Decimal 保费
+        +承保() String
+        +保全变更() Boolean
+    }
+    class 理赔申请 {
+        +String 理赔号
+        +String 出险原因
+        +Decimal 申请金额
+        +提交() String
+        +校验责任() Boolean
+        +计算赔付额() Decimal
+        +免赔额() Decimal
+    }
+    class 理赔结论 {
+        <<枚举>>
+        全额赔付
+        部分赔付
+        拒赔
+    }
+    保险标的 <|-- 车险标的 : 继承
+    理赔申请 ..|> 可理赔 : 实现
+    保单 "1" *-- "*" 车险标的 : 组合
+    保单 "1" o-- "*" 理赔申请 : 聚合
+    理赔申请 "1" --> "1" 理赔结论 : 结论
+    理赔申请 "1" --> "1" 保单 : 所属

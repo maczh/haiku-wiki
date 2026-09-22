@@ -1,0 +1,45 @@
+---
+name: 游戏战斗结算
+title: 游戏战斗结算时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant C as 游戏客户端
+    participant M as 匹配服务 match-svc
+    participant B as 战斗服务 battle-svc
+    participant L as 排行榜 rank-svc
+    participant W as 奖励服务 reward-svc
+    C->>M: POST /match/start 模式 5v5 与段位分 1520
+    activate M
+    loop 每 3 秒扩展一次范围
+        alt 未满员
+            M-->>C: 返回匹配中 已等待 45 秒
+        else 满员
+            M->>B: POST /room/create 携带 10 名玩家与分区
+            M-->>C: 返回匹配成功 房间号
+        end
+    end
+    deactivate M
+    C->>B: 建立 UDP 连接 携带 room_token
+    activate B
+    loop 战斗帧同步 每秒 30 帧
+        B-->>C: 广播帧状态 血量 与位置
+        opt 检测到加速或瞬移
+            B-->>C: 踢出对局并上报反作弊
+        end
+    end
+    B->>L: POST /rank/update 携带战绩 击杀 12 死亡 3 助攻 8
+    deactivate B
+    B->>W: POST /reward/grant 战斗奖励 经验与金币
+    alt 存在掉线扣分
+        W-->>B: 返回扣除信誉分 10 分
+    else 表现正常
+        W-->>B: 返回发放成功 金币 320 经验 1500
+    end
+    par 数据落库
+        B->>L: 写入战斗录像与战报
+    and 赛季任务
+        W->>L: 更新周任务进度 完成 3 场排位
+    end
+    Note over C,W: 帧同步以服务端帧号为准 断线 60 秒内可重连

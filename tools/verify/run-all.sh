@@ -35,6 +35,7 @@ DEFAULT_SUITES=(
   check-route-fallback
   ui-shot
   # ⚠️ 新套件一律插在 sim-docker-web **之前**（它必须保持最后：要跑一次完整 npm build）
+  template-check
   mermaid-render-check
   pptx-zoom-check
   comment-api-check
@@ -69,6 +70,7 @@ declare -A PORT_OF=(
   [api-refresh-check]=8101
   [e2e-editor-menus]=8192
   [whiteboard-check]=8109
+  [template-check]=0
   [sim-docker-web]=0
 )
 

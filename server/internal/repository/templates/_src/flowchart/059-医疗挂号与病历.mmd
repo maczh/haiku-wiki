@@ -1,0 +1,52 @@
+---
+name: 医疗挂号与病历
+title: 医疗挂号与病历类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可挂号 {
+        <<接口>>
+        +查询余号(日期 String) Integer
+        +扣减号源() Boolean
+    }
+    class 医疗记录 {
+        <<抽象类>>
+        #String 记录编号
+        #LocalDateTime 记录时间
+        #String 记录医生
+        #归档() Boolean
+        #脱敏() String
+    }
+    class 门诊病历 {
+        +String 就诊卡号
+        +String 主诉
+        +String 诊断结论
+        +保存() Boolean
+        +归档() Boolean
+    }
+    class 号源 {
+        +String 出诊日期
+        +String 午别
+        +Integer 剩余号数
+        +查询余号() Integer
+        +扣减号源() Boolean
+    }
+    class 挂号单 {
+        +String 挂号单号
+        +Decimal 挂号费
+        +String 候诊序号
+        +创建() String
+        +退号() Boolean
+    }
+    class 挂号状态 {
+        <<枚举>>
+        已挂号
+        候诊中
+        就诊中
+        已退号
+    }
+    医疗记录 <|-- 门诊病历 : 继承
+    号源 ..|> 可挂号 : 实现
+    门诊病历 "1" *-- "*" 挂号单 : 组合
+    号源 "1" o-- "*" 挂号单 : 聚合
+    挂号单 "1" --> "1" 挂号状态 : 状态

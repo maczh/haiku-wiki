@@ -1,0 +1,35 @@
+---
+name: 物流中心投产
+title: 物流中心投产甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 华东区域物流中心投产排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 选址建设
+    园区选址与签约       :done,  a1, 2026-09-10, 20d
+    仓库土建与验收       :done,  crit, a2, after a1, 90d
+    消防与安防验收       :        a3, after a2, 12d
+    园区交付             :milestone, m1, after a3, 0d
+    section 设备与系统
+    货架与输送线安装     :active, crit, b1, after m1, 30d
+    自动分拣设备调试     :crit,  b2, after b1, 20d
+    仓储管理系统部署     :        b3, after m1, 25d
+    运输管理系统对接     :        b4, after b3, 15d
+    叉车与月台设施进场   :        b5, after b1, 10d
+    section 人员与流程
+    仓储运营团队招聘     :        c1, after m1, 30d
+    岗位操作培训         :        c2, after c1, 12d
+    作业流程与标准编制   :        c3, after b3, 15d
+    车队与承运商签约     :        c4, after b4, 20d
+    section 试运行
+    空仓模拟跑仓         :        d1, after c2, 8d
+    小批量实货试运营     :crit,  d2, after d1, 12d
+    运力与时效验证       :        d3, after c4, 10d
+    问题整改             :        d4, after d2, 8d
+    section 正式投产
+    全量业务切换         :milestone, m2, after d4, 0d
+    产能爬坡             :        e1, after m2, 25d
+    投产验收             :milestone, m3, after e1, 0d

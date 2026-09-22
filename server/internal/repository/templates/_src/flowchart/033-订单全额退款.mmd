@@ -1,0 +1,45 @@
+---
+name: 订单全额退款
+title: 订单全额退款时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant B as 买家
+    participant M as 商户后台 merchant-web
+    participant O as 订单服务 order-svc
+    participant K as 风控服务 risk-svc
+    participant W as 微信支付渠道
+    B->>M: 提交退款申请 订单号与原因
+    M->>O: POST /api/v1/orders/refund/apply
+    O->>K: POST /risk/refund/check 传入 uid 与金额
+    K-->>O: 返回风险分 20 与放行结论
+    alt 风险分高于 80
+        O-->>M: 返回 403 需人工复核
+    else 风险通过
+        O->>O: 生成 refund_no 幂等键并落库 AUDITING
+        O->>W: POST /v3/refund/domestic/refunds
+        activate W
+        W-->>O: 返回受理 SUCCESS 与退款单号
+        loop 每 30 秒查询一次 最多 20 次
+            O->>W: GET /v3/refund/domestic/refunds/out_refund_no
+            W-->>O: 返回退款状态
+            alt 渠道返回 SUCCESS
+                O->>O: 订单置为 REFUNDED 并回补库存
+                O-->>B: 推送退款到账通知
+            else 渠道返回 PROCESSING
+            end
+        end
+        opt 渠道返回异常 ABNORMAL
+            O->>W: 重试退款 3 次 间隔 60 秒
+            W-->>O: 返回需人工介入并生成工单
+        end
+        deactivate W
+    end
+    par 账务记账
+        O->>K: 投递 refund.success 事件
+        K-->>O: 冲减收入 19900 分 退回手续费 60 分
+    and 通知买家
+        O->>B: 发送短信与站内信
+    end
+    Note over B,W: 退款以 refund_no 做幂等 重复提交返回原单

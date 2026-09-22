@@ -1,0 +1,45 @@
+---
+name: 大文件分片上传
+title: 大文件分片上传时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant C as 上传客户端
+    participant U as 上传服务 upload-svc
+    participant M as 元数据服务 meta-svc
+    participant S as 对象存储 OSS
+    participant N as CDN 节点
+    C->>U: POST /api/v1/upload/init 携带 md5 与 fileName
+    activate U
+    U->>M: 创建上传任务 upload_id 与分片数 205
+    M-->>U: 返回 upload_id 与分片大小 10485760
+    U-->>C: 返回 upload_id 与已上传分片列表
+    deactivate U
+    loop 并发上传 5 片直到 205 片完成
+        C->>S: PUT 分片数据 携带 Content-MD5
+        S-->>C: 返回 200 与 ETag
+        C->>U: POST /api/v1/upload/part 上报分片序号
+        U->>M: 记录分片状态与 ETag
+        alt 分片上传失败
+            C->>S: PUT 重新上传该分片
+            S-->>C: 返回 200
+        end
+    end
+    C->>U: POST /api/v1/upload/complete 携带 upload_id
+    U->>M: 校验已上传分片数等于总分片数
+    M-->>U: 返回校验通过 205 片齐全
+    U->>S: POST /complete_multipart 合并分片
+    S-->>U: 返回合并后对象地址
+    U-->>C: 返回文件地址 file_id 与大小
+    par 异步转码
+        U->>S: 投递转码任务 目标 1080P 与 720P
+    and 异步预热
+        U->>N: 提交 CDN 预热任务
+        N->>S: 回源拉取文件
+    end
+    opt 上传中断后续传
+        C->>U: GET /api/v1/upload/status 携带 upload_id
+        U-->>C: 返回已上传分片列表
+    end
+    Note over C,N: 预签名地址 1 小时有效 分片序号从 1 开始

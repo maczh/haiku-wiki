@@ -1,0 +1,45 @@
+---
+name: 物联网设备上报
+title: 物联网设备上报时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant D as 温湿度终端
+    participant B as MQTT Broker
+    participant E as 规则引擎 rule-engine
+    participant S as 设备影子 shadow-svc
+    participant A as 告警服务 alert-svc
+    D->>B: CONNECT 携带 device_id 与签名 心跳 60 秒
+    D->>B: SUBSCRIBE 主题 cmd/down/device_id
+    loop 每 30 秒上报一次
+        D->>B: PUBLISH 主题 telemetry/device_id 携带温湿度
+        B->>E: 按规则转发消息
+        activate E
+        E->>E: 解析 JSON 并校验字段范围
+        alt 字段缺失或超范围
+            E-->>D: 丢弃该条数据并记录异常
+        else 数据合法
+            E->>S: 更新设备影子 reported 状态
+            E->>A: 投递阈值检测任务
+            A->>A: 比对规则 温度高于 40 持续 3 个周期
+            alt 触发告警
+                A->>S: 写入期望状态 desired 启动风扇
+            else 未触发
+                A->>A: 累加计数并结束本轮
+            end
+        end
+        deactivate E
+    end
+    par 下行指令
+        S->>B: PUBLISH 主题 cmd/down/device_id 携带 desired
+        B->>D: 下发控制指令 风扇开启
+    and 数据聚合
+        E->>S: 每 5 分钟执行降采样聚合
+    end
+    opt 设备离线
+        B->>S: 触发遗嘱消息 状态 offline
+        S->>A: 生成离线告警 断连超过 120 秒
+        A-->>D: 待上线后补发缓存指令
+    end
+    Note over D,A: 设备影子版本号冲突时以服务端 desired 为准

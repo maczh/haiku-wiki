@@ -1,0 +1,45 @@
+---
+name: 电商支付下单
+title: 电商支付下单时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant C as 商城 App
+    participant O as 订单服务 order-svc
+    participant I as 库存服务 stock-svc
+    participant P as 支付服务 pay-svc
+    participant W as 微信支付渠道
+    C->>O: POST /api/v1/orders 提交 sku_id 与数量
+    activate O
+    O->>I: POST /stock/freeze 冻结库存
+    I-->>O: 返回冻结成功 freeze_id
+    O-->>C: 返回 order_no 与应付金额 19900 分
+    deactivate O
+    C->>P: POST /api/v1/pay/create 携带 order_no
+    P->>W: POST /v3/pay/transactions/jsapi
+    W-->>P: 返回 prepay_id
+    C->>W: 调起支付并输入密码
+    W-->>P: POST /v3/notify/pay 回调支付结果
+    activate P
+    P->>P: 验签并校验金额与 order_no
+    alt 验签失败
+        P-->>W: 返回 FAIL 签名错误
+    else 验签通过
+        P-->>W: 返回 SUCCESS 接收成功
+        par 订单侧消费
+            P->>O: 投递 order.paid 消息
+            O->>O: 状态流转为 PAID 并锁价
+        and 库存侧消费
+            P->>I: 投递 order.paid 消息
+            I->>I: 冻结转扣减 生成出库单
+        end
+    end
+    deactivate P
+    loop 每 60 秒扫描一次
+        O->>O: 查询 30 分钟未支付订单
+        opt 存在超时订单
+            O->>I: POST /stock/release 释放冻结
+        end
+    end
+    Note over C,W: 支付回调需幂等 以 payment_id 去重

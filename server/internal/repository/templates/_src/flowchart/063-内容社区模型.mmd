@@ -1,0 +1,55 @@
+---
+name: 内容社区模型
+title: 内容社区模型类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可审核 {
+        <<接口>>
+        +送审() Boolean
+        +通过(审核人 Long) Boolean
+        +驳回(理由 String) Boolean
+    }
+    class 内容载体 {
+        <<抽象类>>
+        #Long 内容编号
+        #String 内容摘要
+        #LocalDateTime 创建时间
+        #删除() Boolean
+        #置顶() Boolean
+    }
+    class 帖子 {
+        +String 标题
+        +String 正文
+        +Integer 阅读数
+        +送审() Boolean
+        +通过() Boolean
+        +驳回() Boolean
+    }
+    class 评论 {
+        +Long 评论编号
+        +String 评论内容
+        +Long 回复目标
+        +发表() Boolean
+        +送审() Boolean
+        +通过() Boolean
+    }
+    class 点赞 {
+        +Long 点赞编号
+        +String 目标类型
+        +Long 目标编号
+        +点赞() Boolean
+        +取消() Boolean
+    }
+    class 帖子状态 {
+        <<枚举>>
+        草稿
+        审核中
+        已发布
+    }
+    内容载体 <|-- 帖子 : 继承
+    内容载体 <|-- 评论 : 继承
+    帖子 ..|> 可审核 : 实现
+    帖子 "1" *-- "*" 评论 : 组合
+    点赞 "*" o-- "1" 帖子 : 聚合
+    帖子 "1" --> "1" 帖子状态 : 状态

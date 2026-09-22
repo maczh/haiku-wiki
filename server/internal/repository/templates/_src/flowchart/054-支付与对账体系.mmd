@@ -1,0 +1,53 @@
+---
+name: 支付与对账体系
+title: 支付与对账体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 支付渠道 {
+        <<接口>>
+        +下单(金额 Decimal) String
+        +查询(流水号 String) String
+    }
+    class 渠道基类 {
+        <<抽象类>>
+        #String 渠道编码
+        #String 商户号
+        #String 应用编号
+        #签名(报文 String) String
+        #验签() Boolean
+    }
+    class 微信渠道 {
+        +String 子商户号
+        +String 授权目录
+        +String 结算币种
+        +下单() String
+        +查询() String
+    }
+    class 支付单 {
+        +String 支付单号
+        +Decimal 应付金额
+        +LocalDateTime 失效时间
+        +发起支付() Boolean
+        +接收回调() Boolean
+        +幂等校验() Boolean
+    }
+    class 对账批次 {
+        +String 批次号
+        +String 对账日期
+        +Integer 差异笔数
+        +轧差比对() Boolean
+        +生成差异表() String
+    }
+    class 交易类型 {
+        <<枚举>>
+        支付
+        退款
+        提现
+        手续费
+    }
+    渠道基类 <|-- 微信渠道 : 继承
+    微信渠道 ..|> 支付渠道 : 实现
+    微信渠道 "1" o-- "*" 支付单 : 聚合
+    对账批次 "1" *-- "*" 支付单 : 组合
+    支付单 "1" --> "1" 交易类型 : 类型

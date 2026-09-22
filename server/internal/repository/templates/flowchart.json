@@ -1,0 +1,1126 @@
+{
+  "category": "流程图模板",
+  "doc_type": "flowchart",
+  "templates": [
+    {
+      "name": "用户注册流程",
+      "title": "用户注册流程图",
+      "category": "流程图模板·流程图",
+      "sort": 10,
+      "content": "flowchart TD\n    subgraph 用户侧\n        A([用户进入注册页]) --> B[输入手机号]\n        B --> C[获取并填写短信验证码]\n        C --> H[设置密码并提交注册]\n    end\n    subgraph 系统侧\n        D{手机号格式正确?}\n        G[短信网关下发 6 位验证码]\n        I{验证码 5 分钟内有效?}\n        O[写入 user 表并生成 uid]\n    end\n    subgraph 风控\n        K[校验设备指纹与 IP 归属地]\n        L{命中风险黑名单?}\n        M[记录风险事件并拒绝]\n    end\n    B --> D\n    D -->|否| B\n    D -->|是| G --> C\n    H --> I\n    I -->|否| C\n    I -->|是| K --> L\n    L -->|是| M --> N([注册失败])\n    L -->|否| O --> P[发放新客 30 元券]\n    P --> Q([注册成功跳转首页])"
+    },
+    {
+      "name": "电商订单履约流程",
+      "title": "电商订单履约流程图",
+      "category": "流程图模板·流程图",
+      "sort": 20,
+      "content": "flowchart TD\n    subgraph 交易侧\n        A([买家提交订单]) --> B{库存预占成功?}\n        E{30 分钟内完成支付?}\n        G[支付网关回调标记已支付]\n    end\n    subgraph 风控审核\n        I{疑似黄牛或刷单?}\n        J[风控人工复核]\n        K{复核通过?}\n    end\n    subgraph 仓储物流\n        M[WMS 生成出库单并拣货打包]\n        N[交接顺丰揽收]\n        P{72 小时内有轨迹更新?}\n    end\n    subgraph 售后服务\n        R[客服介入催派]\n        T{7 天无理由内申请退货?}\n        U[上门取件后仓库质检入库]\n    end\n    B -->|否| C[提示库存不足并推荐相似商品] --> D([订单关闭])\n    B -->|是| E\n    E -->|否| F[释放库存并自动关单] --> D\n    E -->|是| G --> I\n    I -->|是| J --> K\n    K -->|否| L[原路退款并关单] --> D\n    I -->|否| M\n    K -->|是| M\n    M --> N --> P\n    P -->|否| R --> S([买家确认收货])\n    P -->|是| S\n    S --> T\n    T -->|是| U --> V[退款 1 至 3 个工作日到账] --> W([订单完成])\n    T -->|否| W"
+    },
+    {
+      "name": "消费信贷审批流程",
+      "title": "消费信贷审批流程图",
+      "category": "流程图模板·流程图",
+      "sort": 30,
+      "content": "flowchart TD\n    subgraph 渠道进件\n        A([客户在手机银行提交申请]) --> B[填写贷款金额与期限]\n        B --> C[授权查询人行征信报告]\n    end\n    subgraph 反欺诈\n        D[设备指纹与活体检测]\n        E{活体评分高于 80 分?}\n        F[规则引擎匹配黑名单]\n        G{近 30 天多头申请超过 3 次?}\n    end\n    subgraph 审批决策\n        H[信用评分模型打分]\n        I{评分不低于 620 分?}\n        J[自动审批通过并核定额度]\n        K[转信贷经理人工复核]\n        L{复核通过?}\n    end\n    subgraph 放款归档\n        M[生成电子合同并短信签约]\n        N[核心系统放款至收款卡]\n        O[贷后建档并推送首期还款提醒]\n    end\n    C --> D --> E\n    E -->|否| P([拒件并记录原因码])\n    E -->|是| F --> G\n    G -->|是| P\n    G -->|否| H --> I\n    I -->|是| J --> M\n    I -->|否| K --> L\n    L -->|否| P\n    L -->|是| J\n    M --> N --> O --> Q([授信额度生效])"
+    },
+    {
+      "name": "车险理赔流程",
+      "title": "车险理赔流程图",
+      "category": "流程图模板·流程图",
+      "sort": 40,
+      "content": "flowchart TD\n    subgraph 报案受理\n        A([被保险人拨打 95518 报案]) --> B[客服创建报案单]\n        B --> C[上传事故照片与维修发票]\n    end\n    subgraph 查勘定损\n        D{单方事故且损失低于 5000 元?}\n        E[线上自助查勘上传现场照片]\n        F[调度查勘员 2 小时内到场]\n        G[定损员核定损失金额]\n    end\n    subgraph 理算审核\n        H{属于保险责任范围?}\n        I[系统理算赔付金额]\n        J{赔付金额超过 5 万元?}\n        K[理赔经理双人复核]\n    end\n    subgraph 结案支付\n        L[生成赔款计算书]\n        M[财务银企直连打款]\n        N([结案并短信通知客户])\n    end\n    C --> D\n    D -->|是| E --> G\n    D -->|否| F --> G\n    G --> H\n    H -->|否| O[出具拒赔通知书并说明条款依据] --> P([案件拒赔结案])\n    H -->|是| I --> J\n    J -->|是| K --> L\n    J -->|否| L\n    L --> M --> N"
+    },
+    {
+      "name": "生产工单执行流程",
+      "title": "生产工单执行流程图",
+      "category": "流程图模板·流程图",
+      "sort": 50,
+      "content": "flowchart TD\n    subgraph 计划排程\n        A([ERP 下发生产工单]) --> B[APS 排程至产线机台]\n        B --> C[物料齐套性检查]\n    end\n    subgraph 车间执行\n        D{齐套率不低于 95 个百分点?}\n        E[MES 开工并打印工序流转卡]\n        F[首件检验]\n        G{首件合格?}\n        H[批量生产并采集设备参数]\n    end\n    subgraph 质量管控\n        I[IPQC 每 2 小时巡检一次]\n        J{不良率超过千分之五?}\n        K[触发停线并开品质异常单]\n        L[工艺工程师根因分析]\n    end\n    subgraph 完工入库\n        M[成品终检]\n        N[扫码入库并回写 ERP]\n    end\n    C --> D\n    D -->|否| O[缺件预警并通知采购跟单] --> C\n    D -->|是| E --> F --> G\n    G -->|否| L\n    G -->|是| H --> I --> J\n    J -->|是| K --> L --> F\n    J -->|否| M\n    M -->|合格| N --> P([工单关闭])\n    M -->|不合格| K"
+    },
+    {
+      "name": "门诊就医流程",
+      "title": "门诊就医流程图",
+      "category": "流程图模板·流程图",
+      "sort": 60,
+      "content": "flowchart TD\n    subgraph 患者端\n        A([患者线上预约挂号]) --> B[到院自助机取号]\n        B --> C[分诊台测量生命体征]\n    end\n    subgraph 诊疗\n        D{体温高于 37.3 度?}\n        E[引导至发热门诊]\n        F[候诊屏叫号进入诊室]\n        G[医生问诊并开具检查单]\n    end\n    subgraph 检查检验\n        H[缴费后前往检验科采血]\n        I[LIS 出具检验报告]\n        J{检验指标异常?}\n    end\n    subgraph 结算取药\n        K[医生结合报告诊断并开处方]\n        L[药师审方]\n        M{审方通过?}\n        N[医保结算后取药离院]\n    end\n    C --> D\n    D -->|是| E --> O([转专科或住院进一步诊治])\n    D -->|否| F --> G --> H --> I --> J\n    J -->|是| R[加做影像检查并复诊] --> K\n    J -->|否| K\n    K --> L --> M\n    M -->|否| G\n    M -->|是| N --> P([就诊完成并推送随访计划])"
+    },
+    {
+      "name": "在线课程学习流程",
+      "title": "在线课程学习流程图",
+      "category": "流程图模板·流程图",
+      "sort": 70,
+      "content": "flowchart TD\n    subgraph 学员端\n        A([学员登录学习平台]) --> B[选择课程并支付学费]\n        B --> C[完成入学能力测评]\n    end\n    subgraph 教学服务\n        D{测评达到入门线?}\n        E[班主任建群并制定学习计划]\n        F[直播课扫码签到]\n        G{出勤率不低于 80 个百分点?}\n    end\n    subgraph 作业考核\n        H[提交课后实战作业]\n        I[助教 24 小时内批改]\n        J{作业得分不低于 60 分?}\n        K[安排一对一答疑补弱]\n    end\n    subgraph 结业\n        L[参加结课项目答辩]\n        M{答辩通过?}\n        N[颁发结业证书并推荐就业]\n    end\n    C --> D\n    D -->|否| R[进入先修班补 4 节基础课] --> C\n    D -->|是| E --> F --> G\n    G -->|否| O[班主任电话督学] --> F\n    G -->|是| H --> I --> J\n    J -->|否| K --> H\n    J -->|是| L --> M\n    M -->|否| P[延期 2 周重修未达标模块] --> L\n    M -->|是| N --> Q([学习档案归档])"
+    },
+    {
+      "name": "企业开办一件事审批流程",
+      "title": "企业开办一件事审批流程图",
+      "category": "流程图模板·流程图",
+      "sort": 80,
+      "content": "flowchart TD\n    subgraph 一窗受理\n        A([申请人登录政务服务网]) --> B[选择企业开办一件事]\n        B --> C[填写名称与经营范围]\n        C --> D[上传身份证与住所证明]\n    end\n    subgraph 并联审批\n        E[市场监管局名称自主申报]\n        F{名称通过禁限用校验?}\n        G[核准营业执照]\n        H[公安刻制公章]\n        I[税务发票票种核定]\n        J[社保与公积金开户]\n    end\n    subgraph 结果送达\n        K[生成电子营业执照]\n        L[EMS 免费寄递或窗口自取]\n        M([办结并归档电子档案])\n    end\n    D --> E --> F\n    F -->|否| N[提示重名并建议替换字号] --> C\n    F -->|是| G\n    G -->|材料不齐全| O[一次性告知补正清单] --> D\n    G -->|齐全| H --> I --> J --> P[银行对公开户预约] --> K\n    K --> L --> M"
+    },
+    {
+      "name": "同城即时配送调度流程",
+      "title": "同城即时配送调度流程图",
+      "category": "流程图模板·流程图",
+      "sort": 90,
+      "content": "flowchart LR\n    subgraph 订单接入\n        A([用户在小程序下单]) --> B[预估配送时长与运费]\n        B --> C[支付完成后进入调度池]\n    end\n    subgraph 智能调度\n        D[匹配 3 公里内空闲骑手]\n        E{90 秒内有骑手接单?}\n        F[加价 2 元二次派单]\n        G{仍无人接单?}\n        H[转人工调度指派]\n    end\n    subgraph 履约配送\n        I[骑手到店取餐并扫码]\n        J[路径规划导航至收货地]\n        K{预计超时?}\n        L[提前外呼用户并改派]\n    end\n    subgraph 结算售后\n        M[用户签收并拍照存证]\n        N[骑手配送费按单结算]\n        O{用户发起投诉?}\n        P[客服 24 小时内核实理赔]\n    end\n    C --> D --> E\n    E -->|是| I\n    E -->|否| F --> G\n    G -->|否| I\n    G -->|是| H --> I\n    I --> J --> K\n    K -->|是| L --> J\n    K -->|否| M --> N --> O\n    O -->|是| P --> Q([订单闭环])\n    O -->|否| Q"
+    },
+    {
+      "name": "SaaS 版本发布流程",
+      "title": "SaaS 版本发布流程图",
+      "category": "流程图模板·流程图",
+      "sort": 100,
+      "content": "flowchart TD\n    subgraph 需求开发\n        A([迭代需求评审通过]) --> B[创建 release 分支]\n        B --> C[提交 MR 并触发代码评审]\n        C --> D{评审与单元测试通过?}\n    end\n    subgraph 持续集成\n        E[GitLab CI 执行构建与扫描]\n        F{SonarQube 无阻断级问题?}\n        G[推送镜像至制品库]\n        H[部署到预发环境]\n    end\n    subgraph 验证灰度\n        I[自动化回归用例全量执行]\n        J{用例通过率达到 100 个百分点?}\n        K[灰度发布 5 个百分点流量]\n        L{15 分钟内错误率低于千分之一?}\n    end\n    subgraph 上线复盘\n        M[全量发布至生产集群]\n        N[更新变更单与发布公告]\n        O([发布完成并迭代复盘])\n    end\n    D -->|否| P[打回修改并重新提交] --> C\n    D -->|是| E --> F\n    F -->|否| P\n    F -->|是| G --> H --> I --> J\n    J -->|否| P\n    J -->|是| K --> L\n    L -->|否| R[自动回滚至上一版本] --> B\n    L -->|是| M --> N --> O"
+    },
+    {
+      "name": "游戏版本热更流程",
+      "title": "游戏版本热更流程图",
+      "category": "流程图模板·流程图",
+      "sort": 110,
+      "content": "flowchart TD\n    subgraph 版本准备\n        A([版本内容封版]) --> B[构建安卓与 iOS 双端包]\n        B --> C[上传至 CDN 与应用商店]\n    end\n    subgraph 测试验证\n        D[兼容性测试覆盖 200 款机型]\n        E{崩溃率低于千分之二?}\n        F[数值服压测 5 万人同屏]\n        G{帧同步延迟低于 100 毫秒?}\n    end\n    subgraph 灰度发布\n        H[开放百分之一玩家灰度]\n        I{24 小时内退款率低于百分之一?}\n        J[扩大至两成玩家放量]\n        K[全量开服并推送公告]\n    end\n    subgraph 运营监控\n        L[实时监控在线人数与付费转化]\n        M{出现严重线上事故?}\n        N[停服维护并热修]\n        O([版本稳定运行])\n    end\n    C --> D --> E\n    E -->|否| P[定位崩溃堆栈并修复] --> B\n    E -->|是| F --> G\n    G -->|否| P\n    G -->|是| H --> I\n    I -->|否| P\n    I -->|是| J --> K --> L --> M\n    M -->|是| N --> Q[发放补偿礼包并公告] --> O\n    M -->|否| O"
+    },
+    {
+      "name": "变电站巡检消缺流程",
+      "title": "变电站巡检消缺流程图",
+      "category": "流程图模板·流程图",
+      "sort": 120,
+      "content": "flowchart TD\n    subgraph 任务生成\n        A([PMS 生成月度巡检计划]) --> B[按设备台账派发工单]\n        B --> C[运维班组移动端接单]\n    end\n    subgraph 现场巡检\n        D[到站核对两票三制]\n        E[红外测温与局放检测]\n        F{主变油温超过 75 度?}\n        G[记录巡检数据并拍照上传]\n    end\n    subgraph 缺陷处理\n        H{缺陷等级判定}\n        I[一般缺陷纳入下月计划]\n        J[严重缺陷 2 小时内上报调度]\n        K[停电检修并更换部件]\n    end\n    subgraph 验收归档\n        L[班组自验与运维专职验收]\n        M{验收合格?}\n        N[更新设备台账并归档]\n    end\n    C --> D --> E --> F\n    F -->|是| J\n    F -->|否| G --> H\n    H -->|一般| I --> N\n    H -->|严重| J --> K --> L --> M\n    M -->|否| K\n    M -->|是| N --> O([缺陷闭环])"
+    },
+    {
+      "name": "连锁餐饮新店开业流程",
+      "title": "连锁餐饮新店开业流程图",
+      "category": "流程图模板·流程图",
+      "sort": 130,
+      "content": "flowchart TD\n    subgraph 选址评估\n        A([开发部获取铺位信息]) --> B[商圈人流与竞品调研]\n        B --> C{日均人流量不低于 8000 人次?}\n    end\n    subgraph 立项签约\n        D[测算投资回收期]\n        E{回收期不长于 18 个月?}\n        F[区域总经理立项审批]\n        G[签订租赁合同并缴纳押金]\n    end\n    subgraph 筹建施工\n        H[出具 SI 标准施工图]\n        I[总部工程队进场装修 45 天]\n        J{消防与食药监验收通过?}\n    end\n    subgraph 开业运营\n        K[招募店长与 12 名员工送训]\n        L[试营业 3 天收集顾客反馈]\n        M[正式开业并上线外卖平台]\n    end\n    C -->|否| N([放弃该铺位])\n    C -->|是| D --> E\n    E -->|否| N\n    E -->|是| F\n    F -->|不通过| N\n    F -->|通过| G --> H --> I --> J\n    J -->|否| O[限期整改并复验] --> J\n    J -->|是| K --> L --> M --> P([门店转入运营部管理])"
+    },
+    {
+      "name": "二手房交易过户流程",
+      "title": "二手房交易过户流程图",
+      "category": "流程图模板·流程图",
+      "sort": 140,
+      "content": "flowchart TD\n    subgraph 签约\n        A([买卖双方达成意向]) --> B[中介门店签署居间合同]\n        B --> C[买方支付定金并资金监管]\n    end\n    subgraph 资质与贷款\n        D[购房资格核验]\n        E{具备购房资格?}\n        F[银行面签并提交贷款材料]\n        G{贷款审批通过?}\n    end\n    subgraph 网签缴税\n        H[网签备案并打印合同]\n        I[核税并缴纳契税与增值税]\n        J[不动产登记中心过户受理]\n    end\n    subgraph 交割\n        K[买方领取不动产权证]\n        L[银行放款至监管账户]\n        M[物业交割并结清水电燃气]\n        N([交易完成并解付房款])\n    end\n    C --> D --> E\n    E -->|否| O[解除合同并退还定金] --> Q([交易终止])\n    E -->|是| F --> G\n    G -->|否| P[补充收入证明或提高首付] --> F\n    G -->|是| H --> I --> J --> K --> L --> M --> N"
+    },
+    {
+      "name": "热点新闻选题发布流程",
+      "title": "热点新闻选题发布流程图",
+      "category": "流程图模板·流程图",
+      "sort": 150,
+      "content": "flowchart TD\n    subgraph 选题\n        A([舆情系统捕捉热点]) --> B[记者编前会报选题]\n        B --> C{选题价值评估通过?}\n    end\n    subgraph 采编\n        D[一线采访并核实双信源]\n        E[撰写稿件并提交初审]\n        F{事实核查通过?}\n    end\n    subgraph 三审\n        G[责任编辑二审]\n        H[值班总编三审]\n        I{涉及重大敏感议题?}\n        J[报主管部门备案]\n    end\n    subgraph 发布复盘\n        K[排版并生成封面图]\n        L[客户端与公众号同步推送]\n        M[监测 1 小时阅读与评论数据]\n        N([选题归档并计入考核])\n    end\n    C -->|不通过| O([选题搁置])\n    C -->|通过| D --> E --> F\n    F -->|否| P[补充采访或撤稿] --> E\n    F -->|是| G --> H --> I\n    I -->|是| J --> K\n    I -->|否| K\n    K --> L --> M --> N"
+    },
+    {
+      "name": "校园招聘录用流程",
+      "title": "校园招聘录用流程图",
+      "category": "流程图模板·流程图",
+      "sort": 160,
+      "content": "flowchart TD\n    subgraph 招聘规划\n        A([HRBP 提报校招编制]) --> B[人力总监审批编制]\n        B --> C[发布宣讲会行程与岗位 JD]\n    end\n    subgraph 甄选\n        D[线上笔试测评]\n        E{笔试成绩不低于 70 分?}\n        F[群面无领导小组讨论]\n        G[专业面与技术面]\n        H{面试官三分之二通过?}\n    end\n    subgraph 录用\n        I[HR 薪酬沟通并发放意向书]\n        J{候选人 7 日内确认?}\n        K[发起三方协议审批]\n        L[背景调查与学历验证]\n    end\n    subgraph 入职\n        M[发送录用通知与体检指引]\n        N[报到入职并分配导师]\n        O([试用期 6 个月跟踪考核])\n    end\n    C --> D --> E\n    E -->|否| P([进入人才库暂不推进])\n    E -->|是| F --> G --> H\n    H -->|否| P\n    H -->|是| I --> J\n    J -->|否| Q[HR 电话挽单] --> I\n    J -->|是| K --> L\n    L -->|学历存疑| P\n    L -->|核验通过| M --> N --> O"
+    },
+    {
+      "name": "合同签署与用印流程",
+      "title": "合同签署与用印流程图",
+      "category": "流程图模板·流程图",
+      "sort": 170,
+      "content": "flowchart TD\n    subgraph 起草\n        A([业务部门发起合同申请]) --> B[选择范本并填写标的与金额]\n        B --> C[上传对方营业执照与授权书]\n    end\n    subgraph 法务审核\n        D[法务专员条款初审]\n        E{合同金额超过 100 万元?}\n        F[法务负责人复核并出具意见]\n        G{存在重大风险条款?}\n    end\n    subgraph 审批流转\n        H[财务审核付款节奏与税率]\n        I[分管副总审批]\n        J{审批通过?}\n    end\n    subgraph 签署归档\n        K[生成合同编号并双方盖章]\n        L[用印室登记并加盖公章]\n        M[扫描上传合同管理系统]\n        N([合同生效并纳入履约台账])\n    end\n    C --> D --> E\n    E -->|是| F --> G\n    G -->|是| O[退回业务修改条款] --> B\n    G -->|否| H\n    E -->|否| H\n    H --> I --> J\n    J -->|否| O\n    J -->|是| K --> L --> M --> N"
+    },
+    {
+      "name": "客户投诉工单处理流程",
+      "title": "客户投诉工单处理流程图",
+      "category": "流程图模板·流程图",
+      "sort": 180,
+      "content": "flowchart TD\n    subgraph 受理\n        A([客户拨打 400 热线]) --> B[IVR 语音导航选择业务]\n        B --> C[坐席建单并判定紧急度]\n    end\n    subgraph 分派\n        D{是否重大投诉?}\n        E[30 分钟内升级至客服主管]\n        F[按技能组分派至处理人]\n        G{2 小时内响应?}\n    end\n    subgraph 处理\n        H[核实订单与通话录音]\n        I[给出解决方案并外呼客户]\n        J{客户接受方案?}\n    end\n    subgraph 结单\n        K[执行退款或补发]\n        L[48 小时内回访确认]\n        M{满意度不低于 4 星?}\n        N([工单结案并沉淀知识库])\n    end\n    C --> D\n    D -->|是| E --> F\n    D -->|否| F --> G\n    G -->|否| O[超时预警并计入绩效] --> F\n    G -->|是| H --> I --> J\n    J -->|否| P[升级二线专家重拟方案] --> H\n    J -->|是| K --> L --> M\n    M -->|否| P\n    M -->|是| N"
+    },
+    {
+      "name": "供应商准入与采购流程",
+      "title": "供应商准入与采购流程图",
+      "category": "流程图模板·流程图",
+      "sort": 190,
+      "content": "flowchart TD\n    subgraph 准入\n        A([采购部发起新供应商引入]) --> B[收集营业执照与资质证书]\n        B --> C{资质齐全且在有效期内?}\n    end\n    subgraph 评估\n        D[现场审核打分]\n        E{评分不低于 75 分?}\n        F[小批量试样打样]\n        G{样品检测合格?}\n    end\n    subgraph 合作\n        H[录入 SRM 成为合格供方]\n        I[询价比价不少于 3 家]\n        J[下达采购订单]\n    end\n    subgraph 交付考核\n        K[到货 IQC 抽检]\n        L{来料合格率不低于 98 个百分点?}\n        M[入库并挂账 60 天账期]\n        N([季度供应商绩效评级])\n    end\n    C -->|否| O([列入黑名单不予准入])\n    C -->|是| D --> E\n    E -->|否| O\n    E -->|是| F --> G\n    G -->|否| P[限期整改并二次送样] --> F\n    G -->|是| H --> I --> J --> K --> L\n    L -->|否| Q[整批退货并索赔] --> P\n    L -->|是| M --> N"
+    },
+    {
+      "name": "数据安全事件应急响应流程",
+      "title": "数据安全事件应急响应流程图",
+      "category": "流程图模板·流程图",
+      "sort": 200,
+      "content": "flowchart TD\n    subgraph 监测发现\n        A([SIEM 平台触发告警]) --> B[安全值班员 10 分钟内核实]\n        B --> C{确认为安全事件?}\n    end\n    subgraph 定级上报\n        D[初步判定事件等级]\n        E{达到重大事件标准?}\n        F[1 小时内上报监管与法务]\n        G[启动应急指挥小组]\n    end\n    subgraph 处置\n        H[隔离受感染主机并断网]\n        I[封禁恶意 IP 与异常账号]\n        J[溯源分析攻击路径]\n        K[修补漏洞并重置凭据]\n    end\n    subgraph 恢复复盘\n        L[从离线备份恢复业务数据]\n        M{数据完整性与一致性校验通过?}\n        N[发布事件通报并通知受影响用户]\n        O([应急结束并更新应急预案])\n    end\n    C -->|否| P([记录误报并优化规则])\n    C -->|是| D --> E\n    E -->|是| F --> G\n    E -->|否| G\n    G --> H --> I --> J --> K --> L --> M\n    M -->|否| Q[切换备用恢复点重新恢复] --> L\n    M -->|是| N --> O"
+    },
+    {
+      "name": "用户登录认证",
+      "title": "用户登录认证时序图",
+      "category": "流程图模板·时序图",
+      "sort": 210,
+      "content": "sequenceDiagram\n    autonumber\n    participant B as 浏览器\n    participant G as 网关 api-gw\n    participant A as 认证服务 auth-svc\n    participant R as Redis 缓存\n    participant D as 用户库 user_db\n    B->>G: POST /api/v1/auth/login 携带 username 与 password\n    G->>A: POST /internal/session/verify\n    activate A\n    A->>R: GET auth:pwd:fail:username\n    R-->>A: 返回连续失败次数 0\n    alt 失败次数大于等于 5\n        A-->>G: 返回 429 账号锁定 900 秒\n        G-->>B: 提示请 15 分钟后重试\n    else 进入密码校验\n        A->>D: SELECT password_hash, salt, status FROM t_user\n        D-->>A: 返回用户记录与盐值\n        alt 密码不匹配\n            A->>R: INCR auth:pwd:fail:username 过期 900 秒\n            A-->>G: 返回 401 用户名或密码错误\n        else 密码匹配且状态正常\n            A->>R: SETEX auth:token:uid 1800 令牌值\n            A-->>G: 返回 access_token 与 refresh_token\n        end\n        G-->>B: 返回 200 并下发 HttpOnly Cookie\n    end\n    deactivate A\n    par 异步审计\n        A->>G: 投递登录事件 login.result\n    and 风控上报\n        A->>G: 投递风控事件 risk.login\n    end\n    opt 账号已开启二次验证\n        G-->>B: 返回 202 需要短信验证码\n        B->>G: POST /api/v1/auth/login 携带 sms_code\n        G-->>B: 返回 200 登录完成\n    end\n    Note over B,D: 访问令牌 30 分钟有效 刷新令牌 7 天有效"
+    },
+    {
+      "name": "SSO 单点登录跳转",
+      "title": "SSO 单点登录跳转时序图",
+      "category": "流程图模板·时序图",
+      "sort": 220,
+      "content": "sequenceDiagram\n    autonumber\n    participant U as 用户浏览器\n    participant O as OA 业务系统\n    participant S as SSO 认证中心\n    participant T as 票据服务 ticket-svc\n    participant D as 目录服务 LDAP\n    U->>O: GET /oa/workbench\n    O->>O: 检查本地会话 Cookie oa_sid\n    alt 本地会话有效\n        O-->>U: 返回工作台页面\n    else 本地会话缺失\n        O-->>U: 302 跳转至 sso.company.com/login\n        U->>S: POST /login 提交工号与密码\n        activate S\n        S->>D: bind 校验 dn 与密码\n        D-->>S: 返回 LDAP 校验结果\n        S->>T: POST /tgc 签发全局会话票据\n        T-->>S: 返回 TGC 与 8 小时过期时间\n        S-->>U: 302 回调 service 地址携带 ticket\n        deactivate S\n        U->>O: GET /oa/workbench 携带 ticket\n        O->>S: POST /serviceValidate 校验 ticket\n        S->>T: GET /ticket/check 一次性消费\n        T-->>S: 返回票据有效且未使用\n        S-->>O: 返回 200 与用户属性\n        O->>O: 建立本地会话 30 分钟\n        O-->>U: 返回工作台页面并写入 oa_sid\n    end\n    par 同步用户属性\n        O->>D: 拉取部门与角色列表\n    and 同步登录日志\n        O->>T: 记录 sso.login 事件\n    end\n    opt 用户点击退出\n        U->>S: GET /logout\n        S->>T: 请求销毁全局票据\n        S-->>U: 跳转回登录页\n    end\n    Note over U,D: 票据有效期 5 分钟且仅可使用一次"
+    },
+    {
+      "name": "电商支付下单",
+      "title": "电商支付下单时序图",
+      "category": "流程图模板·时序图",
+      "sort": 230,
+      "content": "sequenceDiagram\n    autonumber\n    participant C as 商城 App\n    participant O as 订单服务 order-svc\n    participant I as 库存服务 stock-svc\n    participant P as 支付服务 pay-svc\n    participant W as 微信支付渠道\n    C->>O: POST /api/v1/orders 提交 sku_id 与数量\n    activate O\n    O->>I: POST /stock/freeze 冻结库存\n    I-->>O: 返回冻结成功 freeze_id\n    O-->>C: 返回 order_no 与应付金额 19900 分\n    deactivate O\n    C->>P: POST /api/v1/pay/create 携带 order_no\n    P->>W: POST /v3/pay/transactions/jsapi\n    W-->>P: 返回 prepay_id\n    C->>W: 调起支付并输入密码\n    W-->>P: POST /v3/notify/pay 回调支付结果\n    activate P\n    P->>P: 验签并校验金额与 order_no\n    alt 验签失败\n        P-->>W: 返回 FAIL 签名错误\n    else 验签通过\n        P-->>W: 返回 SUCCESS 接收成功\n        par 订单侧消费\n            P->>O: 投递 order.paid 消息\n            O->>O: 状态流转为 PAID 并锁价\n        and 库存侧消费\n            P->>I: 投递 order.paid 消息\n            I->>I: 冻结转扣减 生成出库单\n        end\n    end\n    deactivate P\n    loop 每 60 秒扫描一次\n        O->>O: 查询 30 分钟未支付订单\n        opt 存在超时订单\n            O->>I: POST /stock/release 释放冻结\n        end\n    end\n    Note over C,W: 支付回调需幂等 以 payment_id 去重"
+    },
+    {
+      "name": "订单全额退款",
+      "title": "订单全额退款时序图",
+      "category": "流程图模板·时序图",
+      "sort": 240,
+      "content": "sequenceDiagram\n    autonumber\n    participant B as 买家\n    participant M as 商户后台 merchant-web\n    participant O as 订单服务 order-svc\n    participant K as 风控服务 risk-svc\n    participant W as 微信支付渠道\n    B->>M: 提交退款申请 订单号与原因\n    M->>O: POST /api/v1/orders/refund/apply\n    O->>K: POST /risk/refund/check 传入 uid 与金额\n    K-->>O: 返回风险分 20 与放行结论\n    alt 风险分高于 80\n        O-->>M: 返回 403 需人工复核\n    else 风险通过\n        O->>O: 生成 refund_no 幂等键并落库 AUDITING\n        O->>W: POST /v3/refund/domestic/refunds\n        activate W\n        W-->>O: 返回受理 SUCCESS 与退款单号\n        loop 每 30 秒查询一次 最多 20 次\n            O->>W: GET /v3/refund/domestic/refunds/out_refund_no\n            W-->>O: 返回退款状态\n            alt 渠道返回 SUCCESS\n                O->>O: 订单置为 REFUNDED 并回补库存\n                O-->>B: 推送退款到账通知\n            else 渠道返回 PROCESSING\n            end\n        end\n        opt 渠道返回异常 ABNORMAL\n            O->>W: 重试退款 3 次 间隔 60 秒\n            W-->>O: 返回需人工介入并生成工单\n        end\n        deactivate W\n    end\n    par 账务记账\n        O->>K: 投递 refund.success 事件\n        K-->>O: 冲减收入 19900 分 退回手续费 60 分\n    and 通知买家\n        O->>B: 发送短信与站内信\n    end\n    Note over B,W: 退款以 refund_no 做幂等 重复提交返回原单"
+    },
+    {
+      "name": "秒杀扣减库存",
+      "title": "秒杀扣减库存时序图",
+      "category": "流程图模板·时序图",
+      "sort": 250,
+      "content": "sequenceDiagram\n    autonumber\n    participant C as 秒杀页面\n    participant G as 秒杀网关 seckill-gw\n    participant S as 秒杀服务 seckill-svc\n    participant R as Redis 集群\n    participant D as 库存库 stock_db\n    C->>G: 点击秒杀按钮 携带 activity_id 与 sku_id\n    G->>S: POST /seckill/order 携带 uid 与答题令牌\n    activate S\n    S->>R: SETNX seckill:uid:activity_id 防重复下单\n    alt 防重键已存在\n        S-->>G: 返回 409 请勿重复下单\n        G-->>C: 提示每人限购 1 件\n    else 首次下单\n        S->>R: 执行 Lua 脚本扣减 seckill:stock:sku_id\n        R-->>S: 返回扣减后余量 3288\n        alt 余量小于 0\n            S->>R: 执行 Lua 脚本回滚库存\n            S-->>G: 返回 410 已售罄\n            G-->>C: 提示商品已抢完\n        else 扣减成功\n            S->>D: 投递 seckill.order 消息 含 uid 与 sku_id\n            S-->>G: 返回 202 排队中 请稍后查询\n        end\n    end\n    deactivate S\n    loop 前端每 1 秒轮询 最多 20 次\n        C->>G: GET /seckill/result 携带 uid\n        G->>R: GET seckill:result:uid\n        G-->>C: 返回抢购结果\n    end\n    par 消费落库\n        S->>D: 消费消息并执行乐观锁扣减\n        D-->>S: 返回影响行数 1\n    and 超时释放\n        S->>D: 取消 10 分钟未支付订单\n        D->>R: INCR seckill:stock:sku_id 回补库存\n    end\n    Note over C,D: Redis 预扣与数据库最终一致 依赖对账补偿"
+    },
+    {
+      "name": "OAuth2 授权码授权",
+      "title": "OAuth2 授权码授权时序图",
+      "category": "流程图模板·时序图",
+      "sort": 260,
+      "content": "sequenceDiagram\n    autonumber\n    participant U as 资源拥有者\n    participant A as 三方客户端 App\n    participant S as 授权服务器 oauth-srv\n    participant T as 令牌服务 token-srv\n    participant R as 资源服务器 api-srv\n    U->>A: 点击使用第三方账号登录\n    A-->>U: 302 跳转至 /oauth/authorize\n    U->>S: GET /oauth/authorize 携带 client_id 与 scope\n    U->>S: POST /oauth/authorize 勾选授权范围\n    S->>T: POST /code 签发授权码\n    activate T\n    T-->>S: 返回 code 有效期 60 秒\n    S-->>U: 302 回调客户端携带 code 与 state\n    U->>A: GET /oauth/callback 携带 code\n    A->>S: POST /oauth/token 携带 code 与 code_verifier\n    S->>T: 校验 code 与 code_challenge\n    T-->>S: 返回校验通过与 scope 列表\n    deactivate T\n    alt 授权码校验失败\n        S-->>A: 返回 401 invalid_grant\n        A-->>U: 提示授权已失效请重试\n    else 校验通过\n        S-->>A: 返回 access_token 3600 秒与 refresh_token\n        A->>R: GET /api/v1/profile 携带 Bearer 令牌\n        R->>S: GET /oauth/introspect 校验令牌\n        S-->>R: 返回 active 与 scope 列表\n        alt scope 不包含 profile\n            R-->>A: 返回 403 权限不足\n        else scope 校验通过\n            R-->>A: 返回用户昵称与头像\n        end\n    end\n    opt 访问令牌过期\n        A->>S: POST /oauth/token 使用 refresh_token\n        S->>T: 轮换刷新令牌并作废旧令牌\n        S-->>A: 返回新令牌对\n    end\n    Note over U,R: 授权码仅一次有效 且必须与 code_verifier 配对"
+    },
+    {
+      "name": "短信验证码登录",
+      "title": "短信验证码登录时序图",
+      "category": "流程图模板·时序图",
+      "sort": 270,
+      "content": "sequenceDiagram\n    autonumber\n    participant U as 用户手机\n    participant B as 业务服务 biz-svc\n    participant V as 验证码服务 sms-code-svc\n    participant R as Redis 限流\n    participant O as 运营商通道\n    U->>B: POST /api/v1/sms/send 携带手机号\n    B->>V: POST /internal/code/send 携带 biz_type\n    activate V\n    V->>R: GET sms:limit:phone 与 sms:limit:ip\n    R-->>V: 返回当日已发送 2 次\n    alt 超出每日 10 次限制\n        V-->>B: 返回 429 发送过于频繁\n        B-->>U: 提示今日验证码已达上限\n    else 限流通过\n        V->>V: 生成 6 位数字验证码 有效期 300 秒\n        V->>R: SETEX sms:code:phone 300 验证码\n        V->>O: POST /sms/submit 携带模板号 SMS_1023\n        deactivate V\n        O->>U: 下发验证码短信\n        U->>B: POST /api/v1/sms/login 携带验证码\n        B->>V: POST /internal/code/verify\n        V->>R: GET sms:code:phone\n        R-->>V: 返回存储的验证码\n        alt 验证码不一致或已过期\n            V->>R: INCR sms:fail:phone 过期 600 秒\n            V-->>B: 返回 401 验证码错误\n        else 验证码一致\n            V->>R: DEL sms:code:phone\n            V-->>B: 返回校验通过\n            B-->>U: 返回登录令牌 有效期 7200 秒\n        end\n    end\n    par 状态报告回执\n        O->>V: 推送短信状态报告 DELIVRD\n    and 发送量统计\n        V->>R: INCR sms:stat:date 与 sms:stat:channel\n    end\n    Note over U,O: 同一手机号 60 秒冷却 单日上限 10 次"
+    },
+    {
+      "name": "消息可靠投递",
+      "title": "消息可靠投递时序图",
+      "category": "流程图模板·时序图",
+      "sort": 280,
+      "content": "sequenceDiagram\n    autonumber\n    participant P as 生产者 order-svc\n    participant T as 本地事务表 tx_message\n    participant B as MQ Broker\n    participant C as 消费者 settle-svc\n    participant K as 对账服务 reconcile-svc\n    P->>T: INSERT 业务数据与待发消息 状态 INIT\n    P->>B: 发送消息 topic=order.paid 携带 msg_id\n    alt 发送成功\n        B-->>P: 返回 ACK 与分区偏移\n        P->>T: 更新消息状态 SENT\n    else 发送超时\n        B-->>P: 返回超时异常\n        P->>T: 保持状态 INIT 等待补偿\n    loop 补偿任务每 10 秒扫描\n        P->>T: 查询 30 秒仍为 INIT 的记录\n        opt 存在待补偿消息\n            P->>B: 重新投递 最多 3 次 间隔 5 秒\n        end\n    end\n    B->>C: 推送消息 order.paid\n    activate C\n    alt 已消费过\n        C-->>B: 直接提交 ACK 并丢弃\n    else 首次消费\n        C->>C: 执行结算逻辑扣减佣金 120 分\n        C-->>B: 返回 ACK 提交位点\n    end\n    deactivate C\n    opt 重试 3 次仍失败\n        B->>K: 转入死信队列 DLQ_ORDER_PAID\n    end\n    par 定时对账\n        K->>T: 拉取当日 SENT 消息流水\n    and 消费侧核对\n        K->>C: 拉取已消费 msg_id 集合\n    end\n    end\n    Note over P,K: 本地事务表加最大努力通知保证最终一致"
+    },
+    {
+      "name": "大文件分片上传",
+      "title": "大文件分片上传时序图",
+      "category": "流程图模板·时序图",
+      "sort": 290,
+      "content": "sequenceDiagram\n    autonumber\n    participant C as 上传客户端\n    participant U as 上传服务 upload-svc\n    participant M as 元数据服务 meta-svc\n    participant S as 对象存储 OSS\n    participant N as CDN 节点\n    C->>U: POST /api/v1/upload/init 携带 md5 与 fileName\n    activate U\n    U->>M: 创建上传任务 upload_id 与分片数 205\n    M-->>U: 返回 upload_id 与分片大小 10485760\n    U-->>C: 返回 upload_id 与已上传分片列表\n    deactivate U\n    loop 并发上传 5 片直到 205 片完成\n        C->>S: PUT 分片数据 携带 Content-MD5\n        S-->>C: 返回 200 与 ETag\n        C->>U: POST /api/v1/upload/part 上报分片序号\n        U->>M: 记录分片状态与 ETag\n        alt 分片上传失败\n            C->>S: PUT 重新上传该分片\n            S-->>C: 返回 200\n        end\n    end\n    C->>U: POST /api/v1/upload/complete 携带 upload_id\n    U->>M: 校验已上传分片数等于总分片数\n    M-->>U: 返回校验通过 205 片齐全\n    U->>S: POST /complete_multipart 合并分片\n    S-->>U: 返回合并后对象地址\n    U-->>C: 返回文件地址 file_id 与大小\n    par 异步转码\n        U->>S: 投递转码任务 目标 1080P 与 720P\n    and 异步预热\n        U->>N: 提交 CDN 预热任务\n        N->>S: 回源拉取文件\n    end\n    opt 上传中断后续传\n        C->>U: GET /api/v1/upload/status 携带 upload_id\n        U-->>C: 返回已上传分片列表\n    end\n    Note over C,N: 预签名地址 1 小时有效 分片序号从 1 开始"
+    },
+    {
+      "name": "视频连麦信令",
+      "title": "视频连麦信令时序图",
+      "category": "流程图模板·时序图",
+      "sort": 300,
+      "content": "sequenceDiagram\n    autonumber\n    participant A as 主播端\n    participant S as 信令服务 signal-svc\n    participant R as 房间服务 room-svc\n    participant M as 媒体服务 SFU\n    participant B as 观众端\n    A->>+S: 建立 WebSocket 连接 wss 携带 token\n    S->>R: POST /room/enter 携带 room_id 与 uid\n    A->>M: 推流 rtmp 分辨率 720P 码率 1200kbps\n    B->>S: 建立 WebSocket 连接并申请连麦\n    S->>R: POST /room/mic/apply 携带 uid\n    A->>S: 同意连麦并设置连麦位 1\n    S-->>-B: 返回连麦许可与推流地址\n    A->>S: 发送 offer 携带 SDP 与 ICE 候选\n    S->>B: 转发 offer 与音频编码 opus\n    alt 点对点穿透成功\n        B->>S: 发送 answer 携带候选地址\n        S->>A: 转发 answer\n    else 穿透失败走中转\n        B->>M: 申请中继地址与凭证\n        M-->>B: 返回中继地址与有效期 600 秒\n        B->>S: 发送 answer 携带中继候选\n        S->>A: 转发 answer 与中继候选\n    end\n    loop 每 3 秒上报一次\n        A->>S: 上报丢包率与往返时延\n        S->>R: 写入质量表用于码率自适应\n        opt 往返时延高于 400 毫秒\n            S-->>A: 下发降低码率至 600kbps\n            A->>M: 调整编码码率\n        end\n    end\n    par 混流录制\n        M->>M: 合流两路画面为 720P 布局\n    and 观众侧分发\n        M->>B: 下发合流拉流地址 flv\n        B-->>M: 返回拉流成功\n    end\n    Note over A,B: ICE 超时 10 秒转中继 房间心跳 15 秒"
+    },
+    {
+      "name": "物联网设备上报",
+      "title": "物联网设备上报时序图",
+      "category": "流程图模板·时序图",
+      "sort": 310,
+      "content": "sequenceDiagram\n    autonumber\n    participant D as 温湿度终端\n    participant B as MQTT Broker\n    participant E as 规则引擎 rule-engine\n    participant S as 设备影子 shadow-svc\n    participant A as 告警服务 alert-svc\n    D->>B: CONNECT 携带 device_id 与签名 心跳 60 秒\n    D->>B: SUBSCRIBE 主题 cmd/down/device_id\n    loop 每 30 秒上报一次\n        D->>B: PUBLISH 主题 telemetry/device_id 携带温湿度\n        B->>E: 按规则转发消息\n        activate E\n        E->>E: 解析 JSON 并校验字段范围\n        alt 字段缺失或超范围\n            E-->>D: 丢弃该条数据并记录异常\n        else 数据合法\n            E->>S: 更新设备影子 reported 状态\n            E->>A: 投递阈值检测任务\n            A->>A: 比对规则 温度高于 40 持续 3 个周期\n            alt 触发告警\n                A->>S: 写入期望状态 desired 启动风扇\n            else 未触发\n                A->>A: 累加计数并结束本轮\n            end\n        end\n        deactivate E\n    end\n    par 下行指令\n        S->>B: PUBLISH 主题 cmd/down/device_id 携带 desired\n        B->>D: 下发控制指令 风扇开启\n    and 数据聚合\n        E->>S: 每 5 分钟执行降采样聚合\n    end\n    opt 设备离线\n        B->>S: 触发遗嘱消息 状态 offline\n        S->>A: 生成离线告警 断连超过 120 秒\n        A-->>D: 待上线后补发缓存指令\n    end\n    Note over D,A: 设备影子版本号冲突时以服务端 desired 为准"
+    },
+    {
+      "name": "银行跨行转账",
+      "title": "银行跨行转账时序图",
+      "category": "流程图模板·时序图",
+      "sort": 320,
+      "content": "sequenceDiagram\n    autonumber\n    participant U as 手机银行\n    participant C as 行内核心 core-banking\n    participant F as 清算前置\n    participant N as 网联清算平台\n    participant R as 收款行核心\n    U->>C: POST /transfer 付款账号 收款账号 金额 500000 分\n    activate C\n    C->>C: 冻结付款方资金 500000 分\n    C->>F: 组包 报文类型 100 与业务编号\n    F->>N: POST /clearing/submit 携带报文与数字签名\n    N->>R: 转发贷记报文至收款行\n    activate R\n    alt 收款账户异常\n        R-->>N: 返回拒绝码 RJ09 账户状态异常\n        N-->>F: 转发拒绝报文\n        C-->>U: 推送转账失败通知\n    else 收款账户正常\n        R->>R: 入账 500000 分 并生成回单\n        R-->>-N: 返回成功应答 与清算日期\n        N-->>F: 转发成功应答\n        F->>C: 记账扣款并解除冻结\n        C-->>-U: 推送到账通知\n    end\n    par 日终对账\n        N->>F: 下发当日清算对账文件\n        F->>C: 逐笔勾兑 以清算流水号为准\n    and 差错处理\n        C->>F: 上报长款或短款差错\n        F->>N: 提交差错调整申请\n    end\n    loop 每 5 分钟扫描挂账\n        F->>F: 查询超 15 分钟未终态交易\n        opt 存在挂账交易\n            F->>N: 发起交易状态查询\n            F->>C: 按终态冲正或继续挂账\n        end\n    end\n    Note over U,R: 转账以核心流水号幂等 超时未决走查询冲正"
+    },
+    {
+      "name": "保险报案理赔",
+      "title": "保险报案理赔时序图",
+      "category": "流程图模板·时序图",
+      "sort": 330,
+      "content": "sequenceDiagram\n    autonumber\n    participant C as 被保险人\n    participant R as 报案系统 claim-intake\n    participant D as 查勘调度 dispatch-svc\n    participant S as 定损系统 loss-svc\n    participant A as 核赔引擎\n    C->>R: 提交报案 保单号 事故时间 事故地点\n    alt 保单已失效或不在保障范围\n        R-->>C: 返回拒赔告知 与条款依据\n    else 保单有效\n        R->>R: 生成报案号 并做重复报案校验\n        R->>D: POST /dispatch/task 携带报案号与地址\n        D->>D: 按经纬度匹配最近查勘员 3 公里内\n        loop 查勘直至资料齐全\n            D->>S: 上传现场照片 不少于 8 张 与责任认定书\n            alt 资料缺失\n                S-->>C: 提示补充维修清单与发票\n            else 资料齐全\n                S->>+A: POST /assess/submit 提交定损单\n            end\n        end\n        A->>A: 校验免赔额 10000 分 与责任比例 70\n        alt 定损金额高于保额\n            A-->>C: 返回按保额赔付 30000000 分\n        else 金额在保额内\n            A->>A: 理算 定损金额减免赔额后乘责任比例\n            A-->>-C: 返回理算结果 595000 分\n        end\n    end\n    par 反欺诈排查\n        A->>R: 查询历史赔付记录\n    and 数据归档\n        R-->>A: 返回归档成功与赔案编号\n    end\n    opt 客户对赔款有异议\n        C->>R: 提交复核申请与补充证据\n        R->>A: 发起二次核赔 5 个工作日内答复\n    end\n    Note over C,A: 状态流转为 报案 查勘 定损 核赔 赔付 结案"
+    },
+    {
+      "name": "跨境电商清关",
+      "title": "跨境电商清关时序图",
+      "category": "流程图模板·时序图",
+      "sort": 340,
+      "content": "sequenceDiagram\n    autonumber\n    participant B as 海外买家\n    participant O as 履约中心 oms\n    participant C as 报关系统 customs-decl\n    participant H as 海关系统\n    participant W as 保税仓 WMS\n    B->>O: 提交订单 商品 2 件 实付 26800 分\n    O->>O: 校验跨境正面清单与单笔限额 500000 分\n    B->>O: 完成支付 订单进入待申报\n    O->>C: POST /decl/order 提交订单申报清单\n    activate C\n    C->>C: 计算综合税 关税 0 增值税与消费税\n    C->>H: POST /customs/order/push 订单 支付 运单三单\n    H-->>C: 返回申报接收回执 与清单编号\n    loop 每 10 分钟查询 最多 12 次\n        C->>H: GET /customs/order/status 携带清单编号\n        H-->>C: 返回审核状态\n        alt 海关放行\n            O->>W: POST /wms/outbound 生成出库单\n            W-->>O: 返回出库完成与运单号\n        else 海关查验\n            C->>H: 提交补充材料 发票与成分说明\n            H-->>C: 返回查验结论\n            opt 查验不通过\n                C->>O: 触发退运或销毁流程\n                O-->>B: 全额退款到账通知\n            end\n        end\n    end\n    deactivate C\n    par 税费缴纳\n        C->>H: 推送税单 2412 分\n    and 物流轨迹回传\n        W->>O: 回传轨迹节点 已揽收 起飞 派送\n    end\n    opt 买家拒收退回\n        B->>W: 发起拒收并退回保税仓\n    end\n    Note over B,W: 三单对碰一致才可申报 清单有效期 30 天"
+    },
+    {
+      "name": "供应链自动补货",
+      "title": "供应链自动补货时序图",
+      "category": "流程图模板·时序图",
+      "sort": 350,
+      "content": "sequenceDiagram\n    autonumber\n    participant P as 门店 POS\n    participant E as 补货引擎 replen-svc\n    participant I as 库存中心 inventory-svc\n    participant W as 仓储系统 WMS\n    participant V as 供应商 SRM\n    P->>E: 推送当日销售流水 单据 1286 笔\n    activate E\n    E->>I: GET /inventory/sku 查询可用库存与在途量\n    I-->>E: 返回可用 120 件 与安全库存 200 件\n    alt 可用库存高于安全库存\n        E-->>P: 返回无需补货并记录原因\n    else 库存低于安全库存\n        E->>E: 建议补货量 日均销量乘提前期减可用量 55 件\n        E->>I: POST /inventory/plan 创建补货计划单\n        deactivate E\n        I->>W: POST /wms/purchase 生成采购建议转采购单\n        W->>V: POST /srm/po/create 采购单 数量 55 件\n        V-->>W: 返回采购单确认 与交货周期 5 天\n        loop 每日 09:00 跟踪在途\n            W->>V: GET /srm/po/status 采购单号\n            alt 供应商延迟或短缺\n                V-->>W: 返回延期 3 天 或缺量 10 件\n                W->>E: 触发紧急补货与替代供应商评估\n                E-->>W: 返回调整建议 转调拨 10 件\n            else 正常发货\n                W->>W: 预约到货月台与收货质检 抽检 10\n                W->>I: POST /inventory/inbound 上架入库\n            end\n        end\n    end\n    par 门店调拨\n        E->>I: 查询相邻门店富余库存\n        E->>W: 创建调拨单并安排同城配送\n    and 报表同步\n        E->>P: 回传补货满足率与缺货率报表\n        P-->>E: 返回接收成功\n    end\n    Note over P,V: 补货计划每日 02:00 全量重算 支持人工锁定"
+    },
+    {
+      "name": "医院门诊挂号",
+      "title": "医院门诊挂号时序图",
+      "category": "流程图模板·时序图",
+      "sort": 360,
+      "content": "sequenceDiagram\n    autonumber\n    participant P as 患者\n    participant A as 挂号平台\n    participant S as 号源服务 schedule-svc\n    participant H as 医院 HIS\n    participant D as 医生工作站\n    P->>A: 选择院区 科室 心血管内科 与日期\n    A->>S: GET /schedule/list 携带 dept_code 与 date\n    P->>A: 提交挂号 选择就诊人 card_no\n    A->>+H: POST /his/patient/verify 校验就诊卡与实名\n    alt 就诊卡无效或黑名单\n        A-->>P: 返回 400 请到窗口核实身份\n    else 校验通过\n        A->>S: POST /schedule/lock 锁号 号源序号 8\n        alt 锁号失败\n            S-->>A: 返回 409 号源已被抢占\n            A-->>P: 提示换医生或换时段\n        else 锁号成功 有效期 600 秒\n            A->>H: POST /pay/reg 挂号费 医保统筹 3000 分\n            A->>H: POST /his/register/confirm 确认挂号\n            H-->>-A: 返回就诊号 8 与候诊队列位置 3\n        end\n    end\n    P->>A: 到院签到 刷就诊卡\n    A->>+H: POST /his/checkin 更新候诊状态\n    loop 候诊叫号\n        D->>H: 呼叫下一位患者\n        A-->>P: 提示请到 3 号诊室就诊\n        opt 患者过号\n            A->>H: 重新排入队列 顺延 2 位\n        end\n    end\n    par 检验检查开单\n        D->>H: 开立心电图与血常规申请单\n        H-->>-P: 推送检查费待缴费提醒\n    and 电子病历归档\n        D->>H: 提交诊断与处方\n    end\n    Note over P,D: 锁号 10 分钟未支付自动释放 支持就诊前 24 小时退号"
+    },
+    {
+      "name": "网约车派单",
+      "title": "网约车派单时序图",
+      "category": "流程图模板·时序图",
+      "sort": 370,
+      "content": "sequenceDiagram\n    autonumber\n    participant R as 乘客端\n    participant O as 订单服务 order-svc\n    participant D as 派单引擎 dispatch-svc\n    participant S as 司机端\n    participant B as 计价服务 billing-svc\n    R->>O: POST /ride/create 起点 终点 与用车类型 快车\n    O->>D: POST /dispatch/match 携带起点经纬度\n    activate D\n    loop 每 5 秒一轮 最多 5 轮\n        D->>S: 推送指派 倒计时 15 秒\n        alt 司机接单\n            S-->>D: 返回接单确认与当前位置\n            D->>O: 绑定司机与车辆 车牌与司机编号\n            O-->>R: 推送司机信息 预计 6 分钟到达\n        else 司机超时未响应\n            D->>D: 扩大半径至 5 公里 加价 3 分调度费\n            opt 第五轮仍未匹配\n                O-->>R: 提示当前用车高峰 建议加价或等待\n            end\n        end\n    end\n    deactivate D\n    S->>B: POST /billing/start 记录起点与开始时间\n    activate B\n    loop 行程中每 15 秒上报\n        opt 偏离导航路线\n            B-->>R: 推送偏航提醒\n        end\n    end\n    S->>B: POST /billing/end 结束行程\n    B->>B: 计算总价 2890 分 含动态调价 1.2 倍\n    deactivate B\n    par 司机收入结算\n        B-->>S: 入账当日收入\n    and 服务评价\n        O->>D: 更新司机服务分与派单权重\n    end\n    Note over R,B: 派单超时 60 秒转人工调度 轨迹保留 180 天"
+    },
+    {
+      "name": "直播送礼结算",
+      "title": "直播送礼结算时序图",
+      "category": "流程图模板·时序图",
+      "sort": 380,
+      "content": "sequenceDiagram\n    autonumber\n    participant V as 观众端\n    participant G as 礼物服务 gift-svc\n    participant A as 账户服务 wallet-svc\n    participant K as 风控服务 risk-svc\n    participant S as 结算服务 settle-svc\n    V->>G: 点击发送礼物 礼物 ID 10086 数量 10\n    activate G\n    G->>A: GET /wallet/balance 查询钻石余额\n    alt 余额不足\n        G-->>V: 返回 402 余额不足 请充值\n    else 余额充足\n        G->>K: POST /risk/gift/check 携带 uid 与金额\n        G->>A: POST /wallet/debit 扣减 1000 钻石\n        G->>G: 生成礼物流水 gift_order_no 用于幂等\n        deactivate G\n        par 全服广播\n            G->>V: 广播礼物特效与连击数 10\n        and 榜单更新\n            G->>S: 投递贡献值变更 房间日榜与周榜\n        end\n        loop 每 5 秒合并结算一次\n            S->>S: 汇总本周期礼物流水 与平台分成 50\n            opt 金额达到提现门槛\n                S->>A: 发起打款 100000 钻石 代扣个税 20\n                A-->>S: 返回到账成功\n            end\n        end\n        opt 礼物发送失败\n            G->>A: 发起冲正 退回 1000 钻石\n            A-->>G: 返回冲正成功并提示已退款\n        end\n    end\n    par 对账核验\n        S->>A: 拉取当日钻石流水\n    and 反作弊\n        K->>S: 上报异常刷礼账号\n    end\n    Note over V,S: 礼物流水以 gift_order_no 幂等 连击 5 秒内合并广播"
+    },
+    {
+      "name": "游戏战斗结算",
+      "title": "游戏战斗结算时序图",
+      "category": "流程图模板·时序图",
+      "sort": 390,
+      "content": "sequenceDiagram\n    autonumber\n    participant C as 游戏客户端\n    participant M as 匹配服务 match-svc\n    participant B as 战斗服务 battle-svc\n    participant L as 排行榜 rank-svc\n    participant W as 奖励服务 reward-svc\n    C->>M: POST /match/start 模式 5v5 与段位分 1520\n    activate M\n    loop 每 3 秒扩展一次范围\n        alt 未满员\n            M-->>C: 返回匹配中 已等待 45 秒\n        else 满员\n            M->>B: POST /room/create 携带 10 名玩家与分区\n            M-->>C: 返回匹配成功 房间号\n        end\n    end\n    deactivate M\n    C->>B: 建立 UDP 连接 携带 room_token\n    activate B\n    loop 战斗帧同步 每秒 30 帧\n        B-->>C: 广播帧状态 血量 与位置\n        opt 检测到加速或瞬移\n            B-->>C: 踢出对局并上报反作弊\n        end\n    end\n    B->>L: POST /rank/update 携带战绩 击杀 12 死亡 3 助攻 8\n    deactivate B\n    B->>W: POST /reward/grant 战斗奖励 经验与金币\n    alt 存在掉线扣分\n        W-->>B: 返回扣除信誉分 10 分\n    else 表现正常\n        W-->>B: 返回发放成功 金币 320 经验 1500\n    end\n    par 数据落库\n        B->>L: 写入战斗录像与战报\n    and 赛季任务\n        W->>L: 更新周任务进度 完成 3 场排位\n    end\n    Note over C,W: 帧同步以服务端帧号为准 断线 60 秒内可重连"
+    },
+    {
+      "name": "CI 构建发布",
+      "title": "CI 构建发布时序图",
+      "category": "流程图模板·时序图",
+      "sort": 400,
+      "content": "sequenceDiagram\n    autonumber\n    participant D as 开发者\n    participant G as 代码仓 GitLab\n    participant J as 流水线 Jenkins\n    participant R as 镜像仓库 Harbor\n    participant K as 集群 K8s\n    D->>G: git push 分支 release/1.8.0\n    G->>J: 触发 Webhook 携带 commit_id 与分支\n    activate J\n    J->>G: clone 代码并切换至 commit_id\n    par 并行质量门禁\n        J->>J: 触发单元测试 通过率 98.6 覆盖率 82\n    and 静态扫描\n        J->>J: 触发 golangci-lint 与漏洞扫描\n    end\n    alt 门禁未通过\n        J-->>D: 发送构建失败通知 与失败用例\n    else 门禁通过\n        J->>R: docker build 推送镜像 order-svc:1.8.0\n        J->>K: kubectl apply 灰度 2 个副本\n        activate K\n        alt 就绪探针失败\n            K->>J: 返回升级失败 触发自动回滚\n            J->>K: 回滚至 1.7.9 版本\n        else 灰度实例就绪\n            loop 观察 10 分钟 每分钟采样\n                opt 错误率高于 1\n                    J->>K: 暂停发布并执行回滚\n                end\n            end\n            J->>-K: 全量扩容至 10 个副本\n            K-->>-J: 返回全量发布完成\n        end\n    end\n    opt 需要人工审批\n        J->>D: 发送审批卡片给值班负责人\n        D-->>J: 返回审批通过并继续发布\n    end\n    Note over D,K: 流水线超时 30 分钟自动中止 探针 10 秒一次"
+    },
+    {
+      "name": "电商订单领域模型",
+      "title": "电商订单领域模型类图",
+      "category": "流程图模板·类图",
+      "sort": 410,
+      "content": "classDiagram\n    class 可支付 {\n        <<接口>>\n        +支付(金额 Decimal) Boolean\n        +退款(金额 Decimal) Boolean\n    }\n    class 抽象单据 {\n        <<抽象类>>\n        #String 单据号\n        #LocalDateTime 创建时间\n        #String 创建人\n        +生成单号() String\n        +审核() Boolean\n    }\n    class 订单 {\n        +String 订单号\n        +Decimal 应付金额\n        +Decimal 优惠金额\n        +LocalDateTime 下单时间\n        +支付() Boolean\n        +计算优惠() Decimal\n    }\n    class 订单明细 {\n        +Long 明细编号\n        +String 商品编码\n        +Integer 购买数量\n        +行小计() Decimal\n        +申请售后() Boolean\n    }\n    class 会员 {\n        +Long 会员号\n        +String 昵称\n        +Integer 成长值\n        +累计消费() Decimal\n        +冻结(原因 String) Boolean\n    }\n    class 订单状态 {\n        <<枚举>>\n        待支付\n        已支付\n        已发货\n        已取消\n    }\n    抽象单据 <|-- 订单 : 继承\n    订单 ..|> 可支付 : 实现\n    订单 \"1\" *-- \"*\" 订单明细 : 组合\n    会员 \"1\" o-- \"*\" 订单 : 聚合\n    订单 \"1\" --> \"1\" 订单状态 : 状态"
+    },
+    {
+      "name": "库存与仓储模型",
+      "title": "库存与仓储模型类图",
+      "category": "流程图模板·类图",
+      "sort": 420,
+      "content": "classDiagram\n    class 库存操作 {\n        <<接口>>\n        +入库(数量 Integer) Boolean\n        +出库(数量 Integer) Boolean\n    }\n    class 仓储单据 {\n        <<抽象类>>\n        #String 单据号\n        #LocalDateTime 制单时间\n        #String 制单人\n        +生成单号() String\n        +过账() Boolean\n    }\n    class 入库单 {\n        +String 供应商编码\n        +String 采购单号\n        +LocalDateTime 到货时间\n        +收货() Boolean\n        +上架() Boolean\n    }\n    class 出库单 {\n        +String 关联订单号\n        +String 承运商\n        +LocalDateTime 发货时间\n        +拣货() Boolean\n        +复核() Boolean\n    }\n    class 库存台账 {\n        +Long 台账编号\n        +String 商品编码\n        +Integer 可用数量\n        +Integer 锁定数量\n        +占用() Boolean\n        +释放() Boolean\n    }\n    class 库存状态 {\n        <<枚举>>\n        正常\n        锁定\n        残次\n        已冻结\n    }\n    仓储单据 <|-- 入库单 : 继承\n    仓储单据 <|-- 出库单 : 继承\n    库存台账 ..|> 库存操作 : 实现\n    入库单 \"1\" *-- \"*\" 库存台账 : 组合\n    出库单 \"1\" o-- \"*\" 库存台账 : 聚合\n    库存台账 \"1\" --> \"1\" 库存状态 : 状态"
+    },
+    {
+      "name": "用户与会员体系",
+      "title": "用户与会员体系类图",
+      "category": "流程图模板·类图",
+      "sort": 430,
+      "content": "classDiagram\n    class 登录凭证 {\n        <<接口>>\n        +校验(凭证 String) Boolean\n        +换取令牌() String\n    }\n    class 账号 {\n        <<抽象类>>\n        #Long 账号编号\n        #String 登录名\n        #String 密码摘要\n        #登录() String\n        #风控校验() Boolean\n    }\n    class 会员账号 {\n        +Long 会员号\n        +String 昵称\n        +Integer 成长值\n        +完善资料() Boolean\n        +脱敏展示() String\n    }\n    class 会员等级 {\n        +Integer 等级编号\n        +String 等级名称\n        +Decimal 折扣率\n        +计算折扣(金额 Decimal) Decimal\n        +评估升级() Boolean\n    }\n    class 积分账户 {\n        +Long 账户编号\n        +Integer 可用积分\n        +Integer 冻结积分\n        +增加() Boolean\n        +扣减() Boolean\n    }\n    class 账号状态 {\n        <<枚举>>\n        正常\n        未激活\n        冻结\n        注销\n    }\n    账号 <|-- 会员账号 : 继承\n    会员账号 ..|> 登录凭证 : 实现\n    会员账号 \"1\" *-- \"1\" 积分账户 : 组合\n    会员等级 \"1\" o-- \"*\" 会员账号 : 聚合\n    会员账号 \"1\" --> \"1\" 账号状态 : 状态\n    积分账户 \"1\" --> \"1\" 会员等级 : 权益"
+    },
+    {
+      "name": "优惠券营销体系",
+      "title": "优惠券营销体系类图",
+      "category": "流程图模板·类图",
+      "sort": 440,
+      "content": "classDiagram\n    class 优惠规则 {\n        <<接口>>\n        +匹配(金额 Decimal) Boolean\n        +计算优惠(金额 Decimal) Decimal\n    }\n    class 优惠券模板 {\n        <<抽象类>>\n        #Long 模板编号\n        #String 券名称\n        #String 券类型\n        #发布() Boolean\n        #下架() Boolean\n    }\n    class 满减券 {\n        +Decimal 面额\n        +Decimal 使用门槛\n        +LocalDateTime 有效期起\n        +匹配() Boolean\n        +计算优惠() Decimal\n    }\n    class 折扣券 {\n        +Decimal 折扣率\n        +Decimal 最高优惠\n        +LocalDateTime 有效期止\n        +匹配() Boolean\n        +计算优惠() Decimal\n    }\n    class 用户券包 {\n        +Long 券包编号\n        +Long 会员号\n        +Integer 持有数量\n        +领取() Boolean\n        +核销() Boolean\n    }\n    class 券状态 {\n        <<枚举>>\n        未领取\n        已领取\n        已使用\n        已过期\n    }\n    优惠券模板 <|-- 满减券 : 继承\n    优惠券模板 <|-- 折扣券 : 继承\n    满减券 ..|> 优惠规则 : 实现\n    折扣券 ..|> 优惠规则 : 实现\n    用户券包 \"1\" *-- \"*\" 满减券 : 组合\n    用户券包 \"1\" o-- \"*\" 折扣券 : 聚合\n    满减券 \"1\" --> \"1\" 券状态 : 状态"
+    },
+    {
+      "name": "支付与对账体系",
+      "title": "支付与对账体系类图",
+      "category": "流程图模板·类图",
+      "sort": 450,
+      "content": "classDiagram\n    class 支付渠道 {\n        <<接口>>\n        +下单(金额 Decimal) String\n        +查询(流水号 String) String\n    }\n    class 渠道基类 {\n        <<抽象类>>\n        #String 渠道编码\n        #String 商户号\n        #String 应用编号\n        #签名(报文 String) String\n        #验签() Boolean\n    }\n    class 微信渠道 {\n        +String 子商户号\n        +String 授权目录\n        +String 结算币种\n        +下单() String\n        +查询() String\n    }\n    class 支付单 {\n        +String 支付单号\n        +Decimal 应付金额\n        +LocalDateTime 失效时间\n        +发起支付() Boolean\n        +接收回调() Boolean\n        +幂等校验() Boolean\n    }\n    class 对账批次 {\n        +String 批次号\n        +String 对账日期\n        +Integer 差异笔数\n        +轧差比对() Boolean\n        +生成差异表() String\n    }\n    class 交易类型 {\n        <<枚举>>\n        支付\n        退款\n        提现\n        手续费\n    }\n    渠道基类 <|-- 微信渠道 : 继承\n    微信渠道 ..|> 支付渠道 : 实现\n    微信渠道 \"1\" o-- \"*\" 支付单 : 聚合\n    对账批次 \"1\" *-- \"*\" 支付单 : 组合\n    支付单 \"1\" --> \"1\" 交易类型 : 类型"
+    },
+    {
+      "name": "物流配送体系",
+      "title": "物流配送体系类图",
+      "category": "流程图模板·类图",
+      "sort": 460,
+      "content": "classDiagram\n    class 运费计算 {\n        <<接口>>\n        +计算(重量 Decimal) Decimal\n        +优惠后运费(原价 Decimal) Decimal\n    }\n    class 运单 {\n        <<抽象类>>\n        #String 运单号\n        #String 寄件地址\n        #String 收件地址\n        #生成运单号() String\n        #校验禁运品() Boolean\n    }\n    class 派送运单 {\n        +Long 快递员号\n        +String 配送区域\n        +LocalDateTime 派发时间\n        +派发() Boolean\n        +签收() Boolean\n    }\n    class 计重规则 {\n        +Decimal 首重价格\n        +Decimal 续重价格\n        +String 目的区域\n        +计算() Decimal\n        +优惠后运费() Decimal\n    }\n    class 快递员 {\n        +Long 员工号\n        +String 姓名\n        +Integer 当前负载\n        +接单() Boolean\n        +上报位置() Boolean\n    }\n    class 运单状态 {\n        <<枚举>>\n        已下单\n        运输中\n        派送中\n        已签收\n    }\n    运单 <|-- 派送运单 : 继承\n    计重规则 ..|> 运费计算 : 实现\n    运单 \"1\" *-- \"1\" 计重规则 : 组合\n    快递员 \"1\" o-- \"*\" 派送运单 : 聚合\n    派送运单 \"1\" --> \"1\" 运单状态 : 状态\n    派送运单 \"1\" --> \"1\" 快递员 : 承运"
+    },
+    {
+      "name": "外卖点餐体系",
+      "title": "外卖点餐体系类图",
+      "category": "流程图模板·类图",
+      "sort": 470,
+      "content": "classDiagram\n    class 可下单 {\n        <<接口>>\n        +加入购物车(数量 Integer) Boolean\n        +校验可售() Boolean\n    }\n    class 商品 {\n        <<抽象类>>\n        #Long 商品编号\n        #String 商品名称\n        #Decimal 单价\n        #展示名称() String\n        #校验可售() Boolean\n    }\n    class 菜品 {\n        +Integer 月销量\n        +Boolean 是否售罄\n        +String 规格备注\n        +加入购物车() Boolean\n        +校验可售() Boolean\n    }\n    class 门店 {\n        +Long 门店编号\n        +String 门店名称\n        +Decimal 起送金额\n        +接单() Boolean\n        +打烊() Boolean\n    }\n    class 外卖订单 {\n        +String 订单号\n        +Decimal 餐品金额\n        +String 送达地址\n        +提交() String\n        +支付() Boolean\n    }\n    class 订单状态 {\n        <<枚举>>\n        待支付\n        待接单\n        配送中\n        已送达\n    }\n    商品 <|-- 菜品 : 继承\n    菜品 ..|> 可下单 : 实现\n    门店 \"1\" o-- \"*\" 菜品 : 聚合\n    外卖订单 \"1\" *-- \"*\" 菜品 : 组合\n    外卖订单 \"1\" --> \"1\" 订单状态 : 状态\n    门店 \"1\" --> \"*\" 外卖订单 : 接单"
+    },
+    {
+      "name": "酒店预订体系",
+      "title": "酒店预订体系类图",
+      "category": "流程图模板·类图",
+      "sort": 480,
+      "content": "classDiagram\n    class 可售资源 {\n        <<接口>>\n        +查询余量(日期 String) Integer\n        +占用(日期 String) Boolean\n    }\n    class 客房资源 {\n        <<抽象类>>\n        #Long 资源编号\n        #String 资源名称\n        #Integer 可住人数\n        #停用() Boolean\n        #改价() Boolean\n    }\n    class 房型 {\n        +Decimal 面积\n        +Boolean 是否含早\n        +String 床型配置\n        +查询余量() Integer\n        +占用() Boolean\n    }\n    class 房价日历 {\n        +String 日期\n        +Decimal 挂牌价\n        +Integer 可售间数\n        +调价() Boolean\n        +关房() Boolean\n    }\n    class 预订单 {\n        +String 预订号\n        +String 入住日期\n        +String 离店日期\n        +创建预订() String\n        +取消预订() Boolean\n    }\n    class 预订状态 {\n        <<枚举>>\n        待确认\n        已确认\n        已入住\n        已取消\n    }\n    客房资源 <|-- 房型 : 继承\n    房型 ..|> 可售资源 : 实现\n    房型 \"1\" *-- \"*\" 房价日历 : 组合\n    房型 \"1\" o-- \"*\" 预订单 : 聚合\n    预订单 \"1\" --> \"1\" 预订状态 : 状态"
+    },
+    {
+      "name": "影院票务体系",
+      "title": "影院票务体系类图",
+      "category": "流程图模板·类图",
+      "sort": 490,
+      "content": "classDiagram\n    class 可售座位 {\n        <<接口>>\n        +锁座(场次编号 Long) Boolean\n        +解锁(场次编号 Long) Boolean\n    }\n    class 放映资源 {\n        <<抽象类>>\n        #Long 资源编号\n        #String 资源名称\n        #String 银幕类型\n        #停用() Boolean\n        #座位图() String\n    }\n    class 影厅 {\n        +Integer 座位总数\n        +String 声道制式\n        +Integer 无障碍座位\n        +锁座() Boolean\n        +解锁() Boolean\n    }\n    class 场次 {\n        +Long 场次编号\n        +LocalDateTime 开映时间\n        +Decimal 票价\n        +开售() Boolean\n        +停售() Boolean\n    }\n    class 影票 {\n        +String 票号\n        +String 座位编号\n        +Decimal 实付金额\n        +出票() Boolean\n        +退票() Boolean\n    }\n    class 场次状态 {\n        <<枚举>>\n        未开售\n        售票中\n        售罄\n        已开映\n    }\n    放映资源 <|-- 影厅 : 继承\n    影厅 ..|> 可售座位 : 实现\n    影厅 \"1\" o-- \"*\" 场次 : 聚合\n    场次 \"1\" *-- \"*\" 影票 : 组合\n    场次 \"1\" --> \"1\" 场次状态 : 状态\n    影票 \"*\" --> \"1\" 场次 : 对应"
+    },
+    {
+      "name": "医疗挂号与病历",
+      "title": "医疗挂号与病历类图",
+      "category": "流程图模板·类图",
+      "sort": 500,
+      "content": "classDiagram\n    class 可挂号 {\n        <<接口>>\n        +查询余号(日期 String) Integer\n        +扣减号源() Boolean\n    }\n    class 医疗记录 {\n        <<抽象类>>\n        #String 记录编号\n        #LocalDateTime 记录时间\n        #String 记录医生\n        #归档() Boolean\n        #脱敏() String\n    }\n    class 门诊病历 {\n        +String 就诊卡号\n        +String 主诉\n        +String 诊断结论\n        +保存() Boolean\n        +归档() Boolean\n    }\n    class 号源 {\n        +String 出诊日期\n        +String 午别\n        +Integer 剩余号数\n        +查询余号() Integer\n        +扣减号源() Boolean\n    }\n    class 挂号单 {\n        +String 挂号单号\n        +Decimal 挂号费\n        +String 候诊序号\n        +创建() String\n        +退号() Boolean\n    }\n    class 挂号状态 {\n        <<枚举>>\n        已挂号\n        候诊中\n        就诊中\n        已退号\n    }\n    医疗记录 <|-- 门诊病历 : 继承\n    号源 ..|> 可挂号 : 实现\n    门诊病历 \"1\" *-- \"*\" 挂号单 : 组合\n    号源 \"1\" o-- \"*\" 挂号单 : 聚合\n    挂号单 \"1\" --> \"1\" 挂号状态 : 状态"
+    },
+    {
+      "name": "在线教育课程领域模型",
+      "title": "在线教育课程类图",
+      "category": "流程图模板·类图",
+      "sort": 510,
+      "content": "classDiagram\n    class 可学习 {\n        <<接口>>\n        +开始学习(学员号 Long) Boolean\n        +记录进度(百分比 Integer) Boolean\n    }\n    class 教学资源 {\n        <<抽象类>>\n        #Long 资源编号\n        #String 资源标题\n        #Integer 排序号\n        #排序调整() Boolean\n        #下架() Boolean\n    }\n    class 课时 {\n        +Integer 视频时长秒\n        +String 视频地址\n        +Boolean 是否试听\n        +开始学习() Boolean\n        +记录进度() Boolean\n    }\n    class 课程 {\n        +Long 课程编号\n        +String 课程分类\n        +Decimal 售价\n        +上架() Boolean\n        +统计完课率() Decimal\n    }\n    class 选课记录 {\n        +Long 记录编号\n        +LocalDateTime 选课时间\n        +LocalDateTime 有效期至\n        +选课() Boolean\n        +退课() Boolean\n    }\n    class 课程状态 {\n        <<枚举>>\n        草稿\n        已上架\n        已下架\n        已归档\n    }\n    教学资源 <|-- 课时 : 继承\n    课时 ..|> 可学习 : 实现\n    课程 \"1\" *-- \"*\" 课时 : 组合\n    课程 \"1\" o-- \"*\" 选课记录 : 聚合\n    课程 \"1\" --> \"1\" 课程状态 : 状态\n    选课记录 \"1\" --> \"1\" 课程 : 报名"
+    },
+    {
+      "name": "OA审批流程",
+      "title": "OA审批流程类图",
+      "category": "流程图模板·类图",
+      "sort": 520,
+      "content": "classDiagram\n    class 流程引擎 {\n        <<接口>>\n        +启动(流程编号 Long) String\n        +推进(任务编号 Long) Boolean\n    }\n    class 流程单元 {\n        <<抽象类>>\n        #Long 单元编号\n        #String 单元名称\n        #Integer 排序号\n        #校验配置() Boolean\n        #复制() Boolean\n    }\n    class 审批节点 {\n        +String 审批方式\n        +String 审批人角色\n        +Integer 超时小时数\n        +指定审批人() Boolean\n        +跳过() Boolean\n    }\n    class 审批单 {\n        +String 实例编号\n        +String 单据标题\n        +Decimal 涉及金额\n        +提交() Boolean\n        +撤回() Boolean\n        +催办() Boolean\n    }\n    class 审批任务 {\n        +Long 任务编号\n        +String 待办人\n        +String 审批意见\n        +同意() Boolean\n        +驳回(理由 String) Boolean\n    }\n    class 审批动作 {\n        <<枚举>>\n        提交\n        同意\n        驳回\n        撤回\n    }\n    流程单元 <|-- 审批节点 : 继承\n    审批单 ..|> 流程引擎 : 实现\n    审批单 \"1\" *-- \"*\" 审批任务 : 组合\n    审批节点 \"1\" o-- \"*\" 审批任务 : 聚合\n    审批任务 \"1\" --> \"1\" 审批动作 : 动作\n    审批节点 \"1\" --> \"1\" 审批单 : 所属"
+    },
+    {
+      "name": "工单客服体系",
+      "title": "工单客服体系类图",
+      "category": "流程图模板·类图",
+      "sort": 530,
+      "content": "classDiagram\n    class 时效策略 {\n        <<接口>>\n        +响应时限(优先级 String) Integer\n        +是否超时(创建时间 LocalDateTime) Boolean\n    }\n    class 工单主体 {\n        <<抽象类>>\n        #String 主体编号\n        #String 主体名称\n        #String 归属组织\n        #停用() Boolean\n        #合并() Boolean\n    }\n    class 工单 {\n        +String 工单标题\n        +String 问题描述\n        +String 优先级\n        +创建() String\n        +指派() Boolean\n        +关闭() Boolean\n    }\n    class 客服人员 {\n        +Long 客服工号\n        +String 技能组\n        +Integer 在线状态\n        +接单() Boolean\n        +转交() Boolean\n    }\n    class 普通时效 {\n        +Integer 响应分钟\n        +Integer 解决小时\n        +Integer 升级层级\n        +响应时限() Integer\n        +是否超时() Boolean\n    }\n    class 工单状态 {\n        <<枚举>>\n        待受理\n        处理中\n        待回复\n        已关闭\n    }\n    工单主体 <|-- 工单 : 继承\n    普通时效 ..|> 时效策略 : 实现\n    客服人员 \"1\" o-- \"*\" 工单 : 聚合\n    工单 \"1\" *-- \"1\" 普通时效 : 组合\n    工单 \"1\" --> \"1\" 工单状态 : 状态\n    工单 \"1\" --> \"1\" 客服人员 : 受理"
+    },
+    {
+      "name": "内容社区模型",
+      "title": "内容社区模型类图",
+      "category": "流程图模板·类图",
+      "sort": 540,
+      "content": "classDiagram\n    class 可审核 {\n        <<接口>>\n        +送审() Boolean\n        +通过(审核人 Long) Boolean\n        +驳回(理由 String) Boolean\n    }\n    class 内容载体 {\n        <<抽象类>>\n        #Long 内容编号\n        #String 内容摘要\n        #LocalDateTime 创建时间\n        #删除() Boolean\n        #置顶() Boolean\n    }\n    class 帖子 {\n        +String 标题\n        +String 正文\n        +Integer 阅读数\n        +送审() Boolean\n        +通过() Boolean\n        +驳回() Boolean\n    }\n    class 评论 {\n        +Long 评论编号\n        +String 评论内容\n        +Long 回复目标\n        +发表() Boolean\n        +送审() Boolean\n        +通过() Boolean\n    }\n    class 点赞 {\n        +Long 点赞编号\n        +String 目标类型\n        +Long 目标编号\n        +点赞() Boolean\n        +取消() Boolean\n    }\n    class 帖子状态 {\n        <<枚举>>\n        草稿\n        审核中\n        已发布\n    }\n    内容载体 <|-- 帖子 : 继承\n    内容载体 <|-- 评论 : 继承\n    帖子 ..|> 可审核 : 实现\n    帖子 \"1\" *-- \"*\" 评论 : 组合\n    点赞 \"*\" o-- \"1\" 帖子 : 聚合\n    帖子 \"1\" --> \"1\" 帖子状态 : 状态"
+    },
+    {
+      "name": "游戏角色与装备",
+      "title": "游戏角色与装备类图",
+      "category": "流程图模板·类图",
+      "sort": 550,
+      "content": "classDiagram\n    class 可装备 {\n        <<接口>>\n        +穿戴(角色编号 Long) Boolean\n        +卸下() Boolean\n        +战力加成() Integer\n    }\n    class 游戏角色 {\n        <<抽象类>>\n        #Long 角色编号\n        #String 角色名\n        #Integer 等级\n        #升级() Boolean\n        +释放技能() Boolean\n    }\n    class 战士 {\n        +Integer 物理攻击\n        +Integer 护甲值\n        +Integer 怒气值\n        +冲锋() Boolean\n        +格挡() Boolean\n    }\n    class 武器 {\n        +Long 装备编号\n        +String 装备名称\n        +Integer 攻击上限\n        +穿戴() Boolean\n        +卸下() Boolean\n        +战力加成() Integer\n    }\n    class 背包 {\n        +Long 背包编号\n        +Integer 格子总数\n        +Decimal 负重\n        +放入() Boolean\n        +整理() Boolean\n    }\n    class 装备品质 {\n        <<枚举>>\n        普通\n        精良\n        稀有\n        传说\n    }\n    游戏角色 <|-- 战士 : 继承\n    武器 ..|> 可装备 : 实现\n    战士 \"1\" *-- \"1\" 背包 : 组合\n    背包 \"1\" o-- \"*\" 武器 : 聚合\n    武器 \"*\" --> \"1\" 装备品质 : 品质\n    背包 \"1\" --> \"1\" 战士 : 归属"
+    },
+    {
+      "name": "车联网设备管理",
+      "title": "车联网设备管理类图",
+      "category": "流程图模板·类图",
+      "sort": 560,
+      "content": "classDiagram\n    class 数据采集器 {\n        <<接口>>\n        +上报(报文编号 Long) Boolean\n        +心跳() Boolean\n    }\n    class 车载设备 {\n        <<抽象类>>\n        #String 设备编号\n        #String 固件版本\n        #LocalDateTime 最后在线\n        #注册() Boolean\n        #升级固件() Boolean\n    }\n    class 车载终端 {\n        +String 通信协议\n        +String 接入网关\n        +Integer 信号强度\n        +上报() Boolean\n        +心跳() Boolean\n    }\n    class 定位报文 {\n        +Decimal 经度\n        +Decimal 纬度\n        +Decimal 瞬时速度\n        +上报() Boolean\n        +心跳() Boolean\n    }\n    class 告警记录 {\n        +Long 告警编号\n        +String 告警类型\n        +String 告警级别\n        +推送() Boolean\n        +关闭() Boolean\n    }\n    class 终端状态 {\n        <<枚举>>\n        在线\n        离线\n        休眠\n        故障\n    }\n    车载设备 <|-- 车载终端 : 继承\n    定位报文 ..|> 数据采集器 : 实现\n    车载终端 \"1\" *-- \"*\" 定位报文 : 组合\n    车载终端 \"1\" o-- \"*\" 告警记录 : 聚合\n    车载终端 \"1\" --> \"1\" 终端状态 : 状态\n    告警记录 \"*\" --> \"1\" 车载终端 : 来源"
+    },
+    {
+      "name": "能源抄表计费领域模型",
+      "title": "能源抄表计费类图",
+      "category": "流程图模板·类图",
+      "sort": 570,
+      "content": "classDiagram\n    class 计价规则 {\n        <<接口>>\n        +计算(用量 Decimal) Decimal\n        +阶梯档位() String\n    }\n    class 计量表计 {\n        <<抽象类>>\n        #String 表号\n        #String 安装地址\n        #Decimal 当前读数\n        #换表() Boolean\n        #校验量程() Boolean\n    }\n    class 电表 {\n        +Decimal 峰段读数\n        +Decimal 谷段读数\n        +Integer 电流倍率\n        +抄表() Decimal\n        +计算峰谷() Decimal\n    }\n    class 阶梯计价 {\n        +Decimal 第一档价\n        +Decimal 第二档价\n        +Decimal 第三档价\n        +计算() Decimal\n        +阶梯档位() String\n    }\n    class 计费账单 {\n        +String 账单编号\n        +Decimal 本期用量\n        +Decimal 应收金额\n        +生成账单() String\n        +发起缴费() Boolean\n        +销账() Boolean\n    }\n    class 表计状态 {\n        <<枚举>>\n        正常\n        待检\n        故障\n        已拆除\n    }\n    计量表计 <|-- 电表 : 继承\n    阶梯计价 ..|> 计价规则 : 实现\n    计费账单 \"1\" *-- \"1\" 阶梯计价 : 组合\n    电表 \"1\" o-- \"*\" 计费账单 : 聚合\n    电表 \"1\" --> \"1\" 表计状态 : 状态\n    计费账单 \"1\" --> \"1\" 电表 : 结算"
+    },
+    {
+      "name": "金融风控授信",
+      "title": "金融风控授信类图",
+      "category": "流程图模板·类图",
+      "sort": 580,
+      "content": "classDiagram\n    class 风控规则 {\n        <<接口>>\n        +执行(申请编号 String) Boolean\n        +风险分值() Integer\n    }\n    class 授信主体 {\n        <<抽象类>>\n        #Long 主体编号\n        #String 主体名称\n        #String 证件号\n        #实名认证() Boolean\n        #反洗钱筛查() Boolean\n    }\n    class 授信申请 {\n        +String 申请编号\n        +Decimal 申请额度\n        +Integer 申请期限\n        +提交() String\n        +补充材料() Boolean\n    }\n    class 反欺诈规则 {\n        +String 设备指纹\n        +String 申请地址\n        +Integer 短时申请次数\n        +执行() Boolean\n        +风险分值() Integer\n    }\n    class 额度 {\n        +Long 额度编号\n        +Decimal 总额度\n        +Decimal 已用额度\n        +激活() Boolean\n        +占用() Boolean\n        +冻结() Boolean\n    }\n    class 授信决策 {\n        <<枚举>>\n        通过\n        拒绝\n        转人工\n        退回补件\n    }\n    授信主体 <|-- 授信申请 : 继承\n    反欺诈规则 ..|> 风控规则 : 实现\n    授信申请 \"1\" *-- \"*\" 反欺诈规则 : 组合\n    授信申请 \"1\" o-- \"*\" 额度 : 聚合\n    授信申请 \"1\" --> \"1\" 授信决策 : 决策\n    额度 \"1\" --> \"1\" 授信申请 : 核定"
+    },
+    {
+      "name": "保险保单理赔领域模型",
+      "title": "保险保单理赔类图",
+      "category": "流程图模板·类图",
+      "sort": 590,
+      "content": "classDiagram\n    class 可理赔 {\n        <<接口>>\n        +校验责任() Boolean\n        +计算赔付额() Decimal\n        +免赔额() Decimal\n    }\n    class 保险标的 {\n        <<抽象类>>\n        #Long 标的编号\n        #String 标的类型\n        #Decimal 保险金额\n        #估值调整() Boolean\n        #录入() Boolean\n    }\n    class 车险标的 {\n        +String 车牌号\n        +String 车架号\n        +String 使用性质\n        +估值调整() Boolean\n        +录入() Boolean\n    }\n    class 保单 {\n        +String 保单号\n        +String 险种代码\n        +Decimal 保费\n        +承保() String\n        +保全变更() Boolean\n    }\n    class 理赔申请 {\n        +String 理赔号\n        +String 出险原因\n        +Decimal 申请金额\n        +提交() String\n        +校验责任() Boolean\n        +计算赔付额() Decimal\n        +免赔额() Decimal\n    }\n    class 理赔结论 {\n        <<枚举>>\n        全额赔付\n        部分赔付\n        拒赔\n    }\n    保险标的 <|-- 车险标的 : 继承\n    理赔申请 ..|> 可理赔 : 实现\n    保单 \"1\" *-- \"*\" 车险标的 : 组合\n    保单 \"1\" o-- \"*\" 理赔申请 : 聚合\n    理赔申请 \"1\" --> \"1\" 理赔结论 : 结论\n    理赔申请 \"1\" --> \"1\" 保单 : 所属"
+    },
+    {
+      "name": "SaaS多租户权限领域模型",
+      "title": "SaaS多租户权限类图",
+      "category": "流程图模板·类图",
+      "sort": 600,
+      "content": "classDiagram\n    class 鉴权服务 {\n        <<接口>>\n        +鉴权(令牌 String) Boolean\n        +可访问(权限码 String) Boolean\n    }\n    class 权限主体 {\n        <<抽象类>>\n        #Long 主体编号\n        #String 主体名称\n        #String 所属租户\n        #归属校验() Boolean\n        #同步目录() Boolean\n    }\n    class 租户用户 {\n        +String 登录邮箱\n        +String 显示名\n        +String 所属部门\n        +邀请() Long\n        +禁用() Boolean\n    }\n    class 角色 {\n        +Long 角色编号\n        +String 角色类型\n        +Boolean 是否内置\n        +授权() Boolean\n        +回收权限() Boolean\n    }\n    class 权限点 {\n        +Long 权限编号\n        +String 权限码\n        +String 操作动作\n        +注册() Boolean\n        +失效() Boolean\n    }\n    class 租户状态 {\n        <<枚举>>\n        试用\n        正常\n        欠费\n        已停用\n    }\n    权限主体 <|-- 租户用户 : 继承\n    权限点 ..|> 鉴权服务 : 实现\n    租户用户 \"1\" *-- \"*\" 角色 : 组合\n    角色 \"1\" o-- \"*\" 权限点 : 聚合\n    租户用户 \"1\" --> \"1\" 租户状态 : 状态\n    权限点 \"*\" --> \"1\" 角色 : 挂载"
+    },
+    {
+      "name": "APP改版项目排期",
+      "title": "APP改版项目排期甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 610,
+      "content": "gantt\n    title APP 改版项目排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 需求与立项\n    用户调研与竞品分析   :done,  a1, 2026-09-10, 8d\n    需求评审与范围确认   :done,  a2, after a1, 4d\n    立项与资源锁定       :milestone, m1, 2026-09-28, 0d\n    section 设计\n    信息架构梳理         :done,  b1, after m1, 5d\n    视觉风格稿设计       :        b2, after b1, 8d\n    高保真交互稿         :        b3, after b2, 6d\n    设计走查与定稿       :milestone, m2, after b3, 0d\n    section 研发\n    基础框架与组件库     :active, c1, after m2, 10d\n    首页与频道页开发     :crit,  c2, after c1, 12d\n    个人中心与设置       :        c3, after c1, 8d\n    埋点与数据接口       :        c4, after c2, 5d\n    section 测试与灰度\n    功能回归测试         :        d1, after c3, 7d\n    性能与兼容性测试     :        d2, after c4, 5d\n    内测灰度百分之五     :active, d3, after d1, 6d\n    灰度扩量至百分之五十 :        d4, after d3, 5d\n    section 上线运营\n    全量发布             :milestone, m3, after d4, 0d\n    应用商店素材与上架   :        e1, after m3, 4d\n    新版运营推广         :        e2, after e1, 10d\n    版本复盘             :        e3, after e2, 3d"
+    },
+    {
+      "name": "SaaS产品迭代排期",
+      "title": "SaaS产品迭代排期甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 620,
+      "content": "gantt\n    title SaaS 多租户版 V3.2 迭代排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 需求池梳理\n    客户反馈汇总分析     :done,  a1, 2026-09-10, 6d\n    需求优先级评审       :done,  a2, after a1, 3d\n    迭代范围冻结         :milestone, m1, after a2, 0d\n    section 产品设计\n    租户权限模型设计     :done,  b1, after m1, 5d\n    计费方案原型设计     :        b2, after b1, 6d\n    开放接口方案设计     :        b3, after b1, 7d\n    section 研发实现\n    租户权限重构         :active, crit, c1, after b2, 12d\n    订阅计费模块开发     :crit,  c2, after b2, 10d\n    开放接口网关开发     :        c3, after b3, 9d\n    数据隔离改造         :        c4, after c1, 7d\n    section 质量保障\n    接口自动化测试       :        d1, after c3, 6d\n    多租户回归测试       :        d2, after c4, 7d\n    安全渗透测试         :        d3, after d2, 4d\n    section 发布与运营\n    预发布环境验证       :milestone, m2, after d3, 0d\n    灰度发布             :        e1, after m2, 5d\n    帮助文档与客户培训   :        e2, after e1, 5d\n    迭代复盘             :        e3, after e2, 2d"
+    },
+    {
+      "name": "业务中台建设",
+      "title": "业务中台建设甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 630,
+      "content": "gantt\n    title 集团业务中台建设排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 规划与选型\n    存量系统盘点         :done,  a1, 2026-09-10, 10d\n    中台架构方案设计     :done,  a2, after a1, 12d\n    技术选型评审通过     :milestone, m1, after a2, 0d\n    section 基础能力\n    统一网关建设         :done,  b1, after m1, 15d\n    服务注册与配置中心   :        b2, after m1, 12d\n    统一认证与权限中心   :        b3, after b1, 14d\n    消息队列与事件总线   :        b4, after b2, 10d\n    section 业务中台\n    用户中心服务         :active, crit, c1, after b3, 18d\n    订单中心服务         :crit,  c2, after b3, 20d\n    商品中心服务         :        c3, after b4, 16d\n    库存中心服务         :        c4, after c1, 12d\n    section 试点接入\n    试点业务系统改造     :        d1, after c2, 15d\n    双轨运行验证         :        d2, after c4, 10d\n    试点验收             :milestone, m2, after d2, 0d\n    section 推广治理\n    全量业务接入         :        e1, after m2, 20d\n    中台治理规范落地     :        e2, after e1, 8d\n    建设成果评审         :milestone, m3, after e2, 0d"
+    },
+    {
+      "name": "数据仓库迁移",
+      "title": "数据仓库迁移甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 640,
+      "content": "gantt\n    title 数据仓库迁移至云原生架构排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 评估与规划\n    存量表与任务盘点     :done,  a1, 2026-09-10, 12d\n    迁移风险与成本评估   :done,  a2, after a1, 6d\n    迁移方案评审通过     :milestone, m1, after a2, 0d\n    section 新仓建设\n    计算与存储资源开通   :done,  b1, after m1, 8d\n    分层模型重建         :        b2, after b1, 15d\n    调度平台部署         :        b3, after b1, 10d\n    section 数据迁移\n    历史数据全量迁移     :active, crit, c1, after b2, 18d\n    增量同步链路搭建     :crit,  c2, after b3, 12d\n    采集脚本改造         :        c3, after c1, 15d\n    报表任务迁移         :        c4, after c2, 10d\n    section 校验与切换\n    数据一致性比对       :        d1, after c3, 8d\n    查询性能压测         :        d2, after c4, 5d\n    业务侧验收           :        d3, after d1, 6d\n    正式切换             :milestone, m2, after d3, 0d\n    section 收尾\n    老仓只读观察         :        e1, after m2, 15d\n    老仓下线             :milestone, m3, after e1, 0d\n    迁移总结归档         :        e2, after m3, 3d"
+    },
+    {
+      "name": "ERP系统上线",
+      "title": "ERP系统上线甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 650,
+      "content": "gantt\n    title 集团 ERP 系统上线排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 项目准备\n    项目启动与团队组建   :done,  a1, 2026-09-10, 5d\n    业务流程现状调研     :done,  a2, after a1, 15d\n    项目章程签署         :milestone, m1, after a2, 0d\n    section 蓝图设计\n    财务模块蓝图设计     :done,  b1, after m1, 12d\n    供应链模块蓝图设计   :        b2, after m1, 12d\n    生产制造模块蓝图     :        b3, after b1, 10d\n    蓝图方案确认         :milestone, m2, after b3, 0d\n    section 系统实现\n    系统参数与基础数据   :active, crit, c1, after m2, 14d\n    财务模块配置开发     :crit,  c2, after c1, 18d\n    供应链模块配置开发   :        c3, after c1, 16d\n    外围系统集成接口     :        c4, after c2, 12d\n    section 上线切换\n    单元测试与集成测试   :        d1, after c3, 12d\n    用户培训与操作手册   :        d2, after c4, 8d\n    模拟运行与数据校验   :        d3, after d1, 10d\n    正式上线切换         :milestone, m3, after d3, 0d\n    section 持续支持\n    上线后现场支持       :        e1, after m3, 20d\n    首次月结护航         :        e2, after e1, 10d\n    项目验收             :milestone, m4, after e2, 0d"
+    },
+    {
+      "name": "门店开业筹备",
+      "title": "门店开业筹备甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 660,
+      "content": "gantt\n    title 城市旗舰店开业筹备排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 选址与签约\n    商圈调研与点位筛选   :done,  a1, 2026-09-10, 12d\n    租金谈判与合同签订   :done,  a2, after a1, 8d\n    门店证照办理         :        a3, after a2, 15d\n    签约完成             :milestone, m1, after a2, 0d\n    section 设计与装修\n    门店平面与动线设计   :done,  b1, after m1, 10d\n    装修施工图与报审     :        b2, after b1, 8d\n    现场施工与硬装       :crit,  b3, after b2, 25d\n    软装与灯光安装       :        b4, after b3, 8d\n    section 人员与培训\n    店长与店员招聘       :active, c1, after m1, 20d\n    产品知识培训         :        c2, after c1, 6d\n    服务礼仪与收银培训   :        c3, after c2, 5d\n    开业全流程演练       :        c4, after c3, 3d\n    section 货品与陈列\n    首批货品下单         :        d1, after m1, 10d\n    货品到仓与配送       :        d2, after d1, 12d\n    陈列上架与氛围布置   :        d3, after b4, 5d\n    section 开业\n    试营业               :active, e1, after d3, 5d\n    正式开业             :milestone, m2, after e1, 0d\n    开业营销活动         :        e2, after m2, 7d"
+    },
+    {
+      "name": "展会筹办",
+      "title": "展会筹办甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 670,
+      "content": "gantt\n    title 国际智能制造展参展筹办排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 立项与招商\n    展会目标与预算确定   :done,  a1, 2026-05-06, 6d\n    展位预订与签约       :done,  a2, after a1, 8d\n    参展产品清单确认     :        a3, after a2, 5d\n    section 展台设计搭建\n    展台创意方案设计     :done,  b1, after a2, 12d\n    施工图与物料制作     :        b2, after b1, 15d\n    展具运输与进场       :crit,  b3, after b2, 6d\n    现场搭建与调试       :active, crit, b4, after b3, 4d\n    展台验收             :milestone, m1, after b4, 0d\n    section 宣传与观众\n    展前媒体预热         :        c1, after a3, 20d\n    客户邀约与预约登记   :        c2, after c1, 15d\n    宣传物料与礼品准备   :        c3, after c2, 8d\n    section 现场执行\n    展前人员培训         :        d1, after m1, 2d\n    展会正式开幕         :milestone, m2, 2026-10-14, 0d\n    现场接待与商机登记   :active, d2, after m2, 4d\n    媒体专访与直播       :        d3, after m2, 3d\n    section 撤展复盘\n    撤展与物料回运       :        e1, after d2, 3d\n    线索跟进与转化       :        e2, after e1, 20d\n    参展效果复盘         :        e3, after e2, 4d"
+    },
+    {
+      "name": "新品研发NPI",
+      "title": "新品研发NPI甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 680,
+      "content": "gantt\n    title 智能穿戴新品导入排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 概念阶段\n    市场需求与产品定位   :done,  a1, 2026-09-10, 10d\n    技术可行性评估       :done,  a2, after a1, 8d\n    概念评审通过         :milestone, m1, after a2, 0d\n    section 设计阶段\n    外观造型设计         :done,  b1, after m1, 15d\n    硬件原理图设计       :        b2, after m1, 20d\n    电路板布线与投板     :        b3, after b2, 12d\n    结构设计             :        b4, after b1, 15d\n    设计冻结             :milestone, m2, after b4, 0d\n    section 工程验证\n    首版贴片加工         :active, crit, c1, after b3, 8d\n    工程验证测试         :crit,  c2, after c1, 10d\n    结构可靠性测试       :        c3, after m2, 12d\n    固件与软件联调       :        c4, after c2, 15d\n    section 试产阶段\n    模具开发与试模       :        d1, after m2, 25d\n    设计验证测试         :        d2, after c4, 12d\n    小批量试产           :        d3, after d1, 10d\n    认证与合规测试       :        d4, after d2, 15d\n    section 量产\n    量产评审             :milestone, m3, after d4, 0d\n    产线导入与爬坡       :        e1, after m3, 20d\n    首批出货             :milestone, m4, after e1, 0d"
+    },
+    {
+      "name": "工厂产线改造",
+      "title": "工厂产线改造甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 690,
+      "content": "gantt\n    title 三号装配产线自动化改造排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 评估立项\n    现状产能与瓶颈分析   :done,  a1, 2026-09-10, 8d\n    改造方案与投资收益   :done,  a2, after a1, 10d\n    改造立项批准         :milestone, m1, after a2, 0d\n    section 方案设计\n    产线布局设计         :done,  b1, after m1, 12d\n    自动化设备选型       :        b2, after b1, 10d\n    电气与控制系统设计   :        b3, after b1, 12d\n    安全风险评估         :        b4, after b3, 5d\n    section 设备采购安装\n    设备采购下单         :active, crit, c1, after b2, 20d\n    旧设备拆除与基座施工 :        c2, after b4, 12d\n    新设备进场安装       :crit,  c3, after c1, 15d\n    输送线与机器人调试   :        c4, after c3, 12d\n    section 联调试产\n    整线空载联调         :        d1, after c4, 6d\n    小批量试产           :        d2, after d1, 10d\n    工艺参数优化         :        d3, after d2, 8d\n    操作人员培训         :        d4, after d3, 5d\n    section 验收\n    产能达标验证         :        e1, after d4, 6d\n    竣工验收             :milestone, m2, after e1, 0d\n    量产移交             :        e2, after m2, 5d"
+    },
+    {
+      "name": "双十一大促作战",
+      "title": "双十一大促作战甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 700,
+      "content": "gantt\n    title 双十一大促作战排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    section 筹备期\n    大促目标与货盘规划   :done,  a1, 2026-09-01, 10d\n    会场报名与坑位确认   :done,  a2, after a1, 8d\n    营销玩法与预算审批   :done,  a3, after a1, 6d\n    系统容量评估         :        a4, after a2, 7d\n    section 蓄水期\n    商品种草与内容投放   :active, b1, after a3, 20d\n    会员邀约与私域触达   :        b2, after b1, 12d\n    优惠券发放           :        b3, after b2, 5d\n    压测与扩容演练       :crit,  b4, after a4, 10d\n    section 预热期\n    预售开启             :milestone, m1, 2026-10-21, 0d\n    定金支付与尾款提醒   :crit,  c1, after m1, 11d\n    客服话术与排班       :        c2, after m1, 5d\n    物流仓储备货         :crit,  c3, after b3, 12d\n    section 爆发期\n    开门红               :milestone, m2, 2026-11-01, 0d\n    大促主战场           :active, crit, d1, 2026-11-11, 3d\n    实时作战值班         :crit,  d2, after m2, 11d\n    订单履约与发货       :crit,  d3, after d1, 7d\n    section 复盘期\n    售后与退换处理       :        e1, after d3, 15d\n    数据复盘与结案       :        e2, after e1, 5d\n    大促总结汇报         :milestone, m3, after e2, 0d"
+    },
+    {
+      "name": "品牌升级项目",
+      "title": "品牌升级项目甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 710,
+      "content": "gantt\n    title 集团品牌升级项目排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 调研诊断\n    品牌资产盘点         :done,  a1, 2026-09-10, 8d\n    用户与竞品调研       :done,  a2, after a1, 12d\n    品牌诊断报告         :milestone, m1, after a2, 0d\n    section 策略定位\n    品牌定位与核心价值   :done,  b1, after m1, 10d\n    品牌口号与故事体系   :        b2, after b1, 8d\n    品牌架构梳理         :        b3, after b1, 7d\n    section 视觉体系\n    标志再设计           :active, crit, c1, after b2, 15d\n    色彩与字体规范       :        c2, after c1, 8d\n    品牌应用物料设计     :        c3, after c2, 12d\n    视觉手册编制         :        c4, after c3, 10d\n    section 触点落地\n    官网与社媒视觉换装   :        d1, after c4, 12d\n    办公与门店环境更新   :        d2, after c3, 15d\n    产品包装更新         :        d3, after c4, 18d\n    员工品牌内训         :        d4, after d1, 5d\n    section 发布\n    品牌发布会           :milestone, m2, after d4, 0d\n    媒体传播战役         :        e1, after m2, 20d\n    品牌效果评估         :        e2, after e1, 8d"
+    },
+    {
+      "name": "官网网站重构",
+      "title": "官网网站重构甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 720,
+      "content": "gantt\n    title 企业官网重构项目排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 规划阶段\n    现有站点诊断         :done,  a1, 2026-09-10, 6d\n    关键词与搜索优化规划 :done,  a2, after a1, 5d\n    技术栈选型定稿       :milestone, m1, after a2, 0d\n    section 设计阶段\n    站点地图与原型       :done,  b1, after m1, 8d\n    首页视觉设计         :        b2, after b1, 10d\n    内页模板设计         :        b3, after b2, 8d\n    移动端适配设计       :        b4, after b2, 6d\n    section 前端开发\n    组件库与骨架搭建     :active, crit, c1, after b3, 10d\n    首页与产品页开发     :crit,  c2, after c1, 12d\n    新闻与案例模块开发   :        c3, after c1, 10d\n    响应式与无障碍适配   :        c4, after c2, 8d\n    section 内容与搜索优化\n    内容迁移与改写       :        d1, after c2, 15d\n    站点地图与结构化数据 :        d2, after d1, 6d\n    多语言版本配置       :        d3, after c3, 10d\n    section 上线\n    性能与索引检测       :        e1, after d2, 5d\n    正式上线             :milestone, m2, after e1, 0d\n    上线后数据观测       :        e2, after m2, 15d"
+    },
+    {
+      "name": "支付系统对接",
+      "title": "支付系统对接甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 730,
+      "content": "gantt\n    title 多渠道支付系统对接排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 方案与准入\n    支付渠道选型对比     :done,  a1, 2026-09-10, 8d\n    商户号申请与签约     :done,  a2, after a1, 15d\n    对账与结算方案设计   :        a3, after a1, 6d\n    准入完成             :milestone, m1, after a2, 0d\n    section 开发联调\n    支付网关接口开发     :active, crit, b1, after m1, 12d\n    退款与撤单流程开发   :crit,  b2, after b1, 8d\n    异步通知与幂等处理   :        b3, after b1, 7d\n    聚合收银台前端       :        b4, after b2, 10d\n    section 测试验收\n    沙箱环境联调         :        c1, after b3, 6d\n    支付全链路测试       :crit,  c2, after b4, 8d\n    对账文件核对测试     :        c3, after c2, 5d\n    安全与风控测试       :        c4, after c2, 6d\n    section 灰度上线\n    内部灰度百分之一     :        d1, after c4, 4d\n    灰度扩量至百分之二十 :        d2, after d1, 5d\n    全量上线             :milestone, m2, after d2, 0d\n    section 运营\n    交易监控与告警       :        e1, after m2, 10d\n    手续费与结算核对     :        e2, after m2, 8d\n    接入复盘             :        e3, after e2, 3d"
+    },
+    {
+      "name": "等保合规整改",
+      "title": "等保合规整改甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 740,
+      "content": "gantt\n    title 三级等保合规整改专项排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 定级备案\n    系统定级与专家评审   :done,  a1, 2026-09-10, 10d\n    公安备案受理         :done,  a2, after a1, 12d\n    备案证明取得         :milestone, m1, after a2, 0d\n    section 差距评估\n    资产与威胁梳理       :done,  b1, after m1, 8d\n    等级测评差距分析     :done,  b2, after b1, 10d\n    整改项清单确认       :milestone, m2, after b2, 0d\n    section 整改建设\n    网络边界加固         :active, crit, c1, after m2, 12d\n    主机与终端安全加固   :crit,  c2, after m2, 15d\n    应用安全漏洞修复     :crit,  c3, after c1, 18d\n    数据备份与加密改造   :        c4, after c1, 12d\n    安全管理制度编制     :        c5, after m2, 10d\n    section 测评准备\n    渗透测试与复测       :        d1, after c3, 8d\n    日志审计平台接入     :        d2, after c2, 10d\n    应急预案演练         :        d3, after c5, 5d\n    内部自查             :        d4, after d1, 5d\n    section 测评取证\n    第三方测评进场       :milestone, m3, after d4, 0d\n    现场测评配合         :        e1, after m3, 8d\n    不符合项闭环整改     :        e2, after e1, 12d\n    测评报告领取         :milestone, m4, after e2, 0d"
+    },
+    {
+      "name": "年度招聘专项",
+      "title": "年度招聘专项甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 750,
+      "content": "gantt\n    title 集团年度招聘专项排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 需求规划\n    年度编制与人力盘点   :done,  a1, 2026-09-10, 12d\n    招聘岗位需求评审     :done,  a2, after a1, 8d\n    招聘预算审批         :milestone, m1, after a2, 0d\n    section 渠道与宣传\n    招聘渠道招标比价     :done,  b1, after m1, 10d\n    雇主品牌内容制作     :        b2, after b1, 12d\n    招聘官网与系统配置   :        b3, after b1, 8d\n    内推激励方案发布     :        b4, after b2, 5d\n    section 春季校招\n    高校宣讲会排期       :active, c1, after b2, 10d\n    校园宣讲执行         :crit,  c2, after c1, 20d\n    笔试与集中面试       :crit,  c3, after c2, 12d\n    录用意向沟通         :        c4, after c3, 8d\n    春招录用完成         :milestone, m2, after c4, 0d\n    section 社招补强\n    关键技术岗位寻访     :        d1, after b4, 30d\n    高管岗位猎头合作     :        d2, after m2, 40d\n    面试与背景调查       :        d3, after d1, 20d\n    薪酬谈判与录用发放   :        d4, after d3, 10d\n    section 入职与复盘\n    集中入职与培训       :        e1, after m2, 15d\n    试用期跟踪           :        e2, after e1, 30d\n    年度招聘复盘         :        e3, after e2, 5d"
+    },
+    {
+      "name": "培训课程体系搭建",
+      "title": "培训课程体系搭建甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 760,
+      "content": "gantt\n    title 员工培训课程体系搭建排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 需求调研\n    岗位能力模型梳理     :done,  a1, 2026-09-10, 12d\n    培训需求问卷调研     :done,  a2, after a1, 8d\n    需求调研报告         :milestone, m1, after a2, 0d\n    section 体系设计\n    课程体系框架设计     :done,  b1, after m1, 10d\n    学习地图与进阶路径   :        b2, after b1, 8d\n    认证与考核机制设计   :        b3, after b2, 6d\n    体系评审通过         :milestone, m2, after b3, 0d\n    section 课程开发\n    通用力课程开发       :active, c1, after m2, 15d\n    专业技能课程开发     :crit,  c2, after m2, 20d\n    管理力课程开发       :        c3, after c1, 12d\n    微课与案例库制作     :        c4, after c2, 15d\n    课件与教材定稿       :milestone, m3, after c4, 0d\n    section 师资与试点\n    内部讲师选拔与认证   :        d1, after m3, 10d\n    讲师试讲打磨         :        d2, after d1, 8d\n    试点班级开班         :milestone, m4, after d2, 0d\n    试点教学与反馈收集   :        d3, after m4, 15d\n    section 推广运营\n    学习平台上线配置     :        e1, after d3, 10d\n    全员推广与学习任务   :        e2, after e1, 20d\n    培训效果评估         :        e3, after e2, 8d"
+    },
+    {
+      "name": "市政工程施工",
+      "title": "市政工程施工甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 770,
+      "content": "gantt\n    title 城南市政道路改造施工排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 前期准备\n    施工图审查与交底     :done,  a1, 2026-09-10, 10d\n    征地拆迁协调         :done,  crit, a2, after a1, 25d\n    施工组织设计报审     :        a3, after a1, 8d\n    开工令下达           :milestone, m1, after a2, 0d\n    section 管线迁改\n    给排水管线迁改       :active, crit, b1, after m1, 30d\n    燃气管线迁改         :crit,  b2, after m1, 25d\n    电力通信管线迁改     :        b3, after b1, 20d\n    管线迁改验收         :milestone, m2, after b3, 0d\n    section 路基路面\n    路基开挖与填筑       :crit,  c1, after m2, 30d\n    雨水支管与检查井     :        c2, after c1, 20d\n    水稳层铺设           :        c3, after c2, 15d\n    沥青面层摊铺         :crit,  c4, after c3, 12d\n    section 附属工程\n    人行道与路缘石       :        d1, after c4, 18d\n    交通标志标线         :        d2, after c4, 12d\n    照明与绿化工程       :        d3, after d1, 20d\n    智能交通设施安装     :        d4, after d2, 15d\n    section 竣工验收\n    自检与整改           :        e1, after d3, 10d\n    竣工验收             :milestone, m3, after e1, 0d\n    移交通车             :        e2, after m3, 5d"
+    },
+    {
+      "name": "医院新院区搬迁",
+      "title": "医院新院区搬迁甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 780,
+      "content": "gantt\n    title 市第一医院新院区搬迁排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    section 筹备规划\n    搬迁总体方案编制     :done,  a1, 2026-09-10, 12d\n    科室布局与流程确认   :done,  a2, after a1, 10d\n    搬迁风险评估与预案   :done,  a3, after a2, 8d\n    搬迁方案审定         :milestone, m1, after a3, 0d\n    section 设备与信息化\n    大型医疗设备搬迁     :active, crit, b1, after m1, 25d\n    新设备采购与安装     :crit,  b2, after m1, 30d\n    信息系统部署与切换   :crit,  b3, after m1, 20d\n    网络与机房建设       :        b4, after b3, 12d\n    设备调试与计量校验   :        b5, after b2, 10d\n    section 科室准备\n    门诊科室布置         :        c1, after b4, 15d\n    住院病区准备         :        c2, after b5, 18d\n    手术室与重症监护验收 :crit,  c3, after b5, 12d\n    药品与耗材调拨       :        c4, after c2, 8d\n    section 试运行\n    门诊试运行           :milestone, m2, after c1, 0d\n    急诊试运行           :crit,  d1, after c3, 7d\n    住院试运行           :        d2, after c4, 7d\n    问题整改与复验       :        d3, after d2, 8d\n    section 正式搬迁\n    老院区停诊公告       :        e1, after d3, 5d\n    正式开诊             :milestone, m3, after e1, 0d\n    搬迁后运营保障       :        e2, after m3, 20d"
+    },
+    {
+      "name": "游戏版本上线",
+      "title": "游戏版本上线甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 790,
+      "content": "gantt\n    title 手游二点零大版本上线排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 内容制作\n    新主线剧情脚本       :done,  a1, 2026-09-10, 15d\n    新角色与美术资源     :done,  a2, after a1, 25d\n    新地图场景搭建       :active, crit, a3, after a1, 20d\n    音效与配音制作       :        a4, after a2, 15d\n    section 系统开发\n    新玩法战斗系统       :active, crit, b1, after a2, 25d\n    社交组队系统开发     :        b2, after b1, 12d\n    赛季通行证系统       :        b3, after b1, 15d\n    反外挂与风控升级     :        b4, after b2, 10d\n    section 测试调优\n    内部封测             :        c1, after b1, 12d\n    数值平衡调优         :crit,  c2, after c1, 15d\n    性能与机型适配       :        c3, after c2, 10d\n    付费删档测试         :        c4, after c3, 10d\n    版本内容锁定         :milestone, m1, after c4, 0d\n    section 版号与合规\n    版号变更申报         :        d1, after m1, 20d\n    防沉迷与实名校验     :        d2, after m1, 10d\n    内容合规审查         :        d3, after c4, 8d\n    section 发行运营\n    预下载与预约开启     :        e1, after d3, 10d\n    全平台首发上线       :milestone, m2, after e1, 0d\n    上线活动与买量投放   :crit,  e2, after m2, 15d\n    版本数据复盘         :        e3, after e2, 7d"
+    },
+    {
+      "name": "物流中心投产",
+      "title": "物流中心投产甘特图",
+      "category": "流程图模板·甘特图",
+      "sort": 800,
+      "content": "gantt\n    title 华东区域物流中心投产排期\n    dateFormat YYYY-MM-DD\n    axisFormat %m-%d\n    excludes weekends\n    section 选址建设\n    园区选址与签约       :done,  a1, 2026-09-10, 20d\n    仓库土建与验收       :done,  crit, a2, after a1, 90d\n    消防与安防验收       :        a3, after a2, 12d\n    园区交付             :milestone, m1, after a3, 0d\n    section 设备与系统\n    货架与输送线安装     :active, crit, b1, after m1, 30d\n    自动分拣设备调试     :crit,  b2, after b1, 20d\n    仓储管理系统部署     :        b3, after m1, 25d\n    运输管理系统对接     :        b4, after b3, 15d\n    叉车与月台设施进场   :        b5, after b1, 10d\n    section 人员与流程\n    仓储运营团队招聘     :        c1, after m1, 30d\n    岗位操作培训         :        c2, after c1, 12d\n    作业流程与标准编制   :        c3, after b3, 15d\n    车队与承运商签约     :        c4, after b4, 20d\n    section 试运行\n    空仓模拟跑仓         :        d1, after c2, 8d\n    小批量实货试运营     :crit,  d2, after d1, 12d\n    运力与时效验证       :        d3, after c4, 10d\n    问题整改             :        d4, after d2, 8d\n    section 正式投产\n    全量业务切换         :milestone, m2, after d4, 0d\n    产能爬坡             :        e1, after m2, 25d\n    投产验收             :milestone, m3, after e1, 0d"
+    },
+    {
+      "name": "电商订单交易",
+      "title": "电商订单交易ER图",
+      "category": "流程图模板·ER图",
+      "sort": 810,
+      "content": "erDiagram\n    用户 ||--o{ 收货地址 : 维护\n    用户 ||--o{ 订单 : 下单\n    收货地址 }|--o{ 订单 : 作为收货地\n    店铺 ||--o{ 商品SKU : 上架\n    订单 ||--|{ 订单明细 : 包含\n    商品SKU ||--o{ 订单明细 : 被选购\n    订单 ||--|| 支付流水 : 产生\n    用户 {\n        bigint 用户ID PK\n        varchar 手机号 UK \"用于登录与短信通知\"\n        varchar 昵称\n        tinyint 会员等级 \"1至5级\"\n    }\n    收货地址 {\n        bigint 地址ID PK\n        bigint 用户ID FK\n        varchar 收货人\n        varchar 详细地址\n        tinyint 是否默认 \"1表示默认地址\"\n    }\n    订单 {\n        bigint 订单ID PK\n        varchar 订单编号 UK \"对外展示单号\"\n        bigint 用户ID FK\n        bigint 地址ID FK\n        tinyint 订单状态 \"1待付款 5已完成\"\n    }\n    订单明细 {\n        bigint 明细ID PK\n        bigint 订单ID FK\n        bigint SKUID FK\n        int 购买数量\n        decimal 成交单价\n    }\n    商品SKU {\n        bigint SKUID PK\n        bigint 店铺ID FK\n        varchar SKU编码 UK \"商家自定义编码\"\n        varchar 商品名称\n        decimal 销售价\n    }\n    店铺 {\n        bigint 店铺ID PK\n        varchar 店铺名称\n        varchar 营业执照号 UK \"工商登记编号\"\n        tinyint 经营状态 \"1营业 0歇业\"\n    }\n    支付流水 {\n        bigint 流水ID PK\n        varchar 支付单号 UK \"渠道返回流水号\"\n        bigint 订单ID FK\n        decimal 支付金额\n    }"
+    },
+    {
+      "name": "库存仓储",
+      "title": "库存仓储ER图",
+      "category": "流程图模板·ER图",
+      "sort": 820,
+      "content": "erDiagram\n    仓库 ||--|{ 库区 : 划分\n    库区 ||--|{ 库位 : 细分\n    库位 ||--o{ 库存批次 : 存放\n    商品 ||--o{ 库存批次 : 生成\n    商品 }|--o{ 入库单 : 采购\n    入库单 ||--|{ 库存批次 : 验收\n    库存批次 ||--o{ 库存变动 : 记录\n    仓库 {\n        bigint 仓库ID PK\n        varchar 仓库名称\n        varchar 所在城市\n        tinyint 仓库类型 \"1中心仓 2前置仓\"\n    }\n    库区 {\n        bigint 库区ID PK\n        bigint 仓库ID FK\n        varchar 库区编码 UK \"库内唯一分区编号\"\n        varchar 温层 \"常温或冷链\"\n    }\n    库位 {\n        bigint 库位ID PK\n        bigint 库区ID FK\n        varchar 库位编码 UK\n        tinyint 占用状态 \"0空闲 1已占用\"\n    }\n    商品 {\n        bigint 商品ID PK\n        varchar 商品条码 UK \"国标商品条码\"\n        varchar 商品名称\n        varchar 计量单位\n        decimal 标准进价\n    }\n    库存批次 {\n        bigint 批次ID PK\n        bigint 商品ID FK\n        bigint 库位ID FK\n        bigint 入库单ID FK\n        int 可用数量\n        date 生产日期\n    }\n    入库单 {\n        bigint 入库单ID PK\n        varchar 入库单号 UK\n        bigint 供应商ID FK\n        date 到货日期\n        tinyint 验收状态\n    }\n    库存变动 {\n        bigint 变动ID PK\n        bigint 批次ID FK\n        varchar 变动类型 \"入库出库盘点\"\n        int 变动数量\n        datetime 变动时间\n    }"
+    },
+    {
+      "name": "会员积分",
+      "title": "会员积分ER图",
+      "category": "流程图模板·ER图",
+      "sort": 830,
+      "content": "erDiagram\n    会员等级 ||--o{ 会员 : 评定\n    会员 ||--|| 积分账户 : 持有\n    积分账户 ||--o{ 积分流水 : 记录\n    积分规则 ||--o{ 积分流水 : 计算\n    积分商品 ||--o{ 兑换订单 : 被兑换\n    会员 ||--o{ 兑换订单 : 提交\n    兑换订单 }|--o{ 积分账户 : 扣减\n    会员 {\n        bigint 会员ID PK\n        varchar 会员卡号 UK \"门店与小程序通用\"\n        varchar 昵称\n        bigint 等级ID FK\n        datetime 入会时间\n    }\n    会员等级 {\n        bigint 等级ID PK\n        varchar 等级名称\n        int 成长值下限\n        decimal 折扣率 \"0.85表示八五折\"\n    }\n    积分账户 {\n        bigint 账户ID PK\n        bigint 会员ID FK, UK \"一个会员仅一个账户\"\n        int 可用积分\n        int 累计积分\n    }\n    积分流水 {\n        bigint 流水ID PK\n        bigint 账户ID FK\n        bigint 规则ID FK\n        int 变动积分 \"正数为获得负数为扣减\"\n        datetime 变动时间\n    }\n    积分规则 {\n        bigint 规则ID PK\n        varchar 场景编码 UK \"登录签到消费评价\"\n        int 单次积分\n        tinyint 启用状态\n    }\n    积分商品 {\n        bigint 商品ID PK\n        varchar 商品名称\n        int 兑换积分\n        int 库存数量\n    }\n    兑换订单 {\n        bigint 兑换单ID PK\n        varchar 兑换单号 UK\n        bigint 会员ID FK\n        bigint 商品ID FK\n        tinyint 发放状态 \"0待发货 1已发放\"\n    }"
+    },
+    {
+      "name": "优惠券营销",
+      "title": "优惠券营销ER图",
+      "category": "流程图模板·ER图",
+      "sort": 840,
+      "content": "erDiagram\n    营销活动 ||--o{ 优惠券模板 : 配置\n    优惠券模板 ||--o{ 优惠券批次 : 投放\n    优惠券批次 ||--o{ 用户优惠券 : 发放\n    用户 ||--o{ 用户优惠券 : 领取\n    优惠券模板 }o--o{ 商品 : 限定适用\n    用户 ||--o{ 订单 : 提交\n    用户优惠券 }o--|| 订单 : 核销\n    营销活动 {\n        bigint 活动ID PK\n        varchar 活动名称\n        datetime 开始时间\n        datetime 结束时间\n        tinyint 活动状态\n    }\n    优惠券模板 {\n        bigint 模板ID PK\n        bigint 活动ID FK\n        varchar 券类型 \"满减券折扣券包邮券\"\n        decimal 优惠力度 \"满减金额或折扣率\"\n        decimal 使用门槛\n    }\n    优惠券批次 {\n        bigint 批次ID PK\n        bigint 模板ID FK\n        int 发行总量\n        int 已领取量\n        date 有效期止\n    }\n    用户优惠券 {\n        bigint 领券ID PK\n        bigint 批次ID FK\n        bigint 用户ID FK\n        varchar 券码 UK \"核销时出示\"\n        tinyint 使用状态 \"0未使用 1已核销\"\n    }\n    用户 {\n        bigint 用户ID PK\n        varchar 手机号 UK\n        varchar 昵称\n        datetime 注册时间\n    }\n    商品 {\n        bigint 商品ID PK\n        varchar 商品名称\n        decimal 售价\n        bigint 类目ID FK\n    }\n    订单 {\n        bigint 订单ID PK\n        varchar 订单号 UK\n        bigint 用户ID FK\n        decimal 实付金额\n        datetime 下单时间\n    }"
+    },
+    {
+      "name": "支付对账",
+      "title": "支付对账ER图",
+      "category": "流程图模板·ER图",
+      "sort": 850,
+      "content": "erDiagram\n    商户 ||--o{ 支付订单 : 发起\n    支付渠道 ||--o{ 支付订单 : 受理\n    支付订单 ||--o{ 退款单 : 产生\n    支付渠道 ||--o{ 对账文件 : 提供\n    对账文件 ||--|{ 对账明细 : 解析\n    支付订单 ||--o{ 对账明细 : 勾兑\n    对账明细 ||--o{ 差错记录 : 挂账\n    商户 {\n        bigint 商户ID PK\n        varchar 商户名称\n        varchar 商户号 UK \"渠道侧进件编号\"\n        tinyint 启用状态\n    }\n    支付渠道 {\n        bigint 渠道ID PK\n        varchar 渠道名称\n        varchar 通道编码 UK \"微信支付宝银联\"\n        decimal 手续费率 \"千分之三记为0.003\"\n    }\n    支付订单 {\n        bigint 支付单ID PK\n        varchar 支付单号 UK\n        bigint 商户ID FK\n        bigint 渠道ID FK\n        decimal 支付金额\n        tinyint 支付状态\n    }\n    退款单 {\n        bigint 退款单ID PK\n        bigint 支付单ID FK\n        varchar 退款单号 UK\n        decimal 退款金额\n        tinyint 退款状态\n    }\n    对账文件 {\n        bigint 文件ID PK\n        bigint 渠道ID FK\n        varchar 文件名称\n        date 对账日期\n    }\n    对账明细 {\n        bigint 明细ID PK\n        bigint 文件ID FK\n        varchar 渠道流水号 UK\n        decimal 渠道金额\n        tinyint 勾兑结果 \"1平账 2长款 3短款\"\n    }\n    差错记录 {\n        bigint 差错ID PK\n        bigint 明细ID FK\n        varchar 差错类型 \"重复支付金额不符\"\n        decimal 差异金额\n        varchar 处理意见\n    }"
+    },
+    {
+      "name": "物流配送",
+      "title": "物流配送ER图",
+      "category": "流程图模板·ER图",
+      "sort": 860,
+      "content": "erDiagram\n    分拣中心 ||--o{ 配送站点 : 覆盖\n    配送站点 ||--o{ 快递员 : 派驻\n    分拣中心 ||--o{ 运单 : 始发\n    配送站点 }|--o{ 运单 : 派送\n    客户 ||--o{ 运单 : 托运\n    快递员 ||--o{ 运单 : 揽派\n    运单 ||--o{ 轨迹节点 : 记录\n    运单 ||--|| 签收记录 : 确认\n    分拣中心 {\n        bigint 中心ID PK\n        varchar 中心名称\n        varchar 所在城市\n        varchar 分拣线编号\n    }\n    配送站点 {\n        bigint 站点ID PK\n        bigint 中心ID FK\n        varchar 站点名称\n        varchar 服务片区\n    }\n    快递员 {\n        bigint 快递员ID PK\n        bigint 站点ID FK\n        varchar 姓名\n        varchar 手机号 UK \"用于接单与联系\"\n        tinyint 在职状态\n    }\n    运单 {\n        bigint 运单ID PK\n        varchar 运单号 UK \"快递面单条码号\"\n        bigint 客户ID FK\n        decimal 计费重量\n        tinyint 运单状态 \"0已下单 4已签收\"\n    }\n    客户 {\n        bigint 客户ID PK\n        varchar 客户姓名\n        varchar 联系电话 UK\n        varchar 常用地址\n    }\n    轨迹节点 {\n        bigint 节点ID PK\n        bigint 运单ID FK\n        varchar 操作动作 \"揽收发出到达派送\"\n        datetime 操作时间\n    }\n    签收记录 {\n        bigint 签收ID PK\n        bigint 运单ID FK\n        varchar 签收人\n        varchar 签收方式 \"本人代收快递柜\"\n    }"
+    },
+    {
+      "name": "外卖点餐",
+      "title": "外卖点餐ER图",
+      "category": "流程图模板·ER图",
+      "sort": 870,
+      "content": "erDiagram\n    商家 ||--o{ 菜品分类 : 维护\n    菜品分类 ||--o{ 菜品 : 归类\n    商家 ||--o{ 外卖订单 : 接单\n    用户 ||--o{ 外卖订单 : 提交\n    外卖订单 ||--|{ 订单项 : 包含\n    菜品 ||--o{ 订单项 : 被下单\n    外卖订单 ||--|| 配送单 : 生成\n    用户 {\n        bigint 用户ID PK\n        varchar 手机号 UK \"用于登录与配送联系\"\n        varchar 昵称\n        varchar 常用地址\n    }\n    商家 {\n        bigint 商家ID PK\n        varchar 商家名称\n        varchar 门店地址\n        decimal 起送金额\n        tinyint 营业状态 \"1接单 0打烊\"\n    }\n    菜品分类 {\n        bigint 分类ID PK\n        bigint 商家ID FK\n        varchar 分类名称\n        tinyint 排序号\n    }\n    菜品 {\n        bigint 菜品ID PK\n        bigint 分类ID FK\n        varchar 菜品名称\n        decimal 单价\n    }\n    外卖订单 {\n        bigint 订单ID PK\n        varchar 订单号 UK\n        bigint 用户ID FK\n        bigint 商家ID FK\n        tinyint 订单状态 \"1待接单 5已完成\"\n    }\n    订单项 {\n        bigint 明细ID PK\n        bigint 订单ID FK\n        bigint 菜品ID FK\n        varchar 备注口味 \"少辣不要香菜\"\n    }\n    配送单 {\n        bigint 配送单ID PK\n        bigint 订单ID FK\n        bigint 骑手ID FK\n        varchar 配送地址\n        tinyint 配送状态\n    }"
+    },
+    {
+      "name": "酒店预订",
+      "title": "酒店预订ER图",
+      "category": "流程图模板·ER图",
+      "sort": 880,
+      "content": "erDiagram\n    酒店 ||--o{ 房型 : 定义\n    房型 ||--o{ 房间 : 实例化\n    房型 ||--o{ 房价日历 : 制定\n    客人 ||--o{ 预订单 : 提交\n    房型 ||--o{ 预订单 : 被预订\n    预订单 ||--|| 入住记录 : 转为\n    入住记录 }|--o{ 房间 : 占用\n    酒店 {\n        bigint 酒店ID PK\n        varchar 酒店名称\n        varchar 所在城市\n        tinyint 星级 \"1至5星\"\n    }\n    房型 {\n        bigint 房型ID PK\n        bigint 酒店ID FK\n        varchar 房型名称 \"大床房双床房套房\"\n        int 可住人数\n        int 房间总数\n    }\n    房间 {\n        bigint 房间ID PK\n        bigint 房型ID FK\n        varchar 房间号 UK \"楼层加房间序号\"\n        tinyint 房态 \"0空净 1在住 2脏房\"\n    }\n    房价日历 {\n        bigint 日历ID PK\n        bigint 房型ID FK\n        date 住店日期\n        decimal 挂牌价\n        int 可售房量\n    }\n    客人 {\n        bigint 客人ID PK\n        varchar 姓名\n        varchar 证件号 UK \"身份证或护照号\"\n        tinyint 会员等级\n    }\n    预订单 {\n        bigint 预订单ID PK\n        varchar 预订号 UK \"确认函上的编号\"\n        bigint 客人ID FK\n        bigint 房型ID FK\n        tinyint 预订状态 \"1已确认 3已取消\"\n    }\n    入住记录 {\n        bigint 入住ID PK\n        bigint 预订单ID FK\n        bigint 房间ID FK\n        decimal 押金金额\n    }"
+    },
+    {
+      "name": "影院票务",
+      "title": "影院票务ER图",
+      "category": "流程图模板·ER图",
+      "sort": 890,
+      "content": "erDiagram\n    影院 ||--o{ 影厅 : 设置\n    影厅 ||--|{ 座位 : 布置\n    影厅 ||--o{ 排片场次 : 安排\n    影片 ||--o{ 排片场次 : 放映\n    排片场次 ||--o{ 电影票 : 售出\n    座位 ||--o{ 电影票 : 对应\n    会员 ||--o{ 电影票 : 购买\n    影院 {\n        bigint 影院ID PK\n        varchar 影院名称\n        varchar 所在商圈\n        varchar 联系电话\n    }\n    影厅 {\n        bigint 影厅ID PK\n        bigint 影院ID FK\n        varchar 放映制式 \"IMAX激光巨幕\"\n        int 座位总数\n    }\n    座位 {\n        bigint 座位ID PK\n        bigint 影厅ID FK\n        varchar 座位编号 UK \"排号加座号\"\n        tinyint 座位排号\n    }\n    影片 {\n        bigint 影片ID PK\n        varchar 影片名称\n        varchar 影片编码 UK \"专资办影片编码\"\n        int 片长分钟\n        date 上映日期\n    }\n    排片场次 {\n        bigint 场次ID PK\n        bigint 影厅ID FK\n        bigint 影片ID FK\n        datetime 开映时间\n        decimal 挂牌票价\n    }\n    电影票 {\n        bigint 票ID PK\n        bigint 场次ID FK\n        bigint 座位ID FK\n        varchar 取票码 UK \"短信取票凭证\"\n        tinyint 售票状态 \"0已锁座 1已出票\"\n    }\n    会员 {\n        bigint 会员ID PK\n        varchar 手机号 UK\n        int 可用积分\n        decimal 卡内余额\n    }"
+    },
+    {
+      "name": "医疗挂号病历",
+      "title": "医疗挂号病历ER图",
+      "category": "流程图模板·ER图",
+      "sort": 900,
+      "content": "erDiagram\n    科室 ||--o{ 医生 : 隶属\n    医生 ||--o{ 排班 : 出诊\n    患者 ||--o{ 挂号单 : 预约\n    排班 ||--o{ 挂号单 : 占用号源\n    挂号单 ||--|| 病历 : 产生\n    病历 ||--o{ 处方 : 开具\n    处方 }o--o{ 药品 : 配药\n    患者 {\n        bigint 患者ID PK\n        varchar 就诊卡号 UK \"院内唯一就诊卡\"\n        varchar 姓名\n        varchar 身份证号 UK \"用于实名建档\"\n        tinyint 性别\n    }\n    科室 {\n        bigint 科室ID PK\n        varchar 科室名称\n        varchar 科室编码 UK \"院内标准编码\"\n        varchar 门诊电话\n    }\n    医生 {\n        bigint 医生ID PK\n        bigint 科室ID FK\n        varchar 执业证号 UK \"医师执业证书编号\"\n        varchar 职称 \"主任医师副主任医师\"\n    }\n    排班 {\n        bigint 排班ID PK\n        bigint 医生ID FK\n        date 出诊日期\n        int 号源总数\n        int 剩余号源\n    }\n    挂号单 {\n        bigint 挂号ID PK\n        varchar 挂号单号 UK\n        bigint 患者ID FK\n        bigint 排班ID FK\n        tinyint 挂号状态 \"1已约 2已退 3已就诊\"\n    }\n    病历 {\n        bigint 病历ID PK\n        bigint 挂号ID FK\n        text 主诉\n        text 诊断结论\n        datetime 接诊时间\n    }\n    处方 {\n        bigint 处方ID PK\n        bigint 病历ID FK\n        bigint 药品ID FK\n        varchar 用法用量 \"每日三次每次一片\"\n        int 开药数量\n    }"
+    },
+    {
+      "name": "在线教育课程数据模型",
+      "title": "在线教育课程ER图",
+      "category": "流程图模板·ER图",
+      "sort": 910,
+      "content": "erDiagram\n    教师 ||--o{ 课程 : 主讲\n    课程 ||--|{ 章节 : 划分\n    章节 ||--|{ 课时 : 细分\n    学员 ||--o{ 选课记录 : 提交\n    课程 ||--o{ 选课记录 : 被选\n    选课记录 ||--o{ 学习进度 : 产生\n    课时 ||--o{ 学习进度 : 对应\n    学员 {\n        bigint 学员ID PK\n        varchar 手机号 UK \"用于登录上课\"\n        varchar 昵称\n        varchar 所在年级\n    }\n    教师 {\n        bigint 教师ID PK\n        varchar 姓名\n        varchar 教师资格证号 UK\n        varchar 主讲学科\n    }\n    课程 {\n        bigint 课程ID PK\n        bigint 教师ID FK\n        varchar 课程编码 UK \"教务系统编号\"\n        decimal 课程价格\n        tinyint 上架状态\n    }\n    章节 {\n        bigint 章节ID PK\n        bigint 课程ID FK\n        varchar 章节标题\n        tinyint 章节序号\n    }\n    课时 {\n        bigint 课时ID PK\n        bigint 章节ID FK\n        int 时长分钟\n        varchar 视频地址\n    }\n    选课记录 {\n        bigint 选课ID PK\n        bigint 学员ID FK\n        bigint 课程ID FK\n        tinyint 完成状态 \"0学习中 1已结课\"\n    }\n    学习进度 {\n        bigint 进度ID PK\n        bigint 选课ID FK\n        bigint 课时ID FK\n        int 已学秒数\n    }"
+    },
+    {
+      "name": "OA审批",
+      "title": "OA审批ER图",
+      "category": "流程图模板·ER图",
+      "sort": 920,
+      "content": "erDiagram\n    部门 ||--o{ 员工 : 编制\n    员工 ||--o{ 审批单 : 发起\n    审批流程 ||--|{ 审批节点 : 编排\n    审批流程 ||--o{ 审批单 : 实例化\n    审批单 ||--|{ 审批记录 : 留痕\n    员工 ||--o{ 审批记录 : 处理\n    审批单 ||--o{ 附件 : 附带\n    部门 {\n        bigint 部门ID PK\n        varchar 部门名称\n        varchar 部门编码 UK \"组织架构编码\"\n        bigint 上级部门ID FK\n    }\n    员工 {\n        bigint 员工ID PK\n        bigint 部门ID FK\n        varchar 工号 UK \"人事系统工号\"\n        varchar 岗位名称\n    }\n    审批流程 {\n        bigint 流程ID PK\n        varchar 流程名称\n        varchar 业务类型 \"报销请假用章采购\"\n        tinyint 启用状态\n    }\n    审批节点 {\n        bigint 节点ID PK\n        bigint 流程ID FK\n        tinyint 节点序号\n        varchar 审批人规则 \"直属上级或指定角色\"\n    }\n    审批单 {\n        bigint 单号ID PK\n        varchar 单据编号 UK \"报销单请假单编号\"\n        bigint 流程ID FK\n        bigint 发起人ID FK\n        tinyint 单据状态 \"1审批中 2通过 3驳回\"\n    }\n    审批记录 {\n        bigint 记录ID PK\n        bigint 单号ID FK\n        bigint 处理人ID FK\n        tinyint 处理结论 \"1同意 2驳回 3转办\"\n    }\n    附件 {\n        bigint 附件ID PK\n        bigint 单号ID FK\n        varchar 文件名称\n        varchar 存储路径\n    }"
+    },
+    {
+      "name": "客服工单",
+      "title": "客服工单ER图",
+      "category": "流程图模板·ER图",
+      "sort": 930,
+      "content": "erDiagram\n    工单分类 ||--o{ 工单 : 归类\n    客户 ||--o{ 工单 : 提交\n    客服人员 ||--o{ 工单 : 受理\n    工单 ||--|{ 工单流转 : 流转\n    工单 ||--o{ 会话记录 : 沟通\n    客服人员 ||--o{ 会话记录 : 回复\n    工单 ||--|| 满意度评价 : 评价\n    客户 {\n        bigint 客户ID PK\n        varchar 客户名称\n        varchar 联系电话 UK \"来电识别用\"\n        tinyint 客户级别\n    }\n    客服人员 {\n        bigint 客服ID PK\n        varchar 工号 UK \"坐席工号\"\n        varchar 技能组 \"售后技术支持账务\"\n        tinyint 在线状态\n    }\n    工单分类 {\n        bigint 分类ID PK\n        varchar 分类编码 UK\n        int 承诺时效小时\n        tinyint 是否启用\n    }\n    工单 {\n        bigint 工单ID PK\n        varchar 工单编号 UK \"对外查询编号\"\n        bigint 客户ID FK\n        bigint 分类ID FK\n        tinyint 紧急程度 \"1一般 4紧急\"\n    }\n    工单流转 {\n        bigint 流转ID PK\n        bigint 工单ID FK\n        varchar 动作类型 \"受理转派挂起解决\"\n        datetime 操作时间\n    }\n    会话记录 {\n        bigint 会话ID PK\n        bigint 工单ID FK\n        bigint 客服ID FK\n        varchar 渠道来源 \"电话在线机器人\"\n    }\n    满意度评价 {\n        bigint 评价ID PK\n        bigint 工单ID FK\n        tinyint 评分 \"1至5星\"\n        varchar 评价标签\n    }"
+    },
+    {
+      "name": "内容社区",
+      "title": "内容社区ER图",
+      "category": "流程图模板·ER图",
+      "sort": 940,
+      "content": "erDiagram\n    板块 ||--o{ 帖子 : 聚合\n    用户 ||--o{ 帖子 : 发布\n    帖子 ||--o{ 评论 : 收到\n    用户 ||--o{ 评论 : 发表\n    帖子 }o--o{ 标签 : 打标\n    用户 ||--o{ 收藏夹 : 建立\n    收藏夹 }o--o{ 帖子 : 收藏\n    用户 ||--o{ 消息通知 : 接收\n    用户 {\n        bigint 用户ID PK\n        varchar 用户名 UK \"社区唯一昵称\"\n        int 粉丝数\n        tinyint 账号状态 \"1正常 2禁言\"\n    }\n    板块 {\n        bigint 板块ID PK\n        varchar 板块编码 UK \"路由路径标识\"\n        varchar 板块简介\n        int 关注人数\n    }\n    帖子 {\n        bigint 帖子ID PK\n        bigint 板块ID FK\n        bigint 作者ID FK\n        varchar 标题\n        tinyint 审核状态 \"0待审 1通过 2下架\"\n    }\n    评论 {\n        bigint 评论ID PK\n        bigint 帖子ID FK\n        bigint 用户ID FK\n        text 评论内容\n        int 点赞数\n    }\n    标签 {\n        bigint 标签ID PK\n        varchar 标签名称 UK\n        int 引用次数\n        varchar 标签分类\n    }\n    收藏夹 {\n        bigint 收藏夹ID PK\n        bigint 用户ID FK\n        varchar 收藏夹名称\n        tinyint 是否公开\n    }\n    消息通知 {\n        bigint 通知ID PK\n        bigint 接收人ID FK\n        varchar 通知类型 \"点赞评论关注系统\"\n        tinyint 已读状态\n    }"
+    },
+    {
+      "name": "游戏角色装备",
+      "title": "游戏角色装备ER图",
+      "category": "流程图模板·ER图",
+      "sort": 950,
+      "content": "erDiagram\n    玩家账号 ||--o{ 游戏角色 : 创建\n    公会 ||--o{ 游戏角色 : 招收\n    游戏角色 ||--|| 背包 : 拥有\n    背包 ||--o{ 装备 : 存放\n    游戏角色 ||--o{ 装备 : 穿戴\n    装备 ||--o{ 强化记录 : 强化\n    游戏角色 }o--o{ 战斗记录 : 参与\n    玩家账号 {\n        bigint 账号ID PK\n        varchar 通行证 UK \"登录通行证\"\n        varchar 昵称\n        int 累计充值\n    }\n    游戏角色 {\n        bigint 角色ID PK\n        bigint 账号ID FK\n        varchar 角色名 UK \"全区服唯一\"\n        varchar 职业 \"战士法师射手\"\n        int 战斗力\n    }\n    公会 {\n        bigint 公会ID PK\n        varchar 公会名称 UK\n        int 公会等级\n        int 成员上限\n    }\n    背包 {\n        bigint 背包ID PK\n        bigint 角色ID FK\n        int 已用格子\n        bigint 金币数量\n    }\n    装备 {\n        bigint 装备ID PK\n        bigint 背包ID FK\n        varchar 装备名称\n        varchar 品质 \"普通精良史诗传说\"\n        int 强化等级\n    }\n    强化记录 {\n        bigint 记录ID PK\n        bigint 装备ID FK\n        int 强化后等级\n        tinyint 是否成功\n    }\n    战斗记录 {\n        bigint 战斗ID PK\n        varchar 玩法类型 \"副本竞技场世界boss\"\n        int 造成伤害\n        tinyint 战斗结果 \"1胜利 0失败\"\n    }"
+    },
+    {
+      "name": "物联网设备采集",
+      "title": "物联网设备采集ER图",
+      "category": "流程图模板·ER图",
+      "sort": 960,
+      "content": "erDiagram\n    网关 ||--o{ 设备 : 接入\n    固件版本 ||--o{ 设备 : 运行\n    设备 ||--o{ 传感器 : 装配\n    传感器 ||--o{ 采集数据 : 上报\n    采集数据 }|--o{ 告警规则 : 命中\n    告警规则 ||--o{ 告警记录 : 触发\n    设备 ||--o{ 告警记录 : 产生\n    网关 {\n        bigint 网关ID PK\n        varchar 网关编号 UK \"出厂序列号\"\n        varchar 接入协议 \"MQTT或Modbus\"\n        tinyint 在线状态\n    }\n    设备 {\n        bigint 设备ID PK\n        bigint 网关ID FK\n        varchar 设备编码 UK \"资产台账编号\"\n        bigint 固件ID FK\n        datetime 最后心跳时间\n    }\n    传感器 {\n        bigint 传感器ID PK\n        bigint 设备ID FK\n        varchar 测点名称 \"温度湿度振动\"\n        varchar 计量单位\n        decimal 量程上限\n    }\n    采集数据 {\n        bigint 数据ID PK\n        bigint 传感器ID FK\n        decimal 采集数值\n        datetime 采集时间\n    }\n    告警规则 {\n        bigint 规则ID PK\n        varchar 规则名称\n        decimal 阈值上限\n        tinyint 告警级别 \"1提示 3严重\"\n    }\n    告警记录 {\n        bigint 告警ID PK\n        bigint 设备ID FK\n        bigint 规则ID FK\n        tinyint 处理状态 \"0未处理 1已消除\"\n    }\n    固件版本 {\n        bigint 固件ID PK\n        varchar 版本号 UK \"如V2点3点1\"\n        varchar 适用型号\n        datetime 发布时间\n    }"
+    },
+    {
+      "name": "能源抄表计费数据模型",
+      "title": "能源抄表计费ER图",
+      "category": "流程图模板·ER图",
+      "sort": 970,
+      "content": "erDiagram\n    用能客户 ||--o{ 计量表具 : 安装\n    计量表具 ||--o{ 抄表任务 : 生成\n    抄表任务 ||--o{ 抄表记录 : 执行\n    计量表具 ||--o{ 抄表记录 : 计量\n    电价方案 ||--o{ 账单 : 计价\n    抄表记录 ||--o{ 账单 : 出账\n    账单 ||--o{ 缴费记录 : 收款\n    用能客户 {\n        bigint 客户ID PK\n        varchar 户号 UK \"供电营销户号\"\n        varchar 用电地址\n        varchar 用电类别 \"居民工商业农业\"\n    }\n    计量表具 {\n        bigint 表具ID PK\n        bigint 客户ID FK\n        varchar 表号 UK \"电能表资产号\"\n        varchar 表具类型 \"单相三相互感器\"\n    }\n    抄表任务 {\n        bigint 任务ID PK\n        bigint 表具ID FK\n        date 计划抄表日\n        tinyint 任务状态 \"0待派 2已完成\"\n    }\n    抄表记录 {\n        bigint 记录ID PK\n        bigint 任务ID FK\n        decimal 本次示数\n        decimal 结算电量\n    }\n    电价方案 {\n        bigint 方案ID PK\n        varchar 方案名称\n        decimal 电度电价\n        date 生效日期\n    }\n    账单 {\n        bigint 账单ID PK\n        varchar 账单编号 UK\n        bigint 方案ID FK\n        decimal 应收电费\n        tinyint 结清状态\n    }\n    缴费记录 {\n        bigint 缴费ID PK\n        bigint 账单ID FK\n        decimal 缴费金额\n        varchar 缴费渠道 \"代扣柜台线上缴费\"\n    }"
+    },
+    {
+      "name": "金融授信风控",
+      "title": "金融授信风控ER图",
+      "category": "流程图模板·ER图",
+      "sort": 980,
+      "content": "erDiagram\n    客户 ||--o{ 授信申请 : 提交\n    客户 ||--o{ 贷款合同 : 签署\n    授信申请 ||--|| 征信报告 : 查询\n    授信申请 ||--|| 风控评分 : 评估\n    风控规则 }o--o{ 风控评分 : 命中\n    授信申请 ||--|| 授信额度 : 核定\n    授信额度 ||--o{ 贷款合同 : 支用\n    客户 {\n        bigint 客户ID PK\n        varchar 证件号 UK \"统一社会信用代码或身份证\"\n        varchar 客户类型 \"个人或企业\"\n        varchar 所属行业\n    }\n    授信申请 {\n        bigint 申请ID PK\n        varchar 申请编号 UK \"进件编号\"\n        bigint 客户ID FK\n        decimal 申请金额\n        tinyint 审批结论 \"1通过 2拒绝 3补充材料\"\n    }\n    征信报告 {\n        bigint 报告ID PK\n        bigint 申请ID FK\n        varchar 报告编号 UK \"征信中心查询编号\"\n        int 逾期次数\n        decimal 负债总额\n    }\n    风控规则 {\n        bigint 规则ID PK\n        varchar 规则类型 \"黑名单反欺诈准入\"\n        int 扣分值\n        tinyint 启用状态\n    }\n    风控评分 {\n        bigint 评分ID PK\n        bigint 申请ID FK\n        int 综合得分\n        varchar 风险等级 \"低中高\"\n        datetime 评分时间\n    }\n    授信额度 {\n        bigint 额度ID PK\n        bigint 申请ID FK\n        decimal 核定额度\n        decimal 可用额度\n        tinyint 额度状态 \"1正常 2冻结\"\n    }\n    贷款合同 {\n        bigint 合同ID PK\n        varchar 合同编号 UK\n        bigint 额度ID FK\n        decimal 放款金额\n        decimal 执行年利率\n    }"
+    },
+    {
+      "name": "保险保单理赔数据模型",
+      "title": "保险保单理赔ER图",
+      "category": "流程图模板·ER图",
+      "sort": 990,
+      "content": "erDiagram\n    投保人 ||--o{ 保单 : 投保\n    保险产品 ||--o{ 保单 : 承保\n    保单 ||--o{ 缴费记录 : 续期\n    保单 ||--o{ 报案 : 出险\n    报案 ||--|| 理赔案件 : 立案\n    保单 ||--o{ 理赔案件 : 赔付\n    理赔案件 ||--|{ 定损单 : 核损\n    投保人 {\n        bigint 投保人ID PK\n        varchar 证件号 UK \"身份证或统一信用代码\"\n        varchar 手机号\n        varchar 联系地址\n    }\n    保险产品 {\n        bigint 产品ID PK\n        varchar 产品代码 UK \"监管报备代码\"\n        varchar 险种类别 \"车险健康险财产险\"\n        decimal 基准保费\n    }\n    保单 {\n        bigint 保单ID PK\n        varchar 保单号 UK \"保险单印刷号\"\n        bigint 投保人ID FK\n        bigint 产品ID FK\n        decimal 保额\n        date 保险止期\n    }\n    缴费记录 {\n        bigint 缴费ID PK\n        bigint 保单ID FK\n        decimal 应缴保费\n        tinyint 缴费状态 \"1已缴 2逾期\"\n    }\n    报案 {\n        bigint 报案ID PK\n        varchar 报案编号 UK\n        bigint 保单ID FK\n        datetime 出险时间\n        text 事故经过\n    }\n    理赔案件 {\n        bigint 案件ID PK\n        bigint 报案ID FK\n        bigint 保单ID FK\n        decimal 立案金额\n        tinyint 案件状态 \"1查勘 2理算 3结案\"\n    }\n    定损单 {\n        bigint 定损ID PK\n        bigint 案件ID FK\n        varchar 损失项目 \"维修费医疗费物损\"\n        decimal 核定金额\n        varchar 查勘员\n    }"
+    },
+    {
+      "name": "SaaS多租户权限数据模型",
+      "title": "SaaS多租户权限ER图",
+      "category": "流程图模板·ER图",
+      "sort": 1000,
+      "content": "erDiagram\n    订阅套餐 ||--o{ 租户 : 订购\n    租户 ||--o{ 组织部门 : 建立\n    组织部门 ||--o{ 用户 : 归属\n    用户 }o--o{ 角色 : 分配\n    角色 }o--o{ 权限 : 授权\n    用户 ||--o{ 操作日志 : 产生\n    租户 ||--o{ 操作日志 : 留存\n    租户 {\n        bigint 租户ID PK\n        varchar 租户编码 UK \"二级域名前缀\"\n        bigint 套餐ID FK\n        tinyint 租户状态 \"1试用 2正式 3停用\"\n    }\n    订阅套餐 {\n        bigint 套餐ID PK\n        varchar 套餐名称\n        int 最大用户数\n        decimal 年度费用\n    }\n    组织部门 {\n        bigint 部门ID PK\n        bigint 租户ID FK\n        varchar 部门名称\n        bigint 上级部门ID FK\n    }\n    用户 {\n        bigint 用户ID PK\n        bigint 租户ID FK\n        bigint 部门ID FK\n        varchar 登录账号 UK \"租户内唯一\"\n        tinyint 账号状态 \"1启用 0禁用\"\n    }\n    角色 {\n        bigint 角色ID PK\n        bigint 租户ID FK\n        varchar 角色名称\n        varchar 角色类型 \"内置角色或自定义\"\n    }\n    权限 {\n        bigint 权限ID PK\n        varchar 权限编码 UK \"资源冒号操作\"\n        varchar 所属模块\n        varchar 请求路径\n    }\n    操作日志 {\n        bigint 日志ID PK\n        bigint 租户ID FK\n        bigint 用户ID FK\n        varchar 操作动作 \"新增导出审批登录\"\n        varchar 来源IP\n    }"
+    },
+    {
+      "name": "公司发展里程碑",
+      "title": "公司发展里程碑时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1010,
+      "content": "timeline\n    title 星澜科技 2019—2026 发展里程碑\n    section 起步期\n        2019 : 公司在杭州注册成立 : 首款 SaaS 产品内测\n        2019 : 拿到首个付费客户，年营收 46 万元\n        2020 : 完成天使轮融资 800 万元 : 员工规模达 28 人\n    section 成长期\n        2021 : 完成 A 轮融资 5000 万元 : 注册企业客户突破 100 家\n        2022 : 发布多租户 2.0 版本 : 年营收突破 5000 万元 : 成立北京分公司\n        2023 : 通过国家高新技术企业认定 : 注册用户突破 100 万\n    section 规模化\n        2024 : 完成 B 轮融资 2 亿元 : 发布开放平台与 API 市场 : 深圳研发中心启用\n        2025 : 服务企业客户超过 3000 家 : 年营收达 2.6 亿元 : 启动出海试点\n    section 生态期\n        2026-03 : 发布行业大模型助手 : 生态伙伴突破 200 家\n        2026-09 : 新加坡子公司开业 : 海外客户签约 30 家\n        2026-12 : 启动 IPO 辅导备案 : 年度营收目标 4.5 亿元"
+    },
+    {
+      "name": "产品版本演进",
+      "title": "产品版本演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1020,
+      "content": "timeline\n    title 云笺协同办公产品版本演进\n    section 1.x 文档协作雏形\n        2018-06 : v1.0 发布，支持多人在线文档编辑\n        2019-03 : v1.5 上线版本历史与评论\n        2019-11 : v1.8 支持表格与表单，团队数突破 5000 个\n    section 2.x 团队协作\n        2020-05 : v2.0 发布，引入团队空间与权限体系\n        2020-12 : v2.3 增加任务看板与日程\n        2021-07 : v2.6 移动端 App 上线 : 月活突破 50 万\n    section 3.x 平台化\n        2022-04 : v3.0 发布，开放 API 与插件市场\n        2022-10 : v3.2 支持私有化部署 : 签约 20 家大型客户\n        2023-06 : v3.5 引入审批流程引擎\n    section 4.x 智能化\n        2024-03 : v4.0 发布，接入大模型写作助手\n        2024-11 : v4.3 上线智能会议纪要与待办提取\n        2025-08 : v4.6 企业知识库问答上线 : 付费席位超 12 万\n    section 5.x 生态化\n        2026-05 : v5.0 发布，全面转向一体化工作台\n        2026-09 : 应用市场上架第三方应用超过 300 款"
+    },
+    {
+      "name": "数据库技术演进",
+      "title": "数据库技术演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1030,
+      "content": "timeline\n    title 数据库技术五十年演进\n    section 关系型奠基\n        1970 : Codd 发表关系模型论文\n        1979 : Oracle 发布首个商用关系数据库\n        1986 : SQL 成为 ANSI 标准\n        1996 : MySQL 1.0 发布，开源数据库兴起\n    section 互联网与分布式\n        2006 : Google 发表 Bigtable 论文\n        2007 : Amazon 发表 Dynamo 论文\n        2009 : MongoDB 1.0 发布，文档数据库流行\n        2012 : Google 发表 Spanner 论文，NewSQL 起步\n    section 云原生与实时\n        2015 : TiDB 开源，HTAP 开始落地\n        2016 : ClickHouse 开源，列式分析引擎普及\n        2020 : Snowflake 上市，存算分离成为主流架构\n    section AI 原生\n        2022 : 向量检索插件 pgvector 发布\n        2023 : 主流数据库集体集成向量索引\n        2024 : 向量检索与全文检索混合查询成为标配\n        2025 : AI 原生数据库进入生产环境，支持库内模型推理"
+    },
+    {
+      "name": "前端框架演进",
+      "title": "前端框架演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1040,
+      "content": "timeline\n    title 前端框架 2010—2026 演进\n    section MVC 与指令时代\n        2010 : AngularJS 发布，双向绑定流行\n        2012 : Backbone 与 Knockout 广泛使用\n        2013 : React 开源，虚拟 DOM 问世\n    section 组件化黄金期\n        2014 : Vue.js 1.0 发布\n        2015 : React Native 发布，跨端方案兴起\n        2016 : Angular 2 发布全面转向 TypeScript : Redux 成为状态管理事实标准\n        2017 : Webpack 3 普及，前端工程化成型\n    section 现代编译与响应\n        2018 : Vue 3 设计与组合式 API 提出\n        2019 : Svelte 3 发布，编译期框架兴起\n        2020 : Vue 3 正式版发布\n        2021 : Vite 2 发布，原生 ESM 构建成为主流\n        2022 : React 18 发布，并发渲染落地\n    section 信号与新范式\n        2023 : Signals 响应式方案在多框架中普及\n        2024 : React 19 发布，服务端组件进入生产\n        2025 : 前端 AI 工程化工具链成熟，UI 生成工具落地"
+    },
+    {
+      "name": "项目里程碑",
+      "title": "项目里程碑时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1050,
+      "content": "timeline\n    title 滨江智慧园区数字化项目建设里程碑\n    section 立项与规划\n        2026-01 : 项目建议书获批，总投资 4800 万元\n        2026-02 : 完成需求调研与 32 项用例确认\n        2026-03 : 初步设计通过专家评审\n    section 设计\n        2026-04 : 完成总体架构设计与 18 个接口规范\n        2026-05 : 施工图与安全专项方案定稿 : 完成设备选型与招标，签约 6 家供应商\n    section 建设实施\n        2026-06 : 数据中心机房与网络骨干开工\n        2026-07 : 1200 个物联网点位安装完成\n        2026-08 : 平台基础模块部署完成，进入集成阶段\n        2026-09 : 安防、能耗、停车三大子系统上线\n    section 试运行与验收\n        2026-10 : 进入为期 45 天的试运行\n        2026-11 : 通过第三方性能测试，并发 8000 达标\n        2026-12 : 竣工验收通过，正式移交运营\n    section 运营优化\n        2027-03 : 运营满百日，综合能耗下降 14.6 个百分点\n        2027-06 : 二期智慧仓储与巡检机器人启动"
+    },
+    {
+      "name": "个人职业发展规划",
+      "title": "个人职业发展规划时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1060,
+      "content": "timeline\n    title 后端工程师 2026—2035 十年规划\n    section 技术扎根期\n        2026 : 掌握云原生技术栈，考取 CKA 认证\n        2027 : 主导一次核心系统重构，QPS 提升 3 倍\n        2027 : 在团队内部完成 12 场技术分享\n    section 专业纵深期\n        2028 : 晋升高级工程师，负责支付中台\n        2029 : 出版一本 Go 并发编程技术书籍\n        2029 : 成为 CNCF 项目贡献者，提交 20 个合并请求\n    section 管理转型期\n        2030 : 晋升技术专家兼小组负责人，带 8 人团队\n        2031 : 完成工程管理硕士学习\n        2031 : 主导跨部门项目，年度交付 4 个重点专项\n    section 影响力期\n        2032 : 在行业大会发表 2 次公开演讲\n        2033 : 建立个人技术品牌，专栏订阅突破 5 万\n        2033 : 技术副业收入达到主业百分之三十\n    section 自由选择期\n        2034 : 完成资产配置，被动收入覆盖家庭年支出百分之五十\n        2035 : 晋升技术总监或转型独立咨询顾问"
+    },
+    {
+      "name": "数据安全法规生效节点",
+      "title": "数据安全法规生效节点时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1070,
+      "content": "timeline\n    title 中国数据安全与个人信息保护法规生效节点\n    section 基础法律\n        2017-06 : 网络安全法正式施行\n        2019-12 : 网络安全等级保护制度 2.0 标准实施\n        2021-09 : 数据安全法正式施行\n        2021-11 : 个人信息保护法正式施行\n    section 配套条例\n        2021-09 : 关键信息基础设施安全保护条例施行\n        2024-01 : 未成年人网络保护条例施行\n        2024-09 : 网络数据安全管理条例公布\n        2025-01 : 网络数据安全管理条例正式施行\n    section 出境与跨境\n        2022-09 : 数据出境安全评估办法施行\n        2023-06 : 个人信息出境标准合同办法施行\n        2024-03 : 促进和规范数据跨境流动规定施行\n    section 重点领域\n        2022-11 : 移动互联网应用程序信息服务管理规定施行\n        2023-08 : 生成式人工智能服务管理暂行办法施行\n        2025-05 : 个人信息保护合规审计管理办法实施"
+    },
+    {
+      "name": "工程建设节点",
+      "title": "工程建设节点时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1080,
+      "content": "timeline\n    title 云江特大桥工程建设节点\n    section 前期准备\n        2024-03 : 工程可行性研究报告获批\n        2024-06 : 初步设计通过交通运输主管部门审查\n        2024-09 : 完成征地拆迁百分之九十八，施工便道贯通\n    section 基础施工\n        2025-01 : 主墩首根桩基开钻\n        2025-05 : 全部 168 根桩基完成\n        2025-08 : 南北主塔承台浇筑完成\n    section 主体结构\n        2025-11 : 主塔施工突破 100 米\n        2026-04 : 南北主塔封顶，塔高 236 米\n        2026-07 : 首节钢箱梁吊装成功\n        2026-11 : 主跨 1088 米钢箱梁合龙\n    section 桥面与附属\n        2027-03 : 桥面铺装全部完成\n        2027-05 : 照明、监控与索塔健康监测系统安装完成\n        2027-07 : 静动载试验通过，荷载指标达标\n    section 通车运营\n        2027-09 : 交工验收通过\n        2027-10 : 正式通车，两岸车程缩短至 12 分钟"
+    },
+    {
+      "name": "城市轨道交通发展",
+      "title": "城市轨道交通发展时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1090,
+      "content": "timeline\n    title 中国城市轨道交通 1969—2026 发展历程\n    section 起步\n        1969-10 : 北京地铁一期工程建成\n        1971-01 : 北京地铁试运营，中国进入地铁时代\n        1984-12 : 天津地铁开通\n    section 快速扩张\n        1993-05 : 上海地铁 1 号线南段开通试运营\n        1999-06 : 广州地铁 1 号线全线开通\n        2004-12 : 深圳地铁一期工程开通\n        2005-09 : 南京地铁 1 号线开通\n    section 网络化\n        2010-04 : 上海地铁运营里程达 420 公里，居世界前列\n        2013 : 郑州、西安等城市首条线路开通\n        2016 : 全国开通城轨城市增至 30 座\n    section 智能化\n        2018 : 二维码过闸在主要城市普及\n        2021 : 全自动运行线路在多个城市投入运营\n        2022 : 数字人民币乘车在部分城市试点\n        2023-12 : 全国城轨运营里程突破 1 万公里\n    section 高质量发展\n        2024 : 市域铁路与四网融合加速推进\n        2025 : 智慧城轨与低运量系统规模化落地\n        2026 : 城轨绿智融合标准体系发布"
+    },
+    {
+      "name": "品牌营销大事件",
+      "title": "品牌营销大事件时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1100,
+      "content": "timeline\n    title 拾光茶事品牌营销大事件 2021—2026\n    section 品牌创立\n        2021-04 : 首店在成都开业，单日售出 3200 杯\n        2021-09 : 完成品牌视觉升级，门店数达 30 家\n        2021-12 : 与川剧联名推出限定包装，社交曝光 1.2 亿次\n    section 内容破圈\n        2022-05 : 短视频话题挑战赛播放量突破 5 亿\n        2022-08 : 签约品牌代言人，官宣当日销量增长 180%\n        2022-11 : 双十一期间小程序订单突破 80 万单\n    section 渠道扩张\n        2023-04 : 进入华东市场，上海首店排队 6 小时\n        2023-09 : 门店突破 500 家，会员数达 420 万\n        2023-12 : 推出年货礼盒，销售额 1.6 亿元\n    section IP 与出海\n        2024-06 : 与国漫 IP 联名，联名款售出 900 万杯\n        2024-11 : 新加坡首店开业，海外业务启动\n        2025-04 : 举办首届茶文化艺术节，到场 12 万人次\n    section 品牌升级\n        2025-10 : 五周年全新品牌口号发布\n        2026-03 : 门店超 1500 家，年营收 38 亿元\n        2026-08 : 推出会员订阅制，付费会员突破 200 万"
+    },
+    {
+      "name": "学术研究方向演进",
+      "title": "学术研究方向演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1110,
+      "content": "timeline\n    title 深度学习研究方向演进 2012—2026\n    section 深度网络起步\n        2012 : AlexNet 夺冠 ImageNet，深度学习复兴\n        2014 : 生成对抗网络提出\n        2015 : ResNet 提出，残差连接解决深层退化\n    section 注意力与预训练\n        2017 : Transformer 架构提出\n        2018 : BERT 与 GPT 确立预训练范式\n        2020 : GPT-3 发布，参数规模达 1750 亿\n        2021 : Vision Transformer 将注意力引入视觉主干\n    section 生成模型爆发\n        2022 : 扩散模型在图像生成上超越生成对抗网络\n        2022-11 : ChatGPT 发布，两个月用户突破 1 亿\n        2023 : 大语言模型智能体与工具调用成为热点\n    section 多模态与对齐\n        2024 : 原生多模态模型与长上下文成为主流方向\n        2024 : 模型安全对齐与可解释性研究升温\n        2025 : 推理时扩展与思维链训练成为核心方向\n    section 效率与落地\n        2025 : 小模型与蒸馏部署在工业界普及\n        2026 : 世界模型与具身智能研究快速升温"
+    },
+    {
+      "name": "创业公司融资历程",
+      "title": "创业公司融资历程时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1120,
+      "content": "timeline\n    title 灵动智造融资历程 2018—2026\n    section 早期\n        2018-05 : 公司成立于苏州工业园区\n        2018-11 : 获天使轮融资 1000 万元\n        2019-08 : 获 Pre-A 轮融资 3000 万元\n    section A 轮阶段\n        2020-06 : 完成 A 轮融资 1.2 亿元，第一代分拣机器人量产\n        2021-03 : 完成 A 加轮融资 2 亿元，进入两家头部物流客户供应链\n        2021-12 : 年营收突破 1.5 亿元\n    section B 轮阶段\n        2022-05 : 完成 B 轮融资 5 亿元，估值 30 亿元\n        2023-04 : 完成 B 加轮融资 3 亿元，海外收入占比达百分之二十五\n        2023-11 : 累计出货机器人超 1 万台\n    section C 轮与产业方\n        2024-07 : 完成 C 轮融资 10 亿元，国家级基金领投\n        2025-05 : 引入战略投资方，上市前估值 120 亿元\n        2025-12 : 递交港股 18C 上市申请\n    section 上市后\n        2026-06 : 挂牌上市，募资 25 亿港元\n        2026-09 : 启动第二总部与海外工厂建设"
+    },
+    {
+      "name": "5G标准演进",
+      "title": "5G标准演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1130,
+      "content": "timeline\n    title 5G 标准与商用演进 2017—2026\n    section 标准冻结\n        2017-12 : 3GPP 冻结 R15 非独立组网标准\n        2018-06 : R15 独立组网标准冻结，5G 完整标准落地\n        2020-07 : R16 冻结，低时延高可靠能力增强\n        2022-06 : R17 冻结，引入 RedCap 轻量化终端\n    section 中国商用\n        2019-06 : 工信部发放 5G 商用牌照\n        2019-10 : 三大运营商 5G 正式商用\n        2020-12 : 全国 5G 基站累计建成 71.8 万个\n    section 能力增强\n        2021-06 : 5G 消息与网络切片商用试点\n        2022 : 5G 行业虚拟专网在工厂与港口规模部署\n        2023 : 5G 移动电话用户渗透率突破百分之四十\n    section 5G-Advanced\n        2024-06 : R18 冻结，5G-Advanced 标准确立\n        2024 : 三大运营商启动 5G-A 商用，下行速率达万兆\n        2025 : 通感一体与无源物联进入规模试点\n    section 面向 6G\n        2025-12 : R19 冻结，聚焦卫星融合与网络能效\n        2026 : 6G 关键技术试验启动，通感算一体成为焦点"
+    },
+    {
+      "name": "开源项目版本演进",
+      "title": "开源项目版本演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1140,
+      "content": "timeline\n    title Kubernetes 版本演进 2014—2025\n    section 诞生\n        2014-06 : Google 开源 Kubernetes\n        2015-07 : v1.0 发布，项目捐献给 CNCF\n        2016-03 : v1.2 发布，支持更大规模集群\n    section 生态成型\n        2017-12 : v1.9 发布，工作负载 API 正式可用\n        2018-12 : v1.13 发布，容器存储接口与 kubeadm 转正\n        2019-09 : v1.16 发布，自定义资源定义转正\n    section 稳定与治理\n        2020-08 : v1.19 发布，入口路由 API 转正\n        2021-07 : v1.22 发布，多个内置接口进入弃用流程\n        2022-05 : v1.24 发布，默认移除 dockershim\n    section 平台化\n        2023-08 : v1.28 发布，网关 API 与准入策略持续演进\n        2024-08 : v1.31 发布，资源与调度管理能力增强\n        2025-04 : v1.33 发布，边车容器正式可用\n    section 社区\n        2016 : 成为 CNCF 首个毕业项目\n        2020 : GitHub 星标数突破 6 万\n        2025 : 贡献者超 8 万人，发布节奏稳定为每年 3 个版本"
+    },
+    {
+      "name": "教育课程改革",
+      "title": "教育课程改革时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1150,
+      "content": "timeline\n    title 基础教育课程改革关键节点 2001—2025\n    section 第八次课改\n        2001-06 : 基础教育课程改革纲要试行\n        2001-09 : 义务教育课程标准实验教材进入 38 个实验区\n        2005 : 义务教育阶段全面推行新课程\n    section 标准修订\n        2011 : 义务教育课程标准修订版发布\n        2014 : 教育部提出学生发展核心素养体系\n        2017 : 普通高中课程方案与 20 科课程标准发布\n        2019 : 新编语文、历史、道德与法治教材全国使用\n    section 育人方式变革\n        2020 : 五育并举纳入教育评价体系\n        2021-07 : 双减政策落地，作业与校外培训全面治理\n        2022-04 : 义务教育课程方案与 16 科课程标准发布\n    section 数字化与人工智能\n        2023-05 : 科学教育加法方案出台，实验教学受重视\n        2024-11 : 中小学人工智能教育地方课程试点\n        2025 : 中小学人工智能通识教育指南发布\n        2025-09 : 人工智能通识课在更多省份进入课表"
+    },
+    {
+      "name": "临床诊疗指南更新",
+      "title": "临床诊疗指南更新时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1160,
+      "content": "timeline\n    title 高血压与糖尿病防治指南更新节点\n    section 高血压国内指南\n        1999 : 中国高血压防治指南首次发布\n        2005 : 中国高血压防治指南修订版发布\n        2010 : 中国高血压防治指南 2010 版发布，强调风险评估\n        2018 : 中国高血压防治指南 2018 版发布\n        2024 : 中国高血压防治指南 2024 年修订版发布\n    section 国际指南\n        2017 : 美国成人高血压指南将诊断界值下调为 130 与 80 毫米汞柱\n        2021 : 世界卫生组织发布成人高血压药物治疗指南\n        2023 : 欧洲高血压指南发布，强调诊室外血压测量\n    section 糖尿病国内指南\n        2010 : 中国 2 型糖尿病防治指南首版发布\n        2017 : 中国 2 型糖尿病防治指南 2017 版发布\n        2020 : 中国 2 型糖尿病防治指南 2020 版发布\n        2024 : 中国糖尿病防治指南更新，纳入心肾保护路径\n    section 年度标准\n        2023 : 美国糖尿病学会诊疗标准纳入体重管理优先\n        2025 : 多学科共病管理路径写入国家基层诊疗规范"
+    },
+    {
+      "name": "新能源政策演进",
+      "title": "新能源政策演进时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1170,
+      "content": "timeline\n    title 中国新能源政策演进 2006—2026\n    section 立法与补贴\n        2006-01 : 可再生能源法正式施行\n        2009 : 金太阳示范工程启动\n        2013-08 : 分布式光伏度电补贴标准定为 0.42 元\n    section 提质增效\n        2015 : 光伏领跑者计划启动，推动高效组件应用\n        2018-05 : 531 新政发布，补贴规模与上网电价同步下调\n        2019 : 第一批平价上网项目名单公布\n    section 双碳驱动\n        2020-09 : 碳达峰碳中和目标提出\n        2021-10 : 第一批大型风电光伏基地开工，规模约 1 亿千瓦\n        2022-03 : 十四五现代能源体系规划发布\n    section 市场化\n        2024-05 : 新能源上网电价市场化改革方案发布\n        2025-06 : 新能源全面入市，上网电价由市场形成\n        2025 : 绿证与碳市场衔接机制落地\n    section 新型电力系统\n        2026 : 抽水蓄能与新型储能装机目标大幅提升\n        2026-09 : 沙戈荒大型基地外送通道建成投运"
+    },
+    {
+      "name": "电竞赛事举办历程",
+      "title": "电竞赛事举办历程时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1180,
+      "content": "timeline\n    title 英雄联盟全球总决赛举办历程 2011—2025\n    section 初创期\n        2011-06 : S1 在瑞典延雪平举办，总奖金 10 万美元\n        2012-10 : S2 在美国洛杉矶举办，在线观看峰值 110 万\n        2013-09 : S3 在洛杉矶体育馆举办\n    section 亚洲时代\n        2014-10 : S4 在韩国首尔举办\n        2015-10 : S5 在德国柏林举办\n        2016-10 : S6 在美国洛杉矶举办\n    section 中国主场\n        2017-11 : S7 决赛在北京国家体育场举办\n        2018-11 : S8 在韩国仁川举办\n        2019-11 : S9 在法国巴黎举办\n        2020-10 : S10 在上海浦东足球场举办\n    section 全球轮换\n        2021-10 : S11 在冰岛雷克雅未克举办\n        2022-11 : S12 在美国旧金山举办\n        2023-11 : S13 在韩国首尔举办，启用新赛制\n        2024-11 : S14 在英国伦敦与法国巴黎举办\n    section 规模新高\n        2025-11 : S15 在成都与上海举办，峰值观看人数创历史新高"
+    },
+    {
+      "name": "考古文化年表",
+      "title": "考古文化年表时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1190,
+      "content": "timeline\n    title 中国重要考古发现年表\n    section 新石器早期\n        约前10000年 : 浙江上山文化，稻作起源重要证据\n        约前7000年 : 河南贾湖遗址，出土骨笛与契刻符号\n        约前5000年 : 仰韶文化兴起，彩陶广泛出现\n    section 文明曙光\n        约前3300年 : 良渚古城营建，水利系统发达\n        约前2300年 : 山西陶寺遗址，观象台与早期礼制\n        约前2000年 : 陕西石峁城址，面积逾 400 万平方米\n    section 三代与王朝\n        约前1750年 : 二里头遗址宫室区营建，青铜礼器初现\n        约前1300年 : 殷墟成为商代晚期都城\n        约前1046年 : 周原与丰镐成为周人都邑\n    section 重大田野发现\n        1972 : 长沙马王堆汉墓发掘\n        1974 : 陕西临潼秦始皇陵兵马俑发现\n        1978 : 湖北曾侯乙墓出土编钟\n        2011 : 江西南昌海昏侯墓发掘\n    section 新时代\n        2019 : 良渚古城遗址列入世界遗产名录\n        2021 : 三星堆新发现六座祭祀坑，出土金面具\n        2024 : 陕西清涧寨沟遗址揭示商代方国聚落"
+    },
+    {
+      "name": "个人年度OKR节奏",
+      "title": "个人年度OKR节奏时间线图",
+      "category": "流程图模板·时间线图",
+      "sort": 1200,
+      "content": "timeline\n    title 2026 年度个人 OKR 推进节奏\n    section 第一季度\n        2026-01 : 制定年度目标并拆解为 4 个关键结果\n        2026-02 : 完成 Go 与云原生技能盘点，确定 3 项短板\n        2026-02 : 建立每周复盘机制，累计输出 12 篇周记\n        2026-03 : 主导服务性能优化，接口 P99 从 320 毫秒降至 150 毫秒\n    section 第二季度\n        2026-04 : 完成可观测性改造，告警准确率提升至百分之九十二\n        2026-05 : 输出 6 篇技术沉淀文档并进入团队知识库\n        2026-06 : 年中复盘，目标完成度达百分之五十五\n    section 第三季度\n        2026-07 : 主导一次跨部门项目交付，按期上线\n        2026-08 : 带教 2 名新人完成独立交付\n        2026-09 : 考取 CKA 认证，完成一次公开技术分享\n    section 第四季度\n        2026-10 : 完成年度重点项目验收，线上故障率下降百分之四十\n        2026-11 : 完成晋升材料与年度述职\n        2026-12 : 年度 OKR 自评，制定 2027 年目标"
+    },
+    {
+      "name": "月度支出结构",
+      "title": "月度支出结构饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1210,
+      "content": "pie showData\n    title 2026 年 8 月家庭支出结构，单位元\n    \"住房与物业\" : 4800\n    \"餐饮\" : 3200\n    \"储蓄与理财\" : 3000\n    \"子女教育\" : 2600\n    \"日用采买\" : 1250\n    \"文娱娱乐\" : 980\n    \"交通通勤\" : 860\n    \"人情往来\" : 700\n    \"医疗健康\" : 640"
+    },
+    {
+      "name": "公司成本结构",
+      "title": "公司成本结构饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1220,
+      "content": "pie showData\n    title 2026 年第二季度公司成本结构，单位万元\n    \"人力薪酬\" : 862\n    \"市场投放\" : 358\n    \"服务器与云资源\" : 214\n    \"研发外包\" : 128\n    \"办公与行政\" : 96\n    \"税费与合规\" : 63\n    \"折旧与摊销\" : 55\n    \"差旅与招待\" : 47"
+    },
+    {
+      "name": "营销渠道流量来源",
+      "title": "营销渠道流量来源饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1230,
+      "content": "pie showData\n    title 2026 年 7 月官网流量来源，单位次\n    \"自然搜索\" : 48600\n    \"付费搜索\" : 31200\n    \"社交媒体\" : 25800\n    \"直接访问\" : 19700\n    \"短视频平台\" : 12400\n    \"内容外链\" : 8600\n    \"邮件营销\" : 4300\n    \"联盟广告\" : 2900"
+    },
+    {
+      "name": "订单支付方式占比",
+      "title": "订单支付方式占比饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1240,
+      "content": "pie showData\n    title 2026 年 6 月商城订单支付方式占比，单位百分比\n    \"微信支付\" : 38\n    \"支付宝\" : 31\n    \"银行卡\" : 12\n    \"花呗分期\" : 9\n    \"数字人民币\" : 4\n    \"货到付款\" : 3\n    \"余额与礼品卡\" : 2\n    \"其他\" : 1"
+    },
+    {
+      "name": "用户年龄分布",
+      "title": "用户年龄分布饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1250,
+      "content": "pie showData\n    title 2026 年 8 月 App 活跃用户年龄分布，单位万人\n    \"25 至 30 岁\" : 124.7\n    \"31 至 40 岁\" : 98.5\n    \"18 至 24 岁\" : 86.2\n    \"41 至 50 岁\" : 42.3\n    \"51 至 60 岁\" : 18.6\n    \"18 岁以下\" : 12.4\n    \"60 岁以上\" : 7.3"
+    },
+    {
+      "name": "APP崩溃原因分布",
+      "title": "APP崩溃原因分布饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1260,
+      "content": "pie showData\n    title 2026 年 8 月 Android 端崩溃原因分布，单位次\n    \"空指针异常\" : 4820\n    \"内存溢出\" : 2160\n    \"网络超时未捕获\" : 1350\n    \"第三方 SDK 异常\" : 980\n    \"数据库读写失败\" : 640\n    \"界面渲染异常\" : 520\n    \"权限与兼容性\" : 310\n    \"其他未分类\" : 180"
+    },
+    {
+      "name": "客服工单类型分布",
+      "title": "客服工单类型分布饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1270,
+      "content": "pie showData\n    title 2026 年 7 月客服工单类型分布，单位单\n    \"订单与物流查询\" : 3820\n    \"退款与售后\" : 2460\n    \"产品使用咨询\" : 1540\n    \"账号与登录\" : 1180\n    \"发票与开票\" : 620\n    \"投诉与建议\" : 480\n    \"功能故障报修\" : 390\n    \"其他\" : 210"
+    },
+    {
+      "name": "服务器资源占用",
+      "title": "服务器资源占用饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1280,
+      "content": "pie showData\n    title 2026 年 8 月生产集群 CPU 资源占用，单位核\n    \"订单服务\" : 168\n    \"搜索服务\" : 128\n    \"支付服务\" : 96\n    \"消息中间件\" : 72\n    \"缓存集群\" : 64\n    \"数据同步任务\" : 54\n    \"日志与监控\" : 38\n    \"其他后台任务\" : 26"
+    },
+    {
+      "name": "招聘简历来源",
+      "title": "招聘简历来源饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1290,
+      "content": "pie showData\n    title 2026 年春秋招简历来源分布，单位份\n    \"主流招聘平台\" : 4820\n    \"内部员工推荐\" : 1260\n    \"校园宣讲会\" : 940\n    \"公司官网投递\" : 680\n    \"猎头推荐\" : 320\n    \"技术社区与开源\" : 260\n    \"线下招聘会\" : 180\n    \"其他\" : 120"
+    },
+    {
+      "name": "研发工时投入",
+      "title": "研发工时投入饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1300,
+      "content": "pie showData\n    title 2026 年第二季度研发团队工时投入，单位人天\n    \"新功能开发\" : 860\n    \"缺陷修复\" : 420\n    \"线上运维与值班\" : 260\n    \"测试与回归\" : 210\n    \"技术重构\" : 190\n    \"需求评审与设计\" : 150\n    \"技术分享与培训\" : 60\n    \"其他事务\" : 50"
+    },
+    {
+      "name": "内容阅读类型占比",
+      "title": "内容阅读类型占比饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1310,
+      "content": "pie showData\n    title 2026 年 8 月内容平台阅读类型占比，单位百分比\n    \"资讯快讯\" : 26\n    \"短视频\" : 22\n    \"深度长文\" : 18\n    \"图文测评\" : 12\n    \"问答讨论\" : 9\n    \"直播回放\" : 7\n    \"音频播客\" : 4\n    \"其他\" : 2"
+    },
+    {
+      "name": "餐饮门店营收构成",
+      "title": "餐饮门店营收构成饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1320,
+      "content": "pie showData\n    title 2026 年 8 月上海南京西路店营收构成，单位元\n    \"堂食点餐\" : 286400\n    \"外卖平台\" : 192800\n    \"套餐与团餐\" : 86400\n    \"酒水饮料\" : 52800\n    \"小吃加购\" : 31600\n    \"会员储值核销\" : 24800\n    \"节日礼盒\" : 12600\n    \"其他\" : 6800"
+    },
+    {
+      "name": "门诊科室分布",
+      "title": "门诊科室分布饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1330,
+      "content": "pie showData\n    title 2026 年 7 月医院门诊科室就诊人次分布，单位人次\n    \"内科\" : 8640\n    \"儿科\" : 6180\n    \"外科\" : 3920\n    \"妇产科\" : 3260\n    \"口腔科\" : 2480\n    \"皮肤科\" : 2180\n    \"眼科\" : 1860\n    \"耳鼻喉科\" : 1520\n    \"中医科\" : 1240"
+    },
+    {
+      "name": "物流异常原因",
+      "title": "物流异常原因饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1340,
+      "content": "pie showData\n    title 2026 年 8 月物流异常件原因分布，单位单\n    \"地址信息错误\" : 3820\n    \"中转分拣延误\" : 2460\n    \"收件人无法联系\" : 1640\n    \"包装破损\" : 1180\n    \"天气与交通管制\" : 920\n    \"拒收与改址\" : 780\n    \"网点爆仓滞留\" : 540\n    \"其他\" : 260"
+    },
+    {
+      "name": "项目风险来源",
+      "title": "项目风险来源饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1350,
+      "content": "pie showData\n    title 2026 年在研项目风险来源分布，单位条\n    \"需求变更频繁\" : 28\n    \"人力与排期不足\" : 22\n    \"第三方接口依赖\" : 15\n    \"技术方案不确定\" : 12\n    \"数据迁移与兼容\" : 9\n    \"合规与安全审查\" : 7\n    \"外部供应商交付\" : 5\n    \"其他\" : 2"
+    },
+    {
+      "name": "能源结构占比",
+      "title": "能源结构占比饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1360,
+      "content": "pie showData\n    title 2026 年上半年园区用电结构占比，单位百分比\n    \"煤电\" : 34\n    \"光伏\" : 22\n    \"天然气发电\" : 18\n    \"风电\" : 14\n    \"水电\" : 8\n    \"储能放电\" : 3\n    \"外购绿电\" : 1"
+    },
+    {
+      "name": "家庭资产配置",
+      "title": "家庭资产配置饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1370,
+      "content": "pie showData\n    title 2026 年 8 月末家庭可投资资产配置，单位万元\n    \"银行理财与存款\" : 68\n    \"股票\" : 42\n    \"公募基金\" : 35\n    \"债券与债基\" : 26\n    \"保险年金\" : 18\n    \"现金及活期\" : 15\n    \"黄金\" : 12\n    \"房产投资信托\" : 9"
+    },
+    {
+      "name": "培训预算分配",
+      "title": "培训预算分配饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1380,
+      "content": "pie showData\n    title 2026 年度企业培训预算分配，单位万元\n    \"管理力与领导力\" : 86\n    \"专业技能认证\" : 64\n    \"新人入职培训\" : 42\n    \"合规与安全生产\" : 28\n    \"数字化工具应用\" : 22\n    \"外部公开课采购\" : 18\n    \"内训师与课程开发\" : 14\n    \"培训运营与差旅\" : 11"
+    },
+    {
+      "name": "仓储库存品类占比",
+      "title": "仓储库存品类占比饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1390,
+      "content": "pie showData\n    title 2026 年 8 月末中心仓库存金额分布，单位万元\n    \"家电数码\" : 728\n    \"日用快消\" : 542\n    \"生鲜冷链\" : 386\n    \"服饰鞋包\" : 264\n    \"母婴用品\" : 198\n    \"美妆个护\" : 172\n    \"家居建材\" : 146\n    \"图书文娱\" : 68"
+    },
+    {
+      "name": "用户流失原因",
+      "title": "用户流失原因饼图",
+      "category": "流程图模板·饼图",
+      "sort": 1400,
+      "content": "pie showData\n    title 2026 年第二季度订阅用户流失原因调研，单位人\n    \"价格偏高\" : 1280\n    \"功能不满足需求\" : 960\n    \"转向竞品\" : 740\n    \"性能与稳定性差\" : 420\n    \"客服响应慢\" : 310\n    \"使用门槛高\" : 260\n    \"不再需要该类服务\" : 180\n    \"其他\" : 90"
+    },
+    {
+      "name": "产品发布会筹备",
+      "title": "产品发布会筹备思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1410,
+      "content": "mindmap\n    root((产品发布会))\n        方案策划\n            主题定位：让数据存储更简单\n            核心信息屋与一句话卖点\n            议程设计与 90 分钟节奏\n            发布形式：线下加线上直播\n        嘉宾与观众\n            行业专家与意见领袖\n            媒体记者与垂类博主\n            老客户与生态伙伴\n            报名邀约与席位确认\n        内容物料\n            主视觉与海报设计\n            产品演示 Demo 脚本\n            宣传视频与客户案例册\n            新闻通稿与问答口径\n        (场地执行)\n            场地勘察与舞美搭建\n            灯光音响与直播推流\n            彩排三轮与提词器\n            签到动线与伴手礼\n        ))传播转化((\n            预热期倒计时海报\n            直播平台分发与投放\n            会后回放与线索回收\n            曝光互动与转化复盘"
+    },
+    {
+      "name": "新市场进入策略",
+      "title": "新市场进入策略思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1420,
+      "content": "mindmap\n    root((新市场进入))\n        (市场评估)\n            市场规模与三年增速测算\n            政策准入与资质壁垒\n            目标客群与付费意愿\n            渠道集中度与议价能力\n        竞争格局\n            头部玩家市占率对比\n            替代品威胁与切换成本\n            潜在进入者与跨界玩家\n        进入模式\n            自建团队直营\n            区域代理与分销体系\n            合资公司与战略合作\n            并购当地中小厂商\n        ))落地路径((\n            试点城市选三个\n            首年营收目标与拆解\n            本地团队与人才配置\n            供应链与仓储前置\n        投入与风控\n            启动预算与回收周期\n            汇率波动与合规风险\n            止损线与退出机制"
+    },
+    {
+      "name": "年度经营目标拆解",
+      "title": "年度经营目标拆解思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1430,
+      "content": "mindmap\n    root((年度经营目标))\n        (北极星指标)\n            年营收 3.6 亿元\n            付费客户净增 1200 家\n            毛利率提升至 58%\n            客户续费率 85%\n        收入拆解\n            存量客户续费与提价\n            新签客户行业开拓\n            增值模块交叉销售\n            生态伙伴分成收入\n        ))关键战役((\n            大客户攻坚三十家\n            渠道体系分级升级\n            产品差异化卖点打磨\n            交付周期压缩三分之一\n        能力建设\n            实施交付标准化\n            经营数据看板搭建\n            干部梯队与继任计划\n        保障机制\n            月度经营分析会\n            季度复盘与策略调整\n            绩效激励与目标挂钩\n            红黄绿灯预警规则"
+    },
+    {
+      "name": "竞品分析",
+      "title": "竞品分析思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1440,
+      "content": "mindmap\n    root((竞品分析))\n        (竞品圈定)\n            直接竞品三家\n            间接竞品与替代方案\n            潜在跨界进入者\n        产品对比\n            功能矩阵与覆盖度打分\n            性能与稳定性实测数据\n            交互体验与学习成本\n            开放能力与集成生态\n        商业化\n            定价档位与折扣体系\n            渠道政策与返点比例\n            客户行业分布与结构\n            交付模式与人天报价\n        ))营销打法((\n            内容投放与关键词布局\n            行业展会与线下沙龙\n            标杆案例包装传播\n            免费试用转化路径\n        结论输出\n            差异化机会点三条\n            我方短板整改清单\n            下季度行动项与责任人"
+    },
+    {
+      "name": "用户画像研究",
+      "title": "用户画像研究思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1450,
+      "content": "mindmap\n    root((用户画像))\n        (数据采集)\n            行为埋点与漏斗数据\n            问卷回收有效样本 800 份\n            深度访谈 12 位典型用户\n            客服工单与会话记录\n        画像维度\n            年龄地域与职业属性\n            岗位职责与决策角色\n            核心目标与关键痛点\n            信息获取渠道偏好\n        ))典型角色((\n            效率优先型的小李\n            成本敏感型的老王\n            合规驱动型的张总\n            技术尝鲜型的阿哲\n        场景旅程\n            认知触达与首次访问\n            试用体验与首次付费\n            日常使用与习惯养成\n            续费增购与转介绍\n        应用落地\n            需求优先级排序依据\n            卖点文案改写版本\n            渠道投放定向策略"
+    },
+    {
+      "name": "质量问题根因分析",
+      "title": "质量问题根因分析思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1460,
+      "content": "mindmap\n    root((质量根因))\n        问题描述\n            批次不良率升至 4.2%\n            客户退货累计 37 单\n            影响批次与发生时段\n            停机与返工损失金额\n        (人机料法环)\n            人：操作手法与培训记录\n            机：设备精度与模具磨损\n            料：来料批次与供应商\n            法：工艺参数与作业标准\n            环：温湿度与洁净度\n        5Why 追问\n            为什么参数发生偏移\n            为什么首检未拦截\n            为什么标准长期失效\n            为什么没有反馈闭环\n        ))数据验证((\n            柏拉图定位主要贡献项\n            散布图看参数相关性\n            小批量验证对策有效性\n        纠正预防\n            临时围堵与全检方案\n            永久对策与责任人\n            防呆设计与标准化\n            同类产品横展排查"
+    },
+    {
+      "name": "系统架构设计",
+      "title": "系统架构设计思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1470,
+      "content": "mindmap\n    root((系统架构))\n        (设计原则)\n            高可用 99.95% 目标\n            无状态设计与水平扩展\n            故障隔离与降级熔断\n        接入层\n            CDN 静态加速与回源\n            API 网关与统一鉴权\n            限流配额与黑白名单\n            灰度路由与流量染色\n        服务层\n            领域边界与限界上下文\n            同步调用与异步消息解耦\n            幂等设计与补偿事务\n            配置中心与服务发现\n        ))数据层((\n            MySQL 分库分表策略\n            Redis 缓存与击穿防护\n            搜索引擎与检索加速\n            对象存储与冷数据归档\n        支撑体系\n            指标监控与 SLO 告警\n            日志链路追踪 Trace\n            发布流水线与一键回滚\n            容量规划与压测基线"
+    },
+    {
+      "name": "技术选型评估",
+      "title": "技术选型评估思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1480,
+      "content": "mindmap\n    root((技术选型))\n        (评估维度)\n            功能匹配度与缺口\n            性能容量与扩展上限\n            团队学习成本与人力\n            社区活跃度与生态\n        候选方案\n            方案一 完全自研\n            方案二 开源二次开发\n            方案三 商业产品采购\n            方案四 托管云服务\n        验证方式\n            压测基准 QPS 与 P99 延迟\n            两周原型验证关键链路\n            故障演练与恢复时长\n            灰度真实流量对比\n        ))成本测算((\n            授权许可与订阅费用\n            服务器与运维人力投入\n            三年总拥有成本对比\n            迁移与培训沉没成本\n        决策输出\n            加权评分矩阵与权重\n            主要风险与应对措施\n            迁移路径与里程碑表\n            回滚预案与验收标准"
+    },
+    {
+      "name": "Go语言进阶学习计划",
+      "title": "Go语言进阶学习计划思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1490,
+      "content": "mindmap\n    root((Go进阶学习))\n        (语言底层)\n            内存模型与逃逸分析\n            栈增长与函数调用约定\n            接口实现与类型断言\n            垃圾回收三色标记\n        并发编程\n            GMP 调度模型原理\n            channel 与 select 用法\n            sync 包与原子操作\n            context 取消与超时传播\n        ))工程实践((\n            项目分层与依赖注入\n            错误处理与日志规范\n            单元测试与模糊测试\n            接口文档与代码评审\n        性能调优\n            pprof 火焰图定位热点\n            trace 分析调度延迟\n            减少堆分配与对象复用\n            基准测试与回归对比\n        生态源码\n            net/http 源码精读\n            Gin 与 GORM 实战\n            gRPC 与 Protobuf 实践\n            参与开源提交 PR"
+    },
+    {
+      "name": "读书笔记结构",
+      "title": "读书笔记结构思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1500,
+      "content": "mindmap\n    root((读书笔记))\n        书籍信息\n            书名作者与译者\n            出版社与版次年\n            阅读起止日期与用时\n            推荐人与阅读动机\n        (核心主张)\n            作者试图解决的问题\n            一句话概括主旨\n            三个关键概念定义\n            与常识相悖的结论\n        结构脉络\n            篇章逻辑与目录骨架\n            论证方法与证据来源\n            金句摘录五条\n            案例与数据记录\n        ))我的思考((\n            认同点与支撑理由\n            质疑处与反驳意见\n            与已有知识的连接\n            尚未消化的疑问\n        行动转化\n            可立即落地的三条\n            应用场景与触发时机\n            复盘检查时间点\n            延伸阅读书单两本"
+    },
+    {
+      "name": "团队组织架构",
+      "title": "团队组织架构思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1510,
+      "content": "mindmap\n    root((团队组织))\n        (组织目标)\n            支撑年度营收目标\n            交付周期缩短三成\n            提升人才密度与留存\n        职能分工\n            产品与设计组\n            后端与前端工程组\n            测试与质量保障组\n            运维与安全组\n        ))协作机制((\n            双周迭代节奏与排期\n            需求评审与优先级裁决\n            跨部门固定对接人\n            值班与故障响应流程\n        人才梯队\n            岗位职级与晋升标准\n            导师制带新人三个月\n            关键岗位备份人选\n            内部轮岗与技术分享\n        考核激励\n            OKR 与季度评估\n            团队奖金池分配规则\n            荣誉表彰与成长激励\n            低绩效辅导与改进"
+    },
+    {
+      "name": "招聘面试题库",
+      "title": "招聘面试题库思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1520,
+      "content": "mindmap\n    root((面试题库))\n        (通用素质)\n            三分钟自我介绍\n            最有成就感的一个项目\n            与上级意见相左的经历\n            近一年学到最重要的东西\n        专业能力\n            技术深度连环追问\n            现场系统设计题目\n            编码实现与调试排错\n            线上故障排查思路\n        ))行为面试((\n            STAR 法则拆解案例\n            失败经历与复盘深度\n            跨部门推动协作实例\n            在时间压力下的取舍\n        评估标准\n            评分维度与权重分配\n            一票否决的红线项\n            加分项与差异化能力\n            面试结论产出时效\n        流程管理\n            简历初筛与电话沟通\n            三轮面试与交叉面\n            背景调查与薪资沟通\n            录用审批与入职跟进"
+    },
+    {
+      "name": "项目管理知识体系",
+      "title": "项目管理知识体系思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1530,
+      "content": "mindmap\n    root((项目管理))\n        (启动)\n            项目章程与立项评审\n            干系人识别与沟通矩阵\n            商业论证与收益测算\n            项目经理授权边界\n        规划\n            范围说明书与 WBS 分解\n            进度计划与关键路径\n            成本预算与储备金\n            质量标准与验收口径\n        ))执行((\n            团队组建与角色分工\n            例会与信息分发机制\n            供应商选择与合同管理\n            知识库与文档沉淀\n        监控\n            进度偏差与挣值分析\n            风险登记册滚动更新\n            变更申请与控制委员会\n            问题日志与闭环跟踪\n        收尾\n            客户验收与成果移交\n            经验教训复盘会\n            文档归档与资产入库\n            团队解散与绩效评定"
+    },
+    {
+      "name": "个人健康管理",
+      "title": "个人健康管理思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1540,
+      "content": "mindmap\n    root((健康管理))\n        (监测指标)\n            体重与体脂率周记录\n            血压与静息心率\n            空腹血糖与血脂四项\n            睡眠时长与深睡比例\n        饮食\n            每日饮水 2000 毫升\n            蛋白质 1.2 克每公斤体重\n            控糖并减少精制碳水\n            每周外食不超过三次\n        ))运动计划((\n            每周有氧慢跑三次\n            力量训练两次覆盖大肌群\n            日常步数目标 8000 步\n            每工作 50 分钟起身活动\n        作息恢复\n            固定 23 点前入睡\n            午休 20 分钟以内\n            睡前减少屏幕蓝光\n            周末补觉不超过一小时\n        复查干预\n            年度体检项目清单\n            异常指标三个月复诊\n            家庭医生与专科转诊\n            疫苗接种与口腔检查"
+    },
+    {
+      "name": "家庭装修规划",
+      "title": "家庭装修规划思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1550,
+      "content": "mindmap\n    root((家庭装修))\n        (需求与预算)\n            常住人口与生活习惯\n            风格定为现代简约\n            总预算 38 万元分配\n            工期目标 90 天\n        设计\n            户型平面改造方案\n            动线与收纳容量规划\n            灯光分层与色温选择\n            插座点位与网络布线\n        ))施工流程((\n            拆改与成品保护\n            水电隐蔽工程改造\n            防水施工与闭水试验\n            瓦工木工油漆三阶段\n        主材采购\n            瓷砖地板与踢脚线\n            橱柜衣柜全屋定制\n            门窗五金与卫浴洁具\n            家电尺寸与进场顺序\n        验收交付\n            隐蔽工程拍照留存\n            竣工验收与整改单\n            空气检测与通风一月\n            质保条款与售后联系"
+    },
+    {
+      "name": "旅行行程规划",
+      "title": "旅行行程规划思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1560,
+      "content": "mindmap\n    root((旅行行程))\n        (行前准备)\n            签证与证件有效期检查\n            往返机票与酒店确认\n            旅行保险与常备药品\n            手机漫游与电源插头\n        目的地研究\n            必去景点与预约门票\n            地铁线路与交通卡\n            本地美食榜单与餐厅\n            天气与穿衣建议\n        ))日程安排((\n            第一天市区经典线路\n            第二天近郊自然风光\n            第三天博物馆与老城\n            第四天购物与返程\n        预算控制\n            人均预算 8000 元\n            现金与移动支付比例\n            退税流程与单据留存\n            小费习惯与备用金\n        应急处理\n            紧急联系人与使馆电话\n            证件丢失补办流程\n            行李延误与理赔材料\n            突发疾病就医指引"
+    },
+    {
+      "name": "风险管理清单",
+      "title": "风险管理清单思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1570,
+      "content": "mindmap\n    root((风险管理))\n        风险识别\n            头脑风暴与专家访谈\n            历史事故复盘归档\n            行业案例对标借鉴\n            流程穿行测试发现\n        (风险分类)\n            战略与市场风险\n            财务与合规风险\n            运营与供应链风险\n            技术与信息安全风险\n        ))评估定级((\n            可能性与影响二维矩阵\n            风险敞口金额测算\n            红黄蓝三级分类标准\n            风险偏好与容忍度\n        应对策略\n            规避：退出高风险业务\n            减轻：流程与冗余设计\n            转移：保险与外包合同\n            接受：预留应急储备金\n        监控闭环\n            每条风险指定责任人\n            月度复盘与状态更新\n            关键指标预警阈值\n            演练预案并检验有效性"
+    },
+    {
+      "name": "内容创作选题库",
+      "title": "内容创作选题库思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1580,
+      "content": "mindmap\n    root((选题库))\n        (选题来源)\n            评论区高频提问\n            搜索下拉词与热榜\n            竞品爆款内容拆解\n            行业报告与热点事件\n        选题分类\n            干货教程与实操指南\n            案例复盘与数据解读\n            观点争议与行业观察\n            幕后日常与人物故事\n        ))评估筛选((\n            搜索量与竞争度比值\n            与目标人群匹配程度\n            转化路径是否清晰\n            制作成本与周期估算\n        排期制作\n            每周三更固定节奏\n            标题十选一投票\n            开场三秒钩子设计\n            脚本模板与素材库\n        数据复盘\n            完播率与平均播放进度\n            点赞收藏与转发比率\n            涨粉数与引流转化数\n            爆款复用做成系列"
+    },
+    {
+      "name": "客户成功方法论",
+      "title": "客户成功方法论思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1590,
+      "content": "mindmap\n    root((客户成功))\n        (客户分层)\n            战略客户一对一服务\n            重点客户季度回顾\n            长尾客户自助与社群\n            分层权益与响应时效\n        落地启用\n            实施计划与里程碑表\n            关键用户培训与认证\n            首次价值交付 30 天\n            上线验收与签字确认\n        ))健康度((\n            使用频率与功能覆盖\n            核心场景活跃账号数\n            工单量与投诉趋势\n            NPS 与满意度调研\n        风险预警\n            活跃度下滑预测模型\n            关键联系人离职信号\n            续费前 90 天预警\n            高层走访与挽回动作\n        价值增长\n            季度业务回顾报告\n            增购模块与席位扩展\n            联合案例与白皮书\n            转介绍与口碑推荐"
+    },
+    {
+      "name": "安全生产检查要点",
+      "title": "安全生产检查要点思维导图",
+      "category": "流程图模板·思维导图",
+      "sort": 1600,
+      "content": "mindmap\n    root((安全检查))\n        (责任体系)\n            全员安全生产责任制\n            安全投入费用台账\n            应急预案与年度演练\n            外包单位资质审查\n        现场管理\n            消防器材与疏散通道\n            特种设备定期检验\n            危化品存储与使用登记\n            临时用电与动火作业票\n        ))人员防护((\n            三级安全教育与考核\n            特种作业人员持证上岗\n            劳保用品佩戴检查\n            班前会风险交底\n        隐患排查\n            每日班前巡查清单\n            月度综合大检查\n            隐患整改闭环单\n            重大隐患挂牌督办\n        事故管理\n            一小时上报时限要求\n            四不放过原则落实\n            整改验收与复查签字\n            事故案例警示教育"
+    }
+  ]
+}

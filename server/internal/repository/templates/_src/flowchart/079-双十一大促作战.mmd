@@ -1,0 +1,33 @@
+---
+name: 双十一大促作战
+title: 双十一大促作战甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 双十一大促作战排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    section 筹备期
+    大促目标与货盘规划   :done,  a1, 2026-09-01, 10d
+    会场报名与坑位确认   :done,  a2, after a1, 8d
+    营销玩法与预算审批   :done,  a3, after a1, 6d
+    系统容量评估         :        a4, after a2, 7d
+    section 蓄水期
+    商品种草与内容投放   :active, b1, after a3, 20d
+    会员邀约与私域触达   :        b2, after b1, 12d
+    优惠券发放           :        b3, after b2, 5d
+    压测与扩容演练       :crit,  b4, after a4, 10d
+    section 预热期
+    预售开启             :milestone, m1, 2026-10-21, 0d
+    定金支付与尾款提醒   :crit,  c1, after m1, 11d
+    客服话术与排班       :        c2, after m1, 5d
+    物流仓储备货         :crit,  c3, after b3, 12d
+    section 爆发期
+    开门红               :milestone, m2, 2026-11-01, 0d
+    大促主战场           :active, crit, d1, 2026-11-11, 3d
+    实时作战值班         :crit,  d2, after m2, 11d
+    订单履约与发货       :crit,  d3, after d1, 7d
+    section 复盘期
+    售后与退换处理       :        e1, after d3, 15d
+    数据复盘与结案       :        e2, after e1, 5d
+    大促总结汇报         :milestone, m3, after e2, 0d

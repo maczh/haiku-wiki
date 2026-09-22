@@ -1,0 +1,53 @@
+---
+name: 物流配送体系
+title: 物流配送体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 运费计算 {
+        <<接口>>
+        +计算(重量 Decimal) Decimal
+        +优惠后运费(原价 Decimal) Decimal
+    }
+    class 运单 {
+        <<抽象类>>
+        #String 运单号
+        #String 寄件地址
+        #String 收件地址
+        #生成运单号() String
+        #校验禁运品() Boolean
+    }
+    class 派送运单 {
+        +Long 快递员号
+        +String 配送区域
+        +LocalDateTime 派发时间
+        +派发() Boolean
+        +签收() Boolean
+    }
+    class 计重规则 {
+        +Decimal 首重价格
+        +Decimal 续重价格
+        +String 目的区域
+        +计算() Decimal
+        +优惠后运费() Decimal
+    }
+    class 快递员 {
+        +Long 员工号
+        +String 姓名
+        +Integer 当前负载
+        +接单() Boolean
+        +上报位置() Boolean
+    }
+    class 运单状态 {
+        <<枚举>>
+        已下单
+        运输中
+        派送中
+        已签收
+    }
+    运单 <|-- 派送运单 : 继承
+    计重规则 ..|> 运费计算 : 实现
+    运单 "1" *-- "1" 计重规则 : 组合
+    快递员 "1" o-- "*" 派送运单 : 聚合
+    派送运单 "1" --> "1" 运单状态 : 状态
+    派送运单 "1" --> "1" 快递员 : 承运

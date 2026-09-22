@@ -1,0 +1,60 @@
+---
+name: 支付对账
+title: 支付对账ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    商户 ||--o{ 支付订单 : 发起
+    支付渠道 ||--o{ 支付订单 : 受理
+    支付订单 ||--o{ 退款单 : 产生
+    支付渠道 ||--o{ 对账文件 : 提供
+    对账文件 ||--|{ 对账明细 : 解析
+    支付订单 ||--o{ 对账明细 : 勾兑
+    对账明细 ||--o{ 差错记录 : 挂账
+    商户 {
+        bigint 商户ID PK
+        varchar 商户名称
+        varchar 商户号 UK "渠道侧进件编号"
+        tinyint 启用状态
+    }
+    支付渠道 {
+        bigint 渠道ID PK
+        varchar 渠道名称
+        varchar 通道编码 UK "微信支付宝银联"
+        decimal 手续费率 "千分之三记为0.003"
+    }
+    支付订单 {
+        bigint 支付单ID PK
+        varchar 支付单号 UK
+        bigint 商户ID FK
+        bigint 渠道ID FK
+        decimal 支付金额
+        tinyint 支付状态
+    }
+    退款单 {
+        bigint 退款单ID PK
+        bigint 支付单ID FK
+        varchar 退款单号 UK
+        decimal 退款金额
+        tinyint 退款状态
+    }
+    对账文件 {
+        bigint 文件ID PK
+        bigint 渠道ID FK
+        varchar 文件名称
+        date 对账日期
+    }
+    对账明细 {
+        bigint 明细ID PK
+        bigint 文件ID FK
+        varchar 渠道流水号 UK
+        decimal 渠道金额
+        tinyint 勾兑结果 "1平账 2长款 3短款"
+    }
+    差错记录 {
+        bigint 差错ID PK
+        bigint 明细ID FK
+        varchar 差错类型 "重复支付金额不符"
+        decimal 差异金额
+        varchar 处理意见
+    }

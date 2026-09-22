@@ -1,0 +1,53 @@
+---
+name: 在线教育课程领域模型
+title: 在线教育课程类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可学习 {
+        <<接口>>
+        +开始学习(学员号 Long) Boolean
+        +记录进度(百分比 Integer) Boolean
+    }
+    class 教学资源 {
+        <<抽象类>>
+        #Long 资源编号
+        #String 资源标题
+        #Integer 排序号
+        #排序调整() Boolean
+        #下架() Boolean
+    }
+    class 课时 {
+        +Integer 视频时长秒
+        +String 视频地址
+        +Boolean 是否试听
+        +开始学习() Boolean
+        +记录进度() Boolean
+    }
+    class 课程 {
+        +Long 课程编号
+        +String 课程分类
+        +Decimal 售价
+        +上架() Boolean
+        +统计完课率() Decimal
+    }
+    class 选课记录 {
+        +Long 记录编号
+        +LocalDateTime 选课时间
+        +LocalDateTime 有效期至
+        +选课() Boolean
+        +退课() Boolean
+    }
+    class 课程状态 {
+        <<枚举>>
+        草稿
+        已上架
+        已下架
+        已归档
+    }
+    教学资源 <|-- 课时 : 继承
+    课时 ..|> 可学习 : 实现
+    课程 "1" *-- "*" 课时 : 组合
+    课程 "1" o-- "*" 选课记录 : 聚合
+    课程 "1" --> "1" 课程状态 : 状态
+    选课记录 "1" --> "1" 课程 : 报名

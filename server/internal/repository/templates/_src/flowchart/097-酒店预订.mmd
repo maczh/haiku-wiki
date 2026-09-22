@@ -1,0 +1,58 @@
+---
+name: 酒店预订
+title: 酒店预订ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    酒店 ||--o{ 房型 : 定义
+    房型 ||--o{ 房间 : 实例化
+    房型 ||--o{ 房价日历 : 制定
+    客人 ||--o{ 预订单 : 提交
+    房型 ||--o{ 预订单 : 被预订
+    预订单 ||--|| 入住记录 : 转为
+    入住记录 }|--o{ 房间 : 占用
+    酒店 {
+        bigint 酒店ID PK
+        varchar 酒店名称
+        varchar 所在城市
+        tinyint 星级 "1至5星"
+    }
+    房型 {
+        bigint 房型ID PK
+        bigint 酒店ID FK
+        varchar 房型名称 "大床房双床房套房"
+        int 可住人数
+        int 房间总数
+    }
+    房间 {
+        bigint 房间ID PK
+        bigint 房型ID FK
+        varchar 房间号 UK "楼层加房间序号"
+        tinyint 房态 "0空净 1在住 2脏房"
+    }
+    房价日历 {
+        bigint 日历ID PK
+        bigint 房型ID FK
+        date 住店日期
+        decimal 挂牌价
+        int 可售房量
+    }
+    客人 {
+        bigint 客人ID PK
+        varchar 姓名
+        varchar 证件号 UK "身份证或护照号"
+        tinyint 会员等级
+    }
+    预订单 {
+        bigint 预订单ID PK
+        varchar 预订号 UK "确认函上的编号"
+        bigint 客人ID FK
+        bigint 房型ID FK
+        tinyint 预订状态 "1已确认 3已取消"
+    }
+    入住记录 {
+        bigint 入住ID PK
+        bigint 预订单ID FK
+        bigint 房间ID FK
+        decimal 押金金额
+    }

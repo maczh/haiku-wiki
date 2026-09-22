@@ -1,0 +1,53 @@
+---
+name: 车联网设备管理
+title: 车联网设备管理类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 数据采集器 {
+        <<接口>>
+        +上报(报文编号 Long) Boolean
+        +心跳() Boolean
+    }
+    class 车载设备 {
+        <<抽象类>>
+        #String 设备编号
+        #String 固件版本
+        #LocalDateTime 最后在线
+        #注册() Boolean
+        #升级固件() Boolean
+    }
+    class 车载终端 {
+        +String 通信协议
+        +String 接入网关
+        +Integer 信号强度
+        +上报() Boolean
+        +心跳() Boolean
+    }
+    class 定位报文 {
+        +Decimal 经度
+        +Decimal 纬度
+        +Decimal 瞬时速度
+        +上报() Boolean
+        +心跳() Boolean
+    }
+    class 告警记录 {
+        +Long 告警编号
+        +String 告警类型
+        +String 告警级别
+        +推送() Boolean
+        +关闭() Boolean
+    }
+    class 终端状态 {
+        <<枚举>>
+        在线
+        离线
+        休眠
+        故障
+    }
+    车载设备 <|-- 车载终端 : 继承
+    定位报文 ..|> 数据采集器 : 实现
+    车载终端 "1" *-- "*" 定位报文 : 组合
+    车载终端 "1" o-- "*" 告警记录 : 聚合
+    车载终端 "1" --> "1" 终端状态 : 状态
+    告警记录 "*" --> "1" 车载终端 : 来源

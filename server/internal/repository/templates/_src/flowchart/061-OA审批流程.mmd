@@ -1,0 +1,54 @@
+---
+name: OA审批流程
+title: OA审批流程类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 流程引擎 {
+        <<接口>>
+        +启动(流程编号 Long) String
+        +推进(任务编号 Long) Boolean
+    }
+    class 流程单元 {
+        <<抽象类>>
+        #Long 单元编号
+        #String 单元名称
+        #Integer 排序号
+        #校验配置() Boolean
+        #复制() Boolean
+    }
+    class 审批节点 {
+        +String 审批方式
+        +String 审批人角色
+        +Integer 超时小时数
+        +指定审批人() Boolean
+        +跳过() Boolean
+    }
+    class 审批单 {
+        +String 实例编号
+        +String 单据标题
+        +Decimal 涉及金额
+        +提交() Boolean
+        +撤回() Boolean
+        +催办() Boolean
+    }
+    class 审批任务 {
+        +Long 任务编号
+        +String 待办人
+        +String 审批意见
+        +同意() Boolean
+        +驳回(理由 String) Boolean
+    }
+    class 审批动作 {
+        <<枚举>>
+        提交
+        同意
+        驳回
+        撤回
+    }
+    流程单元 <|-- 审批节点 : 继承
+    审批单 ..|> 流程引擎 : 实现
+    审批单 "1" *-- "*" 审批任务 : 组合
+    审批节点 "1" o-- "*" 审批任务 : 聚合
+    审批任务 "1" --> "1" 审批动作 : 动作
+    审批节点 "1" --> "1" 审批单 : 所属

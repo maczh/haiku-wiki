@@ -1,0 +1,33 @@
+---
+name: ERP系统上线
+title: ERP系统上线甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 集团 ERP 系统上线排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 项目准备
+    项目启动与团队组建   :done,  a1, 2026-09-10, 5d
+    业务流程现状调研     :done,  a2, after a1, 15d
+    项目章程签署         :milestone, m1, after a2, 0d
+    section 蓝图设计
+    财务模块蓝图设计     :done,  b1, after m1, 12d
+    供应链模块蓝图设计   :        b2, after m1, 12d
+    生产制造模块蓝图     :        b3, after b1, 10d
+    蓝图方案确认         :milestone, m2, after b3, 0d
+    section 系统实现
+    系统参数与基础数据   :active, crit, c1, after m2, 14d
+    财务模块配置开发     :crit,  c2, after c1, 18d
+    供应链模块配置开发   :        c3, after c1, 16d
+    外围系统集成接口     :        c4, after c2, 12d
+    section 上线切换
+    单元测试与集成测试   :        d1, after c3, 12d
+    用户培训与操作手册   :        d2, after c4, 8d
+    模拟运行与数据校验   :        d3, after d1, 10d
+    正式上线切换         :milestone, m3, after d3, 0d
+    section 持续支持
+    上线后现场支持       :        e1, after m3, 20d
+    首次月结护航         :        e2, after e1, 10d
+    项目验收             :milestone, m4, after e2, 0d

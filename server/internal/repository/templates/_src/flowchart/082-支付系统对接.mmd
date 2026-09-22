@@ -1,0 +1,33 @@
+---
+name: 支付系统对接
+title: 支付系统对接甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 多渠道支付系统对接排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 方案与准入
+    支付渠道选型对比     :done,  a1, 2026-09-10, 8d
+    商户号申请与签约     :done,  a2, after a1, 15d
+    对账与结算方案设计   :        a3, after a1, 6d
+    准入完成             :milestone, m1, after a2, 0d
+    section 开发联调
+    支付网关接口开发     :active, crit, b1, after m1, 12d
+    退款与撤单流程开发   :crit,  b2, after b1, 8d
+    异步通知与幂等处理   :        b3, after b1, 7d
+    聚合收银台前端       :        b4, after b2, 10d
+    section 测试验收
+    沙箱环境联调         :        c1, after b3, 6d
+    支付全链路测试       :crit,  c2, after b4, 8d
+    对账文件核对测试     :        c3, after c2, 5d
+    安全与风控测试       :        c4, after c2, 6d
+    section 灰度上线
+    内部灰度百分之一     :        d1, after c4, 4d
+    灰度扩量至百分之二十 :        d2, after d1, 5d
+    全量上线             :milestone, m2, after d2, 0d
+    section 运营
+    交易监控与告警       :        e1, after m2, 10d
+    手续费与结算核对     :        e2, after m2, 8d
+    接入复盘             :        e3, after e2, 3d

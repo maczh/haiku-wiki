@@ -1,0 +1,45 @@
+---
+name: OAuth2 授权码授权
+title: OAuth2 授权码授权时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant U as 资源拥有者
+    participant A as 三方客户端 App
+    participant S as 授权服务器 oauth-srv
+    participant T as 令牌服务 token-srv
+    participant R as 资源服务器 api-srv
+    U->>A: 点击使用第三方账号登录
+    A-->>U: 302 跳转至 /oauth/authorize
+    U->>S: GET /oauth/authorize 携带 client_id 与 scope
+    U->>S: POST /oauth/authorize 勾选授权范围
+    S->>T: POST /code 签发授权码
+    activate T
+    T-->>S: 返回 code 有效期 60 秒
+    S-->>U: 302 回调客户端携带 code 与 state
+    U->>A: GET /oauth/callback 携带 code
+    A->>S: POST /oauth/token 携带 code 与 code_verifier
+    S->>T: 校验 code 与 code_challenge
+    T-->>S: 返回校验通过与 scope 列表
+    deactivate T
+    alt 授权码校验失败
+        S-->>A: 返回 401 invalid_grant
+        A-->>U: 提示授权已失效请重试
+    else 校验通过
+        S-->>A: 返回 access_token 3600 秒与 refresh_token
+        A->>R: GET /api/v1/profile 携带 Bearer 令牌
+        R->>S: GET /oauth/introspect 校验令牌
+        S-->>R: 返回 active 与 scope 列表
+        alt scope 不包含 profile
+            R-->>A: 返回 403 权限不足
+        else scope 校验通过
+            R-->>A: 返回用户昵称与头像
+        end
+    end
+    opt 访问令牌过期
+        A->>S: POST /oauth/token 使用 refresh_token
+        S->>T: 轮换刷新令牌并作废旧令牌
+        S-->>A: 返回新令牌对
+    end
+    Note over U,R: 授权码仅一次有效 且必须与 code_verifier 配对

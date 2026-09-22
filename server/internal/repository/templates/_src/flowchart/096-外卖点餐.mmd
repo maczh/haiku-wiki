@@ -1,0 +1,58 @@
+---
+name: 外卖点餐
+title: 外卖点餐ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    商家 ||--o{ 菜品分类 : 维护
+    菜品分类 ||--o{ 菜品 : 归类
+    商家 ||--o{ 外卖订单 : 接单
+    用户 ||--o{ 外卖订单 : 提交
+    外卖订单 ||--|{ 订单项 : 包含
+    菜品 ||--o{ 订单项 : 被下单
+    外卖订单 ||--|| 配送单 : 生成
+    用户 {
+        bigint 用户ID PK
+        varchar 手机号 UK "用于登录与配送联系"
+        varchar 昵称
+        varchar 常用地址
+    }
+    商家 {
+        bigint 商家ID PK
+        varchar 商家名称
+        varchar 门店地址
+        decimal 起送金额
+        tinyint 营业状态 "1接单 0打烊"
+    }
+    菜品分类 {
+        bigint 分类ID PK
+        bigint 商家ID FK
+        varchar 分类名称
+        tinyint 排序号
+    }
+    菜品 {
+        bigint 菜品ID PK
+        bigint 分类ID FK
+        varchar 菜品名称
+        decimal 单价
+    }
+    外卖订单 {
+        bigint 订单ID PK
+        varchar 订单号 UK
+        bigint 用户ID FK
+        bigint 商家ID FK
+        tinyint 订单状态 "1待接单 5已完成"
+    }
+    订单项 {
+        bigint 明细ID PK
+        bigint 订单ID FK
+        bigint 菜品ID FK
+        varchar 备注口味 "少辣不要香菜"
+    }
+    配送单 {
+        bigint 配送单ID PK
+        bigint 订单ID FK
+        bigint 骑手ID FK
+        varchar 配送地址
+        tinyint 配送状态
+    }

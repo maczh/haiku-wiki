@@ -1,0 +1,45 @@
+---
+name: 保险报案理赔
+title: 保险报案理赔时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant C as 被保险人
+    participant R as 报案系统 claim-intake
+    participant D as 查勘调度 dispatch-svc
+    participant S as 定损系统 loss-svc
+    participant A as 核赔引擎
+    C->>R: 提交报案 保单号 事故时间 事故地点
+    alt 保单已失效或不在保障范围
+        R-->>C: 返回拒赔告知 与条款依据
+    else 保单有效
+        R->>R: 生成报案号 并做重复报案校验
+        R->>D: POST /dispatch/task 携带报案号与地址
+        D->>D: 按经纬度匹配最近查勘员 3 公里内
+        loop 查勘直至资料齐全
+            D->>S: 上传现场照片 不少于 8 张 与责任认定书
+            alt 资料缺失
+                S-->>C: 提示补充维修清单与发票
+            else 资料齐全
+                S->>+A: POST /assess/submit 提交定损单
+            end
+        end
+        A->>A: 校验免赔额 10000 分 与责任比例 70
+        alt 定损金额高于保额
+            A-->>C: 返回按保额赔付 30000000 分
+        else 金额在保额内
+            A->>A: 理算 定损金额减免赔额后乘责任比例
+            A-->>-C: 返回理算结果 595000 分
+        end
+    end
+    par 反欺诈排查
+        A->>R: 查询历史赔付记录
+    and 数据归档
+        R-->>A: 返回归档成功与赔案编号
+    end
+    opt 客户对赔款有异议
+        C->>R: 提交复核申请与补充证据
+        R->>A: 发起二次核赔 5 个工作日内答复
+    end
+    Note over C,A: 状态流转为 报案 查勘 定损 核赔 赔付 结案

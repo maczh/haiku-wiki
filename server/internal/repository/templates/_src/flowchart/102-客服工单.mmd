@@ -1,0 +1,56 @@
+---
+name: 客服工单
+title: 客服工单ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    工单分类 ||--o{ 工单 : 归类
+    客户 ||--o{ 工单 : 提交
+    客服人员 ||--o{ 工单 : 受理
+    工单 ||--|{ 工单流转 : 流转
+    工单 ||--o{ 会话记录 : 沟通
+    客服人员 ||--o{ 会话记录 : 回复
+    工单 ||--|| 满意度评价 : 评价
+    客户 {
+        bigint 客户ID PK
+        varchar 客户名称
+        varchar 联系电话 UK "来电识别用"
+        tinyint 客户级别
+    }
+    客服人员 {
+        bigint 客服ID PK
+        varchar 工号 UK "坐席工号"
+        varchar 技能组 "售后技术支持账务"
+        tinyint 在线状态
+    }
+    工单分类 {
+        bigint 分类ID PK
+        varchar 分类编码 UK
+        int 承诺时效小时
+        tinyint 是否启用
+    }
+    工单 {
+        bigint 工单ID PK
+        varchar 工单编号 UK "对外查询编号"
+        bigint 客户ID FK
+        bigint 分类ID FK
+        tinyint 紧急程度 "1一般 4紧急"
+    }
+    工单流转 {
+        bigint 流转ID PK
+        bigint 工单ID FK
+        varchar 动作类型 "受理转派挂起解决"
+        datetime 操作时间
+    }
+    会话记录 {
+        bigint 会话ID PK
+        bigint 工单ID FK
+        bigint 客服ID FK
+        varchar 渠道来源 "电话在线机器人"
+    }
+    满意度评价 {
+        bigint 评价ID PK
+        bigint 工单ID FK
+        tinyint 评分 "1至5星"
+        varchar 评价标签
+    }

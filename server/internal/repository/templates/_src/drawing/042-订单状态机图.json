@@ -1,0 +1,202 @@
+{
+  "name": "订单状态机图",
+  "title": "订单状态机图",
+  "category": "绘图模板·关系与结构",
+  "w": 1200,
+  "h": 540,
+  "groups": [
+    {
+      "t": "订单状态迁移（正向履约链路 + 逆向取消 / 退款 / 售后链路）",
+      "x": 40,
+      "y": 56,
+      "w": 1120,
+      "h": 420,
+      "palette": "gray"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "st1",
+      "t": "待支付",
+      "x": 120,
+      "y": 90,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "green",
+      "bold": true
+    },
+    {
+      "id": "st2",
+      "t": "已支付",
+      "x": 380,
+      "y": 90,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "blue",
+      "bold": true
+    },
+    {
+      "id": "st5",
+      "t": "待发货",
+      "x": 640,
+      "y": 90,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "cyan",
+      "bold": true
+    },
+    {
+      "id": "st3",
+      "t": "已发货",
+      "x": 900,
+      "y": 90,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "teal",
+      "bold": true
+    },
+    {
+      "id": "st4",
+      "t": "已完成",
+      "x": 900,
+      "y": 240,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "green",
+      "bold": true
+    },
+    {
+      "id": "st6",
+      "t": "已取消",
+      "x": 120,
+      "y": 240,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "gray",
+      "bold": true
+    },
+    {
+      "id": "st7",
+      "t": "退款中",
+      "x": 380,
+      "y": 240,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "amber",
+      "bold": true
+    },
+    {
+      "id": "st9",
+      "t": "售后处理中",
+      "x": 640,
+      "y": 240,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "orange",
+      "bold": true
+    },
+    {
+      "id": "st8",
+      "t": "已退款",
+      "x": 380,
+      "y": 380,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "red",
+      "bold": true
+    },
+    {
+      "id": "st10",
+      "t": "已关闭",
+      "x": 900,
+      "y": 380,
+      "w": 180,
+      "h": 60,
+      "shape": "pill",
+      "palette": "slate",
+      "bold": true
+    }
+  ],
+  "edges": [
+    {
+      "f": "st1",
+      "t": "st2",
+      "label": "支付成功",
+      "dir": "H"
+    },
+    {
+      "f": "st1",
+      "t": "st6",
+      "label": "超时未支付 15 分钟",
+      "dir": "V"
+    },
+    {
+      "f": "st2",
+      "t": "st5",
+      "label": "系统确认与备货",
+      "dir": "H"
+    },
+    {
+      "f": "st5",
+      "t": "st3",
+      "label": "仓库出库",
+      "dir": "H"
+    },
+    {
+      "f": "st3",
+      "t": "st4",
+      "label": "确认收货",
+      "dir": "V"
+    },
+    {
+      "f": "st2",
+      "t": "st7",
+      "label": "申请退款",
+      "dir": "V"
+    },
+    {
+      "f": "st7",
+      "t": "st8",
+      "label": "审核通过",
+      "dir": "V"
+    },
+    {
+      "f": "st3",
+      "t": "st9",
+      "label": "7 日内申请售后",
+      "dir": "L"
+    },
+    {
+      "f": "st9",
+      "t": "st4",
+      "label": "售后完成",
+      "dir": "L"
+    },
+    {
+      "f": "st7",
+      "t": "st10",
+      "label": "审核驳回且超时",
+      "dir": "L"
+    }
+  ],
+  "notes": [
+    {
+      "t": "填写说明：本图为示例模板，状态命名、迁移条件与超时规则请按交易域设计替换。",
+      "x": 40,
+      "y": 496,
+      "w": 1120,
+      "h": 44,
+      "shape": "note",
+      "palette": "gray"
+    }
+  ]
+}

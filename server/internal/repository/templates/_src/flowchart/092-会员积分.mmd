@@ -1,0 +1,58 @@
+---
+name: 会员积分
+title: 会员积分ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    会员等级 ||--o{ 会员 : 评定
+    会员 ||--|| 积分账户 : 持有
+    积分账户 ||--o{ 积分流水 : 记录
+    积分规则 ||--o{ 积分流水 : 计算
+    积分商品 ||--o{ 兑换订单 : 被兑换
+    会员 ||--o{ 兑换订单 : 提交
+    兑换订单 }|--o{ 积分账户 : 扣减
+    会员 {
+        bigint 会员ID PK
+        varchar 会员卡号 UK "门店与小程序通用"
+        varchar 昵称
+        bigint 等级ID FK
+        datetime 入会时间
+    }
+    会员等级 {
+        bigint 等级ID PK
+        varchar 等级名称
+        int 成长值下限
+        decimal 折扣率 "0.85表示八五折"
+    }
+    积分账户 {
+        bigint 账户ID PK
+        bigint 会员ID FK, UK "一个会员仅一个账户"
+        int 可用积分
+        int 累计积分
+    }
+    积分流水 {
+        bigint 流水ID PK
+        bigint 账户ID FK
+        bigint 规则ID FK
+        int 变动积分 "正数为获得负数为扣减"
+        datetime 变动时间
+    }
+    积分规则 {
+        bigint 规则ID PK
+        varchar 场景编码 UK "登录签到消费评价"
+        int 单次积分
+        tinyint 启用状态
+    }
+    积分商品 {
+        bigint 商品ID PK
+        varchar 商品名称
+        int 兑换积分
+        int 库存数量
+    }
+    兑换订单 {
+        bigint 兑换单ID PK
+        varchar 兑换单号 UK
+        bigint 会员ID FK
+        bigint 商品ID FK
+        tinyint 发放状态 "0待发货 1已发放"
+    }

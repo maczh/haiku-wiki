@@ -1,0 +1,45 @@
+---
+name: 视频连麦信令
+title: 视频连麦信令时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant A as 主播端
+    participant S as 信令服务 signal-svc
+    participant R as 房间服务 room-svc
+    participant M as 媒体服务 SFU
+    participant B as 观众端
+    A->>+S: 建立 WebSocket 连接 wss 携带 token
+    S->>R: POST /room/enter 携带 room_id 与 uid
+    A->>M: 推流 rtmp 分辨率 720P 码率 1200kbps
+    B->>S: 建立 WebSocket 连接并申请连麦
+    S->>R: POST /room/mic/apply 携带 uid
+    A->>S: 同意连麦并设置连麦位 1
+    S-->>-B: 返回连麦许可与推流地址
+    A->>S: 发送 offer 携带 SDP 与 ICE 候选
+    S->>B: 转发 offer 与音频编码 opus
+    alt 点对点穿透成功
+        B->>S: 发送 answer 携带候选地址
+        S->>A: 转发 answer
+    else 穿透失败走中转
+        B->>M: 申请中继地址与凭证
+        M-->>B: 返回中继地址与有效期 600 秒
+        B->>S: 发送 answer 携带中继候选
+        S->>A: 转发 answer 与中继候选
+    end
+    loop 每 3 秒上报一次
+        A->>S: 上报丢包率与往返时延
+        S->>R: 写入质量表用于码率自适应
+        opt 往返时延高于 400 毫秒
+            S-->>A: 下发降低码率至 600kbps
+            A->>M: 调整编码码率
+        end
+    end
+    par 混流录制
+        M->>M: 合流两路画面为 720P 布局
+    and 观众侧分发
+        M->>B: 下发合流拉流地址 flv
+        B-->>M: 返回拉流成功
+    end
+    Note over A,B: ICE 超时 10 秒转中继 房间心跳 15 秒

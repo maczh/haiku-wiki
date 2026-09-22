@@ -1,0 +1,140 @@
+{
+  "name": "项目里程碑时间轴",
+  "title": "项目里程碑时间轴图",
+  "category": "绘图模板·关系与结构",
+  "w": 1200,
+  "h": 560,
+  "groups": [
+    {
+      "t": "上半年 · 立项与设计阶段",
+      "x": 40,
+      "y": 140,
+      "w": 1120,
+      "h": 140,
+      "palette": "gray"
+    },
+    {
+      "t": "下半年 · 开发与上线阶段",
+      "x": 40,
+      "y": 320,
+      "w": 1120,
+      "h": 140,
+      "palette": "slate"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "sp",
+      "t": "",
+      "x": 80,
+      "y": 300,
+      "w": 1040,
+      "h": 14,
+      "shape": "rect",
+      "palette": "slate"
+    },
+    {
+      "id": "m1",
+      "t": "3 月 15 日\n立项与预算批复",
+      "x": 100,
+      "y": 180,
+      "w": 180,
+      "h": 64,
+      "shape": "pill",
+      "palette": "green",
+      "fs": 12,
+      "bold": true
+    },
+    {
+      "id": "m2",
+      "t": "4 月 20 日\n需求评审完成",
+      "x": 310,
+      "y": 360,
+      "w": 180,
+      "h": 64,
+      "shape": "pill",
+      "palette": "blue",
+      "fs": 12,
+      "bold": true
+    },
+    {
+      "id": "m3",
+      "t": "5 月 30 日\n架构设计冻结",
+      "x": 520,
+      "y": 180,
+      "w": 180,
+      "h": 64,
+      "shape": "pill",
+      "palette": "teal",
+      "fs": 12,
+      "bold": true
+    },
+    {
+      "id": "m4",
+      "t": "8 月 10 日\n开发完成进入内测",
+      "x": 730,
+      "y": 360,
+      "w": 180,
+      "h": 64,
+      "shape": "pill",
+      "palette": "indigo",
+      "fs": 12,
+      "bold": true
+    },
+    {
+      "id": "m5",
+      "t": "10 月 18 日\n灰度发布并全量上线",
+      "x": 940,
+      "y": 180,
+      "w": 180,
+      "h": 64,
+      "shape": "pill",
+      "palette": "orange",
+      "fs": 12,
+      "bold": true
+    }
+  ],
+  "edges": [
+    {
+      "f": "m1",
+      "t": "sp",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "m2",
+      "t": "sp",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "m3",
+      "t": "sp",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "m4",
+      "t": "sp",
+      "dir": "V",
+      "palette": "slate"
+    },
+    {
+      "f": "m5",
+      "t": "sp",
+      "dir": "V",
+      "palette": "slate"
+    }
+  ],
+  "notes": [
+    {
+      "t": "填写说明：本图为示例模板，里程碑日期与达成标准请按项目主计划替换。",
+      "x": 40,
+      "y": 480,
+      "w": 1120,
+      "h": 44,
+      "shape": "note",
+      "palette": "gray"
+    }
+  ]
+}

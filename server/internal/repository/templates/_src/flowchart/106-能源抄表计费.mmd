@@ -1,0 +1,56 @@
+---
+name: 能源抄表计费数据模型
+title: 能源抄表计费ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    用能客户 ||--o{ 计量表具 : 安装
+    计量表具 ||--o{ 抄表任务 : 生成
+    抄表任务 ||--o{ 抄表记录 : 执行
+    计量表具 ||--o{ 抄表记录 : 计量
+    电价方案 ||--o{ 账单 : 计价
+    抄表记录 ||--o{ 账单 : 出账
+    账单 ||--o{ 缴费记录 : 收款
+    用能客户 {
+        bigint 客户ID PK
+        varchar 户号 UK "供电营销户号"
+        varchar 用电地址
+        varchar 用电类别 "居民工商业农业"
+    }
+    计量表具 {
+        bigint 表具ID PK
+        bigint 客户ID FK
+        varchar 表号 UK "电能表资产号"
+        varchar 表具类型 "单相三相互感器"
+    }
+    抄表任务 {
+        bigint 任务ID PK
+        bigint 表具ID FK
+        date 计划抄表日
+        tinyint 任务状态 "0待派 2已完成"
+    }
+    抄表记录 {
+        bigint 记录ID PK
+        bigint 任务ID FK
+        decimal 本次示数
+        decimal 结算电量
+    }
+    电价方案 {
+        bigint 方案ID PK
+        varchar 方案名称
+        decimal 电度电价
+        date 生效日期
+    }
+    账单 {
+        bigint 账单ID PK
+        varchar 账单编号 UK
+        bigint 方案ID FK
+        decimal 应收电费
+        tinyint 结清状态
+    }
+    缴费记录 {
+        bigint 缴费ID PK
+        bigint 账单ID FK
+        decimal 缴费金额
+        varchar 缴费渠道 "代扣柜台线上缴费"
+    }

@@ -1,0 +1,57 @@
+---
+name: 游戏角色装备
+title: 游戏角色装备ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    玩家账号 ||--o{ 游戏角色 : 创建
+    公会 ||--o{ 游戏角色 : 招收
+    游戏角色 ||--|| 背包 : 拥有
+    背包 ||--o{ 装备 : 存放
+    游戏角色 ||--o{ 装备 : 穿戴
+    装备 ||--o{ 强化记录 : 强化
+    游戏角色 }o--o{ 战斗记录 : 参与
+    玩家账号 {
+        bigint 账号ID PK
+        varchar 通行证 UK "登录通行证"
+        varchar 昵称
+        int 累计充值
+    }
+    游戏角色 {
+        bigint 角色ID PK
+        bigint 账号ID FK
+        varchar 角色名 UK "全区服唯一"
+        varchar 职业 "战士法师射手"
+        int 战斗力
+    }
+    公会 {
+        bigint 公会ID PK
+        varchar 公会名称 UK
+        int 公会等级
+        int 成员上限
+    }
+    背包 {
+        bigint 背包ID PK
+        bigint 角色ID FK
+        int 已用格子
+        bigint 金币数量
+    }
+    装备 {
+        bigint 装备ID PK
+        bigint 背包ID FK
+        varchar 装备名称
+        varchar 品质 "普通精良史诗传说"
+        int 强化等级
+    }
+    强化记录 {
+        bigint 记录ID PK
+        bigint 装备ID FK
+        int 强化后等级
+        tinyint 是否成功
+    }
+    战斗记录 {
+        bigint 战斗ID PK
+        varchar 玩法类型 "副本竞技场世界boss"
+        int 造成伤害
+        tinyint 战斗结果 "1胜利 0失败"
+    }

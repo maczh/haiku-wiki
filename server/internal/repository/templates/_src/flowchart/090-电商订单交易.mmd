@@ -1,0 +1,59 @@
+---
+name: 电商订单交易
+title: 电商订单交易ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    用户 ||--o{ 收货地址 : 维护
+    用户 ||--o{ 订单 : 下单
+    收货地址 }|--o{ 订单 : 作为收货地
+    店铺 ||--o{ 商品SKU : 上架
+    订单 ||--|{ 订单明细 : 包含
+    商品SKU ||--o{ 订单明细 : 被选购
+    订单 ||--|| 支付流水 : 产生
+    用户 {
+        bigint 用户ID PK
+        varchar 手机号 UK "用于登录与短信通知"
+        varchar 昵称
+        tinyint 会员等级 "1至5级"
+    }
+    收货地址 {
+        bigint 地址ID PK
+        bigint 用户ID FK
+        varchar 收货人
+        varchar 详细地址
+        tinyint 是否默认 "1表示默认地址"
+    }
+    订单 {
+        bigint 订单ID PK
+        varchar 订单编号 UK "对外展示单号"
+        bigint 用户ID FK
+        bigint 地址ID FK
+        tinyint 订单状态 "1待付款 5已完成"
+    }
+    订单明细 {
+        bigint 明细ID PK
+        bigint 订单ID FK
+        bigint SKUID FK
+        int 购买数量
+        decimal 成交单价
+    }
+    商品SKU {
+        bigint SKUID PK
+        bigint 店铺ID FK
+        varchar SKU编码 UK "商家自定义编码"
+        varchar 商品名称
+        decimal 销售价
+    }
+    店铺 {
+        bigint 店铺ID PK
+        varchar 店铺名称
+        varchar 营业执照号 UK "工商登记编号"
+        tinyint 经营状态 "1营业 0歇业"
+    }
+    支付流水 {
+        bigint 流水ID PK
+        varchar 支付单号 UK "渠道返回流水号"
+        bigint 订单ID FK
+        decimal 支付金额
+    }

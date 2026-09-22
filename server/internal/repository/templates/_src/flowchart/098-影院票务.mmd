@@ -1,0 +1,58 @@
+---
+name: 影院票务
+title: 影院票务ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    影院 ||--o{ 影厅 : 设置
+    影厅 ||--|{ 座位 : 布置
+    影厅 ||--o{ 排片场次 : 安排
+    影片 ||--o{ 排片场次 : 放映
+    排片场次 ||--o{ 电影票 : 售出
+    座位 ||--o{ 电影票 : 对应
+    会员 ||--o{ 电影票 : 购买
+    影院 {
+        bigint 影院ID PK
+        varchar 影院名称
+        varchar 所在商圈
+        varchar 联系电话
+    }
+    影厅 {
+        bigint 影厅ID PK
+        bigint 影院ID FK
+        varchar 放映制式 "IMAX激光巨幕"
+        int 座位总数
+    }
+    座位 {
+        bigint 座位ID PK
+        bigint 影厅ID FK
+        varchar 座位编号 UK "排号加座号"
+        tinyint 座位排号
+    }
+    影片 {
+        bigint 影片ID PK
+        varchar 影片名称
+        varchar 影片编码 UK "专资办影片编码"
+        int 片长分钟
+        date 上映日期
+    }
+    排片场次 {
+        bigint 场次ID PK
+        bigint 影厅ID FK
+        bigint 影片ID FK
+        datetime 开映时间
+        decimal 挂牌票价
+    }
+    电影票 {
+        bigint 票ID PK
+        bigint 场次ID FK
+        bigint 座位ID FK
+        varchar 取票码 UK "短信取票凭证"
+        tinyint 售票状态 "0已锁座 1已出票"
+    }
+    会员 {
+        bigint 会员ID PK
+        varchar 手机号 UK
+        int 可用积分
+        decimal 卡内余额
+    }

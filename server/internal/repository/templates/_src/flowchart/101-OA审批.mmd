@@ -1,0 +1,56 @@
+---
+name: OA审批
+title: OA审批ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    部门 ||--o{ 员工 : 编制
+    员工 ||--o{ 审批单 : 发起
+    审批流程 ||--|{ 审批节点 : 编排
+    审批流程 ||--o{ 审批单 : 实例化
+    审批单 ||--|{ 审批记录 : 留痕
+    员工 ||--o{ 审批记录 : 处理
+    审批单 ||--o{ 附件 : 附带
+    部门 {
+        bigint 部门ID PK
+        varchar 部门名称
+        varchar 部门编码 UK "组织架构编码"
+        bigint 上级部门ID FK
+    }
+    员工 {
+        bigint 员工ID PK
+        bigint 部门ID FK
+        varchar 工号 UK "人事系统工号"
+        varchar 岗位名称
+    }
+    审批流程 {
+        bigint 流程ID PK
+        varchar 流程名称
+        varchar 业务类型 "报销请假用章采购"
+        tinyint 启用状态
+    }
+    审批节点 {
+        bigint 节点ID PK
+        bigint 流程ID FK
+        tinyint 节点序号
+        varchar 审批人规则 "直属上级或指定角色"
+    }
+    审批单 {
+        bigint 单号ID PK
+        varchar 单据编号 UK "报销单请假单编号"
+        bigint 流程ID FK
+        bigint 发起人ID FK
+        tinyint 单据状态 "1审批中 2通过 3驳回"
+    }
+    审批记录 {
+        bigint 记录ID PK
+        bigint 单号ID FK
+        bigint 处理人ID FK
+        tinyint 处理结论 "1同意 2驳回 3转办"
+    }
+    附件 {
+        bigint 附件ID PK
+        bigint 单号ID FK
+        varchar 文件名称
+        varchar 存储路径
+    }

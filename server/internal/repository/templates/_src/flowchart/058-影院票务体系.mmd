@@ -1,0 +1,53 @@
+---
+name: 影院票务体系
+title: 影院票务体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 可售座位 {
+        <<接口>>
+        +锁座(场次编号 Long) Boolean
+        +解锁(场次编号 Long) Boolean
+    }
+    class 放映资源 {
+        <<抽象类>>
+        #Long 资源编号
+        #String 资源名称
+        #String 银幕类型
+        #停用() Boolean
+        #座位图() String
+    }
+    class 影厅 {
+        +Integer 座位总数
+        +String 声道制式
+        +Integer 无障碍座位
+        +锁座() Boolean
+        +解锁() Boolean
+    }
+    class 场次 {
+        +Long 场次编号
+        +LocalDateTime 开映时间
+        +Decimal 票价
+        +开售() Boolean
+        +停售() Boolean
+    }
+    class 影票 {
+        +String 票号
+        +String 座位编号
+        +Decimal 实付金额
+        +出票() Boolean
+        +退票() Boolean
+    }
+    class 场次状态 {
+        <<枚举>>
+        未开售
+        售票中
+        售罄
+        已开映
+    }
+    放映资源 <|-- 影厅 : 继承
+    影厅 ..|> 可售座位 : 实现
+    影厅 "1" o-- "*" 场次 : 聚合
+    场次 "1" *-- "*" 影票 : 组合
+    场次 "1" --> "1" 场次状态 : 状态
+    影票 "*" --> "1" 场次 : 对应

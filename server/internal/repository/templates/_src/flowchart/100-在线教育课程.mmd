@@ -1,0 +1,56 @@
+---
+name: 在线教育课程数据模型
+title: 在线教育课程ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    教师 ||--o{ 课程 : 主讲
+    课程 ||--|{ 章节 : 划分
+    章节 ||--|{ 课时 : 细分
+    学员 ||--o{ 选课记录 : 提交
+    课程 ||--o{ 选课记录 : 被选
+    选课记录 ||--o{ 学习进度 : 产生
+    课时 ||--o{ 学习进度 : 对应
+    学员 {
+        bigint 学员ID PK
+        varchar 手机号 UK "用于登录上课"
+        varchar 昵称
+        varchar 所在年级
+    }
+    教师 {
+        bigint 教师ID PK
+        varchar 姓名
+        varchar 教师资格证号 UK
+        varchar 主讲学科
+    }
+    课程 {
+        bigint 课程ID PK
+        bigint 教师ID FK
+        varchar 课程编码 UK "教务系统编号"
+        decimal 课程价格
+        tinyint 上架状态
+    }
+    章节 {
+        bigint 章节ID PK
+        bigint 课程ID FK
+        varchar 章节标题
+        tinyint 章节序号
+    }
+    课时 {
+        bigint 课时ID PK
+        bigint 章节ID FK
+        int 时长分钟
+        varchar 视频地址
+    }
+    选课记录 {
+        bigint 选课ID PK
+        bigint 学员ID FK
+        bigint 课程ID FK
+        tinyint 完成状态 "0学习中 1已结课"
+    }
+    学习进度 {
+        bigint 进度ID PK
+        bigint 选课ID FK
+        bigint 课时ID FK
+        int 已学秒数
+    }

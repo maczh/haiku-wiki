@@ -1,0 +1,45 @@
+---
+name: 供应链自动补货
+title: 供应链自动补货时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant P as 门店 POS
+    participant E as 补货引擎 replen-svc
+    participant I as 库存中心 inventory-svc
+    participant W as 仓储系统 WMS
+    participant V as 供应商 SRM
+    P->>E: 推送当日销售流水 单据 1286 笔
+    activate E
+    E->>I: GET /inventory/sku 查询可用库存与在途量
+    I-->>E: 返回可用 120 件 与安全库存 200 件
+    alt 可用库存高于安全库存
+        E-->>P: 返回无需补货并记录原因
+    else 库存低于安全库存
+        E->>E: 建议补货量 日均销量乘提前期减可用量 55 件
+        E->>I: POST /inventory/plan 创建补货计划单
+        deactivate E
+        I->>W: POST /wms/purchase 生成采购建议转采购单
+        W->>V: POST /srm/po/create 采购单 数量 55 件
+        V-->>W: 返回采购单确认 与交货周期 5 天
+        loop 每日 09:00 跟踪在途
+            W->>V: GET /srm/po/status 采购单号
+            alt 供应商延迟或短缺
+                V-->>W: 返回延期 3 天 或缺量 10 件
+                W->>E: 触发紧急补货与替代供应商评估
+                E-->>W: 返回调整建议 转调拨 10 件
+            else 正常发货
+                W->>W: 预约到货月台与收货质检 抽检 10
+                W->>I: POST /inventory/inbound 上架入库
+            end
+        end
+    end
+    par 门店调拨
+        E->>I: 查询相邻门店富余库存
+        E->>W: 创建调拨单并安排同城配送
+    and 报表同步
+        E->>P: 回传补货满足率与缺货率报表
+        P-->>E: 返回接收成功
+    end
+    Note over P,V: 补货计划每日 02:00 全量重算 支持人工锁定

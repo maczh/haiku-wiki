@@ -1,0 +1,45 @@
+---
+name: 直播送礼结算
+title: 直播送礼结算时序图
+category: 流程图模板·时序图
+---
+sequenceDiagram
+    autonumber
+    participant V as 观众端
+    participant G as 礼物服务 gift-svc
+    participant A as 账户服务 wallet-svc
+    participant K as 风控服务 risk-svc
+    participant S as 结算服务 settle-svc
+    V->>G: 点击发送礼物 礼物 ID 10086 数量 10
+    activate G
+    G->>A: GET /wallet/balance 查询钻石余额
+    alt 余额不足
+        G-->>V: 返回 402 余额不足 请充值
+    else 余额充足
+        G->>K: POST /risk/gift/check 携带 uid 与金额
+        G->>A: POST /wallet/debit 扣减 1000 钻石
+        G->>G: 生成礼物流水 gift_order_no 用于幂等
+        deactivate G
+        par 全服广播
+            G->>V: 广播礼物特效与连击数 10
+        and 榜单更新
+            G->>S: 投递贡献值变更 房间日榜与周榜
+        end
+        loop 每 5 秒合并结算一次
+            S->>S: 汇总本周期礼物流水 与平台分成 50
+            opt 金额达到提现门槛
+                S->>A: 发起打款 100000 钻石 代扣个税 20
+                A-->>S: 返回到账成功
+            end
+        end
+        opt 礼物发送失败
+            G->>A: 发起冲正 退回 1000 钻石
+            A-->>G: 返回冲正成功并提示已退款
+        end
+    end
+    par 对账核验
+        S->>A: 拉取当日钻石流水
+    and 反作弊
+        K->>S: 上报异常刷礼账号
+    end
+    Note over V,S: 礼物流水以 gift_order_no 幂等 连击 5 秒内合并广播

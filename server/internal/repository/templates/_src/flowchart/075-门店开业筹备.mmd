@@ -1,0 +1,33 @@
+---
+name: 门店开业筹备
+title: 门店开业筹备甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 城市旗舰店开业筹备排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 选址与签约
+    商圈调研与点位筛选   :done,  a1, 2026-09-10, 12d
+    租金谈判与合同签订   :done,  a2, after a1, 8d
+    门店证照办理         :        a3, after a2, 15d
+    签约完成             :milestone, m1, after a2, 0d
+    section 设计与装修
+    门店平面与动线设计   :done,  b1, after m1, 10d
+    装修施工图与报审     :        b2, after b1, 8d
+    现场施工与硬装       :crit,  b3, after b2, 25d
+    软装与灯光安装       :        b4, after b3, 8d
+    section 人员与培训
+    店长与店员招聘       :active, c1, after m1, 20d
+    产品知识培训         :        c2, after c1, 6d
+    服务礼仪与收银培训   :        c3, after c2, 5d
+    开业全流程演练       :        c4, after c3, 3d
+    section 货品与陈列
+    首批货品下单         :        d1, after m1, 10d
+    货品到仓与配送       :        d2, after d1, 12d
+    陈列上架与氛围布置   :        d3, after b4, 5d
+    section 开业
+    试营业               :active, e1, after d3, 5d
+    正式开业             :milestone, m2, after e1, 0d
+    开业营销活动         :        e2, after m2, 7d

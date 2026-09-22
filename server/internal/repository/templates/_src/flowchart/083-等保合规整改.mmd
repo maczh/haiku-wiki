@@ -1,0 +1,34 @@
+---
+name: 等保合规整改
+title: 等保合规整改甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 三级等保合规整改专项排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 定级备案
+    系统定级与专家评审   :done,  a1, 2026-09-10, 10d
+    公安备案受理         :done,  a2, after a1, 12d
+    备案证明取得         :milestone, m1, after a2, 0d
+    section 差距评估
+    资产与威胁梳理       :done,  b1, after m1, 8d
+    等级测评差距分析     :done,  b2, after b1, 10d
+    整改项清单确认       :milestone, m2, after b2, 0d
+    section 整改建设
+    网络边界加固         :active, crit, c1, after m2, 12d
+    主机与终端安全加固   :crit,  c2, after m2, 15d
+    应用安全漏洞修复     :crit,  c3, after c1, 18d
+    数据备份与加密改造   :        c4, after c1, 12d
+    安全管理制度编制     :        c5, after m2, 10d
+    section 测评准备
+    渗透测试与复测       :        d1, after c3, 8d
+    日志审计平台接入     :        d2, after c2, 10d
+    应急预案演练         :        d3, after c5, 5d
+    内部自查             :        d4, after d1, 5d
+    section 测评取证
+    第三方测评进场       :milestone, m3, after d4, 0d
+    现场测评配合         :        e1, after m3, 8d
+    不符合项闭环整改     :        e2, after e1, 12d
+    测评报告领取         :milestone, m4, after e2, 0d

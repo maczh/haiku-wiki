@@ -1,0 +1,57 @@
+---
+name: 物联网设备采集
+title: 物联网设备采集ER图
+category: 流程图模板·ER图
+---
+erDiagram
+    网关 ||--o{ 设备 : 接入
+    固件版本 ||--o{ 设备 : 运行
+    设备 ||--o{ 传感器 : 装配
+    传感器 ||--o{ 采集数据 : 上报
+    采集数据 }|--o{ 告警规则 : 命中
+    告警规则 ||--o{ 告警记录 : 触发
+    设备 ||--o{ 告警记录 : 产生
+    网关 {
+        bigint 网关ID PK
+        varchar 网关编号 UK "出厂序列号"
+        varchar 接入协议 "MQTT或Modbus"
+        tinyint 在线状态
+    }
+    设备 {
+        bigint 设备ID PK
+        bigint 网关ID FK
+        varchar 设备编码 UK "资产台账编号"
+        bigint 固件ID FK
+        datetime 最后心跳时间
+    }
+    传感器 {
+        bigint 传感器ID PK
+        bigint 设备ID FK
+        varchar 测点名称 "温度湿度振动"
+        varchar 计量单位
+        decimal 量程上限
+    }
+    采集数据 {
+        bigint 数据ID PK
+        bigint 传感器ID FK
+        decimal 采集数值
+        datetime 采集时间
+    }
+    告警规则 {
+        bigint 规则ID PK
+        varchar 规则名称
+        decimal 阈值上限
+        tinyint 告警级别 "1提示 3严重"
+    }
+    告警记录 {
+        bigint 告警ID PK
+        bigint 设备ID FK
+        bigint 规则ID FK
+        tinyint 处理状态 "0未处理 1已消除"
+    }
+    固件版本 {
+        bigint 固件ID PK
+        varchar 版本号 UK "如V2点3点1"
+        varchar 适用型号
+        datetime 发布时间
+    }

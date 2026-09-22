@@ -1,0 +1,34 @@
+---
+name: 医院新院区搬迁
+title: 医院新院区搬迁甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 市第一医院新院区搬迁排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    section 筹备规划
+    搬迁总体方案编制     :done,  a1, 2026-09-10, 12d
+    科室布局与流程确认   :done,  a2, after a1, 10d
+    搬迁风险评估与预案   :done,  a3, after a2, 8d
+    搬迁方案审定         :milestone, m1, after a3, 0d
+    section 设备与信息化
+    大型医疗设备搬迁     :active, crit, b1, after m1, 25d
+    新设备采购与安装     :crit,  b2, after m1, 30d
+    信息系统部署与切换   :crit,  b3, after m1, 20d
+    网络与机房建设       :        b4, after b3, 12d
+    设备调试与计量校验   :        b5, after b2, 10d
+    section 科室准备
+    门诊科室布置         :        c1, after b4, 15d
+    住院病区准备         :        c2, after b5, 18d
+    手术室与重症监护验收 :crit,  c3, after b5, 12d
+    药品与耗材调拨       :        c4, after c2, 8d
+    section 试运行
+    门诊试运行           :milestone, m2, after c1, 0d
+    急诊试运行           :crit,  d1, after c3, 7d
+    住院试运行           :        d2, after c4, 7d
+    问题整改与复验       :        d3, after d2, 8d
+    section 正式搬迁
+    老院区停诊公告       :        e1, after d3, 5d
+    正式开诊             :milestone, m3, after e1, 0d
+    搬迁后运营保障       :        e2, after m3, 20d

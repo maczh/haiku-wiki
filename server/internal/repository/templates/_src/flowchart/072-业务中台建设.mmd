@@ -1,0 +1,32 @@
+---
+name: 业务中台建设
+title: 业务中台建设甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 集团业务中台建设排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 规划与选型
+    存量系统盘点         :done,  a1, 2026-09-10, 10d
+    中台架构方案设计     :done,  a2, after a1, 12d
+    技术选型评审通过     :milestone, m1, after a2, 0d
+    section 基础能力
+    统一网关建设         :done,  b1, after m1, 15d
+    服务注册与配置中心   :        b2, after m1, 12d
+    统一认证与权限中心   :        b3, after b1, 14d
+    消息队列与事件总线   :        b4, after b2, 10d
+    section 业务中台
+    用户中心服务         :active, crit, c1, after b3, 18d
+    订单中心服务         :crit,  c2, after b3, 20d
+    商品中心服务         :        c3, after b4, 16d
+    库存中心服务         :        c4, after c1, 12d
+    section 试点接入
+    试点业务系统改造     :        d1, after c2, 15d
+    双轨运行验证         :        d2, after c4, 10d
+    试点验收             :milestone, m2, after d2, 0d
+    section 推广治理
+    全量业务接入         :        e1, after m2, 20d
+    中台治理规范落地     :        e2, after e1, 8d
+    建设成果评审         :milestone, m3, after e2, 0d

@@ -1,0 +1,34 @@
+---
+name: 新品研发NPI
+title: 新品研发NPI甘特图
+category: 流程图模板·甘特图
+---
+gantt
+    title 智能穿戴新品导入排期
+    dateFormat YYYY-MM-DD
+    axisFormat %m-%d
+    excludes weekends
+    section 概念阶段
+    市场需求与产品定位   :done,  a1, 2026-09-10, 10d
+    技术可行性评估       :done,  a2, after a1, 8d
+    概念评审通过         :milestone, m1, after a2, 0d
+    section 设计阶段
+    外观造型设计         :done,  b1, after m1, 15d
+    硬件原理图设计       :        b2, after m1, 20d
+    电路板布线与投板     :        b3, after b2, 12d
+    结构设计             :        b4, after b1, 15d
+    设计冻结             :milestone, m2, after b4, 0d
+    section 工程验证
+    首版贴片加工         :active, crit, c1, after b3, 8d
+    工程验证测试         :crit,  c2, after c1, 10d
+    结构可靠性测试       :        c3, after m2, 12d
+    固件与软件联调       :        c4, after c2, 15d
+    section 试产阶段
+    模具开发与试模       :        d1, after m2, 25d
+    设计验证测试         :        d2, after c4, 12d
+    小批量试产           :        d3, after d1, 10d
+    认证与合规测试       :        d4, after d2, 15d
+    section 量产
+    量产评审             :milestone, m3, after d4, 0d
+    产线导入与爬坡       :        e1, after m3, 20d
+    首批出货             :milestone, m4, after e1, 0d

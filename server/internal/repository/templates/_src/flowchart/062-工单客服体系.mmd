@@ -1,0 +1,54 @@
+---
+name: 工单客服体系
+title: 工单客服体系类图
+category: 流程图模板·类图
+---
+classDiagram
+    class 时效策略 {
+        <<接口>>
+        +响应时限(优先级 String) Integer
+        +是否超时(创建时间 LocalDateTime) Boolean
+    }
+    class 工单主体 {
+        <<抽象类>>
+        #String 主体编号
+        #String 主体名称
+        #String 归属组织
+        #停用() Boolean
+        #合并() Boolean
+    }
+    class 工单 {
+        +String 工单标题
+        +String 问题描述
+        +String 优先级
+        +创建() String
+        +指派() Boolean
+        +关闭() Boolean
+    }
+    class 客服人员 {
+        +Long 客服工号
+        +String 技能组
+        +Integer 在线状态
+        +接单() Boolean
+        +转交() Boolean
+    }
+    class 普通时效 {
+        +Integer 响应分钟
+        +Integer 解决小时
+        +Integer 升级层级
+        +响应时限() Integer
+        +是否超时() Boolean
+    }
+    class 工单状态 {
+        <<枚举>>
+        待受理
+        处理中
+        待回复
+        已关闭
+    }
+    工单主体 <|-- 工单 : 继承
+    普通时效 ..|> 时效策略 : 实现
+    客服人员 "1" o-- "*" 工单 : 聚合
+    工单 "1" *-- "1" 普通时效 : 组合
+    工单 "1" --> "1" 工单状态 : 状态
+    工单 "1" --> "1" 客服人员 : 受理
