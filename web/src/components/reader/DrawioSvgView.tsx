@@ -6,9 +6,12 @@ import {
   ZoomOutOutlined,
   ColumnWidthOutlined,
   RedoOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from '@ant-design/icons'
 import DOMPurify from 'dompurify'
 import { decodeSvgDataUri, isUsableSvg } from '../../lib/drawioDoc'
+import { readSvgSize } from '../../lib/svgSize'
 import LazyBoundary from '../common/LazyBoundary'
 
 interface Props {
@@ -34,8 +37,27 @@ const MAX_SCALE = 5
  */
 export default function DrawioSvgView({ svg }: Props) {
   const boxRef = useRef<HTMLDivElement>(null)
+  /** 全屏容器（组件根节点：工具条 + 画布一起进入全屏） */
+  const rootRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [fit, setFit] = useState(true)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // 全屏状态跟随（Esc / 系统手势退出时同步图标）
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await rootRef.current?.requestFullscreen()
+    } catch {
+      /* 用户拒绝或环境不支持：静默忽略 */
+    }
+  }, [])
 
   // 清洗：只保留 SVG 画像允许的标签与属性（兼容 draw.io 返回的 data URI）
   const clean = useMemo(() => {
@@ -99,7 +121,7 @@ export default function DrawioSvgView({ svg }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 320 }}>
+    <div ref={rootRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 320, background: '#fff' }}>
       {/* 缩放工具条 */}
       <div
         style={{
@@ -146,7 +168,15 @@ export default function DrawioSvgView({ svg }: Props) {
               原始尺寸
             </Button>
           </Tooltip>
+          <Tooltip title={fullscreen ? '退出全屏（Esc）' : '全屏'}>
+            <Button
+              size="small"
+              icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={() => void toggleFullscreen()}
+            />
+          </Tooltip>
         </Space>
+        <div style={{ flex: 1 }} />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           矢量预览 · {Math.round(natural.w)}×{Math.round(natural.h)}
         </Typography.Text>
@@ -187,26 +217,4 @@ function bump(
 function clamp(v: number): number {
   if (!Number.isFinite(v)) return 1
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, v))
-}
-
-/**
- * 读取 SVG 的固有尺寸。
- * 解析失败（脏数据）时给一个安全的默认视口，避免 0 尺寸导致图形不可见。
- */
-function readSvgSize(svg: string): { w: number; h: number } {
-  const fallback = { w: 800, h: 600 }
-  if (!svg) return fallback
-  try {
-    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
-    const root = doc.documentElement
-    if (!root || root.nodeName === 'parsererror' || root.nodeName.toLowerCase() !== 'svg') return fallback
-    const vb = (root.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number)
-    let w = parseFloat(root.getAttribute('width') || '')
-    let h = parseFloat(root.getAttribute('height') || '')
-    if (!Number.isFinite(w) || w <= 0) w = vb.length === 4 && Number.isFinite(vb[2]) ? vb[2] : fallback.w
-    if (!Number.isFinite(h) || h <= 0) h = vb.length === 4 && Number.isFinite(vb[3]) ? vb[3] : fallback.h
-    return { w: Math.max(1, w), h: Math.max(1, h) }
-  } catch {
-    return fallback
-  }
 }

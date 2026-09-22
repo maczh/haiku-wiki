@@ -7,6 +7,8 @@ import {
   HistoryOutlined,
   SaveOutlined,
   AppstoreAddOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from '@ant-design/icons'
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types'
 import { Excalidraw } from '@excalidraw/excalidraw'
@@ -76,11 +78,30 @@ export default function WhiteboardEditor({ docId, initialContent, title }: Props
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const libFileRef = useRef<HTMLInputElement>(null)
   const sceneFileRef = useRef<HTMLInputElement>(null)
+  /** 全屏目标：画布容器（工具条留在窗口外，画布铺满整个屏幕） */
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const [status, setStatus] = useState<SaveStatus>('saved')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
   const [busy, setBusy] = useState('')
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // 全屏状态跟随（Esc / 系统手势退出时同步按钮图标）
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === canvasRef.current)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await canvasRef.current?.requestFullscreen()
+    } catch {
+      /* 用户拒绝或环境不支持：静默忽略 */
+    }
+  }, [])
 
   const handleInit = useCallback(
     (api: ExcalidrawImperativeAPI) => {
@@ -378,6 +399,15 @@ export default function WhiteboardEditor({ docId, initialContent, title }: Props
         <Button size="small" icon={<HistoryOutlined />} onClick={() => setVersionOpen(true)}>
           历史
         </Button>
+        <Tooltip title={fullscreen ? '退出全屏（Esc）' : '全屏绘制'}>
+          <Button
+            size="small"
+            icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+            onClick={() => void toggleFullscreen()}
+          >
+            {fullscreen ? '退出全屏' : '全屏'}
+          </Button>
+        </Tooltip>
         <div style={{ flex: 1 }} />
         <SaveIndicator status={status} savedAt={savedAt} />
       </div>
@@ -405,8 +435,8 @@ export default function WhiteboardEditor({ docId, initialContent, title }: Props
         }}
       />
 
-      {/* 画布：height:100% 依赖父级链路上的确定高度（与 DrawioEditor 同） */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fff' }}>
+      {/* 画布：height:100% 依赖父级链路上的确定高度（与 DrawioEditor 同）；全屏时铺满整个屏幕 */}
+      <div ref={canvasRef} style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fff' }}>
         {busy && (
           <div
             style={{

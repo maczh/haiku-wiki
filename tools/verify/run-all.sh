@@ -42,6 +42,7 @@ DEFAULT_SUITES=(
   api-refresh-check
   e2e-editor-menus
   whiteboard-check
+  preview-zoom-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -70,6 +71,7 @@ declare -A PORT_OF=(
   [api-refresh-check]=8101
   [e2e-editor-menus]=8192
   [whiteboard-check]=8109
+  [preview-zoom-check]=8111
   [template-check]=0
   [sim-docker-web]=0
 )
