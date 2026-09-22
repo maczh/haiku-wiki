@@ -13,6 +13,7 @@ import type { DocDetail, DocNode, ShareInfo } from '../types'
 const MarkdownView = lazy(() => import('../components/reader/MarkdownView'))
 const FileView = lazy(() => import('../components/reader/FileView'))
 const DrawioView = lazy(() => import('../components/reader/DrawioView'))
+const WhiteboardView = lazy(() => import('../components/reader/WhiteboardView'))
 const GanttView = lazy(() => import('../components/reader/GanttView'))
 
 /**
@@ -184,6 +185,9 @@ export default function SharePage() {
                   <FileView content={doc.content} />
                 ) : doc.doc_type === 'drawing' ? (
                   <DrawioView content={doc.content} />
+                ) : doc.doc_type === 'whiteboard' ? (
+                  // 白板：只渲染保存时的 SVG 预览（分享页访客无需加载 Excalidraw）
+                  <WhiteboardView content={doc.content} showEditHint={false} />
                 ) : doc.doc_type === 'gantt' ? (
                   // 公开分享不传 docId：甘特图按完全只读渲染
                   <GanttView content={doc.content} />

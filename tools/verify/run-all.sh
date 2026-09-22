@@ -40,6 +40,7 @@ DEFAULT_SUITES=(
   comment-api-check
   api-refresh-check
   e2e-editor-menus
+  whiteboard-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -67,6 +68,7 @@ declare -A PORT_OF=(
   [comment-api-check]=8100
   [api-refresh-check]=8101
   [e2e-editor-menus]=8192
+  [whiteboard-check]=8109
   [sim-docker-web]=0
 )
 

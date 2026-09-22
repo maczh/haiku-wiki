@@ -80,6 +80,15 @@ export default function ExportDialog({
    */
   const isDrawing = !isBook && meta?.doc_type === 'drawing'
   const serverFormats = isDrawing ? allFormats.filter((f) => f.value === 'drawio') : allFormats
+  /**
+   * 白板文档（doc_type=whiteboard）：服务端能独立完成的是 .excalidraw / .svg
+   * （正文保存时已同步生成 SVG 预览）；.png / .pdf 由下方浏览器端格式提供
+   * （Excalidraw 渲染内核仅在浏览器侧），这里把服务端清单里的同名项滤掉防重复。
+   */
+  const isWhiteboard = !isBook && meta?.doc_type === 'whiteboard'
+  const serverFormats2 = isWhiteboard
+    ? serverFormats.filter((f) => f.value === 'excalidraw' || f.value === 'svg')
+    : serverFormats
 
   const fileExt = extOf(meta?.filename ?? '')
   const docType: DocType = (meta?.doc_type ?? target?.docType ?? 'markdown') as DocType
@@ -93,7 +102,7 @@ export default function ExportDialog({
       }))
 
   const options: Option[] = [
-    ...serverFormats.map((f) => ({ value: f.value, label: f.label, ext: f.ext })),
+    ...serverFormats2.map((f) => ({ value: f.value, label: f.label, ext: f.ext })),
     ...clientOpts,
   ]
   /** 有得选才展示单选列表：普通附件只有「原文件」一种，不需要 */

@@ -47,6 +47,7 @@ export const IMPORT_FORMATS: ImportFormatSpec[] = [
   spec('pptx', 'PPT（.pptx）', ['pptx']),
   spec('dwg', 'AutoCAD（.dwg/.dxf）', ['dwg', 'dxf']),
   spec('drawio', 'draw.io 绘图（.drawio）', ['drawio']),
+  spec('whiteboard', 'Excalidraw 白板（.excalidraw）', ['excalidraw']),
   spec('vsdx', 'Visio（.vsd/.vsdx）', ['vsd', 'vsdx']),
   spec('wps', 'WPS（.wps/.dps）', ['wps', 'dps']),
 ]

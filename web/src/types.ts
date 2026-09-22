@@ -233,6 +233,7 @@ export type DocType =
   | 'mindmap'
   | 'flowchart'
   | 'drawing'
+  | 'whiteboard'
   | 'todo'
   | 'calendar'
   | 'gantt'
@@ -252,6 +253,7 @@ export const DOC_TYPES: DocType[] = [
   'mindmap',
   'flowchart',
   'drawing',
+  'whiteboard',
   'todo',
   'calendar',
   'gantt',
@@ -266,6 +268,7 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   mindmap: '思维导图',
   flowchart: '流程图',
   drawing: '绘图',
+  whiteboard: '白板',
   todo: '待办清单',
   calendar: '工作日历',
   gantt: '甘特图',

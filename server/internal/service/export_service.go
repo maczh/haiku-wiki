@@ -335,11 +335,18 @@ func (s *ExportService) BookZip(uid, bookID uint64) (string, []byte, error) {
 		}
 		// 附件型文档：原样打包上传的原文件，保留原扩展名
 		// 绘图文档：正文即 mxGraph XML，落成 .drawio 文件
+		// 白板文档：正文场景三件套装回官方壳，落成 .excalidraw 文件
 		ext := ".md"
 		data := []byte(full.Content)
 		switch exportx.NormalizeDocType(d.DocType) {
 		case "drawing":
 			ext = ".drawio"
+		case "whiteboard":
+			ext = ".excalidraw"
+			// 转换失败（空场景/脏数据）时退回原正文，至少不丢内容
+			if b, err := exportx.BuildExcalidrawFile(full.Content); err == nil {
+				data = b
+			}
 		case "file":
 			ref := exportx.ParseFileRef(full.Content)
 			if ref == nil {

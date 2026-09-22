@@ -14,7 +14,7 @@ import { htmlToPdf, printHtml } from './pdf'
 import { contentToHtml, docxUrlToHtml } from './html'
 
 /** 浏览器端可生成的格式 */
-export type ClientFormat = 'docx' | 'pptx' | 'ppts' | 'pdf'
+export type ClientFormat = 'docx' | 'pptx' | 'ppts' | 'pdf' | 'png'
 
 export interface ClientExportInput {
   docType: DocType
@@ -39,6 +39,7 @@ export const CLIENT_FORMAT_EXT: Record<ClientFormat, string> = {
   pptx: 'pptx',
   ppts: 'ppts',
   pdf: 'pdf',
+  png: 'png',
 }
 
 /** 文件名（去掉非法字符） */
@@ -94,8 +95,19 @@ export async function exportClientDoc(format: ClientFormat, input: ClientExportI
       if (input.docType === 'file' && input.fileExt === 'pptx' && input.fileUrl) {
         return { blob: await pptxAttachmentToPdf(input.fileUrl, input.title), ext: 'pdf' }
       }
+      // 白板：PDF = 场景位图落 A4 横向（走 Excalidraw 导出器，不走正文 HTML 化）
+      if (input.docType === 'whiteboard') {
+        return { blob: await whiteboardPdfBlob(input.content), ext: 'pdf' }
+      }
       const html = await htmlOf(input)
       return { blob: await htmlToPdf(html, input.title), ext: 'pdf' }
+    }
+    case 'png': {
+      // 目前仅白板提供浏览器端 PNG（场景 → 位图，与编辑器内导出同一套实现）
+      if (input.docType === 'whiteboard') {
+        return { blob: await whiteboardPngBlob(input.content), ext: 'png' }
+      }
+      throw new Error('该文档类型暂不支持浏览器端导出 PNG')
     }
     default:
       throw new Error(`不支持的浏览器端导出格式：${format}`)
@@ -127,6 +139,30 @@ async function fetchBlob(url: string): Promise<Blob> {
   return await resp.blob()
 }
 
+/** 白板正文 → 场景三件套（导出 png/pdf 前置）；空场景给出可读错误 */
+async function whiteboardSceneOf(content: string): Promise<{
+  elements: unknown[]
+  appState: Record<string, unknown> | null
+  files: Record<string, unknown>
+}> {
+  const { parseWhiteboardContent } = await import('../whiteboardDoc')
+  const s = parseWhiteboardContent(content ?? '')
+  if (s.elements.length === 0) throw new Error('白板内容为空，无法导出')
+  return s
+}
+
+async function whiteboardPngBlob(content: string): Promise<Blob> {
+  const s = await whiteboardSceneOf(content)
+  const { exportWhiteboardPngBlob } = await import('../whiteboardExport')
+  return exportWhiteboardPngBlob(s.elements, s.appState, s.files)
+}
+
+async function whiteboardPdfBlob(content: string): Promise<Blob> {
+  const s = await whiteboardSceneOf(content)
+  const { exportWhiteboardPdfBlob } = await import('../whiteboardExport')
+  return exportWhiteboardPdfBlob(s.elements, s.appState, s.files)
+}
+
 /** 该文档类型在浏览器端额外提供的格式（与服务端格式清单合并展示） */
 export function clientFormatsFor(docType: DocType, fileExt?: string): { value: ClientFormat; label: string }[] {
   if (docType === 'file') {
@@ -147,6 +183,14 @@ export function clientFormatsFor(docType: DocType, fileExt?: string): { value: C
     return []
   }
   if (docType === 'drawing') return [] // 绘图由编辑器内 draw.io 导出
+  if (docType === 'whiteboard') {
+    // 白板：excalidraw/svg 由服务端转换（正文自带场景与 SVG 预览）；
+    // png/pdf 需要 Excalidraw 渲染器（仅存在于浏览器侧），在此提供
+    return [
+      { value: 'png', label: '图片（.png）· 浏览器生成' },
+      { value: 'pdf', label: 'PDF 文档（.pdf）· 浏览器生成' },
+    ]
+  }
   return [
     { value: 'docx', label: 'Word 文档（.docx）· 浏览器生成' },
     { value: 'pptx', label: 'PowerPoint（.pptx）· 浏览器生成' },

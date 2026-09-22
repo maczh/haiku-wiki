@@ -259,7 +259,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         <p className="ant-upload-text">点击或拖拽文件到此处</p>
         <p className="ant-upload-hint">
           支持 .md / .txt / .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .drawio / .vsd / .vsdx /
-          .dwg / .dxf / .et，可多选批量导入
+          .dwg / .dxf / .et / .excalidraw，可多选批量导入
         </p>
       </Upload.Dragger>
 
@@ -267,6 +267,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         · <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
         <br />· <b>.dwg / .dxf</b>：保留原图，后端自动转换为 .svg + .png，前端可缩放拖动并导出
         <br />· <b>.drawio</b>：建为「绘图」文档，内嵌 draw.io 组件直接编辑
+        <br />· <b>.excalidraw</b>：建为「白板」文档，内嵌 Excalidraw 组件直接编辑
         <br />· <b>.vsd / .vsdx</b>：保留源文件，阅读页由绘图组件转换预览，可另存为可编辑的绘图文档
         <br />· <b>.xlsx</b>：转为「表格」，每个有内容的工作表存为一个「表格」子文档
       </Typography.Paragraph>

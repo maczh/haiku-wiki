@@ -75,6 +75,15 @@ var formatsByDocType = map[string][]FormatSpec{
 		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
 		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
 	},
+	// whiteboard：内嵌 Excalidraw 的白板文档。正文 = {version,elements,appState,files,svg}，
+	// excalidraw/svg 由服务端从正文直接转换（保存时已同步生成 SVG 预览）；
+	// png/pdf 需要 Excalidraw 渲染内核（仅浏览器侧存在），由前端生成 —— 见 Convert 分支说明。
+	"whiteboard": {
+		{Value: "excalidraw", Label: "Excalidraw 白板文件（.excalidraw）", Ext: "excalidraw", MIME: "application/json; charset=utf-8"},
+		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
+		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
+		{Value: "pdf", Label: "PDF 文档（.pdf）", Ext: "pdf", MIME: "application/pdf"},
+	},
 }
 
 // attachmentFormatsByExt 附件型文档（doc_type=file）按扩展名可额外导出的派生格式。
@@ -118,6 +127,8 @@ func NormalizeDocType(docType string) string {
 		return "flowchart"
 	case "drawing", "drawio":
 		return "drawing"
+	case "whiteboard", "excalidraw", "wb":
+		return "whiteboard"
 	case "todo", "todolist":
 		return "todo"
 	case "calendar", "workcalendar":
@@ -303,6 +314,19 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 		case "json":
 			return []byte(content), spec, nil
 		}
+	case "whiteboard":
+		// excalidraw：正文里的场景三件套重装官方壳即是 .excalidraw 文件；
+		// svg：直接取保存时生成的预览。png/pdf 需要 Excalidraw 渲染内核，
+		// 只在浏览器侧存在，由前端生成（编辑器工具条 / 导出对话框），这里给出可读指引。
+		switch spec.Value {
+		case "excalidraw":
+			data, err := BuildExcalidrawFile(content)
+			return data, spec, err
+		case "svg":
+			data, err := BuildWhiteboardSVG(content)
+			return data, spec, err
+		}
+		return nil, spec, fmt.Errorf("%s 需要在白板编辑器或导出对话框中生成（Excalidraw 渲染器仅存在于浏览器侧）", spec.Value)
 	}
 	return nil, spec, fmt.Errorf("暂不支持导出为 %s", spec.Value)
 }

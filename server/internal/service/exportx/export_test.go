@@ -118,12 +118,13 @@ func TestGenerateSamples(t *testing.T) {
 
 func TestFormatsForDocType(t *testing.T) {
 	want := map[string][]string{
-		"markdown":  {"md", "docx", "pdf"},
-		"sheet":     {"xlsx", "csv", "json"},
-		"mindmap":   {"km", "smm", "xmind", "mm", "md", "json", "png"},
-		"flowchart": {"md", "svg", "png"},
-		"todo":      {"xlsx", "md", "json"},
-		"calendar":  {"xlsx", "ics", "json"},
+		"markdown":   {"md", "docx", "pdf"},
+		"sheet":      {"xlsx", "csv", "json"},
+		"mindmap":    {"km", "smm", "xmind", "mm", "md", "json", "png"},
+		"flowchart":  {"md", "svg", "png"},
+		"todo":       {"xlsx", "md", "json"},
+		"calendar":   {"xlsx", "ics", "json"},
+		"whiteboard": {"excalidraw", "svg", "png", "pdf"},
 	}
 	for docType, exts := range want {
 		got := FormatsForDocType(docType)
@@ -461,18 +462,20 @@ func TestParseFileRef(t *testing.T) {
 
 func TestNormalizeDocType(t *testing.T) {
 	cases := map[string]string{
-		"":          "markdown",
-		"markdown":  "markdown",
-		"datatable": "sheet",
-		"sheet":     "sheet",
-		"Mindmap":   "mindmap",
-		"flowchart": "flowchart",
-		"todo":      "todo",
-		"todolist":  "todo",
-		"calendar":  "calendar",
-		"file":      "file",
-		"folder":    "folder",
-		"unknown":   "markdown",
+		"":           "markdown",
+		"markdown":   "markdown",
+		"datatable":  "sheet",
+		"sheet":      "sheet",
+		"Mindmap":    "mindmap",
+		"flowchart":  "flowchart",
+		"todo":       "todo",
+		"todolist":   "todo",
+		"calendar":   "calendar",
+		"whiteboard": "whiteboard",
+		"excalidraw": "whiteboard",
+		"file":       "file",
+		"folder":     "folder",
+		"unknown":    "markdown",
 	}
 	for in, want := range cases {
 		if got := NormalizeDocType(in); got != want {

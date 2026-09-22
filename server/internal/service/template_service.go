@@ -55,7 +55,7 @@ func (s *TemplateService) ListTemplates(category, docType string, builtin *bool)
 // savableTemplateDocTypes 「另存为模板」允许的文档类型。
 var savableTemplateDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
-	"drawing": true, "todo": true, "calendar": true, "gantt": true,
+	"drawing": true, "whiteboard": true, "todo": true, "calendar": true, "gantt": true,
 	"api": true, "gallery": true, "prototype": true,
 }
 

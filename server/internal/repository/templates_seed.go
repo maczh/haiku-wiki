@@ -29,7 +29,7 @@ var builtinTemplateFS embed.FS
 
 // validTemplateDocTypes 模板允许的文档类型（创建文档时按类型分发编辑器，必须与正文契约一致）。
 var validTemplateDocTypes = map[string]bool{
-	"markdown": true, "sheet": true, "mindmap": true, "gantt": true,
+	"markdown": true, "sheet": true, "mindmap": true, "gantt": true, "whiteboard": true,
 }
 
 // TemplateFile 单个模板数据文件的结构。

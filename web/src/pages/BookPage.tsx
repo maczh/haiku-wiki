@@ -54,6 +54,7 @@ const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
+const WhiteboardEditor = lazy(() => import('../components/editor/WhiteboardEditor'))
 const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
 const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
 const GanttEditor = lazy(() => import('../components/editor/GanttEditor'))
@@ -1172,6 +1173,9 @@ export default function BookPage() {
                         )}
                         {doc.doc_type === 'drawing' && (
                           <DrawioEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                        )}
+                        {doc.doc_type === 'whiteboard' && (
+                          <WhiteboardEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {doc.doc_type === 'todo' && (
                           <TodoEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />

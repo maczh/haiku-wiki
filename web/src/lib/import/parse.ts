@@ -30,6 +30,7 @@ import {
   type LuckysheetSheet,
 } from '../sheet'
 import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
+import { excalidrawFileToContent } from '../whiteboardDoc'
 
 /** 子文档（多文档导入产物，如 xlsx 的多工作表） */
 export interface ImportChild {
@@ -148,6 +149,27 @@ const parseDrawio: Parser = async (file) => {
     }
   }
   return { ok: true, title: baseName(file.name), docType: 'drawing', content: raw }
+}
+
+// ---------- excalidraw（白板文档：剥壳存场景 JSON） ----------
+
+const parseExcalidraw: Parser = async (file) => {
+  const raw = await file.text()
+  const title = baseName(file.name)
+  if (!raw.trim()) {
+    return { ok: false, title, docType: 'whiteboard', content: '', reason: '白板文件为空' }
+  }
+  const content = excalidrawFileToContent(raw)
+  if (!content) {
+    return {
+      ok: false,
+      title,
+      docType: 'whiteboard',
+      content: '',
+      reason: '不是有效的 .excalidraw 文件（应为 Excalidraw 场景 JSON）',
+    }
+  }
+  return { ok: true, title, docType: 'whiteboard', content }
 }
 
 // ---------- xlsx / xls / csv / et：每个有内容的工作表 → 一个「表格」 ----------
@@ -302,6 +324,7 @@ export const parserRegistry: Record<string, Parser> = {
   dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
   dxf: parseAttachment,
   drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存
+  excalidraw: parseExcalidraw, // 白板文档：剥壳存场景 JSON，编辑态可继续绘制
   smm: parseMindmapFile, // 思维导图：四种外部格式统一转成内置 smm
   km: parseMindmapFile,
   xmind: parseMindmapFile,

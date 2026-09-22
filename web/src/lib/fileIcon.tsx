@@ -24,6 +24,7 @@ import {
   FileZipOutlined,
   FolderOutlined,
   GlobalOutlined,
+  HighlightOutlined,
   NodeIndexOutlined,
   PaperClipOutlined,
   PartitionOutlined,
@@ -159,6 +160,8 @@ export function iconForDocType(docType: DocType, name?: string): IconSpec {
       return { icon: <PartitionOutlined />, color: '#fa8c16' }
     case 'drawing':
       return { icon: <DeploymentUnitOutlined />, color: '#eb2f96' }
+    case 'whiteboard':
+      return { icon: <HighlightOutlined />, color: '#2f54eb' }
     case 'todo':
       return { icon: <CheckSquareOutlined />, color: '#52c41a' }
     case 'calendar':

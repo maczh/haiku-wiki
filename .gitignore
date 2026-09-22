@@ -9,6 +9,8 @@ web/public/vditor/
 # 两者都可在 `npm run fetch:drawio`（或 npm run dev/build 的前置脚本）中自动重建。
 web/vendor/drawio/
 web/public/drawio/
+# Excalidraw 自托管字体/语言包（由 web/scripts/copy-excalidraw-assets.mjs 同步，勿手动提交）
+web/public/excalidraw/
 # 嵌入用的前端产物（由 web/dist 拷贝进来，见 Dockerfile；保留占位文件 .gitkeep）
 server/internal/static/dist/*
 !server/internal/static/dist/.gitkeep

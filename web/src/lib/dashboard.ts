@@ -137,6 +137,7 @@ export const DOC_TYPE_DEFAULT_TITLE: Record<string, string> = {
   mindmap: '未命名思维导图',
   flowchart: '未命名流程图',
   drawing: '未命名绘图',
+  whiteboard: '未命名白板',
   todo: '未命名待办清单',
   calendar: '未命名工作日历',
   gantt: '未命名甘特图',

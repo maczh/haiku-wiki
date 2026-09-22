@@ -13,6 +13,7 @@ const MindmapView = lazy(() => import('./MindmapView'))
 const FlowchartView = lazy(() => import('./FlowchartView'))
 const FileView = lazy(() => import('./FileView'))
 const DrawioView = lazy(() => import('./DrawioView'))
+const WhiteboardView = lazy(() => import('./WhiteboardView'))
 const TodoView = lazy(() => import('./TodoView'))
 const CalendarView = lazy(() => import('./CalendarView'))
 const GanttView = lazy(() => import('./GanttView'))
@@ -44,6 +45,7 @@ const TIP: Record<string, string> = {
   mindmap: '正在加载思维导图画布…',
   flowchart: '正在加载流程图渲染器…',
   drawing: '正在加载绘图…',
+  whiteboard: '正在加载白板…',
   todo: '正在加载待办清单…',
   calendar: '正在加载工作日历…',
   gantt: '正在加载甘特图…',
@@ -103,6 +105,13 @@ export default function DocContent({
     body = (
       <LazyBoundary tip={TIP.drawing}>
         <DrawioView content={content} />
+      </LazyBoundary>
+    )
+  } else if (docType === 'whiteboard') {
+    // 白板：阅读页只渲染保存时生成的 SVG 预览，不加载 Excalidraw 编辑组件
+    body = (
+      <LazyBoundary tip={TIP.whiteboard}>
+        <WhiteboardView content={content} />
       </LazyBoundary>
     )
   } else if (docType === 'todo') {
