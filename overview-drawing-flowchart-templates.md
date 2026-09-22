@@ -56,4 +56,4 @@
 
 - 前端**未改动**（无 `web/src` 变更），因此无需重新构建 dist。
 - `go test ./...` 全量跑时 `internal/service` 包会在 `TestReferenceMetaL2RederivesWhenDerivedFileMissing` 处触发 11 分钟超时（413 passed / 0 failed）；该用例单独跑 0.14s 通过，属本环境既有偶发卡顿，与本次改动无关（改动仅在 `internal/repository`）。
-- 改动尚未提交，`git status --short` 已逐行核对：无大文件、无构建产物、无 `node_modules`。
+- 改动已提交：**`50f34c4`**（231 个文件，+24371 / −554）。提交前 `git status --short` 已逐行核对：无大文件、无构建产物、无 `node_modules`；`.git` 仅从 36M 增至 40M。
