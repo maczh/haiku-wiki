@@ -191,8 +191,8 @@ export default function DocContent({
   // 甘特图要横向铺满；网页 iframe 同样需要整幅宽度（原型页常按固定画布宽度设计）；
   // 图片库/需求原型的网格在窄栏下也会被压得没法看；接口文档是「左侧接口树 + 右侧调试」双面板布局，
   // 需要占满整幅宽度、且不受阅读宽度调节器约束（见 ApiEditor 自身拖拽调宽）；
-  // 流程图（mermaid）大图（时序/甘特/长流程）在阅读宽度栏里被压得过小，同样通栏铺满，
-  // 图形大小交给 FlowchartView 自带的缩放工具条控制。
+  // 流程图（mermaid）借用 Markdown 阅读组件渲染，大图（时序/甘特/长流程）在窄阅读栏里会被压得过小，
+  // 同样通栏铺满，图形按容器实际宽度自然铺开（不再套阅读宽度调节器）。
   const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype' || docType === 'api' || docType === 'flowchart'
   // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'

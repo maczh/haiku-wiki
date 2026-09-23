@@ -55,6 +55,7 @@ RUN apk add --no-cache build-base curl pkgconf libtool bash perl \
 FROM node:22-alpine AS web-builder
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm install --no-audit --no-fund
 COPY web/ ./
 # prebuild 会同步 Vditor 与 draw.io 两套自托管静态资源：

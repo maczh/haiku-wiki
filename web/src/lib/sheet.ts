@@ -80,7 +80,7 @@ export function emptySheet(name = 'Sheet1', index = 0): LuckysheetSheet {
 export const DEFAULT_SHEET: SheetJSON = { version: SHEET_VERSION, sheets: [emptySheet()] }
 
 /** 单元格富值里取可展示的文本（m 优先，其次 v，再退字符串化） */
-function textOfValue(v: LuckysheetCellValue): string {
+export function textOfValue(v: LuckysheetCellValue): string {
   if (v == null) return ''
   if (typeof v === 'object') {
     const o = v as { m?: unknown; v?: unknown }

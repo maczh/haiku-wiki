@@ -33,6 +33,11 @@ export default function FlowchartEditor({ docId, initialContent, title }: Props)
   const lastGoodRef = useRef(initialContent || DEFAULT_FLOWCHART)
   const [previewSrc, setPreviewSrc] = useState(initialContent || DEFAULT_FLOWCHART)
 
+  // 左右面板分隔可拖动：左面板宽度百分比（默认 42%）
+  const [leftPct, setLeftPct] = useState(42)
+  const splitRef = useRef<HTMLDivElement>(null)
+  const dragHandlers = useRef<{ move?: (e: MouseEvent) => void; up?: () => void }>({})
+
   // 初始实时渲染一次
   useEffect(() => {
     renderFlowchart(latestRef.current).then((res) => {
@@ -58,6 +63,42 @@ export default function FlowchartEditor({ docId, initialContent, title }: Props)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [docId],
+  )
+
+  // 拖动分隔条：按指针相对容器的横向位置实时计算左面板百分比，范围 [20%, 80%]
+  function startDrag(e: React.MouseEvent) {
+    e.preventDefault()
+    const container = splitRef.current
+    if (!container) return
+    const onMove = (ev: MouseEvent) => {
+      const rect = container.getBoundingClientRect()
+      if (rect.width <= 0) return
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100
+      setLeftPct(Math.min(80, Math.max(20, pct)))
+    }
+    const onUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    dragHandlers.current = { move: onMove, up: onUp }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // 组件卸载时若仍挂在拖动监听上，确保清理，避免监听器泄漏
+  useEffect(
+    () => () => {
+      const h = dragHandlers.current
+      if (h.move) window.removeEventListener('mousemove', h.move)
+      if (h.up) window.removeEventListener('mouseup', h.up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    },
+    [],
   )
 
   function onSrcChange(value: string) {
@@ -122,9 +163,9 @@ export default function FlowchartEditor({ docId, initialContent, title }: Props)
         </Space>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div ref={splitRef} style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         {/* 左：mermaid 源码编辑 */}
-        <div style={{ width: '42%', flexShrink: 0, borderRight: '1px solid #ebedf0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: `${leftPct}%`, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '8px 12px 0', color: '#8a919f', fontSize: 12 }}>Mermaid 源码（保存即快照）</div>
           <Input.TextArea
             value={src}
@@ -132,6 +173,22 @@ export default function FlowchartEditor({ docId, initialContent, title }: Props)
             style={{ flex: 1, border: 'none', boxShadow: 'none', resize: 'none', fontFamily: 'SFMono-Regular, Consolas, Menlo, monospace', fontSize: 13, padding: 12 }}
           />
         </div>
+        {/* 分隔条：可左右拖动调整左右面板宽度 */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          title="拖动调整左右面板宽度"
+          onMouseDown={startDrag}
+          style={{
+            width: 6,
+            flexShrink: 0,
+            cursor: 'col-resize',
+            background: '#ebedf0',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#d0d5dd')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = '#ebedf0')}
+        />
         {/* 右：实时预览 */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
           {previewError && (

@@ -37,3 +37,21 @@ export async function renderFlowchart(src: string): Promise<FlowchartRenderResul
 
 /** 空文档默认值 */
 export const DEFAULT_FLOWCHART = 'flowchart TD\n  A[开始] --> B[结束]'
+
+/**
+ * 仅做语法校验（不渲染 SVG），供预览组件在委托给 MarkdownView 前判断是否需要
+ * 显示行内错误提示。分离出来是为了避免「FlowchartView 先 renderFlowchart 再交给
+ * MarkdownView 二次渲染 mermaid」的重复开销。
+ */
+export async function validateFlowchart(src: string): Promise<string> {
+  if (!src || src.trim() === '') {
+    return '流程图内容为空'
+  }
+  try {
+    const parsed = await mermaid.parse(src, { suppressErrors: true })
+    return parsed ? '' : '流程图语法有误，请检查后重试'
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return msg.length > 200 ? `${msg.slice(0, 200)}…` : msg
+  }
+}
