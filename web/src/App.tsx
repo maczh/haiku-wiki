@@ -1,9 +1,11 @@
 import { lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import BlankLayout from './layouts/BlankLayout'
 import LazyBoundary from './components/common/LazyBoundary'
 import { useAuthStore } from './stores/authStore'
+import { useViewMode } from './h5/useViewMode'
+import H5Router from './h5/H5Router'
 
 /**
  * 路由级按需加载。
@@ -37,10 +39,17 @@ const AdminTemplatesPage = lazy(() => import('./pages/AdminTemplatesPage'))
 // 模板中心（仿语雀/WPS 的文档模板画廊）
 const TemplateGalleryPage = lazy(() => import('./pages/TemplateGalleryPage'))
 
-/** 路由守卫：未登录跳 /login */
-function RequireAuth({ children }: { children: JSX.Element }) {
+/** 路由守卫：未登录跳 redirectTo（桌面版默认 /login，手机版传 /m/login） */
+export function RequireAuth({
+  children,
+  redirectTo = '/login',
+}: {
+  children: JSX.Element
+  /** 未登录时的重定向目标 */
+  redirectTo?: string
+}) {
   const token = useAuthStore((s) => s.token)
-  if (!token) return <Navigate to="/login" replace />
+  if (!token) return <Navigate to={redirectTo} replace />
   return children
 }
 
@@ -51,7 +60,8 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
   return children
 }
 
-export default function App() {
+/** 桌面版路由表（保持原样，手机版由 H5Router 承载） */
+export function DesktopRoutes() {
   return (
     <Routes>
       {/* 登录 / 注册（无导航壳） */}
@@ -220,4 +230,20 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
+}
+
+/** 分享页路径（免登录），任何视图模式下都必须直连桌面版页面 */
+function isSharePath(pathname: string): boolean {
+  return pathname.startsWith('/share') || pathname.startsWith('/doc-share')
+}
+
+/** 顶层：按视图模式选择渲染 H5 还是桌面版 */
+export default function App() {
+  const { mode } = useViewMode()
+  const location = useLocation()
+
+  // 分享链接必须放行给桌面版路由：否则手机模式下会被 H5Router 收口到 /m 并要求登录，
+  // 导致免登录分享页（/share/:slug、/doc-share/:slug）在手机上无法访问。
+  if (mode === 'h5' && !isSharePath(location.pathname)) return <H5Router />
+  return <DesktopRoutes />
 }

@@ -1,11 +1,22 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, Form, Input, Button, Divider, Typography, message } from 'antd'
+import { MobileOutlined } from '@ant-design/icons'
 import { me, updateMe } from '../api/auth'
 import { useAuthStore } from '../stores/authStore'
+import { useViewMode } from '../h5/useViewMode'
 
 /** 账号设置：修改昵称 / 密码 */
 export default function SettingsPage() {
   const { user, setUser } = useAuthStore()
+  const navigate = useNavigate()
+  const { setMode } = useViewMode()
+
+  /** 切换手机版：记忆模式 + 跳转 /m */
+  function switchToMobile() {
+    setMode('h5')
+    navigate('/m')
+  }
   const [nicknameForm] = Form.useForm()
   const [passwordForm] = Form.useForm()
 
@@ -86,6 +97,22 @@ export default function SettingsPage() {
             更新密码
           </Button>
         </Form>
+      </Card>
+
+      <Divider />
+
+      <Card title="视图">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 14, color: '#1f2329' }}>手机版（H5）</div>
+            <div style={{ fontSize: 12, color: '#8a919f', marginTop: 2 }}>
+              在手机浏览器或微信中打开时，可切换到为移动端优化的界面
+            </div>
+          </div>
+          <Button icon={<MobileOutlined />} onClick={switchToMobile}>
+            切换手机版
+          </Button>
+        </div>
       </Card>
     </div>
   )
