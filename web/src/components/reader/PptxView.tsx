@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Alert, Button, Dropdown, Segmented, Space, Spin, Tag, Tooltip, Typography, message } from 'antd'
 import type { MenuProps } from 'antd'
 import {
@@ -14,6 +15,7 @@ import {
   ZoomOutOutlined,
 } from '@ant-design/icons'
 import { localizePptx } from '../../api/attachments'
+import { useViewMode } from '../../h5/useViewMode'
 
 /**
  * 本会话内已补做过外链图片本地化的 URL。
@@ -123,6 +125,13 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
   const [interval, setIntervalSec] = useState<number>(5)
   const [scale, setScale] = useState(1)
   const [fullscreen, setFullscreen] = useState(false)
+  /** 移动端无原生 element.requestFullscreen（尤其 iOS Safari），用占满视口的 portal 兜底 */
+  const [fakeFs, setFakeFs] = useState(false)
+  const { mode } = useViewMode()
+  const mobile = mode === 'h5'
+  const isFs = mobile ? fakeFs : fullscreen
+  /** 是否为「portal 伪全屏」（仅移动端）：需要把根节点撑成满屏纵向 flex，舞台才能拿到真实可用高度 */
+  const fsOverride = mobile && fakeFs
   /** 补做外链图片本地化之后的结果说明（空串表示无需提示） */
   const [localizeNote, setLocalizeNote] = useState('')
   /**
@@ -219,7 +228,6 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
 
   // 让测量回调读到最新值（避免把它们放进依赖里反复重建 ResizeObserver）
   const zoomModeRef = useRef<'fit' | 'manual'>(zoomMode)
-  const fullscreenRef = useRef(fullscreen)
 
   // 自适应缩放：fit 模式下跟随容器尺寸。
   // 非全屏按宽度适配（不超过 1:1，避免小文件被放大糊掉）；
@@ -230,8 +238,11 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
     if (!box) return
     const update = () => {
       if (zoomModeRef.current !== 'fit') return
-      const byW = box.clientWidth / STAGE_W
-      if (fullscreenRef.current && box.clientHeight > 0) {
+      const w = box.clientWidth
+      // 宽度为 0 说明尚未完成布局（见下），跳过以免把比例压到下限 10%
+      if (w <= 0) return
+      const byW = w / STAGE_W
+      if (isFs && box.clientHeight > 0) {
         setScale(Math.min(4, Math.max(0.1, Math.min(byW, box.clientHeight / STAGE_H))))
       } else {
         // 不再封顶 1:1：pptx-preview 是 HTML/CSS 渲染（矢量，放大不糊），
@@ -239,30 +250,47 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
         setScale(Math.min(4, Math.max(0.1, byW)))
       }
     }
-    update()
+    // 依赖 isFs：移动端伪全屏是「portal 重挂载」，wrapRef 指向新节点，
+    // 必须在切换后重新 observe，否则 ResizeObserver 仍盯着已卸载的旧节点。
     const ro = new ResizeObserver(update)
     ro.observe(box)
-    return () => ro.disconnect()
-  }, [])
+    update()
+    // portal 挂载当帧可能读到 0 宽，下一帧再补一次
+    const raf = requestAnimationFrame(update)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
+  }, [isFs])
 
   useEffect(() => {
     zoomModeRef.current = zoomMode
   }, [zoomMode])
 
-  // 进出全屏 / 切回适应模式时立刻重算一次（ResizeObserver 不一定会因全屏而触发）
+  // 进出全屏 / 切回适应模式时立刻重算一次（ResizeObserver 不一定会因全屏而触发）。
+  // 移动端伪全屏是 portal 重挂载，当帧可能拿到 0 宽 → 下一帧再补一次；
+  // 若仍为 0 也不写死到下限，交给上面的 ResizeObserver 在布局完成后校正。
   useEffect(() => {
-    fullscreenRef.current = fullscreen
     if (zoomMode !== 'fit') return
     const box = wrapRef.current
     if (!box) return
-    const byW = box.clientWidth / STAGE_W
-    if (fullscreen && box.clientHeight > 0) {
-      setScale(Math.min(4, Math.max(0.1, Math.min(byW, box.clientHeight / STAGE_H))))
-    } else {
-      // 不再封顶 1:1：随「宽度」调节器铺满容器（与上面的 ResizeObserver 保持一致）
-      setScale(Math.min(4, Math.max(0.1, byW)))
+    const run = () => {
+      const w = box.clientWidth
+      if (w <= 0) return false
+      const byW = w / STAGE_W
+      if (isFs && box.clientHeight > 0) {
+        setScale(Math.min(4, Math.max(0.1, Math.min(byW, box.clientHeight / STAGE_H))))
+      } else {
+        // 不再封顶 1:1：随「宽度」调节器铺满容器（与上面的 ResizeObserver 保持一致）
+        setScale(Math.min(4, Math.max(0.1, byW)))
+      }
+      return true
     }
-  }, [fullscreen, zoomMode])
+    if (!run()) {
+      const raf = requestAnimationFrame(run)
+      return () => cancelAnimationFrame(raf)
+    }
+  }, [isFs, zoomMode])
 
   // 与预览器内部状态同步页码（其自带按钮/分页会各自更新 currentIndex）
   useEffect(() => {
@@ -321,6 +349,11 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
   }, [])
 
   const toggleFullscreen = useCallback(async () => {
+    // 移动端（尤其 iOS Safari）不支持 element.requestFullscreen，改用占满视口的 portal 全屏
+    if (mobile) {
+      setFakeFs((f) => !f)
+      return
+    }
     const el = wrapRef.current
     if (!el) return
     try {
@@ -329,7 +362,7 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
     } catch {
       message.warning('当前浏览器不允许进入全屏')
     }
-  }, [])
+  }, [mobile])
 
   // 手动缩放：直接采用用户指定的倍数
   useEffect(() => {
@@ -418,8 +451,12 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
     },
   }
 
-  return (
-    <div>
+  const view = (
+    <div
+      style={
+        fsOverride ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 } : undefined
+      }
+    >
       {/* 播放控制条 */}
       <div
         style={{
@@ -514,11 +551,11 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
         </Space>
 
         <div style={{ flex: 1 }} />
-        <Tooltip title={fullscreen ? '退出全屏' : '全屏播放'}>
+        <Tooltip title={isFs ? '退出全屏' : '全屏播放'}>
           <Button
             size="small"
             type="text"
-            icon={fullscreen ? <ShrinkOutlined /> : <ExpandOutlined />}
+            icon={isFs ? <ShrinkOutlined /> : <ExpandOutlined />}
             disabled={loading || total <= 0}
             onClick={() => void toggleFullscreen()}
           />
@@ -530,17 +567,18 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
         ref={wrapRef}
         style={{
           position: 'relative',
-          background: fullscreen ? '#000' : '#1f1f1f',
-          border: fullscreen ? 'none' : '1px solid #ebedf0',
-          borderRadius: fullscreen ? 0 : '0 0 8px 8px',
-          padding: fullscreen ? 0 : 12,
+          background: isFs ? '#000' : '#1f1f1f',
+          border: isFs ? 'none' : '1px solid #ebedf0',
+          borderRadius: isFs ? 0 : '0 0 8px 8px',
+          padding: isFs ? 0 : 12,
           // 全屏时铺满屏幕，让「适应」能拿到真实可用高度
-          height: fullscreen ? '100%' : undefined,
+          height: isFs ? '100%' : undefined,
+          flex: fsOverride ? 1 : undefined,
           display: 'flex',
           justifyContent: 'center',
-          alignItems: fullscreen ? 'center' : 'flex-start',
+          alignItems: isFs ? 'center' : 'flex-start',
           overflow: 'auto',
-          minHeight: fullscreen ? 0 : 260,
+          minHeight: isFs ? 0 : 260,
         }}
       >
         {(loading || error) && (
@@ -583,12 +621,14 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
         </div>
       </div>
 
-      <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-        浏览器内预览为近似渲染：表格、图片、文本与基本形状可正常显示，图表、公式与部分艺术字效果可能缺失。
-        若需完全一致的版式，请下载原文件查看。
-      </Typography.Paragraph>
+      {!fsOverride && (
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+          浏览器内预览为近似渲染：表格、图片、文本与基本形状可正常显示，图表、公式与部分艺术字效果可能缺失。
+          若需完全一致的版式，请下载原文件查看。
+        </Typography.Paragraph>
+      )}
 
-      {localizeNote && (
+      {!fsOverride && localizeNote && (
         <Alert
           type="success"
           showIcon
@@ -600,4 +640,24 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
       )}
     </div>
   )
+
+    // 移动端全屏：用 portal 把整块视图挂到 body，脱离 H5ZoomStage 的 transform 上下文，
+    // 使 position:fixed 正确相对视口定位（iOS Safari 不支持 element.requestFullscreen 的兜底）。
+    return mobile && fakeFs
+      ? createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 1100,
+              background: '#000',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{view}</div>
+          </div>,
+          document.body,
+        )
+      : view
 }

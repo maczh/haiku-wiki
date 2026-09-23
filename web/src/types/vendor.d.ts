@@ -86,7 +86,28 @@ declare module 'simple-mind-map' {
     setMode(mode: 'edit' | 'readonly'): void
     /** 运行时更新配置（滚轮行为、自由拖拽等） */
     updateConfig(opt: Record<string, unknown>): void
-    view: { enlarge(): void; narrow(): void; fit(): void; reset(): void; setScale(scale: number): void; scale: number }
+    /**
+     * 视图变换（缩放 / 平移）。
+     * H5 原生无级缩放直接改 `x/y/scale` 三个字段再调 `transform()`，让 simple-mind-map
+     * 按新 scale **重新排布矢量 SVG**（而不是用 CSS transform 拉伸整层位图）——
+     * 放大后依然清晰。见 components/reader/MindmapView.tsx 的 attachNativeZoom。
+     */
+    view: {
+      enlarge(): void
+      narrow(): void
+      fit(): void
+      reset(): void
+      setScale(scale: number): void
+      scale: number
+      /** 画布横向平移量（px） */
+      x: number
+      /** 画布纵向平移量（px） */
+      y: number
+      /** 把 x / y / scale 应用到画布 */
+      transform(): void
+    }
+    /** 屏幕坐标 → 画布坐标（H5 双指缩放按两指中心做锚点时用） */
+    toPos(clientX: number, clientY: number): { x: number; y: number }
     renderer: { activeNodeList: unknown[]; setRootNodeCenter(): void }
     export(type: string, isDownload?: boolean, name?: string, ...args: unknown[]): Promise<string | Blob | boolean>
   }

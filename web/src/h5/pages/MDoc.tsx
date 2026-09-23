@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Alert, Empty, List, Spin } from 'antd'
-import { FolderOutlined } from '@ant-design/icons'
+import { FolderOutlined, ShareAltOutlined } from '@ant-design/icons'
 import { getDoc, getTree } from '../../api/docs'
 import { iconForDocType } from '../../lib/fileIcon'
 import type { DocDetail, DocNode, DocType } from '../../types'
@@ -9,7 +9,9 @@ import { getDocMode, isContainerType } from '../docMode'
 import { READER_MAP, type H5ReaderProps } from '../readerMap'
 import { EDITOR_MAP, type H5EditorProps } from '../editorMap'
 import H5DocContainer from '../H5DocContainer'
-import { isH5Degraded } from '../styles'
+import ShareSheet from '../ShareSheet'
+import { useShareLink } from '../useShareLink'
+import { h5ContainerProps, isH5Degraded } from '../styles'
 import { useH5Layout } from '../MobileLayout'
 
 /**
@@ -30,6 +32,13 @@ export default function MDoc() {
   const [doc, setDoc] = useState<DocDetail | null>(null)
   const [canWrite, setCanWrite] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // 分享面板：点顶栏「分享」时才懒生成 /doc-share/:slug 链接
+  const share = useShareLink()
+  const onShare = useCallback(() => {
+    if (!doc) return
+    void share.openShare(doc.title || '文档', { kind: 'doc', docId: doc.id })
+  }, [doc, share])
 
   // 目录容器视图的子文档
   const [children, setChildren] = useState<DocNode[]>([])
@@ -96,11 +105,33 @@ export default function MDoc() {
     return () => setTabHidden(false)
   }, [editable, setTabHidden])
 
-  // 顶栏标题 + 返回
+  // 顶栏标题 + 返回 + 分享入口（目录型文档没有正文，不给分享）
   useEffect(() => {
     if (!doc) return
-    setHeader({ title: doc.title || '文档', showBack: true })
-  }, [doc, setHeader])
+    setHeader({
+      title: doc.title || '文档',
+      showBack: true,
+      right: isContainerType(doc.doc_type) ? undefined : (
+        <ShareAltOutlined
+          data-h5-share-entry="1"
+          onClick={onShare}
+          style={{ fontSize: 18, color: '#1f2329', cursor: 'pointer' }}
+        />
+      ),
+    })
+  }, [doc, setHeader, onShare])
+
+  // 分享面板是 fixed 浮层，放在最外层即可，不受各分支布局影响
+  const shareSheet = (
+    <ShareSheet
+      open={share.open}
+      onClose={share.closeShare}
+      title={share.title}
+      url={share.url}
+      loading={share.loading}
+      error={share.error}
+    />
+  )
 
   if (loading) {
     return <Spin style={{ display: 'block', margin: '80px auto' }} />
@@ -117,7 +148,9 @@ export default function MDoc() {
   // 目录容器视图
   if (isFolder) {
     return (
-      <div style={{ padding: 12 }}>
+      <>
+        {shareSheet}
+        <div style={{ padding: 12 }}>
         <Alert
           type="info"
           showIcon
@@ -155,7 +188,8 @@ export default function MDoc() {
             }}
           />
         )}
-      </div>
+        </div>
+      </>
     )
   }
 
@@ -173,9 +207,12 @@ export default function MDoc() {
           ? '白板在手机端可编辑，建议横屏以获得更好体验'
           : undefined
       return (
-        <H5DocContainer editing degradedHint={hint}>
-          <Editor {...editorProps} />
-        </H5DocContainer>
+        <>
+          {shareSheet}
+          <H5DocContainer editing degradedHint={hint}>
+            <Editor {...editorProps} />
+          </H5DocContainer>
+        </>
       )
     }
   }
@@ -192,16 +229,23 @@ export default function MDoc() {
     const hint = isH5Degraded(doc.doc_type)
       ? '该类型在手机端阅读体验有所下降，建议在桌面版编辑'
       : undefined
+    const { zoomable, fill } = h5ContainerProps(doc.doc_type)
     return (
-      <H5DocContainer degradedHint={hint}>
-        <Reader {...readerProps} />
-      </H5DocContainer>
+      <>
+        {shareSheet}
+        <H5DocContainer degradedHint={hint} zoomable={zoomable} fill={fill}>
+          <Reader {...readerProps} />
+        </H5DocContainer>
+      </>
     )
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <Alert type="warning" showIcon message="暂不支持的文档类型" />
-    </div>
+    <>
+      {shareSheet}
+      <div style={{ padding: 16 }}>
+        <Alert type="warning" showIcon message="暂不支持的文档类型" />
+      </div>
+    </>
   )
 }

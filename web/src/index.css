@@ -14,14 +14,24 @@ body,
 
 /*
  * 应用式布局（height:100% + 内部滚动区），文档级横向滚动永远不该出现。
- * 必须显式禁掉：右侧点评面板头部的 Tooltip 在屏幕最右缘居中弹出时会超出视口约 8px，
+ * 右侧点评面板头部的 Tooltip 在屏幕最右缘居中弹出时会超出视口约 8px，
  * 触发文档级横向滚动条 → 可用高度变化连锁引发纵向滚动条 → 整个 flex 布局左右平移
- * → 触发器重新定位 Tooltip → 滚动条又消失 …… 自激成「整页持续剧烈抖动」。
- * overflow-x:hidden 掐断这条反馈链（Tooltip 自身的 autoAdjustOverflow 仍会把它收回视口内）。
+ * → 触发器重新定位 Tooltip → 滚动条又消失 …… 自激成「整页持续剧烈抖动」，故需掐断横向溢出。
+ *
+ * ⚠️ 必须用 clip 而非 hidden：
+ *   CSS 规范里若一个轴是 hidden 而另一轴是 visible，visible 会被计算成 auto ——
+ *   于是 `overflow-x:hidden` 会把 <body> 的 overflow-y 悄悄变成 auto，使 <body> 变成
+ *   一个滚动容器。在移动端（尤其 iOS Safari）这会让「内部嵌套的 overflow:auto 滚动区」
+ *   （如 H5 阅读态文档容器、抽屉里的目录树）的触摸纵向划屏失灵 / 卡死，表现为
+ *   「手机浏览器里上下拖动不滚动、微信里只有部分文档能滚、目录树划屏没反应」。
+ *   overflow-x:clip 同样掐断横向溢出（解决 Tooltip 自激抖动），但【不创建滚动容器】，
+ *   纵向触摸滚动保持原生，嵌套滚动区正常工作（clip 在现代移动内核均支持：
+ *   Chrome 90+ / Safari 16+ / Firefox 81+；老版本 WebView 不支持 clip 时会忽略该声明，
+ *   此时横向溢出由 Tooltip 自身的 autoAdjustOverflow 兜底收回，不致命）。
  */
 html,
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 * {
@@ -38,6 +48,9 @@ a {
   font-size: 15px;
   line-height: 1.8;
   overflow-wrap: break-word;
+  /* H5 阅读态：正文是滚动容器的子节点，显式允许纵向拖拽滚动，
+     避免某些移动内核把长按/拖动当成选择手势而吞掉上下划屏 */
+  touch-action: pan-y;
 }
 
 /* Vditor 渲染容器基础样式微调 */
@@ -100,6 +113,8 @@ mark.hk-hit {
   line-height: 1.8;
   color: #262626;
   word-break: break-word;
+  /* 同 .doc-content：H5 阅读态允许纵向拖拽滚动 */
+  touch-action: pan-y;
 }
 .docx-preview h1 {
   font-size: 24px;

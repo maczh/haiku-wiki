@@ -29,6 +29,7 @@ export default function BottomTabs() {
 
   return (
     <nav
+      data-h5-tabbar="1"
       style={{
         height: 56,
         flexShrink: 0,

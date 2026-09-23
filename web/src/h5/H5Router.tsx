@@ -24,6 +24,10 @@ const MSearch = lazy(() => import('./pages/MSearch'))
 const MMine = lazy(() => import('./pages/MMine'))
 const MDoc = lazy(() => import('./pages/MDoc'))
 
+// H5 公开分享阅读页（免登录，单栏 + 抽屉式目录，路径与桌面版一致）
+const MShare = lazy(() => import('./pages/MShare'))
+const MShareDoc = lazy(() => import('./pages/MShareDoc'))
+
 // 登录 / 注册复用桌面版页面（全屏，无导航壳）
 const LoginPage = lazy(() => import('../pages/LoginPage'))
 const RegisterPage = lazy(() => import('../pages/RegisterPage'))
@@ -56,9 +60,27 @@ const H5_THEME = {
 
 export default function H5Router() {
   const location = useLocation()
+  const path = location.pathname
+
+  // 公开分享页（免登录）在 H5 同样可用：复用与桌面版一致的 /share/:slug、
+  // /doc-share/:slug 路径，由对应的 H5 阅读页承载（单栏 + 抽屉式目录），
+  // 避免在手机上套用桌面双栏而导致划屏失效 / 目录树点不动。
+  // 必须在「非 /m 收口重定向」之前判断，否则会被误收口到 /m。
+  if (path.startsWith('/share/') || path.startsWith('/doc-share/')) {
+    return (
+      <ConfigProvider locale={zhCN} theme={H5_THEME}>
+        <Suspense fallback={<H5Loading />}>
+          <Routes>
+            <Route path="/share/:slug" element={<MShare />} />
+            <Route path="/doc-share/:slug" element={<MShareDoc />} />
+          </Routes>
+        </Suspense>
+      </ConfigProvider>
+    )
+  }
 
   // 任何非 /m 开头的路径都视为桌面版/未知入口，统一收口到手机版根
-  if (!location.pathname.startsWith('/m')) {
+  if (!path.startsWith('/m')) {
     return <Navigate to="/m" replace />
   }
 

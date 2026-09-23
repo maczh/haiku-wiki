@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import BlankLayout from './layouts/BlankLayout'
 import LazyBoundary from './components/common/LazyBoundary'
@@ -232,18 +232,16 @@ export function DesktopRoutes() {
   )
 }
 
-/** 分享页路径（免登录），任何视图模式下都必须直连桌面版页面 */
-function isSharePath(pathname: string): boolean {
-  return pathname.startsWith('/share') || pathname.startsWith('/doc-share')
-}
-
-/** 顶层：按视图模式选择渲染 H5 还是桌面版 */
+/**
+ * 顶层：按视图模式选择渲染 H5 还是桌面版。
+ *
+ * 分享链接（/share/:slug、/doc-share/:slug）在两种模式下走各自路由：
+ *   · 桌面版 → DesktopRoutes 命中 SharePage / DocSharePage；
+ *   · 手机版 → H5Router 内识别 /share/、/doc-share/ 前缀，命中 MShare / MShareDoc。
+ * 因此同一分享 URL 在手机上自动呈现 H5 阅读页，无需为手机单独换路径。
+ */
 export default function App() {
   const { mode } = useViewMode()
-  const location = useLocation()
-
-  // 分享链接必须放行给桌面版路由：否则手机模式下会被 H5Router 收口到 /m 并要求登录，
-  // 导致免登录分享页（/share/:slug、/doc-share/:slug）在手机上无法访问。
-  if (mode === 'h5' && !isSharePath(location.pathname)) return <H5Router />
+  if (mode === 'h5') return <H5Router />
   return <DesktopRoutes />
 }
