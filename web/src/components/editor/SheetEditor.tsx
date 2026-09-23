@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+// ⚠️ 必须排在 `import luckysheet` **之前**（ESM 按声明顺序求值）：拦下 luckysheet 那条
+// 「无条件 preventDefault touchmove」的 document 级注册，否则手机上开过一次表格，
+// 整个会话其它页面都划不动。见 lib/luckysheetTouchShim.ts。
+import '../../lib/luckysheetTouchShim'
 import luckysheet from 'luckysheet'
 import 'luckysheet/dist/css/luckysheet.css'
 import 'luckysheet/dist/assets/iconfont/iconfont.css'

@@ -19,6 +19,7 @@ type User struct {
 	Nickname     string    `gorm:"size:64" json:"nickname"`
 	Name         string    `gorm:"size:64" json:"name"`                // 姓名
 	Department   string    `gorm:"size:128" json:"department"`         // 部门
+	Avatar       string    `gorm:"size:512" json:"avatar"`             // 头像 URL（微信注册/绑定带入）
 	Phone        *string   `gorm:"size:32;uniqueIndex" json:"phone"`   // 手机号（可空，唯一；空值存 NULL，不触发唯一冲突）
 	Role         string    `gorm:"size:16;default:member" json:"role"` // admin | member
 	Status       int       `gorm:"default:1" json:"status"`            // 1=启用 0=禁用

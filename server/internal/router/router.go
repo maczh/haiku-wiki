@@ -39,6 +39,13 @@ func Register(r *gin.Engine, cfg *config.Config) {
 	{
 		auth.POST("/register", handler.Register)
 		auth.POST("/login", handler.Login)
+		// 微信扫码登录（网站应用 / 公众号）：生成会话 → 轮询状态 → 绑定或注册
+		auth.POST("/wechat/qrcode", handler.WeChatQRCode)
+		auth.GET("/wechat/callback", handler.WeChatCallback)
+		auth.GET("/wechat/status", handler.WeChatStatus)
+		auth.POST("/wechat/bind", handler.WeChatBind)
+		// dev 模式专用：无微信凭据时模拟扫码完成，便于端到端验证
+		auth.POST("/wechat/dev-complete", handler.WeChatDevComplete)
 	}
 
 	// 搜索：可选鉴权（public 库支持匿名搜索）

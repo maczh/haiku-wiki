@@ -44,6 +44,8 @@ DEFAULT_SUITES=(
   whiteboard-check
   preview-zoom-check
   h5-reader-check
+  h5-scroll-back-check
+  wechat-login-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -74,6 +76,8 @@ declare -A PORT_OF=(
   [whiteboard-check]=8109
   [preview-zoom-check]=8111
   [h5-reader-check]=8177
+  [h5-scroll-back-check]=8178
+  [wechat-login-check]=8185
   [template-check]=0
   [sim-docker-web]=0
 )

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Empty, List, Spin } from 'antd'
-import { FolderOutlined, PartitionOutlined } from '@ant-design/icons'
+import { Button, Empty, List, Spin, message } from 'antd'
+import { FolderOutlined, PartitionOutlined, UploadOutlined } from '@ant-design/icons'
 import { getBook, listBooks } from '../../api/books'
 import { getTree } from '../../api/docs'
 import { buildChildrenMap } from '../../lib/docTree'
@@ -9,6 +9,7 @@ import { iconForDocType } from '../../lib/fileIcon'
 import type { Book, Bookshelf, DocNode } from '../../types'
 import { useH5Layout } from '../MobileLayout'
 import DocTreeDrawer from '../DocTreeDrawer'
+import MobileImportSheet from '../components/MobileImportSheet'
 
 /**
  * H5 文库页。
@@ -27,6 +28,14 @@ export default function MBookshelf() {
   const [nodes, setNodes] = useState<DocNode[]>([])
   const [loading, setLoading] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+
+  // 导入目标文库：优先当前文库；文库列表页则取第一个「我的/团队」文库
+  const importBookId = useMemo(() => {
+    if (bookId) return Number(bookId)
+    const books = shelf ? [...shelf.mine, ...shelf.teams] : []
+    return books.length > 0 ? books[0].id : 0
+  }, [bookId, shelf])
 
   // 无 bookId：拉取文库列表
   useEffect(() => {
@@ -107,6 +116,38 @@ export default function MBookshelf() {
             )}
           />
         )}
+        {importBookId > 0 && (
+          <button
+            type="button"
+            aria-label="导入文件"
+            onClick={() => setImportOpen(true)}
+            style={{
+              position: 'fixed',
+              right: 16,
+              bottom: 76,
+              zIndex: 50,
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              border: 'none',
+              background: '#2f54eb',
+              color: '#fff',
+              boxShadow: '0 6px 16px rgba(47,84,235,0.4)',
+              fontSize: 22,
+              cursor: 'pointer',
+            }}
+          >
+            <UploadOutlined />
+          </button>
+        )}
+        <MobileImportSheet
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          bookId={importBookId}
+          onImported={() => {
+            if (bookId) getTree(Number(bookId)).then(setNodes).catch(() => {})
+          }}
+        />
       </div>
     )
   }
@@ -127,6 +168,37 @@ export default function MBookshelf() {
       )}
 
       <DocTreeDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      <button
+        type="button"
+        aria-label="导入文件"
+        onClick={() => setImportOpen(true)}
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: 76,
+          zIndex: 50,
+          width: 52,
+          height: 52,
+          borderRadius: '50%',
+          border: 'none',
+          background: '#2f54eb',
+          color: '#fff',
+          boxShadow: '0 6px 16px rgba(47,84,235,0.4)',
+          fontSize: 22,
+          cursor: 'pointer',
+        }}
+      >
+        <UploadOutlined />
+      </button>
+      <MobileImportSheet
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        bookId={importBookId}
+        onImported={() => {
+          if (bookId) getTree(Number(bookId)).then(setNodes).catch(() => {})
+        }}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 # 依赖与构建产物
 node_modules/
+tools/
 web/dist/
 # Vditor 自托管静态资源（由 web/scripts/copy-vditor-assets.mjs 生成，勿手动提交）
 web/public/vditor/

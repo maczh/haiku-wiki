@@ -159,6 +159,8 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.CommentSetting{},
 		// 文档模板（仿语雀/WPS 内置模板，种子数据见 templates_seed.go）
 		&model.DocTemplate{},
+		// 微信绑定关系（扫码登录：微信身份 ↔ 站内用户）
+		&model.WeChatBinding{},
 	)
 }
 

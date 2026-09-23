@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+// ⚠️ 必须排在 `import luckysheet` **之前**：该模块要在 luckysheet 求值前劫持
+// document.addEventListener，拦下它那条「无条件 preventDefault touchmove」的全局注册
+// （否则整个会话的触摸划屏全废）。见 lib/luckysheetTouchShim.ts 的完整说明。
+import '../../lib/luckysheetTouchShim'
 import luckysheet from 'luckysheet'
 import 'luckysheet/dist/css/luckysheet.css'
 import 'luckysheet/dist/assets/iconfont/iconfont.css'

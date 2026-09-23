@@ -63,3 +63,19 @@
 ## 白板与临时目录
 - Excalidraw 须显式 `import '@excalidraw/excalidraw/index.css'`；`EXCALIDRAW_ASSET_PATH=/excalidraw/dist/prod/`。
 - 系统 `/tmp` 仅 10MB 且命令间不保留 → 临时产物放 `~/hk-tmp`；**跑 `tools/verify/` 必须 `TMPDIR=/home/macro/.workbuddy/tmp`**（套件去那里取二进制）。
+
+## 本轮新增（2026-09-24）：微信登录 + H5 导入 + 触摸划屏回归
+- **luckysheet 全局吞触摸根因（上游 UMD bug）**：`luckysheet.umd.js` 模块加载时往 `document` 挂
+  `addEventListener("touchmove", e=>e.preventDefault(), {passive:false})` 且不可移除 → 本会话加载过一次
+  luckysheet 后，任何页面划屏都被吞。修法：`web/src/lib/luckysheetTouchShim.ts` 在 import luckysheet **之前**
+  包裹 `addEventListener`，命中裸 preventDefault 的 touchmove 时收窄到 only `e.target.closest('.luckysheet-cell-main,.luckysheet-input-box')` 才放行。复现用 Playwright CDP `Input.dispatchTouchEvent` 真实序列（`synthesizeScrollGesture` 复现不了）。
+- **微信扫码登录**：后端 `model/wechat.go`+`repository/wechat_repo.go`+`service/wechat_service.go`（内存 ticket 状态机
+  pending→authorized/needs_profile/expired）+`handler/wechat_handler.go`，路由挂在 `/api/auth/wechat/{qrcode,callback,status,bind,dev-complete}`；
+  `config` 扁平字段 `WeChatAppID/Secret/RedirectURI`（齐则 `WeChatEnabled`）；`User` 加 `avatar` 字段。
+  dev 模式（未配置微信）走 `/dev-complete` 模拟扫码完成以便联调。**前端** `api/wechat.ts`+`components/WeChatLoginModal.tsx`
+  （`qrcode` 库 `toDataURL` 渲染二维码 + 轮询 `/status` + needs_profile 弹绑定/注册表单）+ `pages/LoginPage.tsx` 接入（桌面/H5 共用）。
+- **H5 导入手机文件**：`lib/import/runImport.ts`（把 `ImportDialog` 的解析→上传→建文档抽成共享核心）+`h5/components/MobileImportSheet.tsx`
+  （底部抽屉 + `<input type=file accept="*/*" multiple>`，微信内置浏览器里可直接选微信文件）+`h5/pages/MBookshelf.tsx` 右下角 FAB。
+- **新增回归套件**（已登记 run-all.sh）：`h5-scroll-back-check.sh`（端口 8178，12 类型×进入前/返回后=24 项，探针 `h5-touch-scroll.mjs`）、
+  `wechat-login-check.sh`（端口 8185，dev 模式端到端 13 项：生成会话→注册/绑定/直接登录/非法拒绝）。
+- 本沙箱 `npm`/`npx` 走托管：`/home/macro/.workbuddy/binaries/node/workspace/node_modules`（NODE_PATH 指它）；`qrcode` 库可用。
