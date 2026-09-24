@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/model"
+	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/apidoc"
 )
@@ -39,7 +39,6 @@ func (s *ApiRefreshService) RefreshDoc(uid, docID uint64) (added, updated, remov
 	}
 	return s.refreshDocInternal(docID)
 }
-
 
 // refreshDocInternal 跳过权限校验的内部刷新（自动刷新 uid=0 时调用）。
 func (s *ApiRefreshService) refreshDocInternal(docID uint64) (added, updated, removed int, err error) {
@@ -166,6 +165,9 @@ func mergeApiDoc(doc *model.Doc, parsed *apidoc.ApiDoc) (added, updated, removed
 			seen[k] = true
 			if ex, ok := existByKey[k]; ok {
 				ep.ID = ex.ID // 复用既有 id，调试历史不丢
+				// 回填人工说明（Q6：统一用回填后的说明）
+				ep.ResponseFields = reconcileFields(ep.ResponseFields, ex.ResponseFields)
+				ep.BodyFields = reconcileFields(ep.BodyFields, ex.BodyFields)
 				if endpointChanged(&ep, ex) {
 					updated++
 				}
@@ -216,6 +218,40 @@ func ensureSlices(ep *apidoc.ApiEndpoint) {
 	if ep.ResponseFields == nil {
 		ep.ResponseFields = []apidoc.ApiField{}
 	}
+	if ep.BodyFields == nil {
+		ep.BodyFields = []apidoc.ApiField{}
+	}
+}
+
+// reconcileFields 按字段路径（name）调和说明。
+//   - 字段行（名称/类型/必填）一律以 new 为准；
+//   - description：old[name] 非空 → 采用 old，否则采用 new[name].description；都为空 → 空；
+//   - old 中不在 new 的字段丢弃（只遍历 new，不补齐）；
+//   - new 为 nil/空 → 原样返回 new；old 为 nil/空 → 退化为 new 自身（无说明可恢复）。
+func reconcileFields(newFields, oldFields []apidoc.ApiField) []apidoc.ApiField {
+	if len(newFields) == 0 {
+		return newFields
+	}
+	oldBy := map[string]string{}
+	for _, f := range oldFields {
+		if f.Name != "" {
+			oldBy[f.Name] = f.Description
+		}
+	}
+	out := make([]apidoc.ApiField, 0, len(newFields))
+	for _, f := range newFields {
+		d := f.Description
+		if old, ok := oldBy[f.Name]; ok && old != "" {
+			d = old
+		}
+		out = append(out, apidoc.ApiField{
+			Name:        f.Name,
+			Type:        f.Type,
+			Required:    f.Required,
+			Description: d,
+		})
+	}
+	return out
 }
 
 // endpointChanged 比较两接口是否「内容有变」（忽略 id；先对齐 id 再比 JSON）。

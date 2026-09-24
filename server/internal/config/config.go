@@ -47,6 +47,12 @@ type Config struct {
 	// MaxUploadMB 单文件上限（MB）。<=0 时用默认 64。
 	MaxUploadMB int
 
+	// WeChat 扫码登录（网站应用 / 公众号）。三项都非空时视为已配置（WeChatEnabled=true）。
+	WeChatAppID       string
+	WeChatAppSecret   string
+	WeChatRedirectURI string
+	WeChatEnabled     bool // 由上面三项是否齐全推导，免得散落判断
+
 	// Path 生效的配置文件绝对路径；"" 表示没有配置文件（纯环境变量模式），
 	// 此时迁移功能无法自动改写配置，只能在响应里提示用户手工处理。
 	Path string
@@ -77,6 +83,13 @@ type fileConfig struct {
 	Storage  storageSection  `yaml:"storage"`
 	S3       S3Config        `yaml:"s3"`
 	Upload   uploadSection   `yaml:"upload"`
+	Wechat   wechatSection   `yaml:"wechat"`
+}
+
+type wechatSection struct {
+	AppID       string `yaml:"app_id"`
+	AppSecret   string `yaml:"app_secret"`
+	RedirectURI string `yaml:"redirect_uri"`
 }
 
 type serverSection struct {
@@ -328,6 +341,16 @@ func applyFile(cfg *Config, fc *fileConfig) {
 	if fc.Upload.MaxSizeMB > 0 {
 		cfg.MaxUploadMB = fc.Upload.MaxSizeMB
 	}
+	if fc.Wechat.AppID != "" {
+		cfg.WeChatAppID = fc.Wechat.AppID
+	}
+	if fc.Wechat.AppSecret != "" {
+		cfg.WeChatAppSecret = fc.Wechat.AppSecret
+	}
+	if fc.Wechat.RedirectURI != "" {
+		cfg.WeChatRedirectURI = fc.Wechat.RedirectURI
+	}
+	cfg.WeChatEnabled = cfg.WeChatAppID != "" && cfg.WeChatAppSecret != "" && cfg.WeChatRedirectURI != ""
 }
 
 func applyEnv(cfg *Config) {
@@ -348,6 +371,17 @@ func applyEnv(cfg *Config) {
 	cfg.S3.Bucket = getenv("S3_BUCKET", cfg.S3.Bucket)
 	cfg.S3.AccessKey = getenv("S3_ACCESS_KEY", cfg.S3.AccessKey)
 	cfg.S3.SecretKey = getenv("S3_SECRET_KEY", cfg.S3.SecretKey)
+	// 微信扫码登录（仅当文件/默认值未给时环境变量才生效，优先级低于文件）
+	if v := os.Getenv("WECHAT_APPID"); v != "" {
+		cfg.WeChatAppID = v
+	}
+	if v := os.Getenv("WECHAT_APPSECRET"); v != "" {
+		cfg.WeChatAppSecret = v
+	}
+	if v := os.Getenv("WECHAT_REDIRECT_URI"); v != "" {
+		cfg.WeChatRedirectURI = v
+	}
+	cfg.WeChatEnabled = cfg.WeChatAppID != "" && cfg.WeChatAppSecret != "" && cfg.WeChatRedirectURI != ""
 
 	if cfg.Port == "" {
 		cfg.Port = "8080"

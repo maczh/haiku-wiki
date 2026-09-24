@@ -232,6 +232,51 @@ bash tools/verify/cad-render-probe.sh
 **不要**为了「看得清」去加大它：SVG 是矢量的，放大 60 倍仍然清晰，而抬升下限会让它
 失去与图元的真实比例，那正是用户报的 bug。
 
+## 较新套件（2026-09-23 补齐说明）
+
+上表是 2026-09-19 基线，之后新增的几套在此登记：
+
+| 套件 | 项数 | 端口 | 覆盖 |
+| --- | --- | --- | --- |
+| `preview-zoom-check.sh` | 11 | 8111 | 流程图（mermaid）阅读态/编辑态预览铺开 + 通栏；白板（Excalidraw）编辑器全屏按钮；白板阅读态 SVG + 全屏按钮 |
+| `whiteboard-check.sh` | 14 | 8109 | 白板模板分类、`.excalidraw` 导入与正文剥壳 |
+| `mermaid-render-check.sh` | — | 18086 | mermaid 渲染管线 |
+| `pptx-zoom-check.sh` | — | 18092 | PPTX 预览缩放 |
+| `comment-api-check.sh` | — | 8100 | 点评 API |
+| `api-refresh-check.sh` | 12 | 8101 | 接口文档定时/手动刷新 |
+| `e2e-editor-menus.sh` | 48 | 8192 | 编辑器上下文菜单：Markdown 右键三态 + Luckysheet 内置下拉（playwright 真实输入事件） |
+
+两个**已修的坑**（都曾让 run-all 假红）：
+
+- `preview-zoom-check.sh` 的流程图断言在 `0b46e51`（移除自研缩放工具条、改为全宽自然铺开）后失效；
+  现断言「工具条**不存在** + 图形真铺开（>300px 且 ≥ 容器 60%）」。**产品行为改了要同步改套件。**
+- `e2e-editor-menus.mjs` 曾因写死 macOS 路径（`/Users/macro/...`、`/Applications/...`）在本机
+  `exit=1 用时=0s` 秒退；改为按 `os.homedir()` 推导 + 包装脚本 `export HOME=` 后恢复 48/48。
+
+## 浏览器套件：`h5-reader-check.sh`（52 项，端口 8177）
+
+H5（手机版）阅读态的端到端回归，生产形态二进制 + agent-browser **移动视口 390×844**。
+进手机版靠 `localStorage['haiku_view_mode']='h5'`（脚本已设，不依赖 UA）。七段：
+
+1. `/m/doc/<mindmap>` 底部无空白（`main.bottom === tabbar.top`）+ 画布型预览有手势层；
+2. `/m/doc/<sheet>` 只读表格：网格存在、**白色「渲染中」遮罩已清除**、画布非零尺寸；
+3. `/m/doc/<file>` 附件 PDF 预览已渲染；
+4. `/m/doc/<api>` 左栏接口树为离屏抽屉（初始 `left<0`，点「目录」出遮罩）；
+5. `/m/doc/<gantt>` 满屏铺满 + **默认只显示时间轴 + 刻度有日期文案**；
+6. PPTX：现场用 `pptxgenjs` 生成 `.pptx` → 上传 → 建 `file` 文档 → 点全屏 → 断言伪全屏（portal）
+   铺满视口且幻灯片已自适应；
+7. **分享阅读模式**：书级 `/share/:slug`（夹具靠 `PUT /api/books/:id/visibility {"visibility":"public"}`
+   取 `books.share_slug`）与文档级 `/doc-share/:slug`（`PUT /api/docs/:id/share`）。
+   分享页**免登录**，所以该段先 `localStorage.removeItem('hk_token')` 再打开；
+   断言无底部 Tab、正文铺满视口底部、抽屉目录、以及甘特/接口/表格三类分享页各自的布局。
+
+断言锚点用组件上的 `data-h5-*` 测试钩子：`[data-h5-doc]`（含 `data-h5-zoomable`/`data-h5-fill`）、
+`[data-h5-zoom]`、`[data-h5-main]`、`[data-h5-tabbar]`。细节与踩坑（luckysheet 的 localforage 兜底、
+PPTX portal 的零宽、SVAR 折叠导致刻度 0 单元格）见技能 `haiku-wiki-build-verify` §12。
+
+⚠️ 它测的是 `GanttChart.tsx` 等**桌面/手机共用组件**，改这些文件后要连带跑
+`SUITES="h5-reader-check gantt-fold-check gantt-fold-edge-check gantt-ui-check"`。
+
 ## 新增套件
 
 1. 放进本目录，沿用「自起服务 + `trap cleanup EXIT` + ✅/❌ 计数」的结构；

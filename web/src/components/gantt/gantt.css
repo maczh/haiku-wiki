@@ -186,3 +186,46 @@
   right: 6px;
 }
 
+
+/* ---------- H5 底部面板切换条（替代桌面端四角小三角） ----------
+   手机上四角箭头目标太小（22×22）且贴边，拇指点不准；这里改为底部常驻的
+   分段控件：当前视图高亮可见，一键切换「任务表 / 双栏 / 甘特图」。
+   用 safe-area-inset-bottom 兜底 iPhone 底部小黑条。 */
+.hk-gantt-foldbar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e5e6eb;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.hk-gantt-foldbar-item {
+  /* ⚠️ flex:0 0 auto + nowrap 不能省：绝对定位容器的宽度是「收缩后」再按可用空间
+     分配的，窄屏下 flex-shrink 会把按钮压窄，把「任务表 / 甘特图」末尾一个字裁掉
+     （实测渲染成「任务」「甘特」）。 */
+  flex: 0 0 auto;
+  min-width: 62px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 17px;
+  background: transparent;
+  color: #5f6672;
+  font-size: 13px;
+  line-height: 32px;
+  white-space: nowrap;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.hk-gantt-foldbar-item.on {
+  background: #1677ff;
+  color: #fff;
+  font-weight: 600;
+}

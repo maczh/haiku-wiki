@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# 预览缩放/全屏冒烟（2026-09-23 新增）：
-#   · 流程图（mermaid）阅读态 + 编辑器右侧实时预览：缩放工具条（缩小/放大/适应宽度/原始尺寸）
-#     可见且「放大」点击后百分比变大；阅读态通栏铺满（不再受阅读宽度调节器约束）；
+# 预览缩放/全屏冒烟（2026-09-23 新增，同日随 0b46e51 更新）：
+#   · 流程图（mermaid）阅读态 + 编辑器右侧实时预览：图形按容器全宽自然铺开（>300px 且 ≥ 容器 60%）、
+#     阅读态通栏铺满（不再受阅读宽度调节器约束）。⚠️ 自研缩放工具条已按设计移除
+#     （scale 对矢量图无实际放大效果，见 reader/FlowchartView.tsx 注释），故断言其**不存在**；
 #   · 白板（Excalidraw）编辑器：宿主工具条「全屏」按钮点击后 document.fullscreenElement 生效；
 #   · 白板/绘图共用 DrawioSvgView 阅读态：工具条带全屏按钮（.anticon-fullscreen）。
+#     ⚠️ DrawioSvgView 的缩放/全屏工具条仍在，别和流程图混淆。
 #
 # 已知陷阱（沿用 whiteboard-check.sh）：
 #   · curl 必须 --noproxy '*'（本机代理劫持 127.0.0.1）；
@@ -52,9 +54,16 @@ note(){ echo "  ⚠️ $1"; }
 J() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)"; }
 AUTH_JSON='Content-Type: application/json'
 
-TOKEN=$(curl --noproxy '*' -s -X POST "$BASE/api/auth/login" -H "$AUTH_JSON" \
-  -d '{"account":"e2e@example.com","password":"secret123"}' | J "d['data']['token']")
-[ -n "$TOKEN" ] && ok "登录" || { echo "❌ 认证失败"; exit 1; }
+# ⚠️ AutoMigrate 异步：服务就绪（/api/books 返回 401）≠ 表已迁移完，此时登录会得到
+# 「账号或密码错误」。必须重试等迁移落定，否则整套用例假红。
+TOKEN=""
+for _i in $(seq 1 40); do
+  TOKEN=$(curl --noproxy '*' -s -X POST "$BASE/api/auth/login" -H "$AUTH_JSON" \
+    -d '{"account":"e2e@example.com","password":"secret123"}' | J "d['data']['token']")
+  [ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && break
+  sleep 0.5
+done
+[ -n "$TOKEN" ] && [ "$TOKEN" != "None" ] && ok "登录" || { echo "❌ 认证失败"; exit 1; }
 AUTH="Authorization: Bearer $TOKEN"
 
 # ---------- 播种：宽时序图（复刻用户反馈场景）+ 带预览 SVG 的白板 ----------
@@ -97,55 +106,48 @@ echo "== 流程图阅读态 =="
 "$AB" open "$BASE/login" >/dev/null 2>&1; "$AB" wait 1500 >/dev/null 2>&1
 "$AB" eval "localStorage.setItem('hk_token', ${TOKEN@Q}); 'ok'" >/dev/null 2>&1
 visit "$BASE/books/1?docId=$FID&tab=read" 7000
+# ⚠️ 设计变更（commit 0b46e51「小BUG修复」）：流程图（mermaid）阅读态**已移除**自研缩放工具条 ——
+# 旧工具条的 scale 变换对矢量图没有实际放大效果，改为委托 Markdown/Vditor 全宽自然铺开
+# （见 `components/reader/FlowchartView.tsx` 顶部注释）。因此这里断言的是
+# 「工具条已移除 + 图形真的铺开」，旧版的「工具条齐全 / 点放大百分比变大」断言已失效。
 TB=$(q "(function(){
   var btns=[].slice.call(document.querySelectorAll('button'));
-  var fit=btns.find(function(b){return b.textContent.indexOf('适应宽度')>=0});
-  var one=btns.find(function(b){return b.textContent.indexOf('原始尺寸')>=0});
-  var zin=btns.find(function(b){return b.querySelector('.anticon-zoom-in')});
-  var pct=[].slice.call(document.querySelectorAll('body *')).some(function(e){return e.children.length===0&&/^\d+%$/.test(e.textContent.trim())});
-  if(!fit||!one||!zin) return 'no-toolbar';
-  if(!pct) return 'no-pct';
-  return 'ok'})()")
-[ "$TB" = "ok" ] && ok "缩放工具条齐全（缩小/放大/适应宽度/原始尺寸/百分比）" || no "工具条异常: $TB"
+  return btns.some(function(b){return b.textContent.indexOf('适应宽度')>=0})?'toolbar-present':'no-toolbar'})()")
+[ "$TB" = "no-toolbar" ] && ok "阅读态无缩放工具条（已改为全宽铺开）" || no "旧缩放工具条仍在: $TB"
 
+# mermaid 渲染探针：扫描**所有** svg 取像图表的那一个（宽度 > 300）——
+# 不能取第一个 svg：页面图标也是 svg，旧写法会命中 0x0 而误判「未渲染」。
 SVGBOX=$(q "(function(){
-  var svg=document.querySelector('svg[id^=hk-mermaid], .mermaid svg, main svg, article svg, svg');
-  if(!svg) return 'no-svg';
-  var r=svg.getBoundingClientRect();
-  return 'svg:'+Math.round(r.width)+'x'+Math.round(r.height)})()")
+  var list=[].slice.call(document.querySelectorAll('svg')).map(function(s){
+    var r=s.getBoundingClientRect(); return Math.round(r.width)+'x'+Math.round(r.height)});
+  return 'big:'+list.filter(function(v){return parseInt(v)>300}).length+' ['+list.slice(0,4).join(', ')+']'})()")
 echo "    渲染探针: $SVGBOX"
-case "$SVGBOX" in svg:[1-9]*) ok "mermaid SVG 已渲染" ;; *) no "mermaid SVG 未渲染: $SVGBOX" ;; esac
+case "$SVGBOX" in big:[1-9]*) ok "mermaid SVG 已按容器铺开（>300px）" ;; *) no "mermaid SVG 未铺开: $SVGBOX" ;; esac
 
-BEFORE=$(q "(function(){
-  var els=[].slice.call(document.querySelectorAll('body *')).filter(function(e){return e.children.length===0&&/^\d+%$/.test(e.textContent.trim())});
-  return els.length?parseInt(els[0].textContent):'na'})()")
-"$AB" eval "(function(){var b=[].slice.call(document.querySelectorAll('button')).find(function(x){return x.querySelector('.anticon-zoom-in')});if(b){b.click();return 'ok'}return 'no-btn'})()" >/dev/null 2>&1
-"$AB" wait 600 >/dev/null 2>&1
-AFTER=$(q "(function(){
-  var els=[].slice.call(document.querySelectorAll('body *')).filter(function(e){return e.children.length===0&&/^\d+%$/.test(e.textContent.trim())});
-  return els.length?parseInt(els[0].textContent):'na'})()")
-if [ "$BEFORE" != "na" ] && [ "$AFTER" != "na" ] && [ "$AFTER" -gt "$BEFORE" ] 2>/dev/null; then
-  ok "点击放大后百分比 $BEFORE% → $AFTER%"
-else
-  no "放大未生效: $BEFORE% → $AFTER%"
-fi
+# 图形宽度应跟随容器（通栏后不再被人为缩小到「适应宽度且不超过 1:1」）
+FITW=$(q "(function(){
+  var main=document.querySelector('main')||document.body;
+  var cw=main.getBoundingClientRect().width;
+  var ws=[].slice.call(document.querySelectorAll('svg')).map(function(s){return s.getBoundingClientRect().width});
+  var w=Math.max.apply(null,ws.concat([0]));
+  return (cw>0&&w/cw>=0.6)?'ok':'narrow:'+Math.round(w)+'/'+Math.round(cw)})()")
+[ "$FITW" = "ok" ] && ok "图形宽度跟随容器（≥60%）" || no "图形未铺开: $FITW"
 "$AB" screenshot "$OUT/flowchart-read.png" >/dev/null 2>&1
 
 # 通栏：阅读宽度调节器（标准/宽屏/全宽）不再出现
 WCTL=$(q "(function(){return document.body.innerText.indexOf('全宽')>=0?'present':'absent'})()")
 [ "$WCTL" = "absent" ] && ok "流程图阅读态已通栏（宽度调节器隐藏）" || no "宽度调节器仍显示"
 
-# ---------- 2) 流程图编辑态：右侧实时预览同款工具条 ----------
+# ---------- 2) 流程图编辑态：右侧实时预览（同一 FlowchartView，同样无工具条） ----------
 echo "== 流程图编辑态 =="
 visit "$BASE/books/1?docId=$FID&tab=edit" 7000
 EB=$(q "(function(){
-  var btns=[].slice.call(document.querySelectorAll('button'));
-  var fit=btns.find(function(b){return b.textContent.indexOf('适应宽度')>=0});
   var ta=document.querySelector('textarea');
-  if(!fit) return 'no-toolbar';
   if(!ta) return 'no-src';
+  var big=[].slice.call(document.querySelectorAll('svg')).filter(function(s){return s.getBoundingClientRect().width>300});
+  if(big.length===0) return 'no-preview';
   return 'ok'})()")
-[ "$EB" = "ok" ] && ok "编辑器右侧预览带缩放工具条" || no "编辑态预览异常: $EB"
+[ "$EB" = "ok" ] && ok "编辑器右侧实时预览已渲染 mermaid" || no "编辑态预览异常: $EB"
 "$AB" screenshot "$OUT/flowchart-edit.png" >/dev/null 2>&1
 
 # ---------- 3) 白板编辑态：宿主「全屏」按钮 → fullscreenElement 生效 ----------
@@ -179,6 +181,53 @@ RFS=$(q "(function(){
   return fs?'ok':'no-fs-btn'})()")
 [ "$RFS" = "ok" ] && ok "白板阅读态 SVG 预览 + 全屏按钮" || no "白板阅读态异常: $RFS"
 "$AB" screenshot "$OUT/whiteboard-read.png" >/dev/null 2>&1
+
+# ---------- 5) 表格阅读态：连续点击命中不偏行（「二次点击差 6 行」回归） ----------
+# ⚠️ 根因不是时序/refresh，而是 CSS 包含块：luckysheet 的根 `.luckysheet` 自带
+#    `position:absolute`（无 top/left），宿主 div 若是 static，它的包含块会落到滚动
+#    容器之外的某个定位祖先上 → 网格**不随页面滚动**，而 luckysheet 算命中行用的是
+#    `$("#"+container).offset().top`（宿主位置）→ 两者脱钩 → 第二次起整行下移约 6 行。
+#    修法：宿主设为 position:relative（见 reader/SheetView.tsx 注释）。
+#    断言不变量：**同一个网格内相对偏移 → 命中同一行**，且滚动后依旧成立。
+echo "== 表格阅读态：点击命中 =="
+visit "$BASE/books/1?docId=2&tab=read" 7000
+SHEET_POS=$(q "(function(){
+  var b=document.querySelector('[id^=hk-luckysheet-view-]');
+  return b?getComputedStyle(b).position:'no-box'})()")
+[ "$SHEET_POS" = "relative" ] && ok "表格宿主 position:relative（包含块正确）" || no "表格宿主 position=$SHEET_POS"
+
+ROWS=$(q "(function(){
+  var cm=document.querySelector('#luckysheet-cell-main');
+  if(!cm) return 'no-grid';
+  var api=window.luckysheet;
+  if(!api||typeof api.getluckysheet_select_save!=='function') return 'no-api';
+  var out=[];
+  function row(){var s=api.getluckysheet_select_save();return (s&&s[0]&&s[0].row)?s[0].row[0]:'na'}
+  function click(dy){
+    var r=cm.getBoundingClientRect();
+    var x=r.left+60, y=r.top+dy;
+    ['mousedown','mouseup','click'].forEach(function(t){
+      cm.dispatchEvent(new MouseEvent(t,{clientX:x,clientY:y,bubbles:true,cancelable:true,view:window}))});
+    return row();
+  }
+  // 同一相对偏移连点三次：三次必须命中同一行
+  out.push(click(100)); out.push(click(100)); out.push(click(100));
+  // 再把外层滚动容器滚 250px，原地再点：滚动不应改变「网格内同一位置」的命中行
+  var p=cm.parentElement, sc=null;
+  while(p){var s=getComputedStyle(p);if(/(auto|scroll)/.test(s.overflowY)&&p.scrollHeight>p.clientHeight+10){sc=p;break}p=p.parentElement}
+  if(!sc) sc=document.scrollingElement||document.documentElement;
+  sc.scrollTop+=250;
+  out.push(click(100));
+  return out.join(',')})()")
+echo "    命中行序列（3 次原地 + 滚动后 1 次）: $ROWS"
+case "$ROWS" in
+  no-grid|no-api) no "表格网格/API 不可用: $ROWS" ;;
+  *na*)           no "未能读到选区行: $ROWS" ;;
+  *) FIRST=${ROWS%%,*}; REST=${ROWS#*,}
+     SAME=yes; IFS=','; for v in $REST; do [ "$v" = "$FIRST" ] || SAME=no; done; unset IFS
+     [ "$SAME" = "yes" ] && ok "连续点击命中同一行（含滚动后，行=$FIRST）" || no "点击命中偏行: $ROWS" ;;
+esac
+"$AB" screenshot "$OUT/sheet-read-click.png" >/dev/null 2>&1
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

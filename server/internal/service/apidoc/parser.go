@@ -51,6 +51,7 @@ type ApiEndpoint struct {
 	Description     string        `json:"description,omitempty"`
 	ResponseExample string        `json:"response_example,omitempty"`
 	ResponseFields  []ApiField    `json:"response_fields,omitempty"`
+	BodyFields      []ApiField    `json:"body_fields,omitempty"`
 }
 
 // ApiGroup is a named group of endpoints (tag / folder).
@@ -312,6 +313,11 @@ func parseSwagger2(o map[string]any) *ApiDoc {
 			}
 			desc, _ := op["description"].(string)
 
+			bodyFields := []ApiField{}
+			if bodyType == "json" && strings.TrimSpace(body) != "" {
+				bodyFields = bodyToFields(body)
+			}
+
 			ep := ApiEndpoint{
 				ID:              "e_" + shortHash(epKey(method, uri)),
 				Name:            name,
@@ -325,6 +331,7 @@ func parseSwagger2(o map[string]any) *ApiDoc {
 				Description:     desc,
 				ResponseExample: ex,
 				ResponseFields:  fields,
+				BodyFields:      bodyFields,
 			}
 			addToBuckets(buckets, seen, bucketName(op["tags"], fallback), ep)
 		}
@@ -431,6 +438,11 @@ func parseOpenAPI3(o map[string]any) *ApiDoc {
 			}
 			desc, _ := op["description"].(string)
 
+			bodyFields := []ApiField{}
+			if bodyType == "json" && strings.TrimSpace(body) != "" {
+				bodyFields = bodyToFields(body)
+			}
+
 			ep := ApiEndpoint{
 				ID:              "e_" + shortHash(epKey(method, uri)),
 				Name:            name,
@@ -444,6 +456,7 @@ func parseOpenAPI3(o map[string]any) *ApiDoc {
 				Description:     desc,
 				ResponseExample: ex,
 				ResponseFields:  fields,
+				BodyFields:      bodyFields,
 			}
 			addToBuckets(buckets, seen, bucketName(op["tags"], fallback), ep)
 		}
@@ -626,6 +639,11 @@ func collectPostmanItems(items []any, seen map[string]bool) []ApiEndpoint {
 			name = method + " " + uri
 		}
 
+		bodyFields := []ApiField{}
+		if bodyType == "json" && strings.TrimSpace(body) != "" {
+			bodyFields = bodyToFields(body)
+		}
+
 		out = append(out, ApiEndpoint{
 			ID:              "e_" + shortHash(key),
 			Name:            name,
@@ -637,6 +655,7 @@ func collectPostmanItems(items []any, seen map[string]bool) []ApiEndpoint {
 			BodyType:        bodyType,
 			Body:            body,
 			ResponseExample: responseExample,
+			BodyFields:      bodyFields,
 		})
 	}
 	return out
@@ -894,6 +913,11 @@ func parseApifoxApi(it, root map[string]any) ApiEndpoint {
 		}
 	}
 
+	bodyFields := []ApiField{}
+	if bodyType == "json" && strings.TrimSpace(body) != "" {
+		bodyFields = bodyToFields(body)
+	}
+
 	return ApiEndpoint{
 		ID:              "e_" + shortHash(key),
 		Name:            name,
@@ -907,6 +931,7 @@ func parseApifoxApi(it, root map[string]any) ApiEndpoint {
 		Description:     desc,
 		ResponseExample: respExample,
 		ResponseFields:  respFields,
+		BodyFields:      bodyFields,
 	}
 }
 
@@ -1155,6 +1180,60 @@ func schemaToFields(schema any, prefix string, topRequired []string, root map[st
 		return out
 	}
 	return nil
+}
+
+// bodyToFields 把请求体 JSON 示例字符串推导为扁平字段表（name 路径 / type / required=false）。
+// 与前端 jsonToFields 同语义：对象不单独成行，数组成行且元素递归（前缀 + "[]"），叶节点取 Go 类型。
+func bodyToFields(body string) []ApiField {
+	if strings.TrimSpace(body) == "" {
+		return nil
+	}
+	var obj any
+	if err := json.Unmarshal([]byte(body), &obj); err != nil {
+		return nil
+	}
+	var out []ApiField
+	var walk func(node any, prefix string)
+	walk = func(node any, prefix string) {
+		switch n := node.(type) {
+		case nil:
+			out = append(out, ApiField{Name: prefix, Type: "null"})
+		case []any:
+			out = append(out, ApiField{Name: prefix, Type: "array"})
+			if len(n) > 0 {
+				walk(n[0], prefix+"[]")
+			}
+		case map[string]any:
+			for k, v := range n {
+				np := k
+				if prefix != "" {
+					np = prefix + "." + k
+				}
+				walk(v, np)
+			}
+		default:
+			out = append(out, ApiField{Name: prefix, Type: goScalarType(node)})
+		}
+	}
+	walk(obj, "")
+	if out == nil {
+		return nil
+	}
+	return out
+}
+
+// goScalarType 返回 Go 值的 JSON Schema 标量类型名（与前端 jsonToFields 的 typeof 对齐）。
+func goScalarType(v any) string {
+	switch v.(type) {
+	case string:
+		return "string"
+	case float64, int64:
+		return "number"
+	case bool:
+		return "boolean"
+	default:
+		return "any"
+	}
 }
 
 // extractResponse pulls the 200/201/2XX/first response and builds example + fields.

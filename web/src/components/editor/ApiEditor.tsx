@@ -31,6 +31,7 @@ import {
   HistoryOutlined,
   ImportOutlined,
   LinkOutlined,
+  MenuOutlined,
   PlusOutlined,
   ReloadOutlined,
   SaveOutlined,
@@ -44,7 +45,9 @@ import {
   defaultEndpoint,
   importApiSpec,
   jsonToFields,
+  mergeBodyFields,
   normalizeApiDoc,
+  reconcileFields,
   serializeApiDoc,
   type ApiDoc,
   type ApiEndpoint,
@@ -70,6 +73,8 @@ interface Props {
   /** 只读（阅读模式）：文档结构字段禁用、隐藏保存/导入；
    *  但「请求头 / 请求参数 / 请求体」这些调试输入仍可编辑（读者需填入自己的测试值来调试）。 */
   readOnly?: boolean
+  /** 移动端（H5）模式：左栏分组/接口树改为可滑出的抽屉，正文占满整屏 */
+  mobile?: boolean
 }
 
 /** 浏览器直接发起调试的返回结构（与原 proxyRequest 输出兼容）。 */
@@ -197,8 +202,19 @@ function KVEditor({
   )
 }
 
-/** 字段参数说明表（请求体 / 返回结果通用）。 */
-function FieldTable({ fields }: { fields: ApiField[] }) {
+/** 字段参数说明表（请求体 / 返回结果通用）。
+ *  editable 为真且非 readOnly 时，「说明」列改为受控 Input，编辑经 onDescriptionChange 落库。 */
+function FieldTable({
+  fields,
+  editable = false,
+  readOnly = false,
+  onDescriptionChange,
+}: {
+  fields: ApiField[]
+  editable?: boolean
+  readOnly?: boolean
+  onDescriptionChange?: (fieldName: string, description: string) => void
+}) {
   if (!fields || fields.length === 0) {
     return (
       <div style={{ color: '#8a919f', fontSize: 13, padding: '6px 0' }}>（暂无字段说明）</div>
@@ -229,7 +245,17 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
           title: '说明',
           dataIndex: 'description',
           key: 'description',
-          render: (t?: string) => t || '—',
+          render: (t?: string, rec?: ApiField) =>
+            editable && !readOnly ? (
+              <Input
+                placeholder="填写字段说明"
+                value={t || ''}
+                onChange={(e) => onDescriptionChange?.(rec?.name ?? '', e.target.value)}
+                style={{ width: '100%' }}
+              />
+            ) : (
+              t || '—'
+            ),
         },
         {
           title: '必填',
@@ -253,7 +279,7 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
  *  - 内容 2.5s 防抖自动保存（patchDoc）；只读模式下文档结构字段禁用、隐藏保存/导入，
  *    但 Host / 请求头 / 请求参数 / 请求体仍可编辑（读者可填入测试值直接调试）。
  */
-export default function ApiEditor({ docId, initialContent, title, readOnly }: Props) {
+export default function ApiEditor({ docId, initialContent, title, readOnly, mobile = false }: Props) {
 const [doc, setDoc] = useState<ApiDoc>(() => normalizeApiDoc(initialContent))
 const docRef = useRef(doc)
 docRef.current = doc
@@ -269,6 +295,8 @@ useEffect(() => {
 }, [docId])
   const [selGroup, setSelGroup] = useState<string | null>(null)
   const [selEp, setSelEp] = useState<string | null>(null)
+  /** 移动端：左栏接口树抽屉开合 */
+  const [treeOpen, setTreeOpen] = useState(false)
   const [tab, setTab] = useState('headers')
   const [status, setStatus] = useState<SaveStatus>('saved')
   const [debug, setDebug] = useState<null | DebugResponse>(null)
@@ -576,6 +604,39 @@ useEffect(() => {
     [current, mutate],
   )
 
+  /** 编辑请求体某行说明：写入 ep.body_fields（按 name 定位/新增，只存 {name, description}）。 */
+  const updateBodyField = useCallback(
+    (name: string, description: string) => {
+      if (!current) return
+      const existing = current.ep.body_fields ?? []
+      const idx = existing.findIndex((f) => f.name === name)
+      const next: ApiField[] =
+        idx >= 0
+          ? existing.map((f, i) => (i === idx ? { ...f, description } : f))
+          : [...existing, { name, description } as ApiField]
+      patchEndpoint({ body_fields: next })
+    },
+    [current, patchEndpoint],
+  )
+
+  /** 编辑返回结果某行说明：写入 ep.response_fields（按 name 定位/新增）。 */
+  const updateResponseField = useCallback(
+    (name: string, description: string) => {
+      if (!current) return
+      const base =
+        current.ep.response_fields && current.ep.response_fields.length
+          ? current.ep.response_fields
+          : jsonToFields(current.ep.response_example || '')
+      const idx = base.findIndex((f) => f.name === name)
+      const next: ApiField[] =
+        idx >= 0
+          ? base.map((f, i) => (i === idx ? { ...f, description } : f))
+          : [...base, { name, description } as ApiField]
+      patchEndpoint({ response_fields: next })
+    },
+    [current, patchEndpoint],
+  )
+
   // ---------- 接口移动 / 历史 ----------
 
   /** 把接口从原分组移动到目标分组 */
@@ -767,16 +828,38 @@ useEffect(() => {
 
   const mergeImported = useCallback(
     (parsed: ApiDoc) => {
-      // 重复导入同一外部文档：先按 import_source 删除旧分组，再全部重新导入
       const newSources = new Set(parsed.groups.map((g) => g.import_source || '').filter(Boolean))
       mutate((d) => {
+        // 1) 从「整篇旧 doc」构建 method+uri → {body 说明, resp 说明} 快照
+        const snapBody = new Map<string, ApiField[]>()
+        const snapResp = new Map<string, ApiField[]>()
+        const keyOf = (m: string, u: string) => `${(m || 'GET').toUpperCase()}:${u || ''}`
+        for (const g of d.groups) {
+          for (const ep of g.items) {
+            const k = keyOf(ep.method, ep.uri)
+            if (ep.body_fields?.length) snapBody.set(k, ep.body_fields)
+            if (ep.response_fields?.length) snapResp.set(k, ep.response_fields)
+          }
+        }
+        // 2) 逐 endpoint 调和（请求体用 jsonToFields 推导行，再与快照调和）
+        const reconciledGroups = parsed.groups.map((g) => ({
+          ...g,
+          items: g.items.map((ep) => {
+            const k = keyOf(ep.method, ep.uri)
+            const derivedBody = jsonToFields(ep.body)
+            const bodyFields = reconcileFields(derivedBody, snapBody.get(k))
+            const responseFields = reconcileFields(ep.response_fields ?? [], snapResp.get(k))
+            return { ...ep, body_fields: bodyFields, response_fields: responseFields }
+          }),
+        }))
+        // 3) 删除同 import_source 旧分组，保留其余 + 调和后的新分组
         const kept = d.groups.filter((g) => !g.import_source || !newSources.has(g.import_source))
         const isEmptyDefault =
           d.groups.length === 1 && d.groups[0].name === '默认分组' && d.groups[0].items.length === 0
         return {
           version: 1,
           base_host: d.base_host || parsed.base_host || '',
-          groups: isEmptyDefault ? parsed.groups : [...kept, ...parsed.groups],
+          groups: isEmptyDefault ? reconciledGroups : [...kept, ...reconciledGroups],
         }
       })
       const added = parsed.groups.reduce((n, g) => n + g.items.length, 0)
@@ -855,15 +938,26 @@ useEffect(() => {
         }}
       >
         <ApiOutlined style={{ color: '#13c2c2' }} />
+        {mobile && (
+          <MenuOutlined
+            onClick={() => setTreeOpen(true)}
+            style={{ fontSize: 18, color: '#1f2329', cursor: 'pointer', flexShrink: 0 }}
+            title="接口目录"
+          />
+        )}
         <span style={{ fontWeight: 600 }}>{title ?? '接口文档'}</span>
-        <span style={{ color: '#8a919f', fontSize: 12 }}>全局 Base Host：</span>
-        <Input
-          value={doc.base_host}
-          disabled={readOnly}
-          onChange={(e) => mutate((d) => ({ ...d, base_host: e.target.value }))}
-          placeholder="https://api.example.com（可选，接口可单独覆盖）"
-          style={{ width: 320, fontSize: 12 }}
-        />
+        {!mobile && (
+          <>
+            <span style={{ color: '#8a919f', fontSize: 12 }}>全局 Base Host：</span>
+            <Input
+              value={doc.base_host}
+              disabled={readOnly}
+              onChange={(e) => mutate((d) => ({ ...d, base_host: e.target.value }))}
+              placeholder="https://api.example.com（可选，接口可单独覆盖）"
+              style={{ width: 320, fontSize: 12 }}
+            />
+          </>
+        )}
         <div style={{ flex: 1 }} />
         {!readOnly && (
           <>
@@ -895,34 +989,36 @@ useEffect(() => {
         )}
         {docId ? (
           <>
-            <Tooltip
-              title={
-                refreshStatus?.refresh_error
-                  ? `上次刷新失败：${refreshStatus.refresh_error}`
-                  : '按 URL 导入来源自动刷新（每日 02:00）'
-              }
-            >
-              <span
-                style={{
-                  color: '#8a919f',
-                  fontSize: 12,
-                  maxWidth: 240,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
+            {!mobile && (
+              <Tooltip
+                title={
+                  refreshStatus?.refresh_error
+                    ? `上次刷新失败：${refreshStatus.refresh_error}`
+                    : '按 URL 导入来源自动刷新（每日 02:00）'
+                }
               >
-                {refreshStatus?.last_refreshed_at
-                  ? `上次刷新：${refreshStatus.last_refreshed_at.slice(0, 16).replace('T', ' ')}（${
-                      refreshStatus.refresh_status === 'success'
-                        ? '成功'
-                        : refreshStatus.refresh_status === 'failed'
-                        ? '失败'
-                        : refreshStatus.refresh_status || '—'
-                    }）`
-                  : '未刷新（按 URL 来源每日 02:00 自动刷新）'}
-              </span>
-            </Tooltip>
+                <span
+                  style={{
+                    color: '#8a919f',
+                    fontSize: 12,
+                    maxWidth: 240,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {refreshStatus?.last_refreshed_at
+                    ? `上次刷新：${refreshStatus.last_refreshed_at.slice(0, 16).replace('T', ' ')}（${
+                        refreshStatus.refresh_status === 'success'
+                          ? '成功'
+                          : refreshStatus.refresh_status === 'failed'
+                          ? '失败'
+                          : refreshStatus.refresh_status || '—'
+                      }）`
+                    : '未刷新（按 URL 来源每日 02:00 自动刷新）'}
+                </span>
+              </Tooltip>
+            )}
             <Button size="small" icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh}>
               刷新
             </Button>
@@ -931,14 +1027,35 @@ useEffect(() => {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* 左栏：分组 / 接口树（宽度可拖拽调节；滚动容器与拖拽把手分层，保证把手不随内容滚走） */}
-        <div style={{ width: leftWidth, flexShrink: 0, position: 'relative' }}>
+        {/* 左栏：分组 / 接口树（宽度可拖拽调节；滚动容器与拖拽把手分层，保证把手不随内容滚走）。
+            移动端改为「可滑出的抽屉」：脱离文档流（position:fixed），默认 translateX(-100%) 收起，
+            点顶栏「目录」展开；右栏因此占满整屏。 */}
+        <div
+          style={
+            mobile
+              ? {
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  width: '82%',
+                  maxWidth: 340,
+                  zIndex: 50,
+                  background: '#fff',
+                  boxShadow: '2px 0 12px rgba(0,0,0,.18)',
+                  transform: treeOpen ? 'translateX(0)' : 'translateX(-100%)',
+                  transition: 'transform .2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }
+              : { width: leftWidth, flexShrink: 0, position: 'relative' }
+          }
+        >
           <div
             style={{
-              height: '100%',
-              borderRight: '1px solid #f0f2f5',
-              overflow: 'auto',
-              padding: '8px 0',
+              ...(mobile
+                ? { flex: 1, minHeight: 0, overflow: 'auto', padding: '8px 0' }
+                : { height: '100%', borderRight: '1px solid #f0f2f5', overflow: 'auto', padding: '8px 0' }),
             }}
           >
           {!readOnly && (
@@ -1023,9 +1140,15 @@ useEffect(() => {
                 const selected = selectedEps.has(e.id)
                 const epNode = (
                   <div
-                    onClick={() =>
-                      batchMode ? toggleEpSelect(e.id) : (setSelGroup(g.id), setSelEp(e.id))
-                    }
+                    onClick={() => {
+                      if (batchMode) {
+                        toggleEpSelect(e.id)
+                      } else {
+                        setSelGroup(g.id)
+                        setSelEp(e.id)
+                        if (mobile) setTreeOpen(false)
+                      }
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1121,10 +1244,17 @@ useEffect(() => {
             </div>
           )}
           </div>
-          {/* 左栏右缘拖拽把手：调整左栏宽度（编辑/阅读/分享三模式均可用） */}
-          <div className="hk-side-resizer" onMouseDown={startLeftResize} />
+          {/* 左栏右缘拖拽把手：调整左栏宽度（编辑/阅读/分享三模式均可用；移动端为抽屉，隐藏） */}
+          {!mobile && <div className="hk-side-resizer" onMouseDown={startLeftResize} />}
         </div>
 
+        {/* 移动端左栏抽屉的遮罩：点击收起（抽屉本身 zIndex:50，遮罩在其下层） */}
+        {mobile && treeOpen && (
+          <div
+            onClick={() => setTreeOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 40 }}
+          />
+        )}
         {/* 右栏：接口配置 + 调试 */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {!current ? (
@@ -1370,7 +1500,12 @@ useEffect(() => {
                                   <Divider orientation="left" plain style={{ margin: '12px 0 4px' }}>
                                     字段参数说明
                                   </Divider>
-                                  <FieldTable fields={jsonToFields(current.ep.body)} />
+                                  <FieldTable
+                                    fields={mergeBodyFields(jsonToFields(current.ep.body), current.ep.body_fields)}
+                                    editable
+                                    readOnly={readOnly}
+                                    onDescriptionChange={updateBodyField}
+                                  />
                                 </>
                               )}
                             </div>
@@ -1440,6 +1575,9 @@ useEffect(() => {
                                       ? current.ep.response_fields
                                       : jsonToFields(current.ep.response_example || '')
                                   }
+                                  editable
+                                  readOnly={readOnly}
+                                  onDescriptionChange={updateResponseField}
                                 />
                               </Collapse.Panel>
                             </Collapse>

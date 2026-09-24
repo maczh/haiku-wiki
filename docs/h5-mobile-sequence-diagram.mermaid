@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    participant Browser as 用户浏览器
+    participant App as App.tsx
+    participant VM as useViewMode
+    participant IM as isMobile(lib)
+    participant HR as H5Router
+    participant ML as MobileLayout
+    participant MD as MDoc 页面
+    participant DM as getDocMode
+    participant API as docs.ts API
+    participant RE as Reader/Editor
+
+    Browser->>App: 访问任意 URL
+    App->>VM: useViewMode()
+    VM->>VM: 读取 localStorage['haiku_view_mode']
+    alt 无记忆值
+        VM->>IM: isMobile(navigator.userAgent)
+        IM-->>VM: boolean
+        VM-->>App: mode = isMobile ? 'h5' : 'desktop'
+    else 有记忆值('h5'|'desktop')
+        VM-->>App: mode = 记忆值
+    end
+
+    alt mode === 'h5'
+        App->>HR: 渲染 <H5Router/>
+        HR->>HR: 校验 pathname 是否以 /m 开头
+        alt 非 /m 路径
+            HR-->>Browser: <Navigate to="/m" replace/>
+        else /m* 路径
+            HR->>ML: 匹配 /m 路由，渲染 MobileLayout
+            ML->>ML: 顶部栏 + 底部 Tab(首页/文库/搜索/我的) + <Outlet/>
+            ML->>MD: /m/doc/:docId → 渲染 MDoc
+            MD->>API: getDoc(docId)
+            API-->>MD: WorkbenchDoc(docType, can_write, ...)
+            alt docType === 'folder'
+                MD-->>ML: 渲染子项列表（容器导航，Tab 不变）
+            else 非 folder
+                MD->>DM: getDocMode(docType)
+                DM-->>MD: 'editable' | 'readonly'
+                alt editable (whiteboard/todo/calendar)
+                    MD->>ML: setTabHidden(true) 隐藏底部 Tab
+                    MD->>RE: 渲染 WhiteboardEditor/TodoEditor/CalendarEditor
+                else readonly
+                    MD->>RE: 按 docType 渲染对应 Reader 组件(无工具条)
+                end
+            end
+        end
+    else mode === 'desktop'
+        App->>App: 渲染原桌面 <Routes>（AppLayout + RequireAuth）
+    end

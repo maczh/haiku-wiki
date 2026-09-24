@@ -6,6 +6,7 @@ import {
   BookOutlined,
   DeleteOutlined,
   LogoutOutlined,
+  MobileOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -13,12 +14,20 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { me } from '../api/auth'
+import { useViewMode } from '../h5/useViewMode'
 import JihaiLogo from '../components/brand/JihaiLogo'
 
 /** 应用主布局：顶部导航（Logo/搜索框/头像）+ 内容区 */
 export default function AppLayout() {
   const navigate = useNavigate()
+  const { setMode } = useViewMode()
   const { token, user, setUser, logout } = useAuthStore()
+
+  /** 切换手机版：记忆模式 + 跳转 /m */
+  function switchToMobile() {
+    setMode('h5')
+    navigate('/m')
+  }
 
   useEffect(() => {
     if (!token) {
@@ -131,6 +140,12 @@ export default function AppLayout() {
                     },
                   ]
                 : []),
+              {
+                key: 'mobile',
+                icon: <MobileOutlined />,
+                label: '切换手机版',
+                onClick: () => switchToMobile(),
+              },
               {
                 key: 'logout',
                 icon: <LogoutOutlined />,

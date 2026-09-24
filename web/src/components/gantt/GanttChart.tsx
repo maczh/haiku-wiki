@@ -3,6 +3,7 @@ import { Gantt, Willow } from '@svar-ui/react-gantt'
 import type { IApi, IColumnConfig, IScaleConfig } from '@svar-ui/react-gantt'
 import '@svar-ui/react-gantt/style.css'
 import './gantt.css'
+import { useViewMode } from '../../h5/useViewMode'
 import {
   clampPriority,
   ganttFromSvar,
@@ -154,6 +155,16 @@ interface TipState {
 type FoldMode = 'all' | 'grid' | 'chart'
 
 /**
+ * 手机版（H5）底部切换条的三个档位。
+ * 顺序按「看表格 → 都看 → 看时间轴」左→右排列，与面板的实际左右位置一致，符合直觉。
+ */
+const H5_FOLD_TABS: ReadonlyArray<{ mode: FoldMode; label: string }> = [
+  { mode: 'grid', label: '任务表' },
+  { mode: 'all', label: '双栏' },
+  { mode: 'chart', label: '甘特图' },
+]
+
+/**
  * 甘特画布本体（memo 包裹）。
  * 悬停气泡的 setTip 由外层容器在 onMouseMove 里频繁触发，若甘特本体也跟着重渲染，
  * 大图表下会明显卡顿。这里把 Willow+Gantt 抽成 memo 组件，props（seed / mode / init）都稳定，
@@ -194,6 +205,9 @@ const GanttBody = memo(function GanttBody({
  * 切换文档/切换读写模式时外层用 key 强制重挂载，天然拿到最新正文。
  */
 export default function GanttChart({ value, mode, onChange, onApi }: Props) {
+  // 视图模式：H5（手机版）下把面板默认切成「只显示时间轴」（见下方 useEffect 说明）
+  const { mode: viewMode } = useViewMode()
+  const mobile = viewMode === 'h5'
   // 只播种一次：后续由组件内部状态自持（受控回写会导致重置与滚动跳动）
   const [seed] = useState(() => ganttToSvar(value))
   const onChangeRef = useRef(onChange)
@@ -220,6 +234,12 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
    *   all   = 左右并排
    *   grid  = 隐藏右侧时间轴（左表格铺满）
    *   chart = 隐藏左侧表格（时间轴铺满）
+   *
+   * ⚠️ H5 默认「只显示时间轴」**不能**用 `useState` 初值 + CSS 类实现：
+   * 那样 DOM 从第一帧起就是折叠态，而 SVAR 内部仍以为处于 `all`，
+   * 时间轴的可视区（xArea）测不出来 → 刻度算出 **0 个单元格**（有甘特条却没有日期，
+   * 实测 `.wx-scale .wx-row` 的 cells=0）。必须挂载后走一次真正的 all→chart 切换
+   * （即用户点「隐藏左侧表格」的同一条路径），刻度才会正常（month 行 1 格 + day 行 8 格）。
    */
   const [fold, setFold] = useState<FoldMode>('all')
   const leftCollapsed = fold === 'chart'
@@ -408,6 +428,38 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
     setFold(next)
   }, [])
 
+  /**
+   * H5：挂载后把面板切到「只显示时间轴」。
+   *
+   * 只读列宽合计 726px（176+100+108+74+96+68+104），390px 手机视口下左表格会把右侧
+   * 时间轴挤成 0 宽 —— 手机上打开甘特「看不到甘特条」。桌面端维持左右并排。
+   *
+   * ⚠️ 必须在挂载之后调用 `set-display-mode`（与点按钮同路径），**不能**只靠初始 state/CSS：
+   * 见过两种失败写法（都实测走不通）——
+   *   1) `useState(mobile?'chart':'all')` + `init` 里同步 exec；
+   *   2) 同上但把 exec 延到双 rAF / 400ms。
+   * 二者都会让刻度渲染出 **0 个单元格**（`.wx-scale` 只有空行）：DOM 已折叠而 SVAR 仍在
+   * `all` 状态下完成首次测量，xArea 退化且不再自愈。挂载后走一次真正的 all→chart 切换才正常
+   * （month 行 1 格「2026 年 9 月」+ day 行 8 格「9/22…」）。
+   */
+  useEffect(() => {
+    if (!mobile) return
+    let raf = 0
+    let timer = 0
+    const applyChart = () => {
+      apiRef.current?.exec('set-display-mode', { mode: 'chart' })
+      setFold('chart')
+    }
+    // 首帧后再切：挂载当帧容器宽度尚未稳定
+    raf = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(applyChart, 60)
+    })
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.clearTimeout(timer)
+    }
+  }, [mobile])
+
   return (
     <div
       ref={rootRef}
@@ -455,8 +507,28 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             )}
           </div>
         )}
-        {/* 左表格 / 右时间轴 折叠控制：同一时刻至少保留一个面板可见 */}
-        {fold === 'all' && (
+        {/* H5（手机版）：底部常驻三段式切换条。
+            桌面那套「四角小三角」在手机上目标太小（约 16×16）且藏在面板角上，手指点不准；
+            手机改为底部「任务表 / 双栏 / 甘特图」分段控件，任何时候都显示当前视图并一键直达，
+            不再需要先展开、再折叠两步操作。 */}
+        {mobile && (
+          <div className="hk-gantt-foldbar" data-h5-gantt-mode={fold} role="tablist" aria-label="面板显示方式">
+            {H5_FOLD_TABS.map((t) => (
+              <button
+                key={t.mode}
+                type="button"
+                role="tab"
+                aria-selected={fold === t.mode}
+                className={`hk-gantt-foldbar-item${fold === t.mode ? ' on' : ''}`}
+                onClick={() => setDisplayMode(t.mode)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* 桌面端保留四角折叠箭头（鼠标可精确点击，且不占版面） */}
+        {!mobile && fold === 'all' && (
           <button
             type="button"
             className="hk-gantt-fold hk-gantt-fold-left"
@@ -467,7 +539,7 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             ‹
           </button>
         )}
-        {fold === 'all' && (
+        {!mobile && fold === 'all' && (
           <button
             type="button"
             className="hk-gantt-fold hk-gantt-fold-right"
@@ -478,7 +550,7 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             ›
           </button>
         )}
-        {leftCollapsed && (
+        {!mobile && leftCollapsed && (
           <button
             type="button"
             className="hk-gantt-reopen hk-gantt-reopen-left"
@@ -489,7 +561,7 @@ export default function GanttChart({ value, mode, onChange, onApi }: Props) {
             ›
           </button>
         )}
-        {rightCollapsed && (
+        {!mobile && rightCollapsed && (
           <button
             type="button"
             className="hk-gantt-reopen hk-gantt-reopen-right"

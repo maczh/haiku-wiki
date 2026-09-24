@@ -1,0 +1,37 @@
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant FE as ApiEditor(前端)
+    participant BE as ExportService(后端)
+    participant EX as exportx.Convert
+    participant B as BuildApiDocX
+
+    Note over U,FE: 一、编辑字段说明（P0-1/2）
+    U->>FE: 在 FieldTable 说明列输入
+    FE->>FE: patchEndpoint({body_fields / response_fields})
+    FE->>FE: scheduleSave → 2.5s 防抖 patchDoc
+    FE->>BE: PATCH /api/docs/:id (content)
+
+    Note over U,B: 二、导出（P0-5~10）
+    U->>BE: GET /api/export/docs/:id/formats
+    BE-->>U: [md, json, swagger, postman, apifox, docx]
+    U->>BE: GET /api/export/docs/:id?format=swagger
+    BE->>EX: Convert("api","swagger",content,title)
+    EX->>B: BuildApiDocSwagger(content,title)
+    B->>B: parseApiDoc → 逐 ep: buildSchemaFromFields(BodyFields,Body)
+    B-->>EX: JSON 字节
+    EX-->>U: .json 下载
+
+    Note over U,FE: 三、前端重导入回填（P0-3）
+    U->>FE: 选择文件导入
+    FE->>FE: importApiSpec → mergeImported
+    FE->>FE: 旧 doc 快照(method+uri → 说明)
+    FE->>FE: reconcileFields(derivedBody, snapBody)
+    FE->>BE: patchDoc(content 含回填后 body_fields)
+
+    Note over U,FE: 四、后端 URL 刷新回填（P0-4）
+    U->>BE: 触发刷新(手动/每日02:00)
+    BE->>BE: fetchApiSpec → apidoc.Parse(含 BodyFields)
+    BE->>BE: mergeApiDoc → reconcileFields(命中 existByKey)
+    BE->>BE: endpointChanged? → 计数
+    BE->>BE: UpdateDoc(content)

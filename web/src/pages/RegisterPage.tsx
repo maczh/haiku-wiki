@@ -4,6 +4,7 @@ import { Button, Card, Col, Form, Input, Row, Typography, message } from 'antd'
 import { IdcardOutlined, LockOutlined, MailOutlined, MobileOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
 import { register } from '../api/auth'
 import { useAuthStore } from '../stores/authStore'
+import { useViewMode } from '../h5/useViewMode'
 
 interface RegisterForm {
   username: string
@@ -23,6 +24,7 @@ interface RegisterForm {
  */
 export default function RegisterPage() {
   const navigate = useNavigate()
+  const { mode } = useViewMode()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [loading, setLoading] = useState(false)
 
@@ -39,7 +41,8 @@ export default function RegisterPage() {
       })
       setAuth(res.token, res.user)
       message.success('注册成功，欢迎加入寄海文库！')
-      navigate('/', { replace: true })
+      // 按当前视图模式跳转：手机版回 /m，桌面版回 /
+      navigate(mode === 'h5' ? '/m' : '/', { replace: true })
     } catch {
       /* 拦截器已提示（含重名 / 邮箱手机号冲突） */
     } finally {
@@ -48,7 +51,17 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card style={{ width: 460, borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: '#f5f6f8',
+      }}
+    >
+      <Card style={{ width: '100%', maxWidth: 460, borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}>
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
           注册寄海文库
@@ -145,8 +158,9 @@ export default function RegisterPage() {
         </Form.Item>
       </Form>
       <div style={{ textAlign: 'center' }}>
-        已有账号？<Link to="/login">直接登录</Link>
+        已有账号？<Link to={mode === 'h5' ? '/m/login' : '/login'}>直接登录</Link>
       </div>
-    </Card>
+      </Card>
+    </div>
   )
 }

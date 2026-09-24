@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 编辑器菜单回归（macOS）：Markdown 右键上下文菜单（行/选区/表格三态）+ Luckysheet 内置下拉（文字色/背景色/边框）。
+// 编辑器菜单回归：Markdown 右键上下文菜单（行/选区/表格三态）+ Luckysheet 内置下拉（文字色/背景色/边框）。
 //
 // 与旧 e2e-editor-context-menu.sh 的差别（关键）：全部使用「真实输入事件」——
 //   右键 = page.mouse.click(button:'right')；子菜单 = page.hover 真实悬停；菜单项 = page.click 真实左键。
@@ -8,7 +8,20 @@
 //
 // 数据：tools/verify/fixtures/e2e-data 的临时副本（book 1=md 2=sheet），账号 e2e@example.com/secret123。
 // 二进制：环境 $TMPDIR/haiku-wiki（由 bash tools/build/build-embed.sh 产出）。
-import pw from '/Users/macro/.workbuddy/binaries/node/workspace/node_modules/playwright-core/index.js'
+//
+// ⚠️ 跨平台：playwright-core 与 Chrome 路径都按宿主推导，别写死 `/Users/...` 或 `/Applications/...`
+//    （写死会在 Linux 上 `ERR_MODULE_NOT_FOUND` 秒退，表现为 run-all 里「exit=1 用时=0s」）。
+// ⚠️ 基准目录用 `os.homedir()` 而非 `process.env.HOME`：本机 shell 环境里 HOME 可能**未设置**
+//    （实测 undefined），模板会拼出 "undefined/…"，动态 import 会把它当**裸包名**而报
+//    `Cannot find package 'undefined'`（极难看出是 HOME 的问题）。
+const HOME = process.env.HOME || os.homedir()
+const PW_CORE = process.env.PW_CORE
+  || path.join(HOME, '.workbuddy/binaries/node/workspace/node_modules/playwright-core/index.js')
+if (!fs.existsSync(PW_CORE)) {
+  console.error(`未找到 playwright-core：${PW_CORE}（可用 PW_CORE=/path/to/playwright-core/index.js 覆盖）`)
+  process.exit(1)
+}
+const pw = (await import(PW_CORE)).default
 const { chromium } = pw
 import { execSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -20,7 +33,12 @@ const PORT = Number(process.env.PORT || 8193)
 const BASE = `http://127.0.0.1:${PORT}`
 const FIXTURE = path.resolve('tools/verify/fixtures/e2e-data')
 const BIN = path.join(process.env.TMPDIR || os.tmpdir(), 'haiku-wiki')
-const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+const CHROME = process.env.CHROME || [
+  '/opt/google/chrome/chrome',                                              // Linux
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',          // macOS
+  '/usr/bin/google-chrome',
+].find((p) => fs.existsSync(p))
+if (!CHROME) { console.error('未找到 Chrome，请用 CHROME=/path/to/chrome 指定'); process.exit(1) }
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ctxmenu-'))
 const DATA = path.join(TMP, 'data')

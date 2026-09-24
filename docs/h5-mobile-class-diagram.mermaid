@@ -1,0 +1,73 @@
+classDiagram
+    class IsMobileUtil {
+        +isMobile(ua: string): boolean
+    }
+    class ViewModeState {
+        <<const>>
+        +KEY: string = 'haiku_view_mode'
+    }
+    class UseViewMode {
+        +useViewMode(): ViewModeApi
+    }
+    class DocModeMatrix {
+        +H5_EDITABLE_TYPES: DocType[3]
+        +getDocMode(docType: DocType): DocMode
+        +isContainerType(docType): boolean
+    }
+    class BottomTabs {
+        +TABS: TabItem[4]
+        +onChange(key: string): void
+    }
+    class MobileLayout {
+        -tabHidden: boolean
+        +setTabHidden(hidden: boolean): void
+        +render(): JSX.Element
+    }
+    class H5LayoutContext {
+        <<context>>
+        +setTabHidden: Function
+    }
+    class H5Router {
+        +render(): JSX.Element
+    }
+    class MDocPage {
+        +render(): JSX.Element
+    }
+    class ReaderMap {
+        +READER_MAP: Record~DocType, ComponentType~
+    }
+    class EditorMap {
+        +EDITOR_MAP: Record~DocType, ComponentType~
+    }
+    class DocApi {
+        +getDoc(id): Promise~WorkbenchDoc~
+        +getBooks(): Promise~Book[]~
+        +getRecentDocs(): Promise~RecentDocItem[]~
+        +searchDocs(q): Promise~SearchResult~
+    }
+    class MHomePage
+    class MBookshelfPage
+    class MSearchPage
+    class MMinePage
+
+    IsMobileUtil <.. UseViewMode : 调用
+    ViewModeState <.. UseViewMode : 读写
+    UseViewMode <.. H5Router : 决定渲染树
+    UseViewMode <.. MMinePage : setMode('desktop')
+    H5Router *-- MobileLayout : 布局路由
+    MobileLayout o-- BottomTabs : 组合
+    MobileLayout ..> H5LayoutContext : 提供
+    H5LayoutContext <.. MDocPage : 消费(setTabHidden)
+    H5Router ..> MHomePage : 懒加载
+    H5Router ..> MBookshelfPage : 懒加载
+    H5Router ..> MSearchPage : 懒加载
+    H5Router ..> MMinePage : 懒加载
+    H5Router ..> MDocPage : 懒加载
+    DocModeMatrix <.. MDocPage : 判定模式
+    ReaderMap <.. MDocPage : 只读渲染
+    EditorMap <.. MDocPage : 可编辑渲染
+    DocApi <.. MDocPage : 拉详情
+    DocApi <.. MHomePage : 文库/最近
+    DocApi <.. MBookshelfPage : 文档树
+    DocApi <.. MSearchPage : 搜索
+    DocApi <.. MMinePage : 登录态

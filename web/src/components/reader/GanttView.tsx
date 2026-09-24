@@ -3,6 +3,7 @@ import { Alert, Tag } from 'antd'
 import GanttChart from '../gantt/GanttChart'
 import { patchDoc } from '../../api/docs'
 import { ganttFromContent, stringifyGantt, type GanttJSON } from '../../lib/gantt'
+import { useViewMode } from '../../h5/useViewMode'
 
 interface Props {
   content: string
@@ -22,6 +23,8 @@ const SAVE_DEBOUNCE_MS = 3000
  * - 无写权限（含分享页）：完全只读
  */
 export default function GanttView({ content, docId, progressEditable = false }: Props) {
+  const { mode } = useViewMode()
+  const mobile = mode === 'h5'
   const parsed = useMemo(() => ganttFromContent(content), [content])
   const [data] = useState<GanttJSON>(() => parsed.data)
   const latestRef = useRef<GanttJSON>(parsed.data)
@@ -61,7 +64,15 @@ export default function GanttView({ content, docId, progressEditable = false }: 
   }
 
   return (
-    <div style={{ padding: '0 24px 24px' }}>
+    <div
+      style={{
+        padding: mobile ? '0 12px 12px' : '0 24px 24px',
+        // 移动端借由 H5DocContainer 的 fill 拿到 100% 高度，这里让甘特面板铺满整屏
+        height: mobile ? '100%' : undefined,
+        display: mobile ? 'flex' : undefined,
+        flexDirection: mobile ? 'column' : undefined,
+      }}
+    >
       {canSave ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 12px' }}>
           <Tag color="blue">阅读模式：仅可拖动进度条更新进度</Tag>
@@ -75,7 +86,16 @@ export default function GanttView({ content, docId, progressEditable = false }: 
       {parsed.reset && (
         <Alert type="warning" showIcon message="甘特图内容格式无法识别，已按空白图显示" style={{ marginBottom: 12 }} />
       )}
-      <div style={{ height: 'min(72vh, 760px)', minHeight: 420, border: '1px solid #ebedf0', borderRadius: 8, overflow: 'hidden' }}>
+      <div
+        style={{
+          flex: mobile ? 1 : undefined,
+          height: mobile ? '100%' : 'min(72vh, 760px)',
+          minHeight: 420,
+          border: '1px solid #ebedf0',
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
         <GanttChart
           key={docId ?? 'share'}
           value={data}
