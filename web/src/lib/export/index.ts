@@ -183,6 +183,7 @@ export function clientFormatsFor(docType: DocType, fileExt?: string): { value: C
     return []
   }
   if (docType === 'drawing') return [] // 绘图由编辑器内 draw.io 导出
+  if (docType === 'api') return [] // 接口文档全部由服务端导出（swagger/postman/apifox/docx/md/json）
   if (docType === 'whiteboard') {
     // 白板：excalidraw/svg 由服务端转换（正文自带场景与 SVG 预览）；
     // png/pdf 需要 Excalidraw 渲染器（仅存在于浏览器侧），在此提供

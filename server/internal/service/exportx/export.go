@@ -65,6 +65,10 @@ var formatsByDocType = map[string][]FormatSpec{
 	"api": {
 		{Value: "md", Label: "接口文档（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},
 		{Value: "json", Label: "接口数据（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+		{Value: "swagger", Label: "Swagger 2.0（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+		{Value: "postman", Label: "Postman 集合（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+		{Value: "apifox", Label: "Apifox 项目（.json）", Ext: "json", MIME: "application/json; charset=utf-8"},
+		{Value: "docx", Label: "Word 文档（.docx）", Ext: "docx", MIME: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
 	},
 	// drawing：内嵌 draw.io 编辑器，正文即 mxGraph XML。
 	// 注意：svg/png/vsdx 由前端内嵌的 draw.io 渲染导出（mxGraph 渲染器只在浏览器侧），
@@ -313,6 +317,22 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 			return data, spec, err
 		case "json":
 			return []byte(content), spec, nil
+		case "swagger":
+			data, err := BuildApiDocSwagger(content, title)
+			return data, spec, err
+		case "postman":
+			data, err := BuildApiDocPostman(content, title)
+			return data, spec, err
+		case "apifox":
+			data, err := BuildApiDocApifox(content, title)
+			return data, spec, err
+		case "docx":
+			md, err := BuildApiDocMD(content, title)
+			if err != nil {
+				return nil, spec, err
+			}
+			data, err := BuildDocx(string(md), title)
+			return data, spec, err
 		}
 	case "whiteboard":
 		// excalidraw：正文里的场景三件套重装官方壳即是 .excalidraw 文件；

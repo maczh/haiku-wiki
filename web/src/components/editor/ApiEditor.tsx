@@ -45,7 +45,9 @@ import {
   defaultEndpoint,
   importApiSpec,
   jsonToFields,
+  mergeBodyFields,
   normalizeApiDoc,
+  reconcileFields,
   serializeApiDoc,
   type ApiDoc,
   type ApiEndpoint,
@@ -200,8 +202,19 @@ function KVEditor({
   )
 }
 
-/** 字段参数说明表（请求体 / 返回结果通用）。 */
-function FieldTable({ fields }: { fields: ApiField[] }) {
+/** 字段参数说明表（请求体 / 返回结果通用）。
+ *  editable 为真且非 readOnly 时，「说明」列改为受控 Input，编辑经 onDescriptionChange 落库。 */
+function FieldTable({
+  fields,
+  editable = false,
+  readOnly = false,
+  onDescriptionChange,
+}: {
+  fields: ApiField[]
+  editable?: boolean
+  readOnly?: boolean
+  onDescriptionChange?: (fieldName: string, description: string) => void
+}) {
   if (!fields || fields.length === 0) {
     return (
       <div style={{ color: '#8a919f', fontSize: 13, padding: '6px 0' }}>（暂无字段说明）</div>
@@ -232,7 +245,17 @@ function FieldTable({ fields }: { fields: ApiField[] }) {
           title: '说明',
           dataIndex: 'description',
           key: 'description',
-          render: (t?: string) => t || '—',
+          render: (t?: string, rec?: ApiField) =>
+            editable && !readOnly ? (
+              <Input
+                placeholder="填写字段说明"
+                value={t || ''}
+                onChange={(e) => onDescriptionChange?.(rec?.name ?? '', e.target.value)}
+                style={{ width: '100%' }}
+              />
+            ) : (
+              t || '—'
+            ),
         },
         {
           title: '必填',
@@ -581,6 +604,39 @@ useEffect(() => {
     [current, mutate],
   )
 
+  /** 编辑请求体某行说明：写入 ep.body_fields（按 name 定位/新增，只存 {name, description}）。 */
+  const updateBodyField = useCallback(
+    (name: string, description: string) => {
+      if (!current) return
+      const existing = current.ep.body_fields ?? []
+      const idx = existing.findIndex((f) => f.name === name)
+      const next: ApiField[] =
+        idx >= 0
+          ? existing.map((f, i) => (i === idx ? { ...f, description } : f))
+          : [...existing, { name, description } as ApiField]
+      patchEndpoint({ body_fields: next })
+    },
+    [current, patchEndpoint],
+  )
+
+  /** 编辑返回结果某行说明：写入 ep.response_fields（按 name 定位/新增）。 */
+  const updateResponseField = useCallback(
+    (name: string, description: string) => {
+      if (!current) return
+      const base =
+        current.ep.response_fields && current.ep.response_fields.length
+          ? current.ep.response_fields
+          : jsonToFields(current.ep.response_example || '')
+      const idx = base.findIndex((f) => f.name === name)
+      const next: ApiField[] =
+        idx >= 0
+          ? base.map((f, i) => (i === idx ? { ...f, description } : f))
+          : [...base, { name, description } as ApiField]
+      patchEndpoint({ response_fields: next })
+    },
+    [current, patchEndpoint],
+  )
+
   // ---------- 接口移动 / 历史 ----------
 
   /** 把接口从原分组移动到目标分组 */
@@ -772,16 +828,38 @@ useEffect(() => {
 
   const mergeImported = useCallback(
     (parsed: ApiDoc) => {
-      // 重复导入同一外部文档：先按 import_source 删除旧分组，再全部重新导入
       const newSources = new Set(parsed.groups.map((g) => g.import_source || '').filter(Boolean))
       mutate((d) => {
+        // 1) 从「整篇旧 doc」构建 method+uri → {body 说明, resp 说明} 快照
+        const snapBody = new Map<string, ApiField[]>()
+        const snapResp = new Map<string, ApiField[]>()
+        const keyOf = (m: string, u: string) => `${(m || 'GET').toUpperCase()}:${u || ''}`
+        for (const g of d.groups) {
+          for (const ep of g.items) {
+            const k = keyOf(ep.method, ep.uri)
+            if (ep.body_fields?.length) snapBody.set(k, ep.body_fields)
+            if (ep.response_fields?.length) snapResp.set(k, ep.response_fields)
+          }
+        }
+        // 2) 逐 endpoint 调和（请求体用 jsonToFields 推导行，再与快照调和）
+        const reconciledGroups = parsed.groups.map((g) => ({
+          ...g,
+          items: g.items.map((ep) => {
+            const k = keyOf(ep.method, ep.uri)
+            const derivedBody = jsonToFields(ep.body)
+            const bodyFields = reconcileFields(derivedBody, snapBody.get(k))
+            const responseFields = reconcileFields(ep.response_fields ?? [], snapResp.get(k))
+            return { ...ep, body_fields: bodyFields, response_fields: responseFields }
+          }),
+        }))
+        // 3) 删除同 import_source 旧分组，保留其余 + 调和后的新分组
         const kept = d.groups.filter((g) => !g.import_source || !newSources.has(g.import_source))
         const isEmptyDefault =
           d.groups.length === 1 && d.groups[0].name === '默认分组' && d.groups[0].items.length === 0
         return {
           version: 1,
           base_host: d.base_host || parsed.base_host || '',
-          groups: isEmptyDefault ? parsed.groups : [...kept, ...parsed.groups],
+          groups: isEmptyDefault ? reconciledGroups : [...kept, ...reconciledGroups],
         }
       })
       const added = parsed.groups.reduce((n, g) => n + g.items.length, 0)
@@ -1422,7 +1500,12 @@ useEffect(() => {
                                   <Divider orientation="left" plain style={{ margin: '12px 0 4px' }}>
                                     字段参数说明
                                   </Divider>
-                                  <FieldTable fields={jsonToFields(current.ep.body)} />
+                                  <FieldTable
+                                    fields={mergeBodyFields(jsonToFields(current.ep.body), current.ep.body_fields)}
+                                    editable
+                                    readOnly={readOnly}
+                                    onDescriptionChange={updateBodyField}
+                                  />
                                 </>
                               )}
                             </div>
@@ -1492,6 +1575,9 @@ useEffect(() => {
                                       ? current.ep.response_fields
                                       : jsonToFields(current.ep.response_example || '')
                                   }
+                                  editable
+                                  readOnly={readOnly}
+                                  onDescriptionChange={updateResponseField}
                                 />
                               </Collapse.Panel>
                             </Collapse>

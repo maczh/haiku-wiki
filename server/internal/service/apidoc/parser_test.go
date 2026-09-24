@@ -227,8 +227,91 @@ func TestIDStability(t *testing.T) {
 	}
 }
 
-// TestDedupePostman verifies the same method+uri appearing in two folders collapses to
-// a single endpoint with a single deterministic id (dedupe works across groups).
+// TestBodyToFields verifies the Go port of jsonToFields produces correct nested paths
+// and scalar types for a representative JSON body (mirrors web/src/lib/apiDoc.ts jsonToFields).
+func TestBodyToFields(t *testing.T) {
+	body := `{"data":{"list":[{"dishId":1,"name":"鱼香肉丝"}]},"code":0,"flag":true,"note":null}`
+	fields := bodyToFields(body)
+	got := map[string]ApiField{}
+	for _, f := range fields {
+		got[f.Name] = f
+	}
+	wantNames := []string{"data.list", "data.list[].dishId", "data.list[].name", "code", "flag", "note"}
+	for _, n := range wantNames {
+		if _, ok := got[n]; !ok {
+			names := make([]string, 0, len(fields))
+			for _, f := range fields {
+				names = append(names, f.Name)
+			}
+			t.Fatalf("missing field %q; got %v", n, names)
+		}
+	}
+	if got["data.list[].dishId"].Type != "number" {
+		t.Fatalf("dishId type want number, got %q", got["data.list[].dishId"].Type)
+	}
+	if got["data.list[].name"].Type != "string" {
+		t.Fatalf("name type want string, got %q", got["data.list[].name"].Type)
+	}
+	if got["code"].Type != "number" {
+		t.Fatalf("code type want number, got %q", got["code"].Type)
+	}
+	if got["flag"].Type != "boolean" {
+		t.Fatalf("flag type want boolean, got %q", got["flag"].Type)
+	}
+	if got["note"].Type != "null" {
+		t.Fatalf("note type want null, got %q", got["note"].Type)
+	}
+	// empty / invalid JSON → nil (no rows)
+	if bodyToFields("") != nil {
+		t.Fatal("empty body should yield nil")
+	}
+	if bodyToFields("not json") != nil {
+		t.Fatal("invalid body should yield nil")
+	}
+}
+
+// TestParseSwagger2BodyFields verifies the JSON body branch computes BodyFields.
+func TestParseSwagger2BodyFields(t *testing.T) {
+	const fixture = `{
+  "swagger": "2.0",
+  "info": { "title": "Dish API" },
+  "paths": {
+    "/dishes": {
+      "post": {
+        "summary": "create",
+        "parameters": [
+          { "name": "body", "in": "body", "schema": { "type": "object", "properties": { "name": {"type":"string"}, "price": {"type":"number"} } } }
+        ],
+        "responses": { "200": { "schema": { "type": "object", "properties": { "id": {"type":"integer"} } } } }
+      }
+    }
+  }
+}`
+	doc, err := Parse(fixture)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	ep := findEndpoint(doc, "POST", "/dishes")
+	if ep == nil {
+		t.Fatal("expected POST /dishes")
+	}
+	if ep.BodyType != "json" {
+		t.Fatalf("expected body_type json, got %q", ep.BodyType)
+	}
+	if len(ep.BodyFields) == 0 {
+		t.Fatal("expected BodyFields computed for json body")
+	}
+	// body_fields should contain name / price derived from the body sample.
+	has := map[string]bool{}
+	for _, f := range ep.BodyFields {
+		has[f.Name] = true
+	}
+	if !has["name"] || !has["price"] {
+		t.Fatalf("BodyFields missing name/price: %v", ep.BodyFields)
+	}
+}
+
+
 func TestDedupePostman(t *testing.T) {
 	const fixture = `{
   "info": { "name": "My Collection", "_postman_id": "x", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },

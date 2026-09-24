@@ -43,6 +43,8 @@ export interface ApiEndpoint {
   response_example?: string
   /** 返回结果字段说明表 */
   response_fields?: ApiField[]
+  /** 请求体字段说明表（新增，承载人工补写的请求体字段说明） */
+  body_fields?: ApiField[]
 }
 
 export interface ApiGroup {
@@ -715,4 +717,37 @@ function extractResponse(responses: unknown, root: Record<string, unknown>): { e
   }
   if (!schema) return { example: '', fields: [] }
   return { example: schemaToSample(schema, root), fields: schemaToFields(schema, '', [], root) }
+}
+
+/**
+ * 渲染态合并：请求体字段表 = 行结构(名称/类型/必填) 取 derived，仅 description 叠加 saved。
+ * - body 变化时 derived 自动增减行；saved 里没有对应路径的行被忽略（不残留陈旧行）。
+ * - 只有 description 被 saved 覆盖；type / required 一律取 derived（以真实 body 为准）。
+ */
+export function mergeBodyFields(derived: ApiField[], saved?: ApiField[] | null): ApiField[] {
+  const savedMap = new Map<string, ApiField>()
+  for (const f of saved ?? []) if (f.name) savedMap.set(f.name, f)
+  return derived.map((d) => {
+    const s = savedMap.get(d.name)
+    return { ...d, description: s && s.description ? s.description : (d.description ?? '') }
+  })
+}
+
+/**
+ * 回填调和（前后端同语义）：按 name 匹配。
+ * - 字段行（名称/类型/必填）一律以 new 为准；
+ * - description：old[name] 非空 → 采用 old，否则采用 new[name].description；都为空 → 空。
+ * - old 中不在 new 的字段丢弃（只遍历 new）。
+ * - new 为 nil/空 → 直接返回 new；old 为 nil/空 → 退化为 new 自身。
+ */
+export function reconcileFields(newFields: ApiField[], oldFields?: ApiField[] | null): ApiField[] {
+  if (!newFields || newFields.length === 0) return newFields ?? []
+  const oldBy = new Map<string, string>()
+  for (const f of oldFields ?? []) if (f.name) oldBy.set(f.name, f.description ?? '')
+  return newFields.map((f) => ({
+    name: f.name,
+    type: f.type,
+    required: f.required,
+    description: (oldBy.get(f.name) ?? '') !== '' ? (oldBy.get(f.name) as string) : (f.description ?? ''),
+  }))
 }
