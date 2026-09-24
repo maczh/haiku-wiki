@@ -44,3 +44,6 @@ __pycache__/
 
 # Vite 配置探测残留（dev/build 中断时可能落在 web/ 下，属临时文件，勿提交）
 web/vite.config.ts.timestamp-*.mjs
+
+# e2e-import.sh 运行时生成的 Markdown 包夹具（勿提交，每次跑套件都会重新生成）
+tools/verify/fixtures/import-fixtures/图文演示.md.zip

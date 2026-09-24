@@ -94,7 +94,7 @@ export default function MobileImportSheet({ open, onClose, bookId, onImported }:
         点击选择手机中的文件
         <br />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          支持 md/txt/docx/pdf/xlsx/pptx/drawio/vsd/dwg…；微信内可直接选「微信文件」
+          支持 md/txt/md.zip（md+图片包）/docx/pdf/xlsx/pptx/drawio/vsd/dwg…；微信内可直接选「微信文件」
         </Typography.Text>
       </button>
 

@@ -69,6 +69,38 @@ echo "== 浏览器：打开知识库 → 模拟选中 3 个文件 =="
 DRAWER=$("$AB" eval "(document.querySelector('.ant-drawer-title')||{}).textContent||'无'" 2>&1 | tail -1)
 echo "  导入抽屉: $DRAWER"
 
+echo "== 生成 Markdown 包夹具（md + 图片） =="
+# 覆盖三种引用形态（行内 / HTML img / 引用式定义）+ 同图多写法 + URL 编码 + 外链 + 缺失图。
+# 图片字节用合成头即可：导入链路只搬运字节、不解析图片内容。
+python3 - "$HERE/fixtures/import-fixtures" <<'PYEOF'
+import base64, os, pathlib, sys, zipfile
+fix = pathlib.Path(sys.argv[1])
+fix.mkdir(parents=True, exist_ok=True)
+md = """# 图文演示
+
+![图A](images/a.png)
+![图A别写](./images/a.png)
+![圆 片](img/%E5%9C%86%20%E7%89%87/b.jpg)
+<img src="images/c.gif" />
+![外链](https://example.com/remote.png)
+![缺失](missing.png)
+
+[refp]: img/ref.png
+![引用式][refp]
+"""
+png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==')
+# ref.png 必须与 a.png 字节不同：CAS 按内容寻址，字节相同会被秒传归并成同一 URL
+png2 = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+out = fix / '图文演示.md.zip'
+with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('图文演示.md', md)
+    z.writestr('images/a.png', png)
+    z.writestr('img/圆 片/b.jpg', b'\xff\xd8\xff\xe0\x00\x10JFIF')
+    z.writestr('images/c.gif', b'GIF89a')
+    z.writestr('img/ref.png', png2)
+print('生成 %s（%d 字节）' % (out, out.stat().st_size))
+PYEOF
+
 UPLOAD_JS_OUT="$UPLOAD_JS_OUT" python3 "$HERE/gen-upload-js.py"
 echo "  注入结果: $("$AB" eval "$(cat "$UPLOAD_JS_OUT")" 2>&1 | tail -1)"
 
@@ -103,6 +135,26 @@ chk "子「区域」挂在父文档下" "${PARENT_ID:-x}" "$(echo "$TREE" | jq -
 chk "空白页未生成文档" "0" "$(echo "$TREE" | jq '[.data[]|select(.title=="空白页")]|length')"
 chk "docx 导入为附件类型" "file" "$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的Word文档")|.doc_type')"
 chk "pdf 导入为附件类型" "file" "$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的PDF文档")|.doc_type')"
+
+echo "== Markdown 包（.md.zip）断言：图片转存 + 正文地址重写 =="
+chk "md.zip 导入为 markdown 文档（标题取 H1）" "markdown" "$(echo "$TREE" | jq -r '.data[]|select(.title=="图文演示")|.doc_type')"
+MDID=$(echo "$TREE" | jq -r '.data[]|select(.title=="图文演示")|.id')
+MDCONTENT=$(curl --noproxy '*' -s "$BASE/api/docs/$MDID" "${H[@]}" | jq -r '.data.doc.content')
+echo "$MDCONTENT" > "$OUT/mdzip-content.md"
+CAS_CNT=$(printf '%s' "$MDCONTENT" | grep -o '/uploads/cas/' | wc -l)
+CAS_UNIQ=$(printf '%s' "$MDCONTENT" | grep -o '/uploads/cas/[^)"'"'"' ]*' | sort -u | wc -l)
+chk "正文含 5 处文库图片地址（4 张图 + 同图多写法）" "5" "$CAS_CNT"
+chk "正文含 4 个不同图片 URL（zip 内同文件去重）" "4" "$CAS_UNIQ"
+# 缺失的 missing.png 本就应保留，不算残留；其余 zip 内相对路径必须全部重写
+if printf '%s' "$MDCONTENT" | grep -q '](images/a.png)\|src="images/\|(img/'; then
+  echo "  ❌ 正文仍残留 zip 内相对路径"; fail=$((fail+1))
+else
+  echo "  ✅ 相对路径已全部重写"; pass=$((pass+1))
+fi
+chk "外链保留不动" "1" "$(printf '%s' "$MDCONTENT" | grep -c 'https://example.com/remote.png')"
+chk "缺失图片引用保留原样" "1" "$(printf '%s' "$MDCONTENT" | grep -c '(missing.png)')"
+FIRSTIMG=$(printf '%s' "$MDCONTENT" | grep -o '/uploads/cas/[^)"'"'"' ]*' | head -1)
+chk "转存图片可访问（$FIRSTIMG）" "200" "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' "$BASE$FIRSTIMG")"
 
 echo "== 子表格内容校验 =="
 SID=$(echo "$TREE" | jq -r '.data[]|select(.title=="产品")|.id')

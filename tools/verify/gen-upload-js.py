@@ -36,6 +36,11 @@ for name, mime in SPECS:
         sys.exit('缺少夹具 %s（目录 %s）' % (path, FIX))
     items.append((name, mime, base64.b64encode(path.read_bytes()).decode()))
 
+# Markdown 包夹具（由 e2e-import.sh 运行时生成）：存在才注入，缺了不阻塞老用例
+mdzip = FIX / '图文演示.md.zip'
+if mdzip.exists():
+    items.append(('图文演示.md.zip', 'application/zip', base64.b64encode(mdzip.read_bytes()).decode()))
+
 js = """(function () {
   var SPECS = %s;
   // ImportDialog 本身就是 Drawer（标题「导入文档」）—— 不能再按「排除 .ant-drawer」筛，

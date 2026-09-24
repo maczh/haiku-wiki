@@ -39,6 +39,7 @@ function spec(key: string, label: string, exts: string[]): ImportFormatSpec {
  */
 export const IMPORT_FORMATS: ImportFormatSpec[] = [
   spec('md', 'Markdown（.md）', ['md', 'markdown', 'txt']),
+  spec('mdzip', 'Markdown 包（.md.zip，含图片）', ['zip']),
   spec('html', 'HTML（.html）', ['htm', 'html']),
   spec('pdf', 'PDF（.pdf）', ['pdf']),
   spec('docx', 'Word（.docx）', ['docx', 'doc']),

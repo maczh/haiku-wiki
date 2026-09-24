@@ -19,6 +19,7 @@ import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
 import { IMPORT_EXTENSIONS, extOfName, unsupportedImportReason } from './formats'
+import { MdZipError, openMdZip, type MdZipPackage } from './mdzip'
 import { collectStyleText, fixLazyImages, hiddenSelectors, pruneInvisible, stripNonContent } from './htmlClean'
 import {
   DEFAULT_COL,
@@ -55,6 +56,11 @@ export interface ParseResult {
   attachment?: Omit<FileAttachment, 'url'>
   /** 附件型导入后是否还需调 /api/attachments/prepare 触发后端转换（CAD 类） */
   needsPrepare?: boolean
+  /**
+   * Markdown 包（.md.zip）：zip 里的图片需先走上传链路拿新 URL，
+   * 再用 mdPackage.apply 重写正文里的图片地址，最后才 createDoc。
+   */
+  mdPackage?: MdZipPackage
 }
 
 type Parser = (file: File) => Promise<ParseResult>
@@ -89,6 +95,27 @@ function wrapText(raw: string, fallbackTitle: string, docType: DocType): ParseRe
 const parseMd: Parser = async (file) => {
   const raw = await file.text()
   return wrapText(raw, baseName(file.name), 'markdown')
+}
+
+// ---------- Markdown 包（.md.zip：md + 内嵌图片） ----------
+
+const parseMdZip: Parser = async (file) => {
+  // a.md.zip → a.md → a；a.zip → a
+  const title = baseName(file.name.replace(/\.zip$/i, ''))
+  try {
+    const opened = await openMdZip(file)
+    const res = wrapText(opened.mdText, title, 'markdown')
+    res.mdPackage = opened.pkg
+    return res
+  } catch (e) {
+    return {
+      ok: false,
+      title,
+      docType: 'markdown',
+      content: '',
+      reason: e instanceof MdZipError ? e.message : '压缩包解析失败：文件可能已损坏',
+    }
+  }
 }
 
 // ---------- 思维导图（.smm / .km / .xmind / .mm → 内置 smm） ----------
@@ -312,6 +339,7 @@ export const parserRegistry: Record<string, Parser> = {
   md: parseMd,
   markdown: parseMd,
   txt: parseMd,
+  zip: parseMdZip, // Markdown 包：md + 内嵌图片，图片转存后重写正文地址
   docx: parseAttachment,
   doc: parseAttachment,
   pdf: parseAttachment,

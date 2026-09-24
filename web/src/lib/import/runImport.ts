@@ -71,6 +71,46 @@ export async function runImport(files: File[], opts: RunImportOpts): Promise<voi
     }
 
     try {
+      // Markdown 包（.md.zip）：zip 内图片逐张走秒传上传拿新 URL，
+      // 重写正文里的图片地址后再入库 —— 打开文档即可见图，不再有死链。
+      if (res.mdPackage) {
+        const images = res.mdPackage.images
+        const urlMap = new Map<string, string>()
+        let failed = 0
+        for (let i = 0; i < images.length; i++) {
+          onItem({
+            ...item,
+            status: 'parsing',
+            message: images.length > 1 ? `正在上传图片 ${i + 1}/${images.length}…` : '正在上传图片…',
+          })
+          try {
+            const up = await uploadWithDedup(images[i].file)
+            urlMap.set(images[i].key, up.url)
+            if (up.dedup) dedup++
+          } catch {
+            failed++ // 单张失败保留原路径，不中断整个文档
+          }
+        }
+        const content = res.mdPackage.apply((k) => urlMap.get(k))
+        const doc = await createDoc(bookId, parentId, res.title, res.docType, content)
+        const okImg = images.length - failed
+        onItem({
+          ...item,
+          status: 'success',
+          docId: doc.id,
+          message:
+            images.length === 0
+              ? '导入成功'
+              : failed === 0
+                ? `导入成功（已转存 ${okImg} 张图片）`
+                : okImg === 0
+                  ? '导入成功（图片转存失败，保留原路径）'
+                  : `导入成功（转存 ${okImg}/${images.length} 张图片，其余保留原路径）`,
+        })
+        ok++
+        continue
+      }
+
       if (res.attachment) {
         const up = await uploadWithDedup(file)
         const ref: FileAttachment = {

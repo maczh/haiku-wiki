@@ -109,6 +109,45 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
       return false
     }
     try {
+      // Markdown 包（.md.zip）：zip 内图片逐张走秒传上传拿新 URL，
+      // 重写正文里的图片地址后再入库 —— 打开文档即可见图，不再有死链。
+      if (res.mdPackage) {
+        const images = res.mdPackage.images
+        const urlMap = new Map<string, string>()
+        let failed = 0
+        let dedupedImages = 0
+        for (let i = 0; i < images.length; i++) {
+          updateItem(item.uid, {
+            status: 'parsing',
+            message: images.length > 1 ? `正在上传图片 ${i + 1}/${images.length}…` : '正在上传图片…',
+          })
+          try {
+            const up = await uploadWithDedup(images[i].file)
+            urlMap.set(images[i].key, up.url)
+            if (up.dedup) dedupedImages++
+          } catch {
+            failed++ // 单张失败保留原路径，不中断整个文档
+          }
+        }
+        const content = res.mdPackage.apply((k) => urlMap.get(k))
+        const doc = await createDoc(bookId, parentId, res.title, res.docType, content)
+        const okImg = images.length - failed
+        if (dedupedImages > 0) message.success(`${dedupedImages} 张图片命中秒传（内容已存在，未重复存储）`)
+        updateItem(item.uid, {
+          status: 'success',
+          docId: doc.id,
+          message:
+            images.length === 0
+              ? '导入成功'
+              : failed === 0
+                ? `导入成功（已转存 ${okImg} 张图片）`
+                : okImg === 0
+                  ? '导入成功（图片转存失败，保留原路径）'
+                  : `导入成功（转存 ${okImg}/${images.length} 张图片，其余保留原路径）`,
+        })
+        return false
+      }
+
       // 附件型（docx/pdf/pptx/vsd/dwg…）：先上传原文件，再按原样落库为 file 文档；
       // CAD 还要多一步：由后端把 .dwg/.dxf 转成 .svg/.png，回填 derived 供前端预览。
       if (res.attachment) {
@@ -258,13 +297,14 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         </p>
         <p className="ant-upload-text">点击或拖拽文件到此处</p>
         <p className="ant-upload-hint">
-          支持 .md / .txt / .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .drawio / .vsd / .vsdx /
-          .dwg / .dxf / .et / .excalidraw，可多选批量导入
+          支持 .md / .txt / .md.zip（md+图片压缩包）/ .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .drawio /
+          .vsd / .vsdx / .dwg / .dxf / .et / .excalidraw，可多选批量导入
         </p>
       </Upload.Dragger>
 
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
-        · <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
+        · <b>.md.zip</b>：Markdown 包（md + 图片），图片自动转存并把正文里的图片地址改为文库地址
+        <br />· <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
         <br />· <b>.dwg / .dxf</b>：保留原图，后端自动转换为 .svg + .png，前端可缩放拖动并导出
         <br />· <b>.drawio</b>：建为「绘图」文档，内嵌 draw.io 组件直接编辑
         <br />· <b>.excalidraw</b>：建为「白板」文档，内嵌 Excalidraw 组件直接编辑
