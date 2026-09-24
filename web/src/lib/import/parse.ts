@@ -93,9 +93,6 @@ const parseMd: Parser = async (file) => {
 
 // ---------- 思维导图（.smm / .km / .xmind / .mm → 内置 smm） ----------
 
-/** 可由后端解析的思维导图扩展名 */
-export const MINDMAP_IMPORT_EXTS = ['smm', 'km', 'xmind', 'mm']
-
 const parseMindmapFile: Parser = async (file) => {
   const title = baseName(file.name)
   try {
@@ -344,11 +341,6 @@ export const parserRegistry: Record<string, Parser> = {
  * 保证「下拉选中的格式」与「对话框能选到的扩展名」严格一一对应。
  */
 export const ACCEPT_EXTENSIONS = IMPORT_EXTENSIONS.map((k) => `.${k}`).join(',')
-
-/** 该扩展名是否按原文件保存（附件型） */
-export function isAttachmentExt(ext: string): boolean {
-  return ATTACHMENT_EXTS.includes(ext.toLowerCase())
-}
 
 /** 按扩展名分派解析器；未知扩展名返回失败结果（不产生任何文档） */
 export async function parseFile(file: File): Promise<ParseResult> {

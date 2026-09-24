@@ -131,12 +131,6 @@ export function iconForExt(ext: string): IconSpec {
   return EXT_ICONS[key] ?? FALLBACK
 }
 
-/** 按文件名取图标（内部取扩展名） */
-export function iconForFileName(name: string): IconSpec {
-  const ext = extOfFileName(name)
-  return ext ? iconForExt(ext) : FALLBACK
-}
-
 /** 附件文档（doc_type=file）图标：优先按扩展名，取不到扩展名时用附件图标 */
 export function iconForAttachment(name: string): IconSpec {
   const ext = extOfFileName(name)

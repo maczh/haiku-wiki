@@ -28,8 +28,6 @@ import {
 /** 工作台关注的三类文档（与后端 workbenchDocTypes 保持一致，顺序即卡片优先级） */
 export const WORKBENCH_TYPES = ['todo', 'gantt', 'calendar'] as const
 
-export type WorkbenchType = (typeof WORKBENCH_TYPES)[number]
-
 /** 按类型筛选工作台文档 */
 export function pickWorkbenchDocs(items: WorkbenchDoc[], docType: string): WorkbenchDoc[] {
   return items.filter((it) => it.doc_type === docType)

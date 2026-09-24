@@ -110,17 +110,3 @@ export function excalidrawFileToContent(raw: string): string | null {
     '',
   )
 }
-
-/** 白板正文 → .excalidraw 文件文本（导出/后端同构；elements 非法时返回 null） */
-export function contentToExcalidrawFile(raw: string): string | null {
-  const { elements, appState, files } = parseWhiteboardContent(raw || '')
-  if (elements.length === 0) return null
-  return JSON.stringify({
-    type: 'excalidraw',
-    version: 2,
-    source: 'https://excalidraw.com',
-    elements,
-    appState: appState ?? {},
-    files,
-  })
-}

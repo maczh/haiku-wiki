@@ -28,15 +28,3 @@ export function internalLink(
   const qs = params.toString()
   return qs ? `/books/${bookId}?${qs}` : `/books/${bookId}`
 }
-
-/**
- * 生成带 origin 的绝对深链（用于需要完整 URL 的场景，目前前端未强制使用）。
- */
-export function absoluteInternalLink(
-  bookId: number,
-  docId?: number,
-  tab?: 'read' | 'edit',
-): string {
-  const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}${internalLink(bookId, docId, tab)}`
-}

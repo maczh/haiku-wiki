@@ -146,8 +146,3 @@ export function docShareUrl(slug: string): string {
 export function bookShareUrl(slug: string): string {
   return `${siteOrigin()}/share/${slug}`
 }
-
-/** 文档阅读页链接（需登录，仅作兜底） */
-export function docReadUrl(docId: number): string {
-  return `${siteOrigin()}/m/doc/${docId}`
-}

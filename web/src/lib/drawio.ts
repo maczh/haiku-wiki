@@ -231,7 +231,6 @@ export const DRAWIO_JS_ASSETS = [
 /** 判定「这看起来是 JS」的 Content-Type */
 const JS_MIME = /(?:application|text)\/(?:x-)?(?:java|ecma)script/i
 
-let assetsProbe: Promise<boolean> | null = null
 let diagnosisCache: Promise<DrawioAssetDiagnosis> | null = null
 let diagnosisResult: DrawioAssetDiagnosis | null = null
 
@@ -333,16 +332,6 @@ export function drawioAssetDiagnosis(): Promise<DrawioAssetDiagnosis> {
     return result
   })()
   return diagnosisCache
-}
-
-/** 同步读取最近一次诊断结果（尚未完成时返回 null） */
-export function getDrawioAssetDiagnosis(): DrawioAssetDiagnosis | null {
-  return diagnosisResult
-}
-
-export function drawioAssetsReady(): Promise<boolean> {
-  assetsProbe ??= drawioAssetDiagnosis().then((d) => d.ok)
-  return assetsProbe
 }
 
 /** 资源缺失时给出的构建指引（开发/部署两种场景） */
