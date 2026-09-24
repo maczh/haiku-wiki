@@ -6,10 +6,11 @@ import { getBook, listBooks } from '../../api/books'
 import { getTree } from '../../api/docs'
 import { buildChildrenMap } from '../../lib/docTree'
 import { iconForDocType } from '../../lib/fileIcon'
-import type { Book, Bookshelf, DocNode } from '../../types'
+import type { Book, Bookshelf, DocNode, DocType } from '../../types'
 import { useH5Layout } from '../MobileLayout'
 import DocTreeDrawer from '../DocTreeDrawer'
 import MobileImportSheet from '../components/MobileImportSheet'
+import MobileCreateDocSheet from '../components/MobileCreateDocSheet'
 
 /**
  * H5 文库页。
@@ -29,6 +30,8 @@ export default function MBookshelf() {
   const [loading, setLoading] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createParentId, setCreateParentId] = useState(0)
 
   // 导入目标文库：优先当前文库；文库列表页则取第一个「我的/团队」文库
   const importBookId = useMemo(() => {
@@ -71,16 +74,24 @@ export default function MBookshelf() {
     setHeader({
       title: book?.name || '文库',
       right: (
-        <Button
-          size="small"
-          icon={<PartitionOutlined />}
-          onClick={() => setDrawerOpen(true)}
-        >
-          文档树
-        </Button>
+        <>
+          <Button size="small" onClick={() => { setCreateParentId(0); setCreateOpen(true) }}>
+            新建
+          </Button>
+          <Button size="small" icon={<PartitionOutlined />} onClick={() => setDrawerOpen(true)}>
+            文档树
+          </Button>
+        </>
       ),
     })
   }, [bookId, book?.name, setHeader])
+
+  // 新建文档 / 子目录 成功后：刷新树 + 文档类导航进 /m/doc（自动编辑态），目录类留在树中
+  const handleCreated = (docId: number, docType: DocType) => {
+    setCreateOpen(false)
+    if (bookId) getTree(Number(bookId)).then(setNodes).catch(() => {})
+    if (docType !== 'folder') navigate(`/m/doc/${docId}`)
+  }
 
   // ⚠️ Hooks 必须无条件、按固定顺序调用：childrenMap / roots 提前到早退 return 之前计算，
   // 否则从 /m/books 切到 /m/books/:bookId（同一组件实例）时 hook 数量变化，
@@ -163,7 +174,7 @@ export default function MBookshelf() {
         <Empty description="该文库还没有文档" style={{ marginTop: 60 }} />
       ) : (
         <div style={{ background: '#fff', borderRadius: 10, overflow: 'hidden' }}>
-          <DocTreeList nodes={roots} depth={0} childrenMap={childrenMap} onOpenDoc={(id) => navigate(`/m/doc/${id}`)} />
+          <DocTreeList nodes={roots} depth={0} childrenMap={childrenMap} onOpenDoc={(id) => navigate(`/m/doc/${id}`)} onCreate={(pid) => { setCreateParentId(pid); setCreateOpen(true) }} />
         </div>
       )}
 
@@ -199,6 +210,15 @@ export default function MBookshelf() {
           if (bookId) getTree(Number(bookId)).then(setNodes).catch(() => {})
         }}
       />
+
+      <MobileCreateDocSheet
+        open={createOpen}
+        bookId={Number(bookId)}
+        defaultParentId={createParentId}
+        nodes={nodes}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleCreated}
+      />
     </div>
   )
 }
@@ -223,10 +243,11 @@ interface TreeListProps {
   depth: number
   childrenMap: Map<number, DocNode[]>
   onOpenDoc: (docId: number) => void
+  onCreate: (parentId: number) => void
 }
 
 /** 递归渲染文档树（目录可展开/收起） */
-function DocTreeList({ nodes, depth, childrenMap, onOpenDoc }: TreeListProps) {
+function DocTreeList({ nodes, depth, childrenMap, onOpenDoc, onCreate }: TreeListProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   function toggle(id: number) {
     setExpanded((prev) => {
@@ -276,12 +297,22 @@ function DocTreeList({ nodes, depth, childrenMap, onOpenDoc }: TreeListProps) {
               >
                 {n.title || '未命名'}
               </span>
+              {isFolder && (
+                <button
+                  type="button"
+                  aria-label="新建"
+                  onClick={(e) => { e.stopPropagation(); onCreate(n.id) }}
+                  style={{ border: 'none', background: 'transparent', color: '#2f54eb', fontSize: 18, cursor: 'pointer', padding: '0 6px', flexShrink: 0, lineHeight: 1 }}
+                >
+                  ＋
+                </button>
+              )}
               {isFolder && kids.length > 0 && (
                 <span style={{ fontSize: 12, color: '#8a919f', flexShrink: 0 }}>{isOpen ? '收起' : `${kids.length}`}</span>
               )}
             </div>
             {isFolder && isOpen && kids.length > 0 && (
-              <DocTreeList nodes={kids} depth={depth + 1} childrenMap={childrenMap} onOpenDoc={onOpenDoc} />
+              <DocTreeList nodes={kids} depth={depth + 1} childrenMap={childrenMap} onOpenDoc={onOpenDoc} onCreate={onCreate} />
             )}
           </Fragment>
         )

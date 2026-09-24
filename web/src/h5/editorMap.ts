@@ -3,6 +3,7 @@ import type { DocType } from '../types'
 import TodoEditor from '../components/editor/TodoEditor'
 import CalendarEditor from '../components/editor/CalendarEditor'
 import WhiteboardEditor from '../components/editor/WhiteboardEditor'
+import GalleryEditorH5 from './components/GalleryEditorH5'
 
 /** H5 编辑态统一接收的 props（与三个编辑器组件的 Props 完全一致） */
 export interface H5EditorProps {
@@ -21,4 +22,5 @@ export const EDITOR_MAP: Partial<Record<DocType, ComponentType<H5EditorProps>>> 
   todo: TodoEditor,
   calendar: CalendarEditor,
   whiteboard: WhiteboardEditor,
+  gallery: GalleryEditorH5,
 }
