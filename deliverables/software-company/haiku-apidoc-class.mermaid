@@ -1,0 +1,76 @@
+classDiagram
+    %% 前端契约 (web/src/lib/apiDoc.ts)
+    class ApiEndpoint_FE {
+        +string id
+        +HttpMethod method
+        +string uri
+        +string body
+        +string body_type
+        +ApiField[] response_fields
+        +ApiField[] body_fields  %% 新增
+        +mergeBodyFields(derived, saved) ApiField[]
+        +reconcileFields(newFields, oldFields) ApiField[]
+    }
+    class ApiField_FE {
+        +string name
+        +string type
+        +string description
+        +bool required
+    }
+    ApiEndpoint_FE "1" *-- "0..*" ApiField_FE : response_fields / body_fields
+
+    %% 后端解析契约 (server/internal/service/apidoc/parser.go)
+    class ApiEndpoint_BE {
+        +string ID
+        +string Method
+        +string URI
+        +string Body
+        +string BodyType
+        +ApiField_BE[] ResponseFields
+        +ApiField_BE[] BodyFields  %% 新增
+        +bodyToFields(body) ApiField_BE[]  %% 新增
+    }
+    class ApiField_BE {
+        +string Name
+        +string Type
+        +string Description
+        +bool Required
+    }
+    ApiEndpoint_BE "1" *-- "0..*" ApiField_BE : ResponseFields / BodyFields
+
+    %% 后端导出契约 (server/internal/service/exportx/api_doc.go)
+    class ApiEndpoint_EX {
+        +string ID
+        +string Method
+        +string URI
+        +string Body
+        +ApiField_EX[] ResponseFields  %% 新增
+        +ApiField_EX[] BodyFields  %% 新增
+    }
+    class ApiField_EX {
+        +string Name
+        +string Type
+        +string Description
+        +bool Required
+    }
+    class ExportBuilders {
+        +buildSchemaFromFields(fields, exampleJSON) map~string,any~
+        +BuildApiDocSwagger(content, title) []byte
+        +BuildApiDocPostman(content, title) []byte
+        +BuildApiDocApifox(content, title) []byte
+        +BuildApiDocMD(content, title) []byte
+    }
+    ApiEndpoint_EX "1" *-- "0..*" ApiField_EX : ResponseFields / BodyFields
+    ExportBuilders ..> ApiField_EX : 读
+    ExportBuilders ..> ApiEndpoint_EX : parseApiDoc
+
+    %% 后端刷新回填 (api_refresh_service.go)
+    class MergeApiDoc {
+        +reconcileFields(newFields, oldFields) []apidoc.ApiField  %% 新增
+        +mergeApiDoc(doc, parsed) (added, updated, removed)
+        +endpointChanged(n, o) bool
+    }
+    MergeApiDoc ..> ApiEndpoint_BE : 调和 ResponseFields/BodyFields
+
+    note for ApiField_FE "name 路径约定：\na.b / a[] / a.list[].dishId"
+    note for ExportBuilders "buildSchemaFromFields：\n扁平字段表 → 嵌套 JSON Schema"
