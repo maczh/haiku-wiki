@@ -125,6 +125,10 @@ func NormalizeDocType(docType string) string {
 	switch strings.ToLower(strings.TrimSpace(docType)) {
 	case "sheet", "datatable":
 		return "sheet"
+	case "word":
+		return "word"
+	case "ppt":
+		return "ppt"
 	case "mindmap":
 		return "mindmap"
 	case "flowchart":
@@ -154,7 +158,9 @@ func NormalizeDocType(docType string) string {
 // folder（目录）不承载正文，与 file 一样返回 nil 表示「无可导出格式」。
 func FormatsForDocType(docType string) []FormatSpec {
 	t := NormalizeDocType(docType)
-	if t == "file" || t == "folder" {
+	// folder（目录）与 file（附件）/ word / ppt（OnlyOffice Web Comp 编辑的办公文档）均不承载
+	// 可服务端转换的正文：office 二进制即源文件，编辑与格式转换都在前端 OnlyOffice 内完成。
+	if t == "file" || t == "folder" || t == "word" || t == "ppt" {
 		return nil
 	}
 	out := formatsByDocType[t]
@@ -195,7 +201,7 @@ func Convert(docType, format, content, title string) ([]byte, FormatSpec, error)
 	if t == "folder" {
 		return nil, FormatSpec{}, fmt.Errorf("目录不承载正文，无法导出，请导出目录下的文档")
 	}
-	if t == "file" {
+	if t == "file" || t == "word" || t == "ppt" {
 		return nil, FormatSpec{}, fmt.Errorf("附件型文档请直接下载原文件")
 	}
 	spec, ok := LookupFormat(t, format)

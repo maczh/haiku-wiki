@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 导入端到端验证：真实 xlsx（含空工作表）/ docx / pdf 走浏览器导入链路，
-# 断言需求「xlsx 多工作表拆成父+子表格」「docx/pdf 按原文件保存且可预览」。
+# 导入端到端验证：真实 xlsx / docx / pdf / md.zip 走浏览器导入链路，
+# 断言本轮需求「xlsx/docx 落为可编辑的 OnlyOffice 办公文档（sheet/word），不再拆分工作表、也不再是只读附件」。
 #
 # 关于「选择文件」：agent-browser 的 upload 在本机对该 React 隐藏 input 静默失效
 # （命令返回成功但 input.files.length 仍为 0），因此改用 gen-upload-js.py 生成一段
@@ -120,20 +120,18 @@ TREE=$(curl --noproxy '*' -s "$BASE/api/books/$BOOK/docs" "${H[@]}")
 echo "$TREE" > "$OUT/tree.json"
 echo "$TREE" | jq -r '.data[] | "  id=\(.id) parent=\(.parent_id) type=\(.doc_type) title=\(.title)"' | sort -t= -k4
 
-PARENT_ID=$(echo "$TREE" | jq -r '.data[] | select(.title=="多工作表") | .id')
 pass=0; fail=0
 chk() {
   if [ "$2" = "$3" ]; then echo "  ✅ $1 = $3"; pass=$((pass+1));
   else echo "  ❌ $1：期望 $2，实际 $3"; fail=$((fail+1)); fi
 }
-chk "父文档「多工作表」类型" "sheet" "$(echo "$TREE" | jq -r '.data[]|select(.title=="多工作表")|.doc_type')"
-chk "空白工作表被跳过（子文档数=2）" "2" "$(echo "$TREE" | jq '[.data[]|select(.parent_id=='"${PARENT_ID:-0}"')]|length')"
-chk "子「产品」类型" "sheet" "$(echo "$TREE" | jq -r '.data[]|select(.title=="产品")|.doc_type')"
-chk "子「区域」类型" "sheet" "$(echo "$TREE" | jq -r '.data[]|select(.title=="区域")|.doc_type')"
-chk "子「产品」挂在父文档下" "${PARENT_ID:-x}" "$(echo "$TREE" | jq -r '.data[]|select(.title=="产品")|.parent_id')"
-chk "子「区域」挂在父文档下" "${PARENT_ID:-x}" "$(echo "$TREE" | jq -r '.data[]|select(.title=="区域")|.parent_id')"
-chk "空白页未生成文档" "0" "$(echo "$TREE" | jq '[.data[]|select(.title=="空白页")]|length')"
-chk "docx 导入为附件类型" "file" "$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的Word文档")|.doc_type')"
+# xlsx：落为单一 sheet 办公文档（OnlyOffice 原生支持多工作表，不再拆成父+子表格）
+SID=$(echo "$TREE" | jq -r '.data[]|select(.title=="多工作表")|.id')
+chk "xlsx 导入为单一 sheet 办公文档" "sheet" "$(echo "$TREE" | jq -r '.data[]|select(.title=="多工作表")|.doc_type')"
+chk "sheet 文档不再拆分工作表（无子文档）" "0" "$(echo "$TREE" | jq '[.data[]|select(.parent_id==('"${SID:-0}"'))]|length')"
+# docx：落为 word 办公文档（OnlyOffice 编辑，不再是只读附件）
+chk "docx 导入为 word 办公文档（可编辑）" "word" "$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的Word文档")|.doc_type')"
+# pdf：仍是附件（不可编辑，前端 pdf.js 预览）
 chk "pdf 导入为附件类型" "file" "$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的PDF文档")|.doc_type')"
 
 echo "== Markdown 包（.md.zip）断言：图片转存 + 正文地址重写 =="
@@ -156,27 +154,22 @@ chk "缺失图片引用保留原样" "1" "$(printf '%s' "$MDCONTENT" | grep -c '
 FIRSTIMG=$(printf '%s' "$MDCONTENT" | grep -o '/uploads/cas/[^)"'"'"' ]*' | head -1)
 chk "转存图片可访问（$FIRSTIMG）" "200" "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' "$BASE$FIRSTIMG")"
 
-echo "== 子表格内容校验 =="
-SID=$(echo "$TREE" | jq -r '.data[]|select(.title=="产品")|.id')
-SHEET=$(curl --noproxy '*' -s "$BASE/api/docs/$SID" "${H[@]}" | jq -r '.data.doc.content')
-echo "  content: $SHEET"
-# 表格存储契约已升到 v3（Luckysheet 原生多工作表 celldata），见 web/src/lib/sheet.ts 文件头
-echo "$SHEET" | jq -e '.version==3 and (.sheets|length)>=1
-  and ([.sheets[0].celldata[]|select(.r==0 and .c==0)|.v.v]|first)=="产品"
-  and ([.sheets[0].celldata[]|select(.r==1 and .c==0)|.v.v]|first)=="苹果"
-  and ([.sheets[0].celldata[]|select(.r==1 and .c==1)|.v.v]|first)==3' >/dev/null 2>&1 \
-  && { echo "  ✅ 表格内容契约正确（v3：celldata 含表头与数据）"; pass=$((pass+1)); } \
-  || { echo "  ❌ 表格内容契约异常"; fail=$((fail+1)); }
+echo "== sheet 文档正文校验（office 引用 JSON，而非 luckysheet celldata） =="
+SCONTENT=$(curl --noproxy '*' -s "$BASE/api/docs/$SID" "${H[@]}" | jq -r '.data.doc.content')
+echo "  content: $SCONTENT"
+# 新存储契约：正文是 {url,filename,size,ext} 附件引用（见 lib/officeDoc.ts isOfficeContent）
+echo "$SCONTENT" | jq -e '.url and .filename and (.ext=="xlsx")' >/dev/null 2>&1 \
+  && { echo "  ✅ sheet 正文为 office 引用（url/filename/ext=xlsx）"; pass=$((pass+1)); } \
+  || { echo "  ❌ sheet 正文不是 office 引用"; fail=$((fail+1)); }
 
-echo "== 附件阅读页抽查（docx） =="
+echo "== 办公文档阅读态抽查（docx → OnlyOffice 可编辑，非只读附件预览） =="
 DID=$(echo "$TREE" | jq -r '.data[]|select(.title=="导入的Word文档")|.id')
 "$AB" open "$BASE/books/$BOOK?docId=$DID&tab=read" >/dev/null 2>&1
-"$AB" wait 7000 >/dev/null 2>&1
-echo "  含「下载原文件」: $("$AB" eval "document.body.innerText.includes('下载原文件')" 2>&1 | tail -1)"
-echo "  docx 预览容器: $("$AB" eval "!!document.querySelector('.docx-preview')" 2>&1 | tail -1)"
-echo "  预览文本: $("$AB" eval "(function(){var e=document.querySelector('.docx-preview');return e?e.innerText.replace(/\\s+/g,' ').slice(0,70):'(无)'})()" 2>&1 | tail -1)"
-echo "  「编辑」按钮禁用: $("$AB" eval "(function(){var b=[].slice.call(document.querySelectorAll('button')).filter(function(x){return x.innerText.trim()==='编辑'});return b.length?b.some(function(x){return x.disabled}):'no-btn'})()" 2>&1 | tail -1)"
-"$AB" screenshot "$OUT/02-docx原文件预览.png" >/dev/null 2>&1
+"$AB" wait 15000 >/dev/null 2>&1
+echo "  旧只读容器 .docx-preview 已消失: $("$AB" eval "!document.querySelector('.docx-preview')" 2>&1 | tail -1)"
+echo "  OnlyOffice 容器可见: $("$AB" eval "!!document.querySelector('.onlyoffice-container')" 2>&1 | tail -1)"
+echo "  编辑器 iframe 挂载: $("$AB" eval "!!document.querySelector('iframe[name=\"frameEditor\"]')" 2>&1 | tail -1)"
+"$AB" screenshot "$OUT/02-docx-OnlyOffice.png" >/dev/null 2>&1
 
 echo "== 页面错误 =="
 "$AB" errors 2>&1 | tail -6

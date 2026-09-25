@@ -182,52 +182,28 @@ RFS=$(q "(function(){
 [ "$RFS" = "ok" ] && ok "白板阅读态 SVG 预览 + 全屏按钮" || no "白板阅读态异常: $RFS"
 "$AB" screenshot "$OUT/whiteboard-read.png" >/dev/null 2>&1
 
-# ---------- 5) 表格阅读态：连续点击命中不偏行（「二次点击差 6 行」回归） ----------
-# ⚠️ 根因不是时序/refresh，而是 CSS 包含块：luckysheet 的根 `.luckysheet` 自带
-#    `position:absolute`（无 top/left），宿主 div 若是 static，它的包含块会落到滚动
-#    容器之外的某个定位祖先上 → 网格**不随页面滚动**，而 luckysheet 算命中行用的是
-#    `$("#"+container).offset().top`（宿主位置）→ 两者脱钩 → 第二次起整行下移约 6 行。
-#    修法：宿主设为 position:relative（见 reader/SheetView.tsx 注释）。
-#    断言不变量：**同一个网格内相对偏移 → 命中同一行**，且滚动后依旧成立。
-echo "== 表格阅读态：点击命中 =="
-visit "$BASE/books/1?docId=2&tab=read" 7000
-SHEET_POS=$(q "(function(){
-  var b=document.querySelector('[id^=hk-luckysheet-view-]');
-  return b?getComputedStyle(b).position:'no-box'})()")
-[ "$SHEET_POS" = "relative" ] && ok "表格宿主 position:relative（包含块正确）" || no "表格宿主 position=$SHEET_POS"
-
-ROWS=$(q "(function(){
-  var cm=document.querySelector('#luckysheet-cell-main');
-  if(!cm) return 'no-grid';
-  var api=window.luckysheet;
-  if(!api||typeof api.getluckysheet_select_save!=='function') return 'no-api';
-  var out=[];
-  function row(){var s=api.getluckysheet_select_save();return (s&&s[0]&&s[0].row)?s[0].row[0]:'na'}
-  function click(dy){
-    var r=cm.getBoundingClientRect();
-    var x=r.left+60, y=r.top+dy;
-    ['mousedown','mouseup','click'].forEach(function(t){
-      cm.dispatchEvent(new MouseEvent(t,{clientX:x,clientY:y,bubbles:true,cancelable:true,view:window}))});
-    return row();
-  }
-  // 同一相对偏移连点三次：三次必须命中同一行
-  out.push(click(100)); out.push(click(100)); out.push(click(100));
-  // 再把外层滚动容器滚 250px，原地再点：滚动不应改变「网格内同一位置」的命中行
-  var p=cm.parentElement, sc=null;
-  while(p){var s=getComputedStyle(p);if(/(auto|scroll)/.test(s.overflowY)&&p.scrollHeight>p.clientHeight+10){sc=p;break}p=p.parentElement}
-  if(!sc) sc=document.scrollingElement||document.documentElement;
-  sc.scrollTop+=250;
-  out.push(click(100));
-  return out.join(',')})()")
-echo "    命中行序列（3 次原地 + 滚动后 1 次）: $ROWS"
-case "$ROWS" in
-  no-grid|no-api) no "表格网格/API 不可用: $ROWS" ;;
-  *na*)           no "未能读到选区行: $ROWS" ;;
-  *) FIRST=${ROWS%%,*}; REST=${ROWS#*,}
-     SAME=yes; IFS=','; for v in $REST; do [ "$v" = "$FIRST" ] || SAME=no; done; unset IFS
-     [ "$SAME" = "yes" ] && ok "连续点击命中同一行（含滚动后，行=$FIRST）" || no "点击命中偏行: $ROWS" ;;
+# ---------- 5) 表格阅读态：OnlyOffice 挂载且有可见高度 ----------
+# ⚠️ 原断言（luckysheet 宿主 position:relative + #luckysheet-cell-main 点击命中不偏行）
+#    随「表格改用 OnlyOffice 编辑」失效：阅读态 sheet 现在渲染 OnlyOfficeEditor
+#    （旧 luckysheet 正文会在挂载时经 exceljs 转 xlsx），页面上不再有
+#    #luckysheet-cell-main / window.luckysheet。
+#    那条「二次点击差 6 行」回归针对的是 luckysheet 的 CSS 包含块问题
+#    （见 reader/SheetView.tsx 注释），组件已换成 OnlyOffice，断言随之作废；
+#    此处改为守住新行为：阅读态确实挂上了 OnlyOffice 编辑器。
+echo "== 表格阅读态（OnlyOffice）=="
+visit "$BASE/books/1?docId=2&tab=read" 12000
+OO=$(q "(function(){
+  var c=document.querySelector('.onlyoffice-container');
+  if(!c) return 'no-container';
+  var r=c.getBoundingClientRect();
+  return r.height>0 ? 'mounted:'+Math.round(r.height) : 'zero-height'})()")
+case "$OO" in
+  mounted:*) ok "表格阅读态 OnlyOffice 已挂载（高 ${OO#mounted:}px）" ;;
+  *)         no "表格阅读态 OnlyOffice 异常: $OO" ;;
 esac
-"$AB" screenshot "$OUT/sheet-read-click.png" >/dev/null 2>&1
+IFR=$(q "(function(){return document.querySelector('iframe[name=\"frameEditor\"]')?'ok':'no-iframe'})()")
+[ "$IFR" = "ok" ] && ok "编辑器 iframe 已挂载" || no "缺编辑器 iframe: $IFR"
+"$AB" screenshot "$OUT/sheet-read-onlyoffice.png" >/dev/null 2>&1
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

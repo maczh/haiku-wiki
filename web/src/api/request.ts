@@ -48,6 +48,19 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+/**
+ * 当前是否处于**公开分享页**（/share/:slug、/doc-share/:slug，免登录）。
+ *
+ * 这类页面的阅读者本来就没有登录态，任何 401 都不该把他们弹去登录页 ——
+ * 实测 bug：H5 微信里打开 pptx 分享，PptxView 挂载时补做「外链图片本地化」
+ * （需登录的接口）→ 401 → 全局拦截器整页跳 /login，分享页直接打不开。
+ * 公开页上的 401 一律就地失败（调用方自行降级），只清 token 不跳转。
+ */
+function onPublicSharePage(): boolean {
+  const p = window.location.pathname
+  return p.startsWith('/share/') || p.startsWith('/doc-share/')
+}
+
 /** axios 实例：baseURL=/api，自动附带 Bearer token */
 const request = axios.create({
   baseURL: '/api',
@@ -69,9 +82,9 @@ request.interceptors.response.use(
     if (body.code !== 0) {
       if (!isSilent(resp.config)) message.error(body.message || '请求失败')
       if (body.code === 40101) {
-        // 登录失效：清 token 并跳转登录页
+        // 登录失效：清 token 并跳转登录页（公开分享页除外，见 onPublicSharePage）
         clearToken()
-        if (window.location.pathname !== '/login') {
+        if (window.location.pathname !== '/login' && !onPublicSharePage()) {
           window.location.assign('/login')
         }
       }
@@ -84,7 +97,7 @@ request.interceptors.response.use(
     const status = error?.response?.status
     if (status === 401) {
       clearToken()
-      if (window.location.pathname !== '/login') {
+      if (window.location.pathname !== '/login' && !onPublicSharePage()) {
         window.location.assign('/login')
       }
     }

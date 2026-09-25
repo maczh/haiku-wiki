@@ -32,6 +32,7 @@
     "axios": "^1.7.7",
     "docx": "^9.7.1",
     "dompurify": "^3.1.6",
+    "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
     "jquery": "^3.7.1",
     "jquery-mousewheel": "^3.2.2",

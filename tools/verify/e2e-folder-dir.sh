@@ -183,7 +183,7 @@ q "(()=>{const ds=[...document.querySelectorAll('.ant-dropdown')].filter(d=>!d.c
 "$AB" wait 900 >/dev/null 2>&1
 SUBITEMS=$(q "(()=>{const its=[...document.querySelectorAll('.ant-dropdown-menu-item')].filter(x=>x.offsetParent!==null);
   return its.map(i=>i.textContent.trim()).join('/')||'(无)'})()")
-for WANT in 文档 表格 思维导图 流程图 绘图 待办清单 工作日历 甘特图 接口 图片库 需求原型 新建分组; do
+for WANT in 文档 Excel文件 Word文件 PPT文件 思维导图 流程图 绘图 白板 待办清单 工作日历 甘特图 接口 图片库 需求原型 新建分组; do
   ckc "新建子菜单含「$WANT」" "$WANT" "$SUBITEMS"
 done
 shot 01-book-menu.png

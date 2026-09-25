@@ -172,6 +172,10 @@ export function iconForDocType(docType: DocType, name?: string): IconSpec {
       return { icon: <FileImageOutlined />, color: '#eb2f96' }
     case 'prototype':
       return { icon: <SkinOutlined />, color: '#722ed1' }
+    case 'word':
+      return { icon: <FileWordOutlined />, color: '#2f54eb' }
+    case 'ppt':
+      return { icon: <FilePptOutlined />, color: '#fa8c16' }
     default:
       return { icon: <FileTextOutlined />, color: '#8a919f' }
   }

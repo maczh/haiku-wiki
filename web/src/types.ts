@@ -243,6 +243,9 @@ export type DocType =
   | 'web'
   | 'gallery'
   | 'prototype'
+  // OnlyOffice Web Comp 编辑型办公文档（Excel 复用 sheet，已改名「Excel文件」）
+  | 'word'
+  | 'ppt'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
@@ -250,6 +253,8 @@ export type DocType =
 export const DOC_TYPES: DocType[] = [
   'markdown',
   'sheet',
+  'word',
+  'ppt',
   'mindmap',
   'flowchart',
   'drawing',
@@ -264,7 +269,7 @@ export const DOC_TYPES: DocType[] = [
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
   markdown: '文档',
-  sheet: '表格',
+  sheet: 'Excel文件',
   mindmap: '思维导图',
   flowchart: '流程图',
   drawing: '绘图',
@@ -278,6 +283,8 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   web: '网页',
   gallery: '图片库',
   prototype: '需求原型',
+  word: 'Word文件',
+  ppt: 'PPT文件',
 }
 
 /**

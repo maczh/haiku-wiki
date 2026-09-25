@@ -6,7 +6,7 @@ import { getDoc, getTree } from '../../api/docs'
 import { iconForDocType } from '../../lib/fileIcon'
 import type { DocDetail, DocNode, DocType } from '../../types'
 import { getDocMode, isContainerType } from '../docMode'
-import { READER_MAP, type H5ReaderProps } from '../readerMap'
+import { pickReader, type H5ReaderProps } from '../readerMap'
 import { EDITOR_MAP, type H5EditorProps } from '../editorMap'
 import H5DocContainer from '../H5DocContainer'
 import ShareSheet from '../ShareSheet'
@@ -217,8 +217,8 @@ export default function MDoc() {
     }
   }
 
-  // 只读态
-  const Reader = READER_MAP[doc.doc_type as DocType]
+  // 只读态（office 引用正文降级 FileView，见 pickReader 注释）
+  const Reader = pickReader(doc.doc_type as DocType, doc.content)
   if (Reader) {
     const readerProps: H5ReaderProps = {
       content: doc.content,

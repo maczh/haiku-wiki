@@ -45,7 +45,7 @@ export const IMPORT_FORMATS: ImportFormatSpec[] = [
   spec('docx', 'Word（.docx）', ['docx', 'doc']),
   spec('xlsx', 'Excel（.xlsx）', ['xls', 'xlsx', 'csv', 'et']),
   spec('mindmap', '思维导图（.smm/.km/.xmind/.mm）', ['smm', 'km', 'xmind', 'mm']),
-  spec('pptx', 'PPT（.pptx）', ['pptx']),
+  spec('pptx', 'PPT（.pptx/.ppt）', ['pptx', 'ppt']),
   spec('dwg', 'AutoCAD（.dwg/.dxf）', ['dwg', 'dxf']),
   spec('drawio', 'draw.io 绘图（.drawio）', ['drawio']),
   spec('whiteboard', 'Excalidraw 白板（.excalidraw）', ['excalidraw']),

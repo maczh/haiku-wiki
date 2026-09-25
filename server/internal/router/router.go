@@ -243,7 +243,18 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		distFS, _ := static.Dist()
 		fileServer := http.FileServer(http.FS(distFS))
 		r.NoRoute(func(c *gin.Context) {
-			if _, err := fs.Stat(distFS, staticProbePath(c.Request.URL.Path)); err != nil {
+			path := c.Request.URL.Path
+			if _, err := fs.Stat(distFS, staticProbePath(path)); err != nil {
+				// 静态资源目录（带内容指纹的 bundle / vendored 第三方 SDK）缺失时必须回**真 404**，
+				// 绝不能落 SPA 兜底：兜底返回的是 index.html（200 + text/html），
+				// 而 <script src> / SDK 内部 loader 拿到 HTML 会当 JS 解析，报出
+				// 「Uncaught SyntaxError: Unexpected token '<'」这种把人引向假方向的错误。
+				// （实测：OnlyOffice PPT 编辑器加载 sdkjs/slide/themes/<id>/themes.js
+				//   404 时被喂了 index.html，控制台直接炸出语法错误。）
+				if strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/packages/") {
+					c.Status(http.StatusNotFound)
+					return
+				}
 				// SPA fallback：非静态资源路径统一回退到 index.html
 				c.Request.URL.Path = "/"
 			}

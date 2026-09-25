@@ -50,7 +50,6 @@ import { createTemplate, listTemplateCategories, type DocTemplate } from '../api
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
 const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
-const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
@@ -59,6 +58,7 @@ const TodoEditor = lazy(() => import('../components/editor/TodoEditor'))
 const CalendarEditor = lazy(() => import('../components/editor/CalendarEditor'))
 const GanttEditor = lazy(() => import('../components/editor/GanttEditor'))
 const ApiEditor = lazy(() => import('../components/editor/ApiEditor'))
+const OnlyOfficeEditor = lazy(() => import('../components/editor/OnlyOfficeEditor'))
 // ⚠️ 必须懒加载：ImportDialog 会静态拉入 lib/import/parse.ts（SheetJS/turndown/jszip 等）
 const ImportDialog = lazy(() => import('../components/import/ImportDialog'))
 const UrlImportDialog = lazy(() => import('../components/import/UrlImportDialog'))
@@ -1162,8 +1162,35 @@ export default function BookPage() {
                         {docTypeNow === 'markdown' && (
                           <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
-                        {doc.doc_type === 'sheet' && (
-                          <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />
+                        {(doc.doc_type === 'sheet') && (
+                          <OnlyOfficeEditor
+                            key={doc.id}
+                            docId={doc.id}
+                            docType="sheet"
+                            initialContent={doc.content}
+                            title={doc.title}
+                            canWrite={canWrite}
+                          />
+                        )}
+                        {docTypeNow === 'word' && (
+                          <OnlyOfficeEditor
+                            key={doc.id}
+                            docId={doc.id}
+                            docType="word"
+                            initialContent={doc.content}
+                            title={doc.title}
+                            canWrite={canWrite}
+                          />
+                        )}
+                        {docTypeNow === 'ppt' && (
+                          <OnlyOfficeEditor
+                            key={doc.id}
+                            docId={doc.id}
+                            docType="ppt"
+                            initialContent={doc.content}
+                            title={doc.title}
+                            canWrite={canWrite}
+                          />
                         )}
                         {doc.doc_type === 'mindmap' && (
                           <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
@@ -1203,8 +1230,9 @@ export default function BookPage() {
                   <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
                 )}
                 {docIdParam && !docLoading && doc && tab === 'read' && (
-                  docTypeNow === 'api' ? (
-                    /* 接口文档：标题固定在顶部，下方「左接口树 + 右调试」双面板填满剩余高度、各自独立滚动（不随整页滚动） */
+                  docTypeNow === 'api' || docTypeNow === 'sheet' || docTypeNow === 'word' || docTypeNow === 'ppt' ? (
+                    /* 接口文档 / OnlyOffice 办公文档：标题固定在顶部，正文填满剩余高度、独立滚动（不随整页滚动）。
+                       办公文档的编辑器 iframe 必须拿到确定高度，否则塌成 minHeight 兜底值、不随窗口伸缩。 */
                     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                       <div style={{ flexShrink: 0, padding: '28px 24px 8px' }}>
                         <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>

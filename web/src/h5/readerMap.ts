@@ -14,6 +14,7 @@ import FileView from '../components/reader/FileView'
 import WebView from '../components/reader/WebView'
 import GalleryView from '../components/gallery/GalleryView'
 import PrototypeView from '../components/prototype/PrototypeView'
+import { isOfficeContent } from '../lib/officeDoc'
 
 /**
  * H5 阅读态统一接收的 props（各 reader 组件 props 的超集，
@@ -49,6 +50,25 @@ export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> 
   api: ApiView,
   file: FileView,
   web: WebView,
+  // OnlyOffice Web Comp 生成的 Word/PPT 文档复用既有附件阅读组件（mammoth/pptx-preview）
+  word: FileView,
+  ppt: FileView,
   gallery: GalleryView,
   prototype: PrototypeView,
+}
+
+/**
+ * 按「类型 + 正文内容」挑选 H5 阅读组件。
+ *
+ * 表格类型现在承载两种正文：旧版 luckysheet JSON（SheetView）与 OnlyOffice 办公文件
+ * 引用 {url,filename,ext}（导入的 xlsx / 新建 Excel 文件保存后的产物）。后者若交给
+ * SheetView 会被误判为「内容格式异常」**重置为空表格**（实测 bug），H5 又不接
+ * OnlyOffice（移动端首屏成本高），因此 office 引用一律降级为 FileView 附件卡
+ * （展示文件名/大小 + 原文件下载，docx/pptx 仍能直接预览内容）。
+ */
+export function pickReader(docType: DocType, content: string): ComponentType<H5ReaderProps> | undefined {
+  if ((docType === 'sheet' || docType === 'word' || docType === 'ppt') && isOfficeContent(content)) {
+    return FileView
+  }
+  return READER_MAP[docType]
 }

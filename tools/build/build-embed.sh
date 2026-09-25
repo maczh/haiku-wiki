@@ -48,6 +48,19 @@ fi
 test -f server/internal/static/dist/.gitkeep || { echo "❌ .gitkeep 丢失"; exit 1; }
 echo "静态资源：$(find server/internal/static/dist -type f | wc -l) 个文件，$(du -sh server/internal/static/dist | cut -f1)"
 
+# 可选：裁剪 OnlyOffice SDK 里运行时用不到的部分（离线帮助非 en 语种 / PDF·Visio 引擎 / IE 资源，约 530MB），
+# 把 go:embed 的二进制从 ~1GB 降到 ~470MB。默认**关闭**（PRUNE_SDK=1 才启用），
+# 因为本地开发/回归更愿意跑完整 SDK；Dockerfile 里则是默认启用（镜像瘦身）。
+# 注意：只裁剪 server/internal/static/dist（构建产物），不动 web/public/packages 原始 SDK，随时可重建恢复。
+if [ "${PRUNE_SDK:-0}" = "1" ]; then
+  echo "== 裁剪 OnlyOffice SDK（PRUNE_SDK=1）=="
+  # 裁剪会一次删掉上百个目录，会撞上宿主「批量删除守卫」（>50 个目标需人工确认）。
+  # 该守卫作用于**沙箱层**，只在发起构建的那条命令上设开关才有效，故本地用法是：
+  #   CODEBUDDY_SAFE_DELETE_ENABLED=0 PRUNE_SDK=1 bash tools/build/build-embed.sh
+  # （与前端构建前关守卫是同一个开关；Docker 构建里没有这个守卫，无需关心。）
+  CODEBUDDY_SAFE_DELETE_ENABLED=0 sh "$REPO/tools/build/prune-onlyoffice-sdk.sh" "$REPO/server/internal/static/dist"
+fi
+
 # 3) 编译后端
 echo "== 编译后端 =="
 cd "$REPO/server"

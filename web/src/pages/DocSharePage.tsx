@@ -82,7 +82,11 @@ export default function DocSharePage() {
   }
 
   const isMarkdown = content.doc_type === 'markdown'
+  // 接口文档与 OnlyOffice 办公文档（sheet/word/ppt）都需要「标题固定 + 正文占满剩余高度」：
+  // 办公文档的编辑器 iframe 拿不到确定高度会塌成 minHeight 兜底值、不随窗口伸缩（实测 bug）。
   const isApi = content.doc_type === 'api'
+  const isOffice = content.doc_type === 'sheet' || content.doc_type === 'word' || content.doc_type === 'ppt'
+  const fillViewport = isApi || isOffice
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff' }}>
@@ -128,8 +132,8 @@ export default function DocSharePage() {
           style={{
             flex: 1,
             minWidth: 0,
-            ...(isApi
-              ? // 接口文档：标题固定在顶部，下方双面板各自独立滚动（不随整页滚动），故 main 自身不滚动
+            ...(fillViewport
+              ? // 标题固定在顶部，正文占满剩余高度且独立滚动（不随整页滚动），故 main 自身不滚动
                 { display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }
               : {}),
           }}
@@ -138,7 +142,7 @@ export default function DocSharePage() {
           <div
             style={{
               // 接口文档双面板占满整幅宽度，不受阅读宽度调节器约束
-              maxWidth: isApi ? undefined : (maxWidth ?? undefined),
+              maxWidth: fillViewport ? undefined : (maxWidth ?? undefined),
               margin: '0 auto',
               padding: '28px 24px 0',
               flexShrink: 0,
@@ -146,7 +150,7 @@ export default function DocSharePage() {
           >
             <h1 style={{ fontSize: 26, marginBottom: 8 }}>{content.title}</h1>
           </div>
-          {isApi ? (
+          {fillViewport ? (
             <div style={{ flex: 1, minHeight: 0 }}>
               <DocContent
                 docType={content.doc_type}

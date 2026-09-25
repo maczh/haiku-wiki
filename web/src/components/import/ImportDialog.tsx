@@ -46,8 +46,8 @@ function fileKey(f: File): string {
  * 导入对话框（I09/I12 / 第四轮 R3）：
  *  - Upload.Dragger 多选 或 外部传入 initialFiles（格式下拉触发，accept 已在文件选择器限定）
  *  → parseFile 按扩展名分派 → createDoc 写入（导入目标=当前知识库根目录）；
- *  - .docx/.doc/.pdf：上传原文件后按原样保存为「附件」文档（不可编辑，阅读界面内直接预览）；
- *  - .xlsx/.xls/.csv/.et：解析为「表格」；多工作表时建父「表格」+ 每个工作表一个「表格」子文档；
+ *  - .docx/.doc/.pptx/.ppt/.xls/.xlsx/.csv/.et：上传原文件后落为对应「办公文档」（word/ppt/sheet），
+ *    由 OnlyOffice Web Comp 直接加载源文件编辑（不再只是阅读模式）；仅 .pdf 仍是只读「附件」；
  *  逐文件成功/失败反馈，失败不产生损坏文档。
  *
  * 去重与单次执行（本轮修复）：
@@ -175,12 +175,16 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
             note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
           }
         }
-        const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
+        const doc = await createDoc(bookId, parentId, res.title, res.docType, JSON.stringify(ref))
         // 转换降级/失败只做成 toast，不把长原因塞进列表标签
         if (note) message.warning(note)
         updateItem(item.uid, {
           status: 'success',
-          message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存，不可编辑）',
+          message: note
+            ? '导入成功（无在线预览）'
+            : (res.docType === 'sheet' || res.docType === 'word' || res.docType === 'ppt'
+              ? '导入成功（可用 OnlyOffice 编辑）'
+              : '导入成功（按原文件保存，不可编辑）'),
           docId: doc.id,
           md5: up.md5,
           dedup: up.dedup,
@@ -304,12 +308,12 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
 
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
         · <b>.md.zip</b>：Markdown 包（md + 图片），图片自动转存并把正文里的图片地址改为文库地址
-        <br />· <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
+        <br />· <b>.docx / .pptx / .xls / .xlsx</b>：落为可编辑的办公文档，由 OnlyOffice Web Comp 直接编辑（.pdf 仍为只读附件）
         <br />· <b>.dwg / .dxf</b>：保留原图，后端自动转换为 .svg + .png，前端可缩放拖动并导出
         <br />· <b>.drawio</b>：建为「绘图」文档，内嵌 draw.io 组件直接编辑
         <br />· <b>.excalidraw</b>：建为「白板」文档，内嵌 Excalidraw 组件直接编辑
         <br />· <b>.vsd / .vsdx</b>：保留源文件，阅读页由绘图组件转换预览，可另存为可编辑的绘图文档
-        <br />· <b>.xlsx</b>：转为「表格」，每个有内容的工作表存为一个「表格」子文档
+        <br />· <b>.xlsx / .xls / .csv</b>：落为「Excel文件」办公文档，多工作表由 OnlyOffice 原生支持
       </Typography.Paragraph>
 
       {items.length > 0 && (

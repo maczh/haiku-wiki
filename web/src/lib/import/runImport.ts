@@ -134,7 +134,7 @@ export async function runImport(files: File[], opts: RunImportOpts): Promise<voi
             note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
           }
         }
-        const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
+        const doc = await createDoc(bookId, parentId, res.title, res.docType, JSON.stringify(ref))
         if (note) item.message = note
         onItem({ ...item, status: 'success', message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存）', docId: doc.id, dedup: up.dedup })
         if (up.dedup) dedup++

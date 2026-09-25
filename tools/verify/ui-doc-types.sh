@@ -68,11 +68,11 @@ chk "正文渲染字符数 > 0" "true" "$(q "document.querySelector('.doc-conten
 chk "大纲浮动层出现" "true" "$(q "!!document.querySelector('.hk-toc-float')")"
 "$AB" screenshot "$OUT/read-markdown.png" >/dev/null 2>&1
 
-echo "-- sheet (docId=2) --"
-visit 2 read 6000
-chk "Luckysheet 容器" "true" "$(q "!!document.querySelector('.luckysheet-cell-main')")"
-echo "     单元格文本片段: $(q "(function(){var e=document.querySelector('.x-spreadsheet');return e?e.innerText.replace(/\\s+/g,' ').slice(0,60):'(无)'})()")"
-chk "表格区域可见高度 > 0" "true" "$(q "(function(){var e=document.querySelector('.luckysheet-cell-main');return !!e && e.getBoundingClientRect().height > 100})()")"
+echo "-- sheet (docId=2, OnlyOffice Web Comp) --"
+visit 2 read 12000
+chk "OnlyOffice 容器" "true" "$(q "!!document.querySelector('.onlyoffice-container')")"
+chk "OnlyOffice 编辑器 iframe 挂载" "true" "$(q "!!document.querySelector('iframe[name=\\\"frameEditor\\\"]')")"
+chk "阅读态 OnlyOffice 容器可见高度 > 0" "true" "$(q "(function(){var e=document.querySelector('.onlyoffice-container');return !!e && e.getBoundingClientRect().height > 100})()")"
 "$AB" screenshot "$OUT/read-sheet.png" >/dev/null 2>&1
 
 echo "-- mindmap (docId=3) --"
@@ -102,9 +102,10 @@ visit 1 edit 6000
 chk "Vditor 编辑器" "true" "$(q "!!document.querySelector('.vditor')")"
 "$AB" screenshot "$OUT/edit-markdown.png" >/dev/null 2>&1
 
-echo "-- sheet 编辑 --"
-visit 2 edit 6000
-chk "Luckysheet 编辑器" "true" "$(q "!!document.querySelector('.luckysheet-cell-main')")"
+echo "-- sheet 编辑 (OnlyOffice Web Comp) --"
+visit 2 edit 12000
+chk "OnlyOffice 容器" "true" "$(q "!!document.querySelector('.onlyoffice-container')")"
+chk "OnlyOffice 编辑器 iframe 挂载" "true" "$(q "!!document.querySelector('iframe[name=\\\"frameEditor\\\"]')")"
 "$AB" screenshot "$OUT/edit-sheet.png" >/dev/null 2>&1
 
 echo "-- mindmap 编辑 --"

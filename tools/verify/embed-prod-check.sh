@@ -155,6 +155,30 @@ c=$(curl -s -o /tmp/spa.html -w '%{http_code}' --noproxy '*' "http://127.0.0.1:$
 grep -q 'assets/index-' /tmp/spa.html 2>/dev/null && [ "$c" = "200" ] \
   && ok "SPA 兜底 200 且含入口 chunk" || no "SPA 兜底异常: $c"
 
+# 4.8 OnlyOffice Web Comp 静态 SDK（本次集成：前端表格/Word/PPT 编辑组件替换）
+#     随 web/dist 一并 embed，须经生产单端口服务以正确 Content-Type 提供（非 SPA 兜底）。
+OO_ROOT=packages/onlyoffice/9.4.0-develop
+for f in \
+  $OO_ROOT/web-apps/apps/api/documents/api.js \
+  $OO_ROOT/x2t/x2t.wasm ; do
+  HDR=$(curl -s --noproxy '*' -o "$TMP/oo-probe.bin" -w '%{http_code}|%{content_type}|%{size_download}' \
+        "http://127.0.0.1:$PORT/$f")
+  RC=${HDR%%|*}; CT=$(printf '%s' "$HDR" | cut -d'|' -f2); SZ=${HDR##*|}
+  if [ "$RC" = "200" ] && ! head -c 32 "$TMP/oo-probe.bin" 2>/dev/null | grep -qi '<!doctype html'; then
+    ok "GET /$f → $RC（$CT，${SZ} 字节，非 HTML 兜底）"
+  else
+    no "GET /$f 异常：$HDR"
+  fi
+done
+# OnlyOffice 编辑器 chunk 必须被打进产物
+OO_CHUNK=$(ls "$REPO/web/dist/assets" 2>/dev/null | grep '^OnlyOfficeEditor-' | head -1)
+if [ -n "$OO_CHUNK" ]; then
+  c=$(curl -s -o /dev/null -w '%{http_code}' --noproxy '*' "http://127.0.0.1:$PORT/assets/$OO_CHUNK")
+  [ "$c" = "200" ] && ok "GET /assets/$OO_CHUNK 200（OnlyOffice 编辑器已打包）" || no "GET /assets/$OO_CHUNK 得 $c"
+else
+  no "OnlyOfficeEditor chunk 未生成"
+fi
+
 echo "== 5) 启动日志（前后各 3 行）=="
 head -3 "$TMP/prod-check.log"; echo "  ..."; tail -3 "$TMP/prod-check.log"
 

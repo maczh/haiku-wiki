@@ -246,55 +246,15 @@ async function main() {
   id = await createDoc(MD); await visitDoc(id); await selOp(1, 6, 'italic'); neq('选区→斜体(em)', (await page.evaluate(() => document.querySelectorAll('.vditor-ir .vditor-reset em').length)) >= 1)
   id = await createDoc(MD); await visitDoc(id); await selOp(1, 6, 'strike'); neq('选区→删除线(s)', (await page.evaluate(() => document.querySelectorAll('.vditor-ir .vditor-reset s').length)) >= 1)
 
-  // ===== 7) Luckysheet 内置下拉：文字颜色 / 填充色 / 边框（Bug A 核心：点得开） =====
-  log('===== 7) Luckysheet 内置下拉（Bug A 修复） =====')
-  await visitDoc(2, 'edit'); await sleep(1500)
-  neq('Luckysheet 已渲染', await page.evaluate(() => !!document.querySelector('.luckysheet-cell-main')))
-  async function openLuckyToolbar({ id }) {
-    const h = await page.evaluateHandle(({ id }) => document.querySelector('#' + id), { id })
-    const el = h.asElement(); if (!el) throw new Error('no toolbar ' + id)
-    await el.click({ delay: 20 }); await sleep(1000)
-    return page.evaluate(({ id }) => { const m = document.querySelector('#' + id + '-menuButton'); if (!m) return 'no-panel'; const r = m.getBoundingClientRect(); if (r.width < 5 || r.height < 5) return 'hidden'; return 'shown' }, { id })
-  }
-  const fc = await openLuckyToolbar({ id: 'luckysheet-icon-text-color-menu' }); neq('文字颜色下拉可弹出', fc === 'shown')
-  const bg = await openLuckyToolbar({ id: 'luckysheet-icon-cell-color-menu' }); neq('单元格背景色下拉可弹出', bg === 'shown')
-  await sleep(1200)
-  const br = await openLuckyToolbar({ id: 'luckysheet-icon-border-menu' }); neq('边框下拉可弹出', br === 'shown')
-
-  // ===== 8) 自定义取色按钮：真实选单元格 → 点顶部「文字颜色」→ 选色块 → 断言落库（fc） =====
-  // 这条是用户「颜色渲染」需求的可靠落色路径（applyCellColor 已修正 setCellFormat 签名为 (row,col,attr,value)）
-  log('===== 8) 自定义取色按钮落色（颜色渲染） =====')
-  await visitDoc(2, 'edit'); await sleep(1500)
-  // 按坐标点选一个单元格（网格画在 canvas 上，默认列宽100/行高24）
-  const cellPos = await page.evaluate(() => { const m = document.querySelector('.luckysheet-cell-main'); if (!m) return null; const b = m.getBoundingClientRect(); return { x: Math.round(b.left + 2 * 100 + 50), y: Math.round(b.top + 3 * 24 + 12) } })
-  if (cellPos) { await page.mouse.click(cellPos.x, cellPos.y); await sleep(400) }
-  const selCount = await page.evaluate(() => { try { const s = window.luckysheet.getluckysheet_select_save ? window.luckysheet.getluckysheet_select_save() : []; return Array.isArray(s) ? s.length : 0 } catch { return -1 } })
-  neq('已选中单元格', selCount >= 1)
-  // 点顶部「文字颜色」按钮（真实坐标点击，避开 antd Popover 可能的遮挡）
-  const btnPos = await page.evaluate(() => { const el = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === '文字颜色'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } })
-  neq('找到「文字颜色」按钮', !!btnPos)
-  if (btnPos) {
-    await page.mouse.click(btnPos.x, btnPos.y); await sleep(500)
-    const swPos = await page.evaluate(() => { const t = Array.from(document.querySelectorAll('[title="#e60000"]')).find((e) => e.style && e.style.background); if (!t) return null; const r = t.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } })
-    neq('找到色板色块 #e60000', !!swPos)
-    if (swPos) { await page.mouse.click(swPos.x, swPos.y); await sleep(400) }
-    await sleep(4500)
-    const c2 = await docContent(2)
-    neq('文字颜色已落库(fc)', c2.includes('"fc"'))
-  }
-  // 背景色同理
-  await visitDoc(2, 'edit'); await sleep(1500)
-  const cellPos2 = await page.evaluate(() => { const m = document.querySelector('.luckysheet-cell-main'); if (!m) return null; const b = m.getBoundingClientRect(); return { x: Math.round(b.left + 5 * 100 + 50), y: Math.round(b.top + 6 * 24 + 12) } })
-  if (cellPos2) { await page.mouse.click(cellPos2.x, cellPos2.y); await sleep(400) }
-  const btnPos2 = await page.evaluate(() => { const el = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === '单元格背景色'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } })
-  if (btnPos2) {
-    await page.mouse.click(btnPos2.x, btnPos2.y); await sleep(500)
-    const swPos2 = await page.evaluate(() => { const t = Array.from(document.querySelectorAll('[title="#0066cc"]')).find((e) => e.style && e.style.background); if (!t) return null; const r = t.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } })
-    if (swPos2) { await page.mouse.click(swPos2.x, swPos2.y); await sleep(400) }
-    await sleep(4500)
-    const c3 = await docContent(2)
-    neq('单元格背景色已落库(bg)', c3.includes('"bg"'))
-  }
+  // ===== 7) 表格编辑器：OnlyOffice 已挂载（原 Luckysheet 断言随组件替换作废） =====
+  // ⚠️ 需求变更：表格改用 OnlyOffice Web Comp 编辑（不再 luckysheet）。
+  //    原「Luckysheet 内置下拉（文字色/背景色/边框，Bug A）」与「自定义取色按钮落色 fc/bg」
+  //    依赖 .luckysheet-cell-main / window.luckysheet / 自研「文字颜色」按钮，
+  //    这些随 SheetEditor(luckysheet) 一并移除，取色改由 OnlyOffice 自带工具条提供，故整段作废。
+  log('===== 7) 表格编辑器（OnlyOffice） =====')
+  await visitDoc(2, 'edit'); await sleep(12000)
+  neq('OnlyOffice 容器已挂载', await page.evaluate(() => !!document.querySelector('.onlyoffice-container')))
+  neq('编辑器 iframe 已挂载', await page.evaluate(() => !!document.querySelector('iframe[name="frameEditor"]')))
 
   // ===== 控制台错误 =====
   log('===== 9) 控制台错误 =====')

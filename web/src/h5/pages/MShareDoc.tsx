@@ -4,7 +4,7 @@ import { Alert, Result, Spin } from 'antd'
 import { ArrowLeftOutlined, ShareAltOutlined } from '@ant-design/icons'
 import { getDocShareMeta, verifyDocShare } from '../../api/share'
 import type { DocShareContent, DocShareMeta } from '../../types'
-import { READER_MAP } from '../readerMap'
+import { pickReader } from '../readerMap'
 import H5DocContainer from '../H5DocContainer'
 import ShareSheet from '../ShareSheet'
 import { useShareLink } from '../useShareLink'
@@ -81,7 +81,7 @@ export default function MShareDoc() {
     return <Spin style={{ display: 'block', margin: '140px auto' }} />
   }
 
-  const Reader = READER_MAP[content.doc_type]
+  const Reader = pickReader(content.doc_type, content.content)
   const h5c = h5ContainerProps(content.doc_type)
 
   return (

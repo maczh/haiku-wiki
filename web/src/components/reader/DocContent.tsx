@@ -8,7 +8,6 @@ import { type DocType } from '../../types'
 // 按文档类型按需加载渲染器：Vditor / simple-mind-map / Luckysheet / pdf.js / mermaid
 // / draw.io / pptx-preview 都只在打开对应类型文档时才需要，静态 import 会把它们全部塞进首屏 chunk。
 const MarkdownView = lazy(() => import('./MarkdownView'))
-const SheetView = lazy(() => import('./SheetView'))
 const MindmapView = lazy(() => import('./MindmapView'))
 const FlowchartView = lazy(() => import('./FlowchartView'))
 const FileView = lazy(() => import('./FileView'))
@@ -21,6 +20,9 @@ const ApiView = lazy(() => import('./ApiView'))
 const WebView = lazy(() => import('./WebView'))
 const GalleryView = lazy(() => import('../gallery/GalleryView'))
 const PrototypeView = lazy(() => import('../prototype/PrototypeView'))
+// OnlyOffice Web Comp 编辑/预览（Excel/Word/PPT）：阅读态也可编辑（有权限时），
+// 旧 luckysheet 正文会在 OnlyOfficeEditor 内转换为 xlsx 再载入。
+const OnlyOfficeEditor = lazy(() => import('../editor/OnlyOfficeEditor'))
 
 interface Props {
   docType: DocType
@@ -84,9 +86,25 @@ export default function DocContent({
       </LazyBoundary>
     )
   } else if (docType === 'sheet') {
+    // 表格（含旧 luckysheet 数据 / 导入的 xlsx）统一用 OnlyOffice Web Comp 编辑或预览：
+    // 旧 luckysheet 正文会在 OnlyOfficeEditor 内转换为 xlsx 再载入，避免数据丢失。
     body = (
-      <LazyBoundary tip={TIP.sheet}>
-        <SheetView content={content} />
+      <LazyBoundary tip="正在加载表格编辑器…">
+        <OnlyOfficeEditor docId={docId ?? 0} docType="sheet" initialContent={content} title="" canWrite={canWrite === true} />
+      </LazyBoundary>
+    )
+  } else if (docType === 'word') {
+    // Word 文档由 OnlyOffice Web Comp 加载编辑（有权限即可编辑，不再仅是阅读）
+    body = (
+      <LazyBoundary tip="正在加载 Word 编辑器…">
+        <OnlyOfficeEditor docId={docId ?? 0} docType="word" initialContent={content} title="" canWrite={canWrite === true} />
+      </LazyBoundary>
+    )
+  } else if (docType === 'ppt') {
+    // PPT 文档由 OnlyOffice Web Comp 加载编辑（有权限即可编辑，不再仅是阅读）
+    body = (
+      <LazyBoundary tip="正在加载 PPT 编辑器…">
+        <OnlyOfficeEditor docId={docId ?? 0} docType="ppt" initialContent={content} title="" canWrite={canWrite === true} />
       </LazyBoundary>
     )
   } else if (docType === 'mindmap') {
@@ -196,19 +214,23 @@ export default function DocContent({
   const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype' || docType === 'api' || docType === 'flowchart'
   // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
-  // 接口文档：让高度链传导到 ApiEditor（height:100%），使其在阅读/分享模式下双面板各自独立滚动
-  const fillHeight = docType === 'api'
+  // 需要占满视口剩余高度的类型：
+  //   · api —— 阅读模式「左接口树 + 右调试」双面板各自独立滚动；
+  //   · sheet / word / ppt —— OnlyOffice 编辑器必须拿到确定高度，否则 iframe 塌成一个
+  //     固定值（实测恒为 minHeight 兜底的 556px），不随浏览器窗口伸缩（实测 bug）。
+  //     上游（BookPage 阅读分支 / DocSharePage）负责提供 height:100% 的父容器。
+  const fillHeight = docType === 'api' || docType === 'sheet' || docType === 'word' || docType === 'ppt'
   return (
     <div
       style={{
         maxWidth: fullWidth ? undefined : (maxWidth ?? undefined),
         margin: '0 auto',
         width: '100%',
-        ...(fillHeight ? { height: '100%' } : null),
+        ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column' } : null),
       }}
     >
       {showWidthControl && <WidthControl compact />}
-      {body}
+      <div style={fillHeight ? { flex: 1, minHeight: 0 } : undefined}>{body}</div>
     </div>
   )
 }

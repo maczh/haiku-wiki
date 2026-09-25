@@ -38,7 +38,7 @@ type createDocReq struct {
 // whiteboard：白板（内嵌 Excalidraw），正文 {version,elements,appState,files,svg}，
 // svg 为浏览器侧生成的矢量预览，阅读/分享/导出都直接取用，可导出 excalidraw/svg。
 var validDocTypes = map[string]bool{
-	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
+	"markdown": true, "sheet": true, "word": true, "ppt": true, "mindmap": true, "flowchart": true,
 	"file": true, "drawing": true, "todo": true, "calendar": true, "gantt": true, "api": true,
 	"folder": true, "web": true, "gallery": true, "prototype": true, "whiteboard": true,
 }

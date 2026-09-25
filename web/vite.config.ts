@@ -20,4 +20,8 @@ export default defineConfig({
     outDir: 'dist',
     chunkSizeWarningLimit: 2000,
   },
+  // OnlyOffice Web Comp 使用 Web Worker（x2t.ts），代码分割构建不支持默认的 iife 格式
+  worker: {
+    format: 'es',
+  },
 })

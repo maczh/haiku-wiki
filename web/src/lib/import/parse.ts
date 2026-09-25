@@ -2,34 +2,23 @@
 // 解析产物统一为 {ok, title, docType, content, children?, attachment?}，失败不产生损坏文档。
 //
 // 导入约定（本轮）：
-//   - .docx / .doc / .pdf / .pptx / .vsd / .vsdx / .dwg / .dxf → 按原文件保存（docType=file，
-//     content 为上传后回填的附件引用 JSON），不可编辑，阅读时由 FileView 分派渲染：
-//       .docx → mammoth，.pdf → pdf.js，.pptx → pptx-preview（可播放），
-//       .dwg/.dxf → 后端派生的 SVG/PNG（可缩放拖动），.vsd/.vsdx → 内嵌 draw.io 转换预览；
+//   - .docx / .doc / .pptx / .ppt / .xls / .xlsx / .csv / .et → 按原文件保存为对应「办公文档」
+//     类型（docType=word / ppt / sheet），正文为上传后回填的附件引用 JSON；
+//     打开时由 OnlyOffice Web Comp 直接加载源文件编辑（不再仅是阅读模式）。
+//     仅 .pdf / .vsd / .vsdx / .dwg / .dxf 仍按原文件保存为「附件」(docType=file) 不可编辑，
 //     其中 .dwg/.dxf 上传后还需调 /api/attachments/prepare 触发后端转换并回填 derived；
 //   - .drawio → 「绘图」文档，正文即 .drawio 的 XML 原文，由内嵌 draw.io 组件直接编辑保存；
-//   - .xlsx / .xls / .csv / .et → 转为「表格」：每个有内容的工作表落为一个「表格」文档，
-//     多表时以文件名建父「表格」，各工作表作为其子文档；单表时直接落为单文档；
 //   - .smm / .km / .xmind / .mm → 思维导图：交给后端 /api/mindmap/parse 统一解析成
 //     内置 .smm 正文（.xmind 是 zip 包，解压与新旧结构兼容都放服务端）；
 //   - 其余文本类格式（md/txt/html）解析为对应类型的正文。
 
 import TurndownService from 'turndown'
-import * as XLSX from 'xlsx'
 import DOMPurify from 'dompurify'
 import type { DocType, FileAttachment } from '../../types'
+import type { OfficeDocType } from '../officeDoc'
 import { IMPORT_EXTENSIONS, extOfName, unsupportedImportReason } from './formats'
 import { MdZipError, openMdZip, type MdZipPackage } from './mdzip'
 import { collectStyleText, fixLazyImages, hiddenSelectors, pruneInvisible, stripNonContent } from './htmlClean'
-import {
-  DEFAULT_COL,
-  DEFAULT_ROW,
-  SHEET_VERSION,
-  emptySheet,
-  stringifySheet,
-  type LuckysheetCellData,
-  type LuckysheetSheet,
-} from '../sheet'
 import { parseMindmapFile as parseMindmapFileApi } from '../../api/mindmap'
 import { excalidrawFileToContent } from '../whiteboardDoc'
 
@@ -66,10 +55,6 @@ export interface ParseResult {
 type Parser = (file: File) => Promise<ParseResult>
 
 const LARGE_TEXT_BYTES = 2 * 1024 * 1024
-
-/** 单元格/行数上限（防超大表撑爆正文与渲染） */
-const MAX_SHEET_ROWS = 500
-const MAX_SHEET_COLS = 50
 
 function baseName(name: string): string {
   const i = name.lastIndexOf('.')
@@ -137,9 +122,6 @@ const parseMindmapFile: Parser = async (file) => {
 
 // ---------- 附件型（原样保存，不解析正文） ----------
 
-/** 按原文件保存的附件型扩展名 */
-const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'vsd', 'vsdx', 'dwg', 'dxf']
-
 /** 需要后端转换派生产物的附件（DWG/DXF → SVG/PNG） */
 export const CAD_IMPORT_EXTS = ['dwg', 'dxf']
 
@@ -196,71 +178,25 @@ const parseExcalidraw: Parser = async (file) => {
   return { ok: true, title, docType: 'whiteboard', content }
 }
 
-// ---------- xlsx / xls / csv / et：每个有内容的工作表 → 一个「表格」 ----------
+// ---------- 办公文档（Word/PPT/Excel）：原样保存为对应 office 文档类型，由 OnlyOffice 编辑 ----------
+// 不再把 xlsx 转成 luckysheet 正文、也不再让 docx/pptx 走只读附件：
+// 落为 word/ppt/sheet 文档后，打开即由 OnlyOffice Web Comp 加载源文件编辑。
 
 /**
- * 单个工作表 → 表格内容字符串（v3：Luckysheet 的 celldata）；无内容返回 null。
- * 数值/布尔按「原样入格 + 文本回显」保存（Luckysheet 会按 ct 判定类型），
- * 其余一律按文本保存，避免把 "1-2" 之类的字符串误解析成公式或日期。
+ * 办公编辑型导入：原样保存为对应的 office 文档类型（word/ppt/sheet），
+ * 正文为空，由导入流程上传原文件后回填附件引用。
  */
-function sheetToContent(ws: XLSX.WorkSheet, sheetName?: string): string | null {
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: '' })
-  const celldata: LuckysheetCellData[] = []
-  let r = 0
-  let maxC = 0
-  for (const row of rows.slice(0, MAX_SHEET_ROWS)) {
-    let c = 0
-    for (const v of row.slice(0, MAX_SHEET_COLS)) {
-      const text = String(v ?? '').trim()
-      if (text !== '') {
-        const numeric = typeof v === 'number' && Number.isFinite(v)
-        const bool = typeof v === 'boolean'
-        celldata.push({
-          r,
-          c,
-          v: numeric || bool ? { v, m: text, ct: { fa: 'General', t: numeric ? 'n' : 'b' } } : { v: text, m: text, ct: { fa: 'General', t: 's' } },
-        })
-        if (c > maxC) maxC = c
-      }
-      c++
+function parseOfficeFile(target: OfficeDocType): Parser {
+  return async (file) => {
+    const ext = extOf(file.name)
+    return {
+      ok: true,
+      title: baseName(file.name),
+      docType: target,
+      content: '',
+      attachment: { filename: file.name, size: file.size, ext },
+      needsPrepare: false,
     }
-    r++
-  }
-  if (celldata.length === 0) return null
-  const sheet: LuckysheetSheet = {
-    ...emptySheet(sheetName && sheetName.trim() !== '' ? sheetName : 'Sheet1'),
-    row: Math.max(DEFAULT_ROW, r + 10),
-    column: Math.max(DEFAULT_COL, maxC + 3),
-    celldata,
-  }
-  return stringifySheet({ version: SHEET_VERSION, sheets: [sheet] })
-}
-
-const parseXlsx: Parser = async (file) => {
-  const arrayBuffer = await file.arrayBuffer()
-  const wb = XLSX.read(arrayBuffer, { type: 'array' })
-  const sheets: { name: string; content: string }[] = []
-  for (const name of wb.SheetNames) {
-    const ws = wb.Sheets[name]
-    if (!ws) continue
-    const content = sheetToContent(ws, name)
-    if (content) sheets.push({ name, content })
-  }
-  const title = baseName(file.name)
-  if (sheets.length === 0) {
-    return { ok: false, title, docType: 'sheet', content: '', reason: '工作簿中没有有内容的工作表' }
-  }
-  // 单工作表：直接落为单个「表格」文档
-  if (sheets.length === 1) {
-    return { ok: true, title, docType: 'sheet', content: sheets[0].content }
-  }
-  // 多工作表：父「表格」代表整个工作簿，每个工作表 → 一个「表格」子文档
-  return {
-    ok: true,
-    title,
-    docType: 'sheet',
-    content: '',
-    children: sheets.map((s) => ({ title: s.name, docType: 'sheet' as DocType, content: s.content })),
   }
 }
 
@@ -340,10 +276,11 @@ export const parserRegistry: Record<string, Parser> = {
   markdown: parseMd,
   txt: parseMd,
   zip: parseMdZip, // Markdown 包：md + 内嵌图片，图片转存后重写正文地址
-  docx: parseAttachment,
-  doc: parseAttachment,
-  pdf: parseAttachment,
-  pptx: parseAttachment, // 保留源文件，前端 pptx-preview 预览/播放
+  docx: parseOfficeFile('word'), // 由 OnlyOffice 编辑
+  doc: parseOfficeFile('word'),
+  pdf: parseAttachment, // 不可编辑，前端 pdf.js 预览
+  pptx: parseOfficeFile('ppt'), // 由 OnlyOffice 编辑
+  ppt: parseOfficeFile('ppt'),
   vsd: parseAttachment, // Visio：保留源文件，阅读页由 draw.io 转换预览
   vsdx: parseAttachment,
   dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
@@ -354,13 +291,13 @@ export const parserRegistry: Record<string, Parser> = {
   km: parseMindmapFile,
   xmind: parseMindmapFile,
   mm: parseMindmapFile,
-  xlsx: parseXlsx,
-  xls: parseXlsx,
-  csv: parseXlsx,
+  xlsx: parseOfficeFile('sheet'), // 由 OnlyOffice 编辑（多工作表由 OnlyOffice 原生支持）
+  xls: parseOfficeFile('sheet'),
+  csv: parseOfficeFile('sheet'),
   html: parseHtml,
   htm: parseHtml,
   wps: failUnsupported('wps'),
-  et: parseXlsx,
+  et: parseOfficeFile('sheet'),
   dps: failUnsupported('dps'),
 }
 

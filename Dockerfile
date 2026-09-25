@@ -71,6 +71,13 @@ RUN GOPROXY=https://goproxy.cn go mod download
 COPY server/ ./
 # 用真实的前端产物覆盖占位目录（embed 进二进制）
 COPY --from=web-builder /app/web/dist ./internal/static/dist
+# 裁剪 SDK 里运行时用不到的部分后再 embed：离线帮助的非 en 语种（456MB，且无 zh-CN）、
+# 未启用的 PDF/Visio 引擎（64MB）、IE 兼容资源（10MB）——合计约 530MB。
+# 只作用于镜像构建产物，不动仓库内 web/public/packages 的原始 SDK（本地开发/回归不受影响），
+# 详见 tools/build/prune-onlyoffice-sdk.sh 头部注释。
+COPY tools/build/prune-onlyoffice-sdk.sh /tmp/prune-onlyoffice-sdk.sh
+RUN sh /tmp/prune-onlyoffice-sdk.sh ./internal/static/dist \
+ && rm -f /tmp/prune-onlyoffice-sdk.sh
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-wiki ./cmd/server
 
 # 阶段 3：运行时（单容器：二进制 + 数据卷）

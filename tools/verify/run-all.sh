@@ -43,6 +43,7 @@ DEFAULT_SUITES=(
   e2e-editor-menus
   whiteboard-check
   preview-zoom-check
+  office-toggle-check
   h5-reader-check
   h5-scroll-back-check
   wechat-login-check
@@ -75,6 +76,7 @@ declare -A PORT_OF=(
   [e2e-editor-menus]=8192
   [whiteboard-check]=8109
   [preview-zoom-check]=8111
+  [office-toggle-check]=18095
   [h5-reader-check]=8177
   [h5-scroll-back-check]=8178
   [wechat-login-check]=8185

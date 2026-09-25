@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons'
 import { localizePptx } from '../../api/attachments'
 import { useViewMode } from '../../h5/useViewMode'
+import { getToken } from '../../api/request'
 
 /**
  * 本会话内已补做过外链图片本地化的 URL。
@@ -165,7 +166,9 @@ export default function PptxView({ url, filename, pptxScanned }: Props) {
       // 历史文件补做一次外链图片本地化：这一步会把网络图片下载并**写回源文件**，
       // 因此必须在取字节之前完成，否则拿到的还是缺图的那一份。
       let target = url
-      if (!pptxScanned && !localizedOnce.has(url)) {
+      // 本地化接口需要登录态（写回源文件）。公开分享页的阅读者没有 token，
+      // 调了只会 401（虽已不再全局跳登录页，但纯属浪费一次往返），直接跳过。
+      if (getToken() && !pptxScanned && !localizedOnce.has(url)) {
         localizedOnce.add(url)
         try {
           const r = await localizePptx(url)
