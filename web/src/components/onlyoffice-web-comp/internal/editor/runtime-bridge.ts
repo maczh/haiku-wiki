@@ -1105,6 +1105,7 @@ const pendingRequests = new Map<
     resolve: (value: unknown) => void;
     reject: (reason?: unknown) => void;
     timer: number;
+    frameEditorId: string;
   }
 >();
 const pendingReadyWaiters = new Map<
@@ -1495,6 +1496,19 @@ export function registerCrossOriginBridge(
   }
 }
 
+function rejectPendingRequests(
+  frameEditorId: string,
+  error: Error,
+) {
+  for (const [requestId, pending] of pendingRequests) {
+    if (pending.frameEditorId === frameEditorId) {
+      window.clearTimeout(pending.timer);
+      pendingRequests.delete(requestId);
+      pending.reject(error);
+    }
+  }
+}
+
 export function unregisterCrossOriginBridge(frameEditorId: string) {
   const session = sessions.get(frameEditorId);
   if (session) {
@@ -1508,6 +1522,14 @@ export function unregisterCrossOriginBridge(frameEditorId: string) {
     );
   }
   editorEventSubscribers.delete(frameEditorId);
+  // 清理该 frameEditorId 下仍在途的命令请求，避免悬挂的 Promise 与对旧 iframe 的引用泄漏
+  // （反复切换编辑器时若只 reject readyWaiters 而漏掉命令 Promise，Map 会随切换次数无限增长）。
+  rejectPendingRequests(
+    frameEditorId,
+    new Error(
+      `OnlyOffice cross-origin command aborted: ${frameEditorId}`,
+    ),
+  );
 }
 
 export function setCrossOriginReadOnly(
@@ -1553,7 +1575,12 @@ export function callCrossOriginEditor(
           );
         }, timeout);
 
-        pendingRequests.set(requestId, { resolve, reject, timer });
+        pendingRequests.set(requestId, {
+          resolve,
+          reject,
+          timer,
+          frameEditorId,
+        });
         postToIframe(session, {
           type: CROSS_ORIGIN_BRIDGE_MESSAGE.EDITOR_COMMAND,
           frameEditorId,

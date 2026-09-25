@@ -238,6 +238,60 @@ export class EditorManager {
     return document.getElementById(this.containerId);
   }
 
+  /**
+   * 同步清理容器内残留的 OnlyOffice 编辑器 iframe（name="frameEditor"）。
+   *
+   * OnlyOffice SDK 的 `destroyEditor()` 是**异步**的：它只向 iframe 内投递一条销毁指令，
+   * 真正的 iframe DOM 移除要等 iframe 自身稍后才完成。因此当宿主组件（阅读↔编辑切换、文档
+   * 切换）在 destroy 之后很快又对同一 `#ONLYOFFICE_ID` 容器执行
+   * `new window.DocsAPI.DocEditor(containerId, ...)` 时，旧 iframe 可能仍残留在容器里，SDK
+   * 检测到容器已存在 editor/iframe 会直接抛「Editor is already created / Unknown error」，并
+   * 在反复切换几十次后于容器内堆积多个僵尸 iframe，导致编辑器再也打不开（刷新页面才能短暂恢复）。
+   *
+   * 此处主动、同步地把残留 iframe 从 DOM 移除（在 destroyEditor 之后移除，避免 SDK 内部再
+   * 操作已销毁的节点）。同步清理即足够：destroy() 与 mountDocEditor() 各自在销毁/挂载前都调用
+   * 本方法，等到 destroyEditor 的异步收尾发生前残留 iframe 已被清掉，不会留到下一次 new DocEditor
+   * 所在的容器里；无需 requestAnimationFrame / setTimeout 异步兜底（本方法末尾 this.destroyEpoch++
+   * 会在当前同步帧内执行，异步回调里的判定永远为假，徒增死代码）。
+   */
+  private clearStaleEditorFrames() {
+    const removeFrame = (frame: HTMLIFrameElement) => {
+      try {
+        frame.remove();
+      } catch {
+        /* 已脱离文档，忽略 */
+      }
+    };
+
+    // 1) 直接容器内（最常见：容器 div 仍在 DOM，仅 iframe 尚未被 SDK 移除）。
+    const container = this.getContainerElement();
+    if (container) {
+      container
+        .querySelectorAll<HTMLIFrameElement>('iframe[name="frameEditor"]')
+        .forEach(removeFrame);
+    }
+
+    // 2) 兜底：容器可能已被 React 卸载（节点脱离文档）或暂未被 getElementById 命中，
+    //    按 frameEditorId 在整篇文档范围内再清一遍，避免僵尸 iframe 残留。
+    //    注意：仅清理「不在当前容器内」的匹配 iframe——当前容器内那个是当前编辑器（由步骤 1
+    //    负责，且新建编辑器时本方法早于 new DocEditor 调用，绝不会误伤新 iframe）。
+    document
+      .querySelectorAll<HTMLIFrameElement>('iframe[name="frameEditor"]')
+      .forEach((frame) => {
+        if (container && container.contains(frame)) {
+          return;
+        }
+        try {
+          const url = new URL(frame.src, window.location.origin);
+          if (url.searchParams.get("frameEditorId") === this.containerId) {
+            removeFrame(frame);
+          }
+        } catch {
+          /* src 无法解析时跳过，避免误删其它 iframe */
+        }
+      });
+  }
+
   private getOfficeOverlayHostElement() {
     const container = this.getContainerElement();
     return (
@@ -1327,6 +1381,7 @@ export class EditorManager {
     this.disconnectConnector();
     this.editor?.destroyEditor?.();
     this.editor = null;
+    this.clearStaleEditorFrames();
     this.comments.clear();
     this.revisions = [];
     this.teardownWordContentSync();
@@ -1426,6 +1481,9 @@ export class EditorManager {
 
   /** 语言写在 iframe URL 的 lang 参数里，运行时 refreshFile 不会更新界面语言。 */
   private mountDocEditor() {
+    // 防御性清理：destroyEditor 是异步的，容器里可能还残留上一次的 iframe；
+    // 不清理就 new DocEditor 会触发「Editor is already created / Unknown error」。
+    this.clearStaleEditorFrames();
     const doc = this.server.getDocument();
     const user = this.server.getUser();
     const documentType = getDocumentType(doc.fileType);
@@ -2631,6 +2689,15 @@ export class EditorManager {
     this.disconnectConnector();
     this.editor?.destroyEditor?.();
     this.editor = null;
+    // destroyEditor() 是异步的：SDK 只向 iframe 内投递销毁指令，真正的
+    // iframe[name="frameEditor"] DOM 节点要等 iframe 自身稍后才移除。我们不依赖 SDK 的异步收尾，
+    // 而是在此处**同步**把容器内（以及已脱离文档的）残留 iframe 直接移除，确保下一次
+    // new DocEditor(containerId) 时容器绝对干净，不会因残留 iframe 而报
+    // 「Editor is already created / Unknown error」并随切换次数累积。
+    // （注意：不能用 requestAnimationFrame/setTimeout 异步兜底——本方法末尾 this.destroyEpoch++
+    //  会在当前同步帧内执行，异步回调里 this.destroyEpoch 必然已变化，兜底判定永远为假，
+    //   因此清理必须、也只能在这里同步完成。）
+    this.clearStaleEditorFrames();
     this.dirty = false;
     this.comments.clear();
     this.revisions = [];
