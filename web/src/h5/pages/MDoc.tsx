@@ -217,7 +217,7 @@ export default function MDoc() {
     }
   }
 
-  // 只读态（office 引用正文降级 FileView，见 pickReader 注释）
+  // 只读态（导入的 xlsx → SheetOfficeView 走 luckysheet 只读；其余 office 引用降级 FileView，见 pickReader 注释）
   const Reader = pickReader(doc.doc_type as DocType, doc.content)
   if (Reader) {
     const readerProps: H5ReaderProps = {

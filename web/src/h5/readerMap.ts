@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import type { DocType } from '../types'
 import MarkdownView from '../components/reader/MarkdownView'
-import SheetView from '../components/reader/SheetView'
+import SheetTableView from '../components/reader/SheetTableView'
+import SheetOfficeView from '../components/reader/SheetOfficeView'
 import MindmapView from '../components/reader/MindmapView'
 import FlowchartView from '../components/reader/FlowchartView'
 import DrawioView from '../components/reader/DrawioView'
@@ -14,7 +15,7 @@ import FileView from '../components/reader/FileView'
 import WebView from '../components/reader/WebView'
 import GalleryView from '../components/gallery/GalleryView'
 import PrototypeView from '../components/prototype/PrototypeView'
-import { isOfficeContent } from '../lib/officeDoc'
+import { isOfficeContent, parseOfficeRef } from '../lib/officeDoc'
 
 /**
  * H5 阅读态统一接收的 props（各 reader 组件 props 的超集，
@@ -39,7 +40,10 @@ export interface H5ReaderProps {
  */
 export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> = {
   markdown: MarkdownView,
-  sheet: SheetView,
+  // H5 阅读/分享态的**内联 SheetJSON** 用轻量级纯表格组件（原生 <table>，无 luckysheet 内核）；
+  // 桌面端编辑/阅读仍走 SheetView。导入的 xlsx（office 引用）由 pickReader 分流到
+  // SheetOfficeView（luckysheet 只读），其余 office 引用降级 FileView。
+  sheet: SheetTableView,
   mindmap: MindmapView,
   flowchart: FlowchartView,
   drawing: DrawioView,
@@ -57,16 +61,25 @@ export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> 
   prototype: PrototypeView,
 }
 
+/** 可用 SheetJS 解析的电子表格扩展名（SheetOfficeView 走 luckysheet 只读渲染） */
+const SPREADSHEET_OFFICE_EXTS = new Set(['xlsx', 'xls', 'xlsm', 'xltx', 'csv', 'ods'])
+
 /**
  * 按「类型 + 正文内容」挑选 H5 阅读组件。
  *
- * 表格类型现在承载两种正文：旧版 luckysheet JSON（SheetView）与 OnlyOffice 办公文件
- * 引用 {url,filename,ext}（导入的 xlsx / 新建 Excel 文件保存后的产物）。后者若交给
- * SheetView 会被误判为「内容格式异常」**重置为空表格**（实测 bug），H5 又不接
- * OnlyOffice（移动端首屏成本高），因此 office 引用一律降级为 FileView 附件卡
- * （展示文件名/大小 + 原文件下载，docx/pptx 仍能直接预览内容）。
+ * 表格类型现在承载两种正文：
+ *   1. 内联 SheetJSON（旧版 luckysheet 数据 / 新建表格）→ READER_MAP 的 sheet（轻量 SheetTableView）；
+ *   2. OnlyOffice 办公文件引用 {url,filename,ext}（导入的 xlsx / 新建 Excel 文件保存后的产物）。
+ * 第 2 类不能直接喂给 SheetTableView（它只吃 SheetJSON，会判定为空表），H5 也不接 OnlyOffice
+ * （移动端首屏成本高）。因此：**电子表格类引用（xlsx/xls/csv…）改用 SheetOfficeView** ——
+ * 拉取源文件经 SheetJS 转成 SheetJSON 后由 luckysheet 只读查看；其余 office 引用
+ * （docx/pptx 等，或不便解析的 .et）仍降级为 FileView 附件卡（展示文件名/大小 + 原文件下载）。
  */
 export function pickReader(docType: DocType, content: string): ComponentType<H5ReaderProps> | undefined {
+  if (docType === 'sheet' && isOfficeContent(content)) {
+    const ref = parseOfficeRef(content)
+    if (ref && SPREADSHEET_OFFICE_EXTS.has(ref.ext)) return SheetOfficeView
+  }
   if ((docType === 'sheet' || docType === 'word' || docType === 'ppt') && isOfficeContent(content)) {
     return FileView
   }

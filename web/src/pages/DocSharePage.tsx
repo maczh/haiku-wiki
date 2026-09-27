@@ -82,11 +82,17 @@ export default function DocSharePage() {
   }
 
   const isMarkdown = content.doc_type === 'markdown'
-  // 接口文档与 OnlyOffice 办公文档（sheet/word/ppt）都需要「标题固定 + 正文占满剩余高度」：
-  // 办公文档的编辑器 iframe 拿不到确定高度会塌成 minHeight 兜底值、不随窗口伸缩（实测 bug）。
+  // 接口文档 / OnlyOffice 办公文档（sheet/word/ppt）/ 画布型预览（思维导图·绘图·甘特·白板）
+  // 都需要「标题固定 + 正文占满剩余高度」：办公文档 iframe 拿不到确定高度会塌成兜底值；
+  // 画布型预览内部自带滚动/缩放，铺满剩余视口才不出现整页滚动条。
   const isApi = content.doc_type === 'api'
   const isOffice = content.doc_type === 'sheet' || content.doc_type === 'word' || content.doc_type === 'ppt'
-  const fillViewport = isApi || isOffice
+  const isCanvas =
+    content.doc_type === 'mindmap' ||
+    content.doc_type === 'drawing' ||
+    content.doc_type === 'gantt' ||
+    content.doc_type === 'whiteboard'
+  const fillViewport = isApi || isOffice || isCanvas
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff' }}>

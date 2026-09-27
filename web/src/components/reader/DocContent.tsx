@@ -210,16 +210,36 @@ export default function DocContent({
   // 图片库/需求原型的网格在窄栏下也会被压得没法看；接口文档是「左侧接口树 + 右侧调试」双面板布局，
   // 需要占满整幅宽度、且不受阅读宽度调节器约束（见 ApiEditor 自身拖拽调宽）；
   // 流程图（mermaid）借用 Markdown 阅读组件渲染，大图（时序/甘特/长流程）在窄阅读栏里会被压得过小，
-  // 同样通栏铺满，图形按容器实际宽度自然铺开（不再套阅读宽度调节器）。
-  const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype' || docType === 'api' || docType === 'flowchart'
+  // 同样通栏铺满，图形按容器实际宽度自然铺开（不再套阅读宽度调节器）；
+  // 思维导图/绘图/白板为画布型预览，占满整幅宽度更合理，且不套宽度调节器。
+  const fullWidth =
+    docType === 'gantt' ||
+    docType === 'web' ||
+    docType === 'gallery' ||
+    docType === 'prototype' ||
+    docType === 'api' ||
+    docType === 'flowchart' ||
+    docType === 'mindmap' ||
+    docType === 'drawing' ||
+    docType === 'whiteboard'
   // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度
   const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
   // 需要占满视口剩余高度的类型：
   //   · api —— 阅读模式「左接口树 + 右调试」双面板各自独立滚动；
   //   · sheet / word / ppt —— OnlyOffice 编辑器必须拿到确定高度，否则 iframe 塌成一个
-  //     固定值（实测恒为 minHeight 兜底的 556px），不随浏览器窗口伸缩（实测 bug）。
-  //     上游（BookPage 阅读分支 / DocSharePage）负责提供 height:100% 的父容器。
-  const fillHeight = docType === 'api' || docType === 'sheet' || docType === 'word' || docType === 'ppt'
+  //     固定值（实测恒为 minHeight 兜底的 556px），不随浏览器窗口伸缩（实测 bug）；
+  //   · mindmap / drawing / gantt / whiteboard —— 画布型预览，由宿主提供确定高度后
+  //     内部自带滚动/缩放，故统一铺满剩余视口（阅读/分享/H5 三模式一致）。
+  //     上游（BookPage 阅读分支 / DocSharePage / SharePage / H5DocContainer）负责提供 height:100% 的父容器。
+  const fillHeight =
+    docType === 'api' ||
+    docType === 'sheet' ||
+    docType === 'word' ||
+    docType === 'ppt' ||
+    docType === 'mindmap' ||
+    docType === 'drawing' ||
+    docType === 'gantt' ||
+    docType === 'whiteboard'
   return (
     <div
       style={{

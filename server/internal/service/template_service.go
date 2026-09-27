@@ -57,6 +57,8 @@ var savableTemplateDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "flowchart": true,
 	"drawing": true, "whiteboard": true, "todo": true, "calendar": true, "gantt": true,
 	"api": true, "gallery": true, "prototype": true,
+	// 管理员导入的 Word/Excel/PPT 模板（正文为办公文件引用）
+	"word": true, "ppt": true,
 }
 
 // TemplateInput 模板写入字段（另存为 / 管理员编辑共用）。

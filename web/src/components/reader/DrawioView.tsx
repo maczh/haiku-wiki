@@ -63,9 +63,12 @@ export default function DrawioView({ content, showEditHint = true }: Props) {
   return (
     <div
       style={{
-        height: 'min(78vh, 820px)',
-        minHeight: 420,
-        margin: '0 24px 40px',
+        // 阅读/分享/H5 三模式均由宿主提供确定高度（fillHeight / H5 fill），
+        // 画布借 100% 高度铺满可视区、内部自带滚动与缩放，故不再写死固定高度。
+        height: '100%',
+        minHeight: 360,
+        margin: '0 24px',
+        boxSizing: 'border-box',
         border: '1px solid #ebedf0',
         borderRadius: 8,
         overflow: 'hidden',

@@ -67,10 +67,11 @@ export default function GanttView({ content, docId, progressEditable = false }: 
     <div
       style={{
         padding: mobile ? '0 12px 12px' : '0 24px 24px',
-        // 移动端借由 H5DocContainer 的 fill 拿到 100% 高度，这里让甘特面板铺满整屏
-        height: mobile ? '100%' : undefined,
-        display: mobile ? 'flex' : undefined,
-        flexDirection: mobile ? 'column' : undefined,
+        // 阅读/分享/H5 三模式现在都由宿主提供确定高度（fillHeight / H5 fill），
+        // 甘特面板借此铺满整屏、内部自带滚动，故统一用 100% 高度。
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {canSave ? (
@@ -88,9 +89,8 @@ export default function GanttView({ content, docId, progressEditable = false }: 
       )}
       <div
         style={{
-          flex: mobile ? 1 : undefined,
-          height: mobile ? '100%' : 'min(72vh, 760px)',
-          minHeight: 420,
+          flex: 1,
+          minHeight: 360,
           border: '1px solid #ebedf0',
           borderRadius: 8,
           overflow: 'hidden',

@@ -47,9 +47,15 @@ export const H5_ZOOMABLE_TYPES: ReadonlySet<DocType> = new Set<DocType>([
 /**
  * 移动端「内容自身占满高度、内部自带滚动」的类型。
  * 这些类型在 H5DocContainer 内不再额外滚动，而是 height:100% 铺满（见 fill 属性）。
- * 当前仅甘特图：其右侧带折叠按钮的甘特面板需要确定高度才能正确布局。
+ * 覆盖：甘特图（右侧折叠面板需确定高度）、思维导图（原生矢量缩放需确定高度）、
+ * 绘图 / 白板（SVG 矢量预览自带缩放与内部滚动，应铺满可视区）。
  */
-export const H5_FILL_TYPES: ReadonlySet<DocType> = new Set<DocType>(['gantt'])
+export const H5_FILL_TYPES: ReadonlySet<DocType> = new Set<DocType>([
+  'gantt',
+  'mindmap',
+  'drawing',
+  'whiteboard',
+])
 
 /**
  * 根据文档类型给出 H5 阅读容器应有的 zoomable / fill 开关，

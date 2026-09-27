@@ -44,10 +44,16 @@ function twoPointDistance(x1: number, y1: number, x2: number, y2: number): numbe
  * 重新布局绘制 —— **放大到多少就是多少的真实矢量渲染，永远清晰**，且是无级的。
  * 平移同理走 `view.x / view.y`，放大后单指可拖动查看。
  *
- * 交互约定：1:1（未放大）时单指不拦截，纵向划屏仍归浏览器原生滚动；
- * 双指按下即接管缩放；已放大时单指接管平移。
+ * 交互约定：单指拖动在任意缩放级别都接管平移（上下左右划屏探索导图）；
+ * 双指按下即接管缩放。画布型容器（fill）本身不靠祖先滚动，故全程由本组件处理手势，
+ * 1:1 时也允许单指平移 —— 否则导图在 fit 后无法被划动探索（容器 overflow:hidden，原生滚动无处可滚）。
  */
-function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) => void): () => void {
+function attachNativeZoom(
+  mm: MindMap,
+  host: HTMLElement,
+  onScale: (s: number) => void,
+  onActivity?: () => void,
+): () => void {
   const view = mm.view
   let pinch: { dist: number; scale: number; x: number; y: number; cx: number; cy: number } | null = null
   let pan: { x: number; y: number } | null = null
@@ -75,7 +81,9 @@ function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) =
       pan = null
       return
     }
-    if (e.touches.length === 1 && view.scale > 1.001) {
+    if (e.touches.length === 1) {
+      // 单指拖动：任意缩放级别都接管平移（上下左右划屏探索导图）；
+      // 画布型容器（fill）不靠祖先滚动，1:1 时同样必须由本组件平移。
       e.preventDefault()
       pan = { x: e.touches[0].clientX, y: e.touches[0].clientY }
     }
@@ -96,9 +104,11 @@ function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) =
       view.scale = scale
       view.transform()
       onScale(scale)
+      onActivity?.()
       return
     }
-    if (e.touches.length === 1 && pan && view.scale > 1.001) {
+    if (e.touches.length === 1 && pan) {
+      // 任意级别单指平移（上下左右），配合 touch-action:none 让 preventDefault 生效
       e.preventDefault()
       const dx = e.touches[0].clientX - pan.x
       const dy = e.touches[0].clientY - pan.y
@@ -106,6 +116,7 @@ function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) =
       view.x += dx
       view.y += dy
       view.transform()
+      onActivity?.()
     }
   }
 
@@ -141,6 +152,8 @@ export default function MindmapView({ content }: Props) {
   const mobile = viewMode === 'h5'
   /** 当前缩放百分比（驱动 touch-action 与「重置」按钮） */
   const [scale, setScale] = useState(1)
+  /** 视图是否已被平移/缩放离开初始 fit 位置（决定是否显示「重置」按钮） */
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     const host = elRef.current
@@ -202,7 +215,7 @@ export default function MindmapView({ content }: Props) {
     ro.observe(host)
 
     // H5：原生无级缩放（见 attachNativeZoom 注释）。桌面端不需要（有滚轮 + 拖拽画布）。
-    const detach = mobile ? attachNativeZoom(mm, host, setScale) : null
+    const detach = mobile ? attachNativeZoom(mm, host, setScale, () => setDirty(true)) : null
 
     return () => {
       detach?.()
@@ -228,15 +241,16 @@ export default function MindmapView({ content }: Props) {
       mm.view.reset()
       mm.view.fit()
       setScale(mm.view.scale)
+      setDirty(false)
     } catch {
       /* 实例已销毁时忽略 */
     }
   }
 
-  const zoomed = scale > 1.001
+  const showReset = mobile && dirty
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: mobile ? '100%' : 560 }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 360 }}>
       <div
         ref={elRef}
         data-h5-native-zoom={mobile ? '1' : '0'}
@@ -244,11 +258,12 @@ export default function MindmapView({ content }: Props) {
         style={{
           width: '100%',
           height: '100%',
-          // 未放大时放行纵向划屏（阅读容器可滚）；放大后交给本组件单指平移
-          touchAction: zoomed ? 'none' : 'pan-y',
+          // 画布型容器（fill）不靠祖先滚动，全部手势（单指平移 + 双指缩放）由本组件处理；
+          // touch-action:none 让 preventDefault 在单指划屏时生效，从而上下左右都可平移。
+          touchAction: mobile ? 'none' : undefined,
         }}
       />
-      {mobile && zoomed && (
+      {showReset && (
         <button
           type="button"
           onClick={resetView}

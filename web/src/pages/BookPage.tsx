@@ -1230,7 +1230,16 @@ export default function BookPage() {
                   <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
                 )}
                 {docIdParam && !docLoading && doc && tab === 'read' && (
-                  docTypeNow === 'api' || docTypeNow === 'sheet' || docTypeNow === 'word' || docTypeNow === 'ppt' ? (
+                  // 接口文档 / OnlyOffice 办公文档 / 画布型预览（思维导图·绘图·甘特·白板）：
+                  // 标题固定在顶部，正文填满剩余高度、独立滚动（不随整页滚动），故走 fill 分支。
+                  docTypeNow === 'api' ||
+                  docTypeNow === 'sheet' ||
+                  docTypeNow === 'word' ||
+                  docTypeNow === 'ppt' ||
+                  docTypeNow === 'mindmap' ||
+                  docTypeNow === 'drawing' ||
+                  docTypeNow === 'gantt' ||
+                  docTypeNow === 'whiteboard' ? (
                     /* 接口文档 / OnlyOffice 办公文档：标题固定在顶部，正文填满剩余高度、独立滚动（不随整页滚动）。
                        办公文档的编辑器 iframe 必须拿到确定高度，否则塌成 minHeight 兜底值、不随窗口伸缩。 */
                     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

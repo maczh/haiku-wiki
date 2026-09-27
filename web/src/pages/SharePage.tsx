@@ -12,9 +12,8 @@ import type { DocDetail, DocNode, ShareInfo } from '../types'
 // 公开预览页同样按需加载重型渲染器（Vditor / pdf.js / draw.io / pptx），避免首屏一并拉取
 const MarkdownView = lazy(() => import('../components/reader/MarkdownView'))
 const FileView = lazy(() => import('../components/reader/FileView'))
-const DrawioView = lazy(() => import('../components/reader/DrawioView'))
-const WhiteboardView = lazy(() => import('../components/reader/WhiteboardView'))
-const GanttView = lazy(() => import('../components/reader/GanttView'))
+// 画布型预览（思维导图/绘图/甘特/白板）统一走 DocContent，由它按 fillHeight 铺满剩余视口
+const DocContent = lazy(() => import('../components/reader/DocContent'))
 
 /**
  * 公开分享页（/share/:slug）：免登录只读。
@@ -123,6 +122,9 @@ export default function SharePage() {
     return <Spin style={{ display: 'block', margin: '200px auto' }} />
   }
 
+  // 画布型预览（思维导图/绘图/甘特/白板）：标题固定 + 正文占满剩余高度，不随整页滚动
+  const isCanvas = !!doc && (doc.doc_type === 'mindmap' || doc.doc_type === 'drawing' || doc.doc_type === 'gantt' || doc.doc_type === 'whiteboard')
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fff' }}>
       {/* 顶栏 */}
@@ -167,40 +169,57 @@ export default function SharePage() {
         </aside>
 
         {/* 阅读区 */}
-        <main style={{ flex: 1, overflow: 'auto' }} className="toc-scroll-root">
+        <main
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            // 画布型预览自身占满高度、内部自带滚动，故 main 不再滚动（与 DocContent fillHeight 配合）
+            overflow: isCanvas ? 'hidden' : 'auto',
+          }}
+          className="toc-scroll-root"
+        >
           {loadingDoc && <Spin style={{ display: 'block', margin: '80px auto' }} />}
           {!loadingDoc && doc && (
             <>
-              {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
-              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
-                <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
-              </div>
-              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
-                <WidthControl compact />
-              </div>
-              {/* 附件型按原文件只读预览；绘图文档渲染已保存的 SVG 矢量图（不加载绘图组件）；
-                  其余非 markdown 类型暂以占位提示 */}
-              <LazyBoundary tip="正在加载预览器…">
-                {doc.doc_type === 'file' ? (
-                  <FileView content={doc.content} />
-                ) : doc.doc_type === 'drawing' ? (
-                  <DrawioView content={doc.content} />
-                ) : doc.doc_type === 'whiteboard' ? (
-                  // 白板：只渲染保存时的 SVG 预览（分享页访客无需加载 Excalidraw）
-                  <WhiteboardView content={doc.content} showEditHint={false} />
-                ) : doc.doc_type === 'gantt' ? (
-                  // 公开分享不传 docId：甘特图按完全只读渲染
-                  <GanttView content={doc.content} />
-                ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
-                  <div style={{ maxWidth: maxWidth ?? 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
-                    该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
+              {isCanvas ? (
+                <>
+                  {/* 画布型：标题固定顶部，正文（DocContent）占满剩余高度 */}
+                  <div style={{ flexShrink: 0, padding: '28px 24px 8px' }}>
+                    <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
                   </div>
-                ) : (
+                  <div style={{ flex: 1, minHeight: 0 }}>
+                    <LazyBoundary tip="正在加载预览器…">
+                      <DocContent docType={doc.doc_type} content={doc.content} />
+                    </LazyBoundary>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
+                  <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
+                    <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                  </div>
                   <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
-                    <MarkdownView content={doc.content} />
+                    <WidthControl compact />
                   </div>
-                )}
-              </LazyBoundary>
+                  {/* 附件型按原文件只读预览；其余非 markdown 类型暂以占位提示 */}
+                  <LazyBoundary tip="正在加载预览器…">
+                    {doc.doc_type === 'file' ? (
+                      <FileView content={doc.content} />
+                    ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
+                      <div style={{ maxWidth: maxWidth ?? 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
+                        该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
+                      </div>
+                    ) : (
+                      <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
+                        <MarkdownView content={doc.content} />
+                      </div>
+                    )}
+                  </LazyBoundary>
+                </>
+              )}
             </>
           )}
           {!loadingDoc && !doc && info.docs.length > 0 && <Spin style={{ display: 'block', margin: '80px auto' }} />}

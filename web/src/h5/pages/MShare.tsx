@@ -11,7 +11,7 @@ import {
 import { getShare, getShareDoc } from '../../api/share'
 import { iconForDocType } from '../../lib/fileIcon'
 import type { DocDetail, DocNode, ShareInfo } from '../../types'
-import { READER_MAP } from '../readerMap'
+import { pickReader } from '../readerMap'
 import H5DocContainer from '../H5DocContainer'
 import ShareSheet from '../ShareSheet'
 import { useShareLink } from '../useShareLink'
@@ -23,7 +23,7 @@ import { h5ContainerProps, isH5Degraded } from '../styles'
  *
  * 桌面版分享页是「左目录树 + 右正文」双栏；移动端按常见阅读 App 习惯改为：
  *   · 顶栏：返回 + 文库名 + 右侧「目录」按钮；
- *   · 正文区：复用桌面版同一套阅读组件（READER_MAP），在 H5DocContainer 内滚动；
+ *   · 正文区：复用桌面版同一套阅读组件（pickReader → READER_MAP），在 H5DocContainer 内滚动；
  *   · 目录：点「目录」从左侧滑出抽屉，选中文档即切换（抽屉式，不挤占正文）。
  * 这样移动端打开分享链接即为单栏沉浸阅读，且目录树在抽屉内独立滚动，避免桌面双栏
  * 在手机上「划屏不滚动 / 目录树点不动」的问题。
@@ -138,7 +138,7 @@ export default function MShare() {
       )
     })
 
-  const Reader = doc ? READER_MAP[doc.doc_type] : null
+  const Reader = doc ? pickReader(doc.doc_type, doc.content) : null
   const h5c = doc ? h5ContainerProps(doc.doc_type) : { zoomable: false, fill: false }
 
   return (

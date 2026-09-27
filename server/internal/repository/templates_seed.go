@@ -32,6 +32,8 @@ var validTemplateDocTypes = map[string]bool{
 	"markdown": true, "sheet": true, "mindmap": true, "gantt": true, "whiteboard": true,
 	// drawing：draw.io 绘图正文 {version,xml,svg}；flowchart：mermaid 源码字符串
 	"drawing": true, "flowchart": true,
+	// word/ppt：管理员导入的 Word/Excel/PPT 模板，正文为办公文件引用 {url,filename,size,ext}
+	"word": true, "ppt": true,
 }
 
 // TemplateFile 单个模板数据文件的结构。

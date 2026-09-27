@@ -74,11 +74,15 @@ export async function importTemplates(
   files: File[],
   overwrite = false,
   paths?: string[],
+  category?: string,
 ): Promise<TemplateImportResult> {
   const form = new FormData()
   files.forEach((f) => form.append('files', f))
   form.append('overwrite', overwrite ? '1' : '0')
   if (paths && paths.length) form.append('paths', JSON.stringify(paths))
+  // 办公模板文件（.doc/.docx/.dotx/.xls/.xlsx/.xltx/.ppt/.pptx/.potx）归入的分类；
+  // 不传则后端按类型归到「Word 模板 / Excel 模板 / PPT 模板」
+  if (category && category.trim()) form.append('category', category.trim())
   return request.post('/admin/templates/import', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     // 目录导入可能上百个文件，给足时间

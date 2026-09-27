@@ -30,7 +30,7 @@ export function extForDocType(docType: OfficeDocType): string {
   return 'xlsx'
 }
 
-const OFFICE_EXTS = ['xlsx', 'xls', 'csv', 'docx', 'doc', 'pptx', 'ppt', 'ods', 'odt', 'odp']
+const OFFICE_EXTS = ['xlsx', 'xls', 'csv', 'docx', 'doc', 'dotx', 'pptx', 'ppt', 'potx', 'xltx', 'ods', 'odt', 'odp']
 
 /**
  * 正文是否为 OnlyOffice 办公文件引用。
@@ -67,12 +67,17 @@ export function isLegacySheetContent(content: string): boolean {
 }
 
 /** 从正文解析办公文件引用；非法返回 null */
-export function parseOfficeRef(content: string): { url: string; filename: string; ext: string } | null {
+export function parseOfficeRef(content: string): { url: string; filename: string; ext: string; size: number } | null {
   if (!isOfficeContent(content)) return null
   try {
-    const o = JSON.parse(content) as { url: string; filename?: string; ext?: string }
+    const o = JSON.parse(content) as { url: string; filename?: string; ext?: string; size?: unknown }
     const ext = (o.ext || extOf(o.filename || '') || '').toLowerCase()
-    return { url: o.url, filename: o.filename || `document.${ext}`, ext }
+    return {
+      url: o.url,
+      filename: o.filename || `document.${ext}`,
+      ext,
+      size: typeof o.size === 'number' && o.size >= 0 ? o.size : 0,
+    }
   } catch {
     return null
   }

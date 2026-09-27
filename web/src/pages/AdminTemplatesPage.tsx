@@ -71,6 +71,7 @@ export default function AdminTemplatesPage() {
   const [files, setFiles] = useState<File[]>([])
   const [paths, setPaths] = useState<string[]>([])
   const [overwrite, setOverwrite] = useState(false)
+  const [category, setCategory] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{
     created: number
@@ -116,9 +117,14 @@ export default function AdminTemplatesPage() {
   }
 
   /** 选择模板目录：webkitdirectory 让浏览器把目录内所有文件一次性给出，
-   *  webkitRelativePath（目录名/子目录/文件.json）作为展示与报错用的相对路径。 */
+   *  webkitRelativePath（目录名/子目录/文件.json）作为展示与报错用的相对路径。
+   *  同时收集 .json 模板数据文件与 Word/Excel/PPT 模板文件。 */
   function onPickDir(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files || []).filter((f) => f.name.toLowerCase().endsWith('.json'))
+    const officeExts = ['.doc', '.docx', '.dotx', '.xls', '.xlsx', '.xltx', '.ppt', '.pptx', '.potx']
+    const picked = Array.from(e.target.files || []).filter((f) => {
+      const n = f.name.toLowerCase()
+      return n.endsWith('.json') || officeExts.some((x) => n.endsWith(x))
+    })
     if (picked.length === 0) return
     setFiles(picked)
     setPaths(
@@ -138,7 +144,7 @@ export default function AdminTemplatesPage() {
     }
     setSubmitting(true)
     try {
-      const r = await importTemplates(files, overwrite, paths)
+      const r = await importTemplates(files, overwrite, paths, category)
       // 后端正常返回 errors 为数组；老版本 / 异常路径可能是 null，这里兜底避免 result.errors.length 抛错
       const errs = r.errors ?? []
       setResult({ ...r, errors: errs })
@@ -293,6 +299,10 @@ export default function AdminTemplatesPage() {
         模板以外部 JSON 数据文件维护：内置模板随服务端分发并在启动时自动建表灌入；
         你也可以上传自己的模板数据文件，或直接选中整个模板目录批量导入。导入的模板属于自定义模板，
         不会被内置模板覆盖。
+        <br />
+        此外，这里支持直接导入 <b>Word / Excel / PPT 模板文件</b>（.doc / .docx / .dotx / .xls / .xlsx /
+        .xltx / .ppt / .pptx / .potx）：文件会自动存储并按类型生成对应办公文档模板，用户在「新建文档」时
+        套用即可一键创建一篇同类型的办公文档。
       </Typography.Paragraph>
 
       <Card size="small" title="选择模板数据文件或目录" style={{ marginBottom: 16 }}>
@@ -300,10 +310,20 @@ export default function AdminTemplatesPage() {
           <Button icon={<FileAddOutlined />} onClick={() => fileInput.current?.click()}>
             选择文件
           </Button>
-          <Tooltip title="选中一个模板目录，自动收集目录内全部 .json 模板文件">
+          <Tooltip title="选中一个模板目录，自动收集目录内全部 .json 与 Word/Excel/PPT 模板文件">
             <Button icon={<FolderOpenOutlined />} onClick={() => dirInput.current?.click()}>
               选择目录
             </Button>
+          </Tooltip>
+          <Input
+            placeholder="办公模板分类（选填）"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={{ width: 200 }}
+            maxLength={64}
+          />
+          <Tooltip title="导入 Word/Excel/PPT 模板文件（.doc/.docx/.dotx/.xls/.xlsx/.xltx/.ppt/.pptx/.potx）时生效；留空则按类型归入「Word 模板 / Excel 模板 / PPT 模板」">
+            <span style={{ fontSize: 12, color: '#8a919f' }}>分类说明</span>
           </Tooltip>
           <Space size={6}>
             <Switch checked={overwrite} onChange={setOverwrite} />
@@ -320,7 +340,7 @@ export default function AdminTemplatesPage() {
         <input
           ref={fileInput}
           type="file"
-          accept=".json,application/json"
+          accept=".json,application/json,.doc,.docx,.dotx,.xls,.xlsx,.xltx,.ppt,.pptx,.potx"
           multiple
           hidden
           onChange={onPickFiles}
@@ -329,7 +349,7 @@ export default function AdminTemplatesPage() {
         <input
           ref={dirInput}
           type="file"
-          accept=".json,application/json"
+          accept=".json,application/json,.doc,.docx,.dotx,.xls,.xlsx,.xltx,.ppt,.pptx,.potx"
           multiple
           hidden
           onChange={onPickDir}
@@ -406,7 +426,7 @@ export default function AdminTemplatesPage() {
               ))}
             </div>
           </Card>
-          <Card size="small" title="数据文件格式" style={{ marginTop: 16 }}>
+          <Card size="small" title="数据文件格式 / 支持的模板来源" style={{ marginTop: 16 }}>
             <pre
               style={{
                 margin: 0,
@@ -435,6 +455,9 @@ export default function AdminTemplatesPage() {
             <div style={{ fontSize: 12, color: '#8a919f', marginTop: 8 }}>
               doc_type 取 markdown / sheet / mindmap / gantt；sheet、mindmap、gantt 的 content
               可直接写 JSON 对象（也可以写 JSON 字符串）。
+              <br />
+              Word/Excel/PPT 模板文件（.doc/.docx/.dotx/.xls/.xlsx/.xltx/.ppt/.pptx/.potx）无需写 JSON，
+              选中后自动按扩展名归入「Word 模板 / Excel 模板 / PPT 模板」分类（可用上方「办公模板分类」覆盖）。
             </div>
           </Card>
         </Col>
