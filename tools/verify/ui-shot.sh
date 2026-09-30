@@ -118,9 +118,9 @@ info "右侧竖排入口数: $(jseval "document.querySelectorAll('.hk-mm-side-bt
 info "右下缩放条 .hk-mm-zoom: $(jseval "!!document.querySelector('.hk-mm-zoom')")"
 info "缩放百分比: $(jseval "(function(){var e=document.querySelector('.hk-mm-zoom');if(!e)return null;var m=e.innerText.match(/\\d+%/);return m?m[0]:null})()")"
 info "缩放条位置: $(jseval "(function(){var e=document.querySelector('.hk-mm-zoom');if(!e)return null;var s=getComputedStyle(e);return s.position+' bottom='+s.bottom+' right='+s.right})()")"
-info "画布容器 .smm-container: $(jseval "!!document.querySelector('.smm-container')")"
+info "画布容器 .mm-stage: $(jseval "!!document.querySelector('.mm-stage')")"
 info "大尺寸画布 svg: $(jseval "[].slice.call(document.querySelectorAll('svg')).some(function(s){var r=s.getBoundingClientRect();return r.width>300&&r.height>100})")"
-info "导图节点数: $(jseval "document.querySelectorAll('.smm-node').length")"
+info "导图节点数: $(jseval "document.querySelectorAll('.mm-node').length")"
 shot "05-思维导图-浮动工具条"
 
 say "6) 附件型文档（PDF 原件预览，只读）"

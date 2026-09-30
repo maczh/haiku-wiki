@@ -20,23 +20,24 @@ function twoPointDistance(x1: number, y1: number, x2: number, y2: number): numbe
 }
 
 /**
- * H5 原生无级缩放（关键：不用 CSS transform 放大）。
+ * H5 原生无级缩放 + 单指全向平移（关键：不用 CSS transform 放大）。
  *
  * 为什么不能套 `H5ZoomStage`：那层是 `transform: scale()` 放大 —— 对位图/PDF 尚可，
  * 对矢量导图渲染器完全是浪费：放大后节点文字会被整层位图化拉伸，虚化严重。
  *
  * 这里直接驱动画布自己的 view scale / translate（等价于 simple-mind-map 时代的
  * `view.scale/x/y + view.transform()`），缩放后 SVG 按新比例重新布局绘制 ——
- * **放大到多少就是多少的真实矢量渲染，永远清晰**，且是无级的。平移同理，
- * 放大后单指可拖动查看。
+ * **放大到多少就是多少的真实矢量渲染，永远清晰**，且是无级的。
  *
- * 交互约定：1:1（未放大）时单指不拦截，纵向划屏仍归浏览器原生滚动；
- * 双指按下即接管缩放；已放大时单指接管平移。
+ * 交互约定：单指始终接管画布平移（上下左右自由划屏，含 1:1 比例）；
+ * 双指按下即接管缩放。导图容器自身铺满视口、无需页面纵向滚动，
+ * 因此 touch-action 恒为 none，手势全部归本组件处理。
  */
 function attachNativeZoom(
   api: { current: MindMapApi | null },
   host: HTMLElement,
-  onScale: (s: number) => void
+  onScale: (s: number) => void,
+  onMoved?: () => void
 ): () => void {
   let pinch: { dist: number; scale: number; tx: number; ty: number; nx: number; ny: number } | null = null
   let pan: { x: number; y: number } | null = null
@@ -74,8 +75,7 @@ function attachNativeZoom(
       pan = null
       return
     }
-    if (e.touches.length === 1 && (inst()?.getScale() ?? 0) > 1.001) {
-      e.preventDefault()
+    if (e.touches.length === 1 && inst()) {
       pan = { x: e.touches[0].clientX, y: e.touches[0].clientY }
     }
   }
@@ -95,14 +95,16 @@ function attachNativeZoom(
       onScale(scale)
       return
     }
-    if (e.touches.length === 1 && pan && (inst()?.getScale() ?? 0) > 1.001) {
+    if (e.touches.length === 1 && pan && inst()) {
       e.preventDefault()
       const dx = e.touches[0].clientX - pan.x
       const dy = e.touches[0].clientY - pan.y
+      if (dx === 0 && dy === 0) return
       pan = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       const a = inst()!
       const t = a.getView()
       a.setView({ tx: t.tx + dx, ty: t.ty + dy })
+      onMoved?.()
     }
   }
 
@@ -137,11 +139,16 @@ function attachNativeZoom(
  */
 export default function MindmapView({ content }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<MindMapApi | null>(null)
   const { mode: viewMode } = useViewMode()
   const mobile = viewMode === 'h5'
-  /** 当前缩放百分比（驱动 touch-action 与「重置」按钮） */
+  /** 当前缩放百分比（驱动「重置」按钮） */
   const [scale, setScale] = useState(1)
+  /** 视角被平移过（H5 显示「重置」按钮用） */
+  const [moved, setMoved] = useState(false)
+  /** 桌面（阅读/分享）画布高度：自适应浏览器视口，而非固定值 */
+  const [hostH, setHostH] = useState(560)
 
   const { tree, layout, theme, reset } = useMemo(() => {
     const parsed = parseMindmapJSON(content)
@@ -156,6 +163,23 @@ export default function MindmapView({ content }: Props) {
   useEffect(() => {
     if (reset) message.warning('内容格式异常，已按默认思维导图展示')
   }, [reset])
+
+  // 桌面端：画布高度 = 视口高度 − 画布顶部到文档顶部的距离 − 底部留白。
+  // 用「文档坐标」（rect.top + scrollY）计算，与当前滚动位置无关，滚动时高度稳定。
+  useEffect(() => {
+    if (mobile) return
+    const calc = () => {
+      const el = outerRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top + (window.scrollY || 0)
+      const h = Math.round(window.innerHeight - top - 28)
+      // 下限 320：极矮视口（弹窗预览等）时不至于把画布压没
+      setHostH(Math.max(320, Math.min(h, window.innerHeight)))
+    }
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [mobile])
 
   useEffect(() => {
     const host = elRef.current
@@ -179,8 +203,8 @@ export default function MindmapView({ content }: Props) {
     })
     ro.observe(host)
 
-    // H5：原生无级缩放（见 attachNativeZoom 注释）。桌面端不需要（有滚轮 + 拖拽画布）。
-    const detach = mobile ? attachNativeZoom(apiRef, host, setScale) : null
+    // H5：原生无级缩放 + 单指全向平移（见 attachNativeZoom 注释）。桌面端不需要（有滚轮 + 拖拽画布）。
+    const detach = mobile ? attachNativeZoom(apiRef, host, setScale, () => setMoved(true)) : null
 
     return () => {
       detach?.()
@@ -198,12 +222,13 @@ export default function MindmapView({ content }: Props) {
     api.resetView()
     api.fitView()
     setScale(api.getScale())
+    setMoved(false)
   }, [])
 
   const zoomed = scale > 1.001
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: mobile ? '100%' : 560 }}>
+    <div ref={outerRef} style={{ position: 'relative', width: '100%', height: mobile ? '100%' : hostH }}>
       <div
         ref={elRef}
         data-h5-native-zoom={mobile ? '1' : '0'}
@@ -211,8 +236,8 @@ export default function MindmapView({ content }: Props) {
         style={{
           width: '100%',
           height: '100%',
-          // 未放大时放行纵向划屏（阅读容器可滚）；放大后交给本组件单指平移
-          touchAction: zoomed ? 'none' : 'pan-y',
+          // H5：手势全部由本组件接管（单指平移画布 / 双指缩放），容器自身铺满视口无需页面滚动
+          touchAction: mobile ? 'none' : undefined,
         }}
       >
         <MindMapCanvas
@@ -231,7 +256,7 @@ export default function MindmapView({ content }: Props) {
           onScaleChange={setScale}
         />
       </div>
-      {mobile && zoomed && (
+      {mobile && (zoomed || moved) && (
         <button
           type="button"
           onClick={resetView}

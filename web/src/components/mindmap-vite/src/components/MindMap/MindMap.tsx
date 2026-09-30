@@ -1372,6 +1372,14 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
       setGeneralization: (g) => setNodeField({ generalization: g ?? undefined }),
       getGeneralization: () => findNode(treeRef.current, doc.selectedId ?? "")?.generalization,
 
+      /* 优先级 / 进度 / 图标（宿主顶部工具条面板用） */
+      getPriority: () => findNode(treeRef.current, doc.selectedId ?? "")?.priority,
+      setPriority,
+      getProgress: () => findNode(treeRef.current, doc.selectedId ?? "")?.progress,
+      setProgress,
+      getIcons: () => findNode(treeRef.current, doc.selectedId ?? "")?.icons ?? [],
+      toggleIcon,
+
       /* 关联线（统一挂在根节点上） */
       addAssocLine: (fromId, toId, label) => {
         if (!fromId || !toId || fromId === toId) return;

@@ -241,6 +241,18 @@ mark.hk-hit {
   right: 12px;
 }
 
+/* 顶部样式组合（节点样式/基础样式/主题/优先级/进度/图标，复用 mindmap-vite 的 Popover 面板） */
+.hk-mm-style-combos {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+/* 面板组合在无选中节点时的弱化态（面板仍可打开，内部控件禁用） */
+.mm-tb-disabled {
+  opacity: 0.38;
+}
+
 /* 右侧竖排：面板入口 */
 .hk-mm-side {
   top: 50%;

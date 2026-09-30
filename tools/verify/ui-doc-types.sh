@@ -77,8 +77,8 @@ chk "表格区域可见高度 > 0" "true" "$(q "(function(){var e=document.query
 
 echo "-- mindmap (docId=3) --"
 visit 3 read 6000
-chk "只读画布容器 .smm-container" "true" "$(q "!!document.querySelector('.smm-container')")"
-chk "节点数 > 0" "true" "$(q "document.querySelectorAll('.smm-node').length > 0")"
+chk "只读画布容器 .mm-stage" "true" "$(q "!!document.querySelector('.mm-stage')")"
+chk "节点数 > 0" "true" "$(q "document.querySelectorAll('.mm-node').length > 0")"
 chk "存在大尺寸画布 svg（>300x100）" "true" "$(q "[].slice.call(document.querySelectorAll('svg')).some(function(s){var r=s.getBoundingClientRect();return r.width>300&&r.height>100})")"
 "$AB" screenshot "$OUT/read-mindmap.png" >/dev/null 2>&1
 
@@ -111,7 +111,7 @@ echo "-- mindmap 编辑 --"
 visit 3 edit 7000
 chk "顶部浮动工具条" "true" "$(q "!!document.querySelector('.hk-mm-tb-left')")"
 chk "右下缩放条" "true" "$(q "!!document.querySelector('.hk-mm-zoom')")"
-chk "画布节点数 > 0" "true" "$(q "document.querySelectorAll('.smm-node').length > 0")"
+chk "画布节点数 > 0" "true" "$(q "document.querySelectorAll('.mm-node').length > 0")"
 "$AB" screenshot "$OUT/edit-mindmap.png" >/dev/null 2>&1
 
 echo "-- flowchart 编辑 --"

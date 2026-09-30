@@ -1,5 +1,20 @@
 # syntax=docker/dockerfile:1
 # ===== 寄海文库（haiku-wiki）多阶段构建 =====
+#
+# 可选换源（默认空 = 用官方源；国内网络建议构建时显式传）：
+#   --build-arg APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
+#   --build-arg NPM_MIRROR=https://registry.npmmirror.com
+#
+# ⚠️ 常见构建失败：`failed to resolve source metadata for docker.io/docker/dockerfile:1`
+#    这是上面 syntax 行指定的「BuildKit Dockerfile 前端镜像」拉不下来（国内直连 Docker Hub
+#    超时），**不是**本项目代码或 Dockerfile 语法的问题。解决方式见
+#    README「1.3.1 国内网络 / 代理环境构建」——给 `~/.docker/config.json` 写 proxies，
+#    或 `DOCKER_BUILDKIT=0` 退回 classic builder 绕开前端拉取。
+#    仓库里的 `./docker-build-cn.sh` 已把这些开关封装好。
+
+# 全局构建参数（第一个 FROM 之前声明，各阶段需重新 ARG 才能用）
+ARG APK_MIRROR=""
+ARG NPM_MIRROR=""
 
 # 阶段 0：构建 DWG → DXF 转换器（libredwg 的 dwg2dxf / dwgread）
 # DWG 是 AutoCAD 的专有二进制格式，纯 Go 无法解析；服务端借这个外部转换器把
@@ -9,6 +24,7 @@
 # 镜像内只用 libm/libc，构建在 alpine 上完成即可与运行期 ABI 一致。
 # 国内网络拉不到 ftp.gnu.org 时，可用 --build-arg 换镜像源，或直接跳过该能力。
 FROM alpine:3.20 AS dwg-builder
+ARG APK_MIRROR=""
 ARG LIBREDWG_VERSION=0.14
 ARG LIBREDWG_URL=https://ftp.gnu.org/gnu/libredwg
 # ⚠️ 这里曾经漏装 pkgconf，导致 configure 直接失败在
@@ -19,7 +35,12 @@ ARG LIBREDWG_URL=https://ftp.gnu.org/gnu/libredwg
 #     故：构建日志落盘、失败原因写入 /out/converter-status.txt 一并带进镜像，
 #     让运行期能报出真实原因，而不是变成一个哑谜。
 #     （libtool / bash / perl 是 libredwg 构建脚本的常见依赖，一并装上以求稳。）
-RUN apk add --no-cache build-base curl pkgconf libtool bash perl \
+# APK_MIRROR 非空时把官方源域名换成镜像站（alpine 的 /etc/apk/repositories 里是
+# https://dl-cdn.alpinelinux.org/alpine/v3.20/{main,community} 两行）。留空是 no-op。
+RUN if [ -n "${APK_MIRROR}" ]; then \
+      sed -i -E "s#https?://dl-cdn\.alpinelinux\.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories; \
+    fi \
+ && apk add --no-cache build-base curl pkgconf libtool bash perl \
  && mkdir -p /out \
  && ( \
       set -eux; \
@@ -53,10 +74,16 @@ RUN apk add --no-cache build-base curl pkgconf libtool bash perl \
 
 # 阶段 1：构建前端（Vite 产物）
 FROM node:22-alpine AS web-builder
+ARG NPM_MIRROR=""
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN npm install --no-audit --no-fund
+# NPM_MIRROR 非空时才指定 registry（例如 https://registry.npmmirror.com），留空走官方源
+RUN if [ -n "${NPM_MIRROR}" ]; then \
+      npm install --no-audit --no-fund --registry "${NPM_MIRROR}"; \
+    else \
+      npm install --no-audit --no-fund; \
+    fi
 COPY web/ ./
 # prebuild 会同步 Vditor 与 draw.io 两套自托管静态资源：
 #   web/vendor/drawio 已随构建上下文带入时直接复用；缺失时自动联网拉取，
@@ -88,13 +115,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-w
 #   · 即使 EXPORT_FONT_PATH 指向了渲染器不能用的字体，LoadFont 也会告警并回退自动探测，
 #     不会重演「LoadFont 成功、BuildPDF 全线失败」（BUG-R6-02）。
 FROM alpine:3.20
+ARG APK_MIRROR=""
 # 图片库需要把 HEIC/PSD/CDR/AI 转成预览图：ImageMagick 负责通用位图，
 # libheif-tools 的 heif-convert 是 HEIC 的官方解码器（Alpine 的 ImageMagick 常未编 heif delegate）。
 # 两者都在 community 仓库（与 font-wqy-zenhei 同源），故显式指定仓库。
 # 装不上**不阻断镜像**：运行期按降级处理（只保存原件、不生成预览图），
 # 并在 GET /api/images/converter 里如实报告，不会让服务起不来。
+# 同 dwg-builder：APK_MIRROR 非空时把官方源域名换成镜像站。
+# 下面这个 --repository 是 community 仓的兜底（wpy-zenhei 与 imagemagick 都在这里），
+# 同理按 APK_MIRROR 拼，避免换了镜像站却只换了一半源、卡在 dl-cdn 上超时。
+RUN if [ -n "${APK_MIRROR}" ]; then \
+      sed -i -E "s#https?://dl-cdn\.alpinelinux\.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories; \
+    fi
 RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec \
-      --repository https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
+      --repository "${APK_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}/v3.20/community" \
       imagemagick libheif-tools \
     || apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec
 RUN adduser -D -u 10001 haiku

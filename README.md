@@ -33,7 +33,8 @@ haiku-wiki/
 ├── docs/                    功能指南与用户手册（含手册截图）
 ├── tools/                   构建与回归脚本（tools/build、tools/verify）
 ├── Dockerfile               四阶段构建 → Alpine 单容器
-└── docker-compose.yml
+├── docker-compose.yml
+└── docker-build-cn.sh       国内网络 / 代理环境下的构建封装（含换源与 --classic 兜底）
 ```
 
 ---
@@ -94,6 +95,92 @@ docker compose up -d --build     # 访问 http://<服务器IP>:8080
   **libredwg 构建失败不阻断镜像**，只是 `.dwg` 退化为内嵌预览位图。
 - 运行镜像内置 `font-wqy-zenhei`（PDF/PNG 导出用的中文字体）。
 - 健康检查：`GET /api/auth/me`（未登录返回 401 属正常）。
+- 国内网络 / 有代理的机器：见 **1.3.1**（`docker/dockerfile:1` 拉不动是构建前端问题，不是项目代码问题）。
+
+### 1.3.1 国内网络 / 代理环境构建
+
+构建很可能卡在这一步：
+
+```
+failed to solve: failed to resolve source metadata for docker.io/docker/dockerfile:1:
+failed to do request: Head "https://registry-1.docker.io/v2/docker/dockerfile/manifests/1": i/o timeout
+```
+
+**为什么**：`Dockerfile` 第一行的 `# syntax=docker/dockerfile:1` 会让 BuildKit 自己去 Docker Hub
+拉一个「Dockerfile 前端镜像」。这一步是 **buildkitd 独立联网**的，既不吃 `docker pull` 的镜像加速，
+也不吃 dockerd 的代理配置——所以下面两种「看起来应该管用」的写法其实都不生效：
+
+| 配在哪 | 管什么 | 对语法前端有效吗 |
+| --- | --- | --- |
+| `~/.docker/config.json` 的 `proxies` | `docker buildx build` / `docker compose build` 的网络（含语法前端） | ✅ **只有它管** |
+| `/etc/docker/daemon.json` 的 `registry-mirrors` | `docker pull` 拉基础镜像（alpine / node / golang） | ❌ 前端仓库不一定同步，只能当加速 |
+| `/etc/docker/daemon.json` 的 `proxies` | 仅 `dockerd` 自己 pull（宿主拉镜像） | ❌ 对 buildkit 无效 |
+
+**解法 A：走代理（推荐，改完不用重启 docker）** — 写入 `~/.docker/config.json`：
+
+```json
+{
+  "proxies": {
+    "http-proxy": "http://127.0.0.1:7890",
+    "https-proxy": "http://127.0.0.1:7890",
+    "no-proxy": "127.0.0.1,localhost"
+  }
+}
+```
+
+macOS / Windows 的 Docker Desktop 也是写这个文件（`~/.docker/config.json`）。
+
+> ⚠️ Docker Desktop 的坑：buildkit 跑在虚拟机里，`127.0.0.1:7890` 是**宿主机**的端口，VM 访问不到。
+> 这种情况要么走 Docker Desktop 图形界面 `Settings → Resources → Proxies` 填 HTTP Proxy，
+> 要么把地址写成 `http://host.docker.internal:7890`（并在代理软件里允许局域网连接）。
+> Linux 上 buildkit 与 dockerd 同机，上面的 `127.0.0.1` 写法直接可用。
+
+**解法 B：换国内基础镜像源（配合 A 一起用）** — 写入 `/etc/docker/daemon.json` 后 `sudo systemctl restart docker`：
+
+```json
+{
+  "registry-mirrors": ["https://docker.m.daocloud.io", "https://docker.1ms.run"]
+}
+```
+
+构建期还能把容器内的 apk / npm 源也换掉（默认走官方，传参才启用）：
+
+```bash
+./docker-build-cn.sh \
+  --apk-mirror https://mirrors.tuna.tsinghua.edu.cn/alpine \
+  --npm-mirror https://registry.npmmirror.com
+```
+
+**解法 C：兜底，绕开语法前端** — classic builder 压根不拉这个前端镜像，
+本项目 Dockerfile 没用 buildkit 专属语法，能正常过：
+
+```bash
+./docker-build-cn.sh --classic          # 即 DOCKER_BUILDKIT=0 docker compose build
+```
+
+也可以先把前端镜像预热到本地缓存，下次 build 直接命中、不再联网：
+```bash
+docker pull docker/dockerfile:1         # 在能联网 / 走代理的机器先拉一次
+```
+
+**一条命令搞定（代理 + 国内源）**：
+
+```bash
+./docker-build-cn.sh --proxy http://127.0.0.1:7890 --write-proxy-config \
+  --apk-mirror https://mirrors.tuna.tsinghua.edu.cn/alpine \
+  --npm-mirror https://registry.npmmirror.com
+```
+
+`--write-proxy-config` 会把代理写进 `~/.docker/config.json`（写入前自动备份原文件，并保留已有的
+`auths` 登录凭据）。只想先确认镜像能不能编出来：
+
+```bash
+./docker-build-cn.sh --classic
+./docker-build-cn.sh --dry-run          # 只打印将要执行的命令，不真跑
+```
+
+> `docker-compose.yml` 的 `build.args` 也已支持从环境变量 / `.env` 注入 `APK_MIRROR`、`NPM_MIRROR`；
+> 留空即 no-op。`./docker-build-cn.sh --help` 有完整参数说明。
 
 ### 1.4 默认管理员
 

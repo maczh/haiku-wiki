@@ -306,6 +306,14 @@ export interface MindMapApi {
   setGeneralization(g: MindGeneralization | null): void;
   getGeneralization(): MindGeneralization | undefined;
 
+  /* 标记 / 优先级 / 进度 / 图标前缀（宿主顶部工具条的面板用） */
+  getPriority(): number | undefined;
+  setPriority(v: number | undefined): void;
+  getProgress(): number | undefined;
+  setProgress(v: number | undefined): void;
+  getIcons(): string[];
+  toggleIcon(id: string): void;
+
   /* 关联线 */
   addAssocLine(fromId: string, toId: string, label?: string): void;
   removeAssocLine(id: string): void;

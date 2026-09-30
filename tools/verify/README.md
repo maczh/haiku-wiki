@@ -284,3 +284,20 @@ PPTX portal 的零宽、SVAR 折叠导致刻度 0 单元格）见技能 `haiku-w
 3. 把脚本名加进 `run-all.sh` 的 `DEFAULT_SUITES`；
 4. 依赖的数据走 `fixtures/` + 临时副本，**不要**直接引用 `/home/macro/.workbuddy/tmp/` 下的既有目录
    （那个目录会被清理）。
+
+## 浏览器套件：`mm-editor-check.sh`（19 项，端口 8186）
+
+思维导图编辑器专项：顶部样式组合（节点样式/基础样式/主题/优先级/进度/图标，复用
+mindmap-vite 自带 Popover 面板）存在且可用；右侧面板只剩结构/大纲/设置；
+优先级/图标/主题切换落库（v2 契约 `data.priority` / `data.icons` /
+`theme.__canvasThemeId`）且刷新后回显；阅读态画布高度自适应视口
+（`视口 − top − 28`，下限 320）。
+
+## 浏览器套件：`mm-h5-pan-check.sh`（5 项，端口 8193）
+
+H5 思维导图手势专项（`mm-h5-pan.mjs`，Playwright CDP `Input.dispatchTouchEvent`
+真实触摸序列）：`touch-action=none`、单指右下/左上划屏平移画布（`g.mm-root`
+transform 双向变化）、纵向划屏归画布（页面不滚）。
+
+改 `MindmapEditor` / `MindmapStyleCombos` / `MindmapView` / `lib/mindmap.smm.ts`
+后必须连带跑这两套 + `ui-doc-types` + `h5-reader-check`。

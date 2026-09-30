@@ -106,7 +106,7 @@ ok "无 H5ZoomStage 手势层" "$(jseval "!!document.querySelector('[data-h5-zoo
 ok "导图原生缩放已挂载"  "$(jseval "(document.querySelector('[data-h5-native-zoom]')||{getAttribute:function(){return '0'}}).getAttribute('data-h5-native-zoom')")" "1"
 GAP=$(jseval "(function(){var m=document.querySelector('[data-h5-main]'),t=document.querySelector('[data-h5-tabbar]');if(!m||!t)return 'na';return Math.round(t.getBoundingClientRect().top-m.getBoundingClientRect().bottom)})()")
 ok "正文↔工具条间隙(px)" "$GAP" "0"
-ok "导图已渲染(.smm-container)" "$(jseval "!!document.querySelector('.smm-container')")" "true"
+ok "导图已渲染(.mm-stage)" "$(jseval "!!document.querySelector('.mm-stage')")" "true"
 shot "01-h5-mindmap"
 
 say "2) 只读表格不再卡「渲染中」/空白（#4）"
@@ -234,7 +234,7 @@ else
   # 同 #1：导图走原生缩放，不再套 H5ZoomStage
   ok "分享导图不套 CSS 缩放层" "$(jseval "(document.querySelector('[data-h5-doc]')||{getAttribute:function(){return 'x'}}).getAttribute('data-h5-zoomable')")" "0"
   ok "分享导图原生缩放已挂载" "$(jseval "(document.querySelector('[data-h5-native-zoom]')||{getAttribute:function(){return '0'}}).getAttribute('data-h5-native-zoom')")" "1"
-  ok "导图已渲染"          "$(jseval "!!document.querySelector('.smm-container')")" "true"
+  ok "导图已渲染"          "$(jseval "!!document.querySelector('.mm-stage')")" "true"
   # 正文主区应铺到视口底部（同 #1 的「不留空白」诉求）
   ok "正文铺满视口底部"     "$(jseval "(function(){var h=document.querySelector('header');if(!h)return 'na';var m=h.nextElementSibling;if(!m)return 'na';return Math.abs(m.getBoundingClientRect().bottom-window.innerHeight)<2})()")" "true"
   shot "07-h5-share-book"

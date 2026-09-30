@@ -8,7 +8,7 @@
 // 本文件就是两层之间的唯一转换口；新增补齐项（image/tags/formula/frame/
 // generalization/assocLines）也落在 SMM 的 data 里，依旧能被旧客户端读取。
 
-import type { BaseStyle, MindAssocLine, MindNode, MindNodeFrame, MindNodeImage, MindNodeShape, MindNodeStyle, StructureType } from '../components/mindmap-vite/src/components/MindMap'
+import type { BaseStyle, MindNode, MindNodeFrame, MindNodeImage, MindNodeShape, MindNodeStyle, StructureType } from '../components/mindmap-vite/src/components/MindMap'
 
 export interface SmmNodeData {
   text: string
@@ -228,6 +228,19 @@ export function smmNodeToMind(raw: SmmNode, index = 0): MindNode {
   if (d.generalization && typeof d.generalization === 'object') {
     node.generalization = d.generalization as MindNode['generalization']
   }
+  // 优先级 / 进度 / 图标前缀（同为安全扩展键；旧客户端读到会忽略）
+  if (numberOr(d.priority)) {
+    const p = d.priority as number
+    if (p >= 1 && p <= 9) node.priority = p
+  }
+  if (numberOr(d.progress)) {
+    const g = d.progress as number
+    if (g >= 0 && g <= 10) node.progress = g
+  }
+  if (Array.isArray(d.icons)) {
+    const icons = d.icons.filter((i): i is string => typeof i === 'string' && i !== '')
+    if (icons.length) node.icons = icons
+  }
   return node
 }
 
@@ -245,17 +258,16 @@ export function mindNodeToSmm(node: MindNode): SmmNode {
   if (node.formula) data.formula = node.formula
   if (node.frame) data.frame = node.frame
   if (node.generalization) data.generalization = node.generalization
+  if (typeof node.priority === 'number') data.priority = node.priority
+  if (typeof node.progress === 'number') data.progress = node.progress
+  if (node.icons?.length) data.icons = node.icons
   return {
     data,
     children: (node.children ?? []).map((c) => mindNodeToSmm(c)),
   }
 }
 
-/** 关联线（组件挂在根节点上）→ 存回 SMM 根节点 data（保持单节点结构不变） */
-export function withAssocLines(root: MindNode, lines: MindAssocLine[]): MindNode {
-  if (!lines.length) return root
-  return { ...root, assocLines: lines }
-}
+/** 关联线由组件统一挂在根节点上，随树数据一起序列化，无需单独转换。 */
 
 /* ------------------------------------------------------------------ *
  * 主题（SMM themeConfig）⇄ 组件 BaseStyle
@@ -283,7 +295,7 @@ export function smmThemeToBase(theme?: Record<string, unknown>): BaseStyle {
 }
 
 /** 组件基础样式 → SMM 主题快照（在既有快照上增量覆盖，保留 root/second 的层级配色） */
-export function baseToSmmTheme(base: BaseStyle, prev?: Record<string, unknown>): Record<string, unknown> {
+function baseToSmmTheme(base: BaseStyle, prev?: Record<string, unknown>): Record<string, unknown> {
   const theme: Record<string, unknown> = { ...(prev ?? {}) }
   if (base.background !== undefined) theme.backgroundColor = base.background
   if (base.linkColor !== undefined) theme.lineColor = base.linkColor
@@ -302,4 +314,38 @@ export function baseToSmmTheme(base: BaseStyle, prev?: Record<string, unknown>):
 
 function asObj(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+}
+
+/* ------------------------------------------------------------------ *
+ * 画布主题 id（组件 THEME_LIST 口径）的持久化
+ * ------------------------------------------------------------------ */
+
+/**
+ * 保留键：组件画布主题 id 存进 SMM theme 快照。
+ * 旧键（lineColor/root/second/node…）只承载「基础样式覆盖」，层配色由组件内置主题决定；
+ * 主题 id 单独存这里，加载时回读传给组件 defaultConfig.themeId，重启后主题不丢。
+ */
+export const THEME_ID_KEY = '__canvasThemeId'
+
+/** 从主题快照里读出画布主题 id（无 / 非法返回 null） */
+export function snapshotThemeId(theme?: Record<string, unknown>): string | null {
+  const v = theme?.[THEME_ID_KEY]
+  return typeof v === 'string' && v ? v : null
+}
+
+/** 保留键：组件 BaseStyle 全量快照（本文件与编辑器内部使用）。 */
+const BASE_STYLE_KEY = '__baseStyle'
+
+/** 从主题快照读出基础样式（新文档读 __baseStyle，旧文档回落旧键映射） */
+export function snapshotBase(theme?: Record<string, unknown>): BaseStyle {
+  const stored = theme?.[BASE_STYLE_KEY]
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+    return { ...(stored as BaseStyle) }
+  }
+  return smmThemeToBase(theme)
+}
+
+/** 把基础样式写回主题快照（旧键同步更新，保持单一事实来源之外的兼容可读性） */
+export function applyBaseToSnapshot(prev: Record<string, unknown>, base: BaseStyle): Record<string, unknown> {
+  return { ...baseToSmmTheme(base, prev), [BASE_STYLE_KEY]: { ...base } }
 }

@@ -1,7 +1,15 @@
 # 海库（haiku-wiki）一键部署：docker compose up -d
 services:
   haiku-wiki:
-    build: .
+    build:
+      context: .
+      # 可选换源（留空 = no-op，走官方源）。可用环境变量或同目录 .env 注入：
+      #   APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
+      #   NPM_MIRROR=https://registry.npmmirror.com
+      # 构建前端仍拉不到时的处理见「1.3.1 国内网络 / 代理环境构建」。
+      args:
+        APK_MIRROR: "${APK_MIRROR:-}"
+        NPM_MIRROR: "${NPM_MIRROR:-}"
     image: haiku-wiki:latest
     container_name: haiku-wiki
     restart: unless-stopped

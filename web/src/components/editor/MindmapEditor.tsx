@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Empty, Input, Modal, message } from 'antd'
 import {
   MindMap as MindMapCanvas,
+  type BaseStyle,
   type MindMapApi,
   type MindNode,
-  type MindNodeShape,
   type MindNodeStyle,
   type StructureType,
 } from '../mindmap-vite/src/components/MindMap'
@@ -13,19 +13,22 @@ import { patchDoc } from '../../api/docs'
 import { uploadWithDedup } from '../../lib/uploadFlow'
 import { parseMindmapJSON, stringifyMindmap } from '../../lib/mindmap'
 import {
-  baseToSmmTheme,
+  applyBaseToSnapshot,
   mindNodeToSmm,
   smmLayoutToStructure,
   smmNodeToMind,
-  smmThemeToBase,
+  snapshotBase,
+  snapshotThemeId,
   structureToSmmLayout,
+  THEME_ID_KEY,
   type SmmNode,
 } from '../../lib/mindmap.smm'
 import VersionDrawer from './VersionDrawer'
 import MindmapTopToolbar from './mindmap/MindmapTopToolbar'
 import MindmapSideToolbar from './mindmap/MindmapSideToolbar'
+import MindmapStyleCombos from './mindmap/MindmapStyleCombos'
 import MindmapZoomBar from './mindmap/MindmapZoomBar'
-import { deepMerge, MM_THEME_PRESETS, type MmHandle } from './mindmap/mmShared'
+import { type MmHandle } from './mindmap/mmShared'
 import { type SaveStatus } from './SaveIndicator'
 
 interface Props {
@@ -36,15 +39,6 @@ interface Props {
 
 const SAVE_DEBOUNCE_MS = 3000
 
-/** 判断当前主题与哪个预设主题等效（用于高亮主题卡片） */
-function matchThemeKey(theme: Record<string, unknown>, base: Record<string, unknown>): string | null {
-  for (const preset of MM_THEME_PRESETS) {
-    const expected = preset.key === 'default' ? base : deepMerge(base, preset.theme)
-    if (JSON.stringify(expected) === JSON.stringify(theme)) return preset.key
-  }
-  return null
-}
-
 /** 取树上最深的后代 id（概要默认汇总到最深一层） */
 function deepestChild(node: MindNode): string {
   if (!node.children.length) return node.id
@@ -52,14 +46,16 @@ function deepestChild(node: MindNode): string {
 }
 
 /**
- * 思维导图编辑器（mindmap-vite 方案，仿官方 Demo 三处浮动工具条）：
- *  - 顶部浮动工具条：回退/前进/格式刷/同级/子节点/删除/图片/超链接/备注/标签/概要/关联线/公式/外框 + 保存/历史/导出
- *  - 右侧浮动工具条：节点样式/基础样式/主题/结构/大纲/设置
+ * 思维导图编辑器（mindmap-vite 方案，仿官方 Demo 浮动工具条）：
+ *  - 顶部浮动工具条：回退/前进/格式刷/同级/子节点/删除/图片/超链接/备注/标签/概要/关联线/公式/外框
+ *    + 样式组合（节点样式/基础样式/主题/优先级/进度/图标，复用 mindmap-vite 自带面板）+ 保存/历史/导出
+ *  - 右侧浮动工具条：结构/大纲/设置
  *  - 右下缩放工具条：字体/缩小/比例/放大/适应画布/居中/复位/全屏
  *  画布数据 3s 防抖自动保存（v2 契约）+ 手动保存 + 历史版本。
  *
  * 存储侧仍写 simple-mind-map 时代的 v2 契约（root:{data,children} + layout + theme），
  * 转换全部走 lib/mindmap.smm.ts；组件只认嵌套的 MindNode。
+ * 画布主题 id 与基础样式覆盖分别持久化在 theme 快照的保留键 __canvasThemeId / __baseStyle 里。
  */
 export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const apiRef = useRef<MindMapApi | null>(null)
@@ -76,6 +72,9 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   const initialTree = useMemo<MindNode>(() => smmNodeToMind(initialData.root), []) // eslint-disable-line react-hooks/exhaustive-deps
   const initialStructure = useMemo<StructureType>(() => smmLayoutToStructure(initialData.layout), []) // eslint-disable-line react-hooks/exhaustive-deps
   const initialTheme = useMemo<Record<string, unknown>>(() => initialData.theme ?? {}, []) // eslint-disable-line react-hooks/exhaustive-deps
+  /** 画布主题 id（mindmap-vite THEME_LIST 口径，持久化在主题快照保留键里） */
+  const initialThemeId = useMemo<string>(() => snapshotThemeId(initialTheme) ?? 'classic-blue', []) // eslint-disable-line react-hooks/exhaustive-deps
+  const initialBase = useMemo<BaseStyle>(() => snapshotBase(initialTheme), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
@@ -94,7 +93,11 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   // 当前结构 / 主题（持久化到 docs.content 的仍是 SMM layout / theme 口径）
   const [structure, setStructure] = useState<StructureType>(initialStructure)
   const [theme, setThemeState] = useState<Record<string, unknown>>(initialTheme)
-  const [activeThemeKey, setActiveThemeKey] = useState<string | null>(null)
+  /** 画布主题 id 与基础样式覆盖（顶部样式组合面板的回显） */
+  const [themeId, setThemeIdState] = useState<string>(initialThemeId)
+  const [baseStyle, setBaseStyle] = useState<BaseStyle>(initialBase)
+  /** 样式面板回显 tick：选中 / 画布数据变化时递增，驱动面板重读 api 当前值 */
+  const [uiTick, setUiTick] = useState(0)
   const structureRef = useRef(structure)
   structureRef.current = structure
   const themeRef = useRef(theme)
@@ -102,7 +105,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
 
   /** 主题快照 → 组件基础样式（卸载 / 变更时同步） */
   const applyBase = useCallback((next: Record<string, unknown>) => {
-    apiRef.current?.setBase(smmThemeToBase(next))
+    apiRef.current?.setBase(snapshotBase(next))
   }, [])
 
   // ---------- 画布初始化 ----------
@@ -113,12 +116,16 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     dirtyRef.current = false
     setStatus('editing')
     setSavedAt(null)
-    setHasActive(false)
     setBrushing(false)
     setAssocFrom(null)
     setScale(1)
     setInitFailed(false)
     setReady(true)
+    // 注意：这里不能把 hasActive 重置为 false —— 画布子组件挂载时会上报
+    // 「默认选中根节点」（onSelectChange），父级 effect 晚于子级执行，
+    // 在这里置 false 会把刚上报的选中态吞掉，导致节点级工具全部禁用
+    //（根节点明明有选中框，点它自己却因 state 未变不再上报，表现为静默 no-op）。
+    // 文档切换时画布 data 变化 → 组件内部 reset → 重新上报新根节点，无需手动清。
 
     return () => {
       // 切换文档前若有未保存内容，立即保存（fire-and-forget），避免丢节点改动
@@ -217,6 +224,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     latestRef.current = tree
     dirtyRef.current = true
     setStatus('editing')
+    setUiTick((n) => n + 1)
     scheduleSave()
   }, [])
 
@@ -229,12 +237,59 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     return api
   }
 
-  /** 主题 / 基础样式统一入口：在当前已生效快照上合并 */
-  function applyThemePatch(patch: Record<string, unknown>) {
-    const next = deepMerge(themeRef.current, patch)
-    themeRef.current = next
-    setThemeState(next)
-    applyBase(next)
+  // ---------- 顶部样式组合：节点样式 / 基础样式 / 主题 / 优先级 / 进度 / 图标 ----------
+
+  /** 选中节点样式（面板色板开关语义：点选高亮项 = 取消该覆盖） */
+  function handleNodeStylePatch(patch: Partial<MindNodeStyle>) {
+    if (!requireApi()) return
+    apiRef.current?.setNodeStyle(patch)
+    scheduleSave()
+  }
+
+  /** 基础样式覆盖（整体替换语义：undefined = 清除该项，回主题默认） */
+  function handleBaseStylePatch(patch: Partial<BaseStyle>) {
+    const api = apiRef.current
+    if (!api) return
+    const next = { ...api.getBase() } as Record<string, unknown>
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete next[k]
+      else next[k] = v
+    }
+    api.setConfig({ base: next as BaseStyle })
+    themeRef.current = applyBaseToSnapshot(themeRef.current, next as BaseStyle)
+    setThemeState(themeRef.current)
+    setBaseStyle(next as BaseStyle)
+    scheduleSave()
+  }
+
+  /** 切换画布主题（干净切换：主题 id 单独持久化，基础样式覆盖一并清零） */
+  function handleThemeSelect(id: string) {
+    const api = apiRef.current
+    if (!api) return
+    api.setConfig({ themeId: id, base: {} })
+    setThemeIdState(id)
+    themeRef.current = { [THEME_ID_KEY]: id }
+    setThemeState(themeRef.current)
+    setBaseStyle({})
+    scheduleSave()
+    message.success('已应用主题')
+  }
+
+  function handlePriority(v: number | undefined) {
+    if (!requireApi()) return
+    apiRef.current?.setPriority(v)
+    scheduleSave()
+  }
+
+  function handleProgress(v: number | undefined) {
+    if (!requireApi()) return
+    apiRef.current?.setProgress(v)
+    scheduleSave()
+  }
+
+  function handleToggleIcon(id: string) {
+    if (!requireApi()) return
+    apiRef.current?.toggleIcon(id)
     scheduleSave()
   }
 
@@ -243,25 +298,6 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       api: apiRef.current,
       hasActive,
       selectedId: () => apiRef.current?.getSelectedId() ?? null,
-      nodeStyle: () => apiRef.current?.getNodeStyle?.() ?? {},
-      setNodeStyle: (patch: Partial<MindNodeStyle>) => {
-        apiRef.current?.setNodeStyle(patch)
-        scheduleSave()
-      },
-      setNodeShape: (shape: MindNodeShape) => {
-        apiRef.current?.setNodeStyle({ shape })
-        scheduleSave()
-      },
-      clearNodeStyles: () => {
-        apiRef.current?.clearNodeStyles()
-        scheduleSave()
-      },
-      theme: () => themeRef.current,
-      setTheme: (patch: Record<string, unknown>) => applyThemePatch(patch),
-      resetTheme: (preset?: Record<string, unknown>) => {
-        applyThemePatch(deepMerge({}, preset ?? {}))
-        setActiveThemeKey(null)
-      },
       execCommand: (cmd: string, ...args: unknown[]) => {
         const api = apiRef.current
         if (!api) return
@@ -293,7 +329,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       },
       scheduleSave,
     }),
-    // scheduleSave / applyThemePatch 均为稳定引用或仅依赖 ref
+    // 仅依赖 ref 与 setState，均为稳定引用
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [hasActive, ready]
   )
@@ -490,20 +526,10 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     requireApi()?.fitView()
   }
 
+  /** 全局字体（右下缩放条）：走基础样式覆盖通道，空串 = 恢复默认字体 */
   function applyFont(family: string) {
-    if (!requireApi()) return
     setFontFamily(family)
-    setActiveThemeKey(null)
-    applyThemePatch(
-      family
-        ? {
-            fontFamily: family,
-            root: { fontFamily: family },
-            second: { fontFamily: family },
-            node: { fontFamily: family },
-          }
-        : {},
-    )
+    handleBaseStylePatch(family ? { fontFamily: family } : { fontFamily: undefined })
   }
 
   function exportPng() {
@@ -556,13 +582,16 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
             fitOnMount
             defaultConfig={{
               structure: initialStructure,
-              themeId: 'classic-blue',
+              themeId: initialThemeId,
               lineStyle: 'curve',
-              base: smmThemeToBase(initialTheme),
+              base: initialBase,
             }}
             onChange={handleChange}
             onScaleChange={setScale}
-            onSelectChange={(id) => setHasActive(!!id)}
+            onSelectChange={(id) => {
+              setHasActive(!!id)
+              setUiTick((n) => n + 1)
+            }}
           />
         </div>
 
@@ -609,6 +638,21 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
           onSave={() => void doSave('manual')}
           onOpenVersions={() => setVersionOpen(true)}
           onExportPng={() => exportPng()}
+          styleCombos={
+            <MindmapStyleCombos
+              api={apiRef.current}
+              hasActive={hasActive}
+              tick={uiTick}
+              themeId={themeId}
+              base={baseStyle}
+              onNodeStyle={handleNodeStylePatch}
+              onBaseStyle={handleBaseStylePatch}
+              onThemeId={handleThemeSelect}
+              onPriority={handlePriority}
+              onProgress={handleProgress}
+              onToggleIcon={handleToggleIcon}
+            />
+          }
         />
 
         <MindmapSideToolbar
@@ -616,12 +660,10 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
           getOutline={getOutline}
           onPanelToggle={() => undefined}
           layout={structureToSmmLayout(structure)}
-          activeThemeKey={activeThemeKey}
           onLayoutChange={(next) => {
             setStructure(smmLayoutToStructure(next))
             scheduleSave()
           }}
-          onThemeKeyChange={setActiveThemeKey}
         />
 
         <MindmapZoomBar

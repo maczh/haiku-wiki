@@ -11,6 +11,17 @@
 - vite/npm build 前须 `CODEBUDDY_SAFE_DELETE_ENABLED=0`；手动 rsync 后必须补回 `server/internal/static/dist/.gitkeep`（否则 build-embed 静默跳过 go build）。
 - `web/node_modules` 完整 → `tsc --noEmit` 应 0 错误。沙箱 npm/npx 走托管：`NODE_PATH=/home/macro/.workbuddy/binaries/node/workspace/node_modules`。
 
+## 仓库卫生
+- **判断一堆文件是否已入库必须跑 `git ls-files <path> | wc -l`**。`git status` 看不见既可能是被 ignore，
+  也可能是**已跟踪且无改动**；`git check-ignore <path>` 返回 exit 1 才能确认「没被 ignore」。
+  2026-10-01 把 1.1G 的 `web/public/packages/onlyoffice` 误判为未跟踪产物，实为 HEAD 提交内的内容。
+- 大体积第三方资源已被 ignore 的有：`web/vendor/drawio`、`web/public/drawio`、`web/public/excalidraw`、
+  `web/public/vditor`、`web/public/packages`（OnlyOffice，2026-10-01 新增并同时从历史抹除）。
+- 从历史彻底剔除某路径：先 `git log --all --oneline -- <path> | wc -l`；若等于 1 且那一条就是 HEAD，
+  用 `git rm -r --cached <path>` + `git commit --amend --no-edit` 即等价 filter-repo，且不动其余提交；
+  再 `git reflog expire --expire=now --all && git gc --prune=now --aggressive` 回收。amend 只吃已暂存的改动。
+- 动这类不可逆操作前：整仓备份（含 `.git`）到 `~/…/tmp`，并核实源码零引用、其他会话的未提交改动不依赖它。
+
 ## 实测铁律
 - DOM 测试用无头 Chrome：`/opt/google/chrome/chrome --headless=new --no-proxy-server --no-sandbox`；curl 加 `--noproxy '*'`；截图高度=窗口高度。
 - 无头 Chrome 可用，但 **`HOME` 必须是 `/home/Macro`（大写 M，小写会 FATAL `Failed to get the path for 1001`）**；起服务与跑 Chrome 放同一条命令（后台服务跨调用会被沙箱回收）。`agent-browser` 没装，`tools/verify/*` 跑不了。

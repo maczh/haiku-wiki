@@ -1,16 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Divider, Drawer, InputNumber, Radio, Select, Slider, Space, Switch, Tooltip, Typography } from 'antd'
-import {
-  ApartmentOutlined,
-  BgColorsOutlined,
-  CopyOutlined,
-  PartitionOutlined,
-  SettingOutlined,
-  SlidersOutlined,
-  UnorderedListOutlined,
-} from '@ant-design/icons'
-import type { MindNodeShape } from '../../mindmap-vite/src/components/MindMap'
-import { MM_FONTS, MM_LAYOUTS, MM_SHAPES, MM_THEME_PRESETS, type MmHandle, type MmThemePreset } from './mmShared'
+import { Button, Divider, Drawer, Radio, Select, Space, Switch, Tooltip } from 'antd'
+import { CopyOutlined, PartitionOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { MM_LAYOUTS, type MmHandle } from './mmShared'
 
 interface Props {
   handle: MmHandle
@@ -26,17 +17,13 @@ interface Props {
   layout: string
   /** 布局切换回调 */
   onLayoutChange: (layout: string) => void
-  /** 当前高亮主题预设 key（null 表示自定义） */
-  activeThemeKey: string | null
-  /** 主题切换回调 */
-  onThemeKeyChange: (key: string | null) => void
 }
 
-type PanelKey = 'node' | 'base' | 'theme' | 'layout' | 'outline' | 'setting'
+type PanelKey = 'layout' | 'outline' | 'setting'
 
 /**
- * 思维导图右侧浮动工具条（仿 Simple Mind Map 官方 Demo）：
- *  节点样式 / 基础样式 / 主题 / 结构 / 大纲 / 设置，点击后右侧滑出对应面板。
+ * 思维导图右侧浮动工具条：结构 / 大纲 / 设置。
+ * （节点样式 / 基础样式 / 主题 已并入顶部工具条的样式组合，复用 mindmap-vite 自带面板。）
  */
 export default function MindmapSideToolbar({
   handle,
@@ -44,17 +31,11 @@ export default function MindmapSideToolbar({
   onPanelToggle,
   layout,
   onLayoutChange,
-  activeThemeKey,
-  onThemeKeyChange,
 }: Props) {
   const [panel, setPanel] = useState<PanelKey | null>(null)
-  // 节点样式面板需要"当前选中节点样式"作为回显，激活节点变化时刷新
-  const [styleTick, setStyleTick] = useState(0)
-  const [baseTick, setBaseTick] = useState(0)
   const [mode, setMode] = useState<'edit' | 'readonly'>('edit')
   const [wheel, setWheel] = useState<'zoom' | 'move'>('zoom')
   const [freeDrag, setFreeDrag] = useState(false)
-  const [lineMarker, setLineMarker] = useState(true)
 
   const close = () => setPanel(null)
 
@@ -64,8 +45,8 @@ export default function MindmapSideToolbar({
   }, [onPanelToggle, panel])
 
   /**
-   * 连点防护：主题/结构等「整树重排」类操作很重，
-   * 同一个动作 150ms 内重复触发直接丢弃（拖动取色器时浏览器会高频 onChange）。
+   * 连点防护：结构等「整树重排」类操作很重，
+   * 同一个动作 150ms 内重复触发直接丢弃。
    */
   const lastCmdRef = useRef<{ key: string; at: number }>({ key: '', at: 0 })
   function throttleCmd(key: string, run: () => void) {
@@ -76,303 +57,14 @@ export default function MindmapSideToolbar({
     run()
   }
 
-  /** 主题/基础样式统一入口：在当前已生效配置上做覆盖 */
-  function applyThemePatch(patch: Record<string, unknown>, tip: string) {
-    if (!handle.api) return
-    handle.setTheme(patch)
-    onThemeKeyChange(null)
-    setBaseTick((n) => n + 1)
-    handle.scheduleSave()
-    handle.toast(tip, 'success')
-  }
-
-  /** 取当前基础样式值（用于面板回显） */
-  function themeValue(key: string, fallback: unknown): unknown {
-    void baseTick
-    const v = handle.theme()
-    return v[key] ?? fallback
-  }
-
-  const nodeStyle = (() => {
-    void styleTick
-    if (!handle.hasActive) return {} as Record<string, unknown>
-    return handle.nodeStyle() as Record<string, unknown>
-  })()
-
-  function patchNodeStyle(patch: Record<string, unknown>) {
-    handle.setNodeStyle(patch)
-    setStyleTick((n) => n + 1)
-  }
-
   return (
     <>
       {/* 右侧竖排入口 */}
       <div className="hk-mm-tb hk-mm-side">
-        <SideBtn icon={<BgColorsOutlined />} label="节点样式" onClick={() => setPanel('node')} />
-        <SideBtn icon={<SlidersOutlined />} label="基础样式" onClick={() => setPanel('base')} />
-        <SideBtn icon={<PartitionOutlined />} label="主题" onClick={() => setPanel('theme')} />
-        <SideBtn icon={<ApartmentOutlined />} label="结构" onClick={() => setPanel('layout')} />
+        <SideBtn icon={<PartitionOutlined />} label="结构" onClick={() => setPanel('layout')} />
         <SideBtn icon={<UnorderedListOutlined />} label="大纲" onClick={() => setPanel('outline')} />
         <SideBtn icon={<SettingOutlined />} label="设置" onClick={() => setPanel('setting')} />
       </div>
-
-      {/* ---------- 节点样式 ---------- */}
-      <Drawer title="节点样式" width={320} open={panel === 'node'} onClose={close} mask={false} getContainer={false} rootClassName="hk-mm-drawer">
-        {!handle.hasActive && <Alert type="info" showIcon message="请先在画布中单击选中一个节点" style={{ marginBottom: 12 }} />}
-        <Section title="文字">
-          <Row label="颜色">
-            <ColorField value={(nodeStyle.color as string) ?? ''} onChange={(v) => patchNodeStyle({ color: v })} />
-          </Row>
-          <Row label="字号">
-            <InputNumber
-              size="small"
-              min={10}
-              max={48}
-              value={Number(nodeStyle.fontSize ?? 14)}
-              disabled={!handle.hasActive}
-              onChange={(v) => patchNodeStyle({ fontSize: Number(v ?? 14) })}
-              addonAfter="px"
-            />
-            <Space size={4} style={{ marginLeft: 8 }}>
-              <Check glyph="B" title="加粗" active={nodeStyle.fontWeight === 'bold'} disabled={!handle.hasActive} onClick={() => patchNodeStyle({ fontWeight: nodeStyle.fontWeight === 'bold' ? 'normal' : 'bold' })} />
-              <Check glyph="I" title="斜体" active={nodeStyle.fontStyle === 'italic'} disabled={!handle.hasActive} onClick={() => patchNodeStyle({ fontStyle: nodeStyle.fontStyle === 'italic' ? 'normal' : 'italic' })} italic />
-            </Space>
-          </Row>
-          <Row label="装饰">
-            <Checkbox
-              disabled={!handle.hasActive}
-              checked={nodeStyle.textDecoration === 'underline'}
-              onChange={(e) => patchNodeStyle({ textDecoration: e.target.checked ? 'underline' : 'none' })}
-            >
-              下划线
-            </Checkbox>
-            <Checkbox
-              disabled={!handle.hasActive}
-              checked={nodeStyle.textDecoration === 'line-through'}
-              onChange={(e) => patchNodeStyle({ textDecoration: e.target.checked ? 'line-through' : 'none' })}
-            >
-              删除线
-            </Checkbox>
-          </Row>
-        </Section>
-
-        <Divider style={{ margin: '12px 0' }} />
-
-        <Section title="外观">
-          <Row label="填充色">
-            <ColorField value={(nodeStyle.fillColor as string) ?? ''} onChange={(v) => patchNodeStyle({ fillColor: v })} />
-          </Row>
-          <Row label="边框色">
-            <ColorField value={(nodeStyle.borderColor as string) ?? ''} onChange={(v) => patchNodeStyle({ borderColor: v })} />
-          </Row>
-          <Row label="边框宽">
-            <InputNumber
-              size="small"
-              min={0}
-              max={10}
-              value={Number(nodeStyle.borderWidth ?? 0)}
-              disabled={!handle.hasActive}
-              onChange={(v) => patchNodeStyle({ borderWidth: Number(v ?? 0) })}
-              addonAfter="px"
-            />
-          </Row>
-          <Row label="圆角">
-            <InputNumber
-              size="small"
-              min={0}
-              max={40}
-              value={Number(nodeStyle.borderRadius ?? 0)}
-              disabled={!handle.hasActive}
-              onChange={(v) => patchNodeStyle({ borderRadius: Number(v ?? 0) })}
-              addonAfter="px"
-            />
-          </Row>
-          <Row label="形状">
-            <Select
-              size="small"
-              style={{ width: 150 }}
-              disabled={!handle.hasActive}
-              placeholder="保持主题默认"
-              value={(nodeStyle.shape as string) || undefined}
-              options={MM_SHAPES.map((s) => ({ value: s.value, label: s.label }))}
-              onChange={(v) => {
-                handle.setNodeShape(v as MindNodeShape)
-                setStyleTick((n) => n + 1)
-              }}
-            />
-          </Row>
-        </Section>
-
-        <Divider style={{ margin: '12px 0' }} />
-
-        <Section title="连线（该节点与父节点之间）">
-          <Row label="颜色">
-            <ColorField value={(nodeStyle.lineColor as string) ?? ''} onChange={(v) => patchNodeStyle({ lineColor: v })} />
-          </Row>
-          <Row label="宽度">
-            <InputNumber
-              size="small"
-              min={1}
-              max={10}
-              value={Number(nodeStyle.lineWidth ?? 2)}
-              disabled={!handle.hasActive}
-              onChange={(v) => patchNodeStyle({ lineWidth: Number(v ?? 2) })}
-              addonAfter="px"
-            />
-          </Row>
-        </Section>
-
-        <div style={{ marginTop: 16 }}>
-          <Button
-            block
-            size="small"
-            disabled={!handle.hasActive}
-            onClick={() => {
-              if (!handle.api) return
-              handle.clearNodeStyles()
-              setStyleTick((n) => n + 1)
-              handle.toast('已清除自定义样式，恢复主题默认', 'success')
-            }}
-          >
-            清除自定义样式
-          </Button>
-        </div>
-      </Drawer>
-
-      {/* ---------- 基础样式（全局） ---------- */}
-      <Drawer title="基础样式" width={320} open={panel === 'base'} onClose={close} mask={false} getContainer={false} rootClassName="hk-mm-drawer">
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
-          作用于全部节点与连线的全局样式（覆盖主题默认值）。
-        </Typography.Paragraph>
-        <Section title="连线">
-          <Row label="颜色">
-            <ColorField
-              value={String(themeValue('lineColor', '#5496ff'))}
-              onChange={(v) => applyThemePatch({ lineColor: v }, '连线颜色已更新')}
-            />
-          </Row>
-          <Row label="宽度">
-            <InputNumber
-              size="small"
-              min={1}
-              max={10}
-              value={Number(themeValue('lineWidth', 2))}
-              onChange={(v) => applyThemePatch({ lineWidth: Number(v ?? 2) }, '连线宽度已更新')}
-              addonAfter="px"
-            />
-          </Row>
-          <Row label="虚线">
-            <Select
-              size="small"
-              style={{ width: 150 }}
-              value={String(themeValue('lineDasharray', ''))}
-              options={[
-                { value: '', label: '实线' },
-                { value: '5,5', label: '短虚线' },
-                { value: '10,6', label: '长虚线' },
-                { value: '2,4', label: '点线' },
-              ]}
-              onChange={(v) => applyThemePatch({ lineDasharray: v }, '连线样式已更新')}
-            />
-          </Row>
-          <Row label="箭头">
-            <Switch
-              size="small"
-              checked={lineMarker}
-              onChange={(v) => {
-                setLineMarker(v)
-                applyThemePatch({ showLineMarker: v }, v ? '已显示连线箭头' : '已隐藏连线箭头')
-              }}
-            />
-          </Row>
-        </Section>
-
-        <Divider style={{ margin: '12px 0' }} />
-
-        <Section title="节点">
-          <Row label="字体">
-            <Select
-              size="small"
-              style={{ width: 190 }}
-              value={String(themeValue('fontFamily', ''))}
-              options={MM_FONTS.map((f) => ({ value: f.value, label: f.label }))}
-              onChange={(v) =>
-                applyThemePatch(
-                  { root: { fontFamily: v }, second: { fontFamily: v }, node: { fontFamily: v } },
-                  '字体已更新',
-                )
-              }
-            />
-          </Row>
-          <Row label="字号">
-            <InputNumber
-              size="small"
-              min={10}
-              max={32}
-              value={Number((themeValue('node', {}) as Record<string, unknown>).fontSize ?? 14)}
-              onChange={(v) =>
-                applyThemePatch({ node: { fontSize: Number(v ?? 14) } }, '字号已更新')
-              }
-              addonAfter="px"
-            />
-          </Row>
-          <Row label="内边距">
-            <Space size={6}>
-              <InputNumber
-                size="small"
-                min={0}
-                max={40}
-                value={Number(themeValue('paddingX', 15))}
-                onChange={(v) => applyThemePatch({ paddingX: Number(v ?? 15) }, '水平内边距已更新')}
-                addonBefore="X"
-              />
-              <InputNumber
-                size="small"
-                min={0}
-                max={40}
-                value={Number(themeValue('paddingY', 5))}
-                onChange={(v) => applyThemePatch({ paddingY: Number(v ?? 5) }, '垂直内边距已更新')}
-                addonBefore="Y"
-              />
-            </Space>
-          </Row>
-        </Section>
-
-        <Divider style={{ margin: '12px 0' }} />
-
-        <Section title="画布">
-          <Row label="背景色">
-            <ColorField
-              value={String(themeValue('backgroundColor', '#ffffff'))}
-              onChange={(v) => applyThemePatch({ backgroundColor: v }, '画布背景已更新')}
-            />
-          </Row>
-        </Section>
-      </Drawer>
-
-      {/* ---------- 主题 ---------- */}
-      <Drawer title="主题" width={320} open={panel === 'theme'} onClose={close} mask={false} getContainer={false} rootClassName="hk-mm-drawer">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {MM_THEME_PRESETS.map((preset) => (
-            <ThemeCard
-              key={preset.key}
-              preset={preset}
-              active={activeThemeKey === preset.key}
-              onClick={() =>
-                // 主题切换会整树重排：连点去重，避免连续 render 引起的视觉抖动
-                throttleCmd(`theme:${preset.key}`, () => {
-                  // 以「默认主题配置」为基准做干净切换
-                  handle.resetTheme(preset.theme)
-                  onThemeKeyChange(preset.key)
-                  setBaseTick((n) => n + 1)
-                  handle.scheduleSave()
-                  handle.toast(`已应用主题：${preset.label}`, 'success')
-                })
-              }
-            />
-          ))}
-        </div>
-      </Drawer>
 
       {/* ---------- 结构 ---------- */}
       <Drawer title="结构" width={320} open={panel === 'layout'} onClose={close} mask={false} getContainer={false} rootClassName="hk-mm-drawer">
@@ -497,33 +189,6 @@ export default function MindmapSideToolbar({
   )
 }
 
-/** 主题卡片：三色预览 + 名称 */
-function ThemeCard({ preset, active, onClick }: { preset: MmThemePreset; active: boolean; onClick: () => void }) {
-  const [root, second, line] = preset.preview
-  return (
-    <Tooltip title={`应用主题：${preset.label}`}>
-      <div
-        onClick={onClick}
-        style={{
-          width: 128,
-          padding: 10,
-          border: `2px solid ${active ? '#2f54eb' : '#ebedf0'}`,
-          borderRadius: 8,
-          cursor: 'pointer',
-          background: '#fff',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 26, height: 18, borderRadius: 4, background: root, border: `1px solid ${line}` }} />
-          <span style={{ flex: 1, height: 2, background: line }} />
-          <span style={{ width: 26, height: 18, borderRadius: 4, background: second, border: `1px solid ${line}` }} />
-        </div>
-        <div style={{ marginTop: 8, fontSize: 12, color: '#5f6672' }}>{preset.label}</div>
-      </div>
-    </Tooltip>
-  )
-}
-
 /** 右侧竖排按钮：图标 + 文字 */
 function SideBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
@@ -553,54 +218,5 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span style={{ width: 52, fontSize: 13, color: '#5f6672', flexShrink: 0 }}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>{children}</div>
     </div>
-  )
-}
-
-/** 颜色选择：原生取色器 + 一键恢复主题默认 */
-function ColorField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const safe = /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#ffffff'
-  return (
-    <Space size={6}>
-      <input
-        type="color"
-        value={safe}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: 32, height: 24, padding: 0, border: '1px solid #d9d9d9', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
-      />
-      <Button size="small" type="text" onClick={() => onChange('transparent')} style={{ padding: '0 4px', fontSize: 12 }}>
-        透明
-      </Button>
-    </Space>
-  )
-}
-
-/** 文字样式开关（B / I） */
-function Check({
-  glyph,
-  title,
-  active,
-  disabled,
-  italic,
-  onClick,
-}: {
-  glyph: string
-  title: string
-  active: boolean
-  disabled?: boolean
-  italic?: boolean
-  onClick: () => void
-}) {
-  return (
-    <Tooltip title={title}>
-      <Button
-        size="small"
-        type={active ? 'primary' : 'default'}
-        disabled={disabled}
-        onClick={onClick}
-        style={{ fontWeight: 700, fontStyle: italic ? 'italic' : 'normal', width: 28, padding: 0 }}
-      >
-        {glyph}
-      </Button>
-    </Tooltip>
   )
 }

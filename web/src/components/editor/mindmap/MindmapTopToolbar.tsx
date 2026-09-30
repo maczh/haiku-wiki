@@ -43,6 +43,8 @@ interface Props {
   onSave: () => void
   onOpenVersions: () => void
   onExportPng: () => void
+  /** 顶部样式组合（节点样式/基础样式/主题/优先级/进度/图标，mindmap-vite 同款面板） */
+  styleCombos?: React.ReactNode
 }
 
 /**
@@ -83,6 +85,12 @@ export default function MindmapTopToolbar(p: Props) {
           <IconBtn title="插入公式" icon={<FunctionOutlined />} disabled={!p.hasActive} onClick={p.onFormula} />
           <IconBtn title="添加外框（框住选中节点）" icon={<BorderOutlined />} disabled={!p.hasActive} onClick={p.onOuterFrame} />
         </Space>
+        {p.styleCombos && (
+          <>
+            <Divider type="vertical" style={{ margin: '0 4px' }} />
+            {p.styleCombos}
+          </>
+        )}
       </div>
 
       {/* 右：保存与导出 */}
