@@ -3,7 +3,7 @@ import { message } from 'antd'
 import 'katex/dist/katex.min.css'
 import { MindMap as MindMapCanvas, type MindMapApi } from '../mindmap-vite/src/components/MindMap'
 import { parseMindmapJSON } from '../../lib/mindmap'
-import { smmLayoutToStructure, smmNodeToMind, smmThemeToBase } from '../../lib/mindmap.smm'
+import { smmLayoutToStructure, smmNodeToMind, snapshotBase, snapshotThemeId } from '../../lib/mindmap.smm'
 import { useViewMode } from '../../h5/useViewMode'
 
 interface Props {
@@ -251,7 +251,14 @@ export default function MindmapView({ content }: Props) {
           height="100%"
           defaultConfig={{
             structure: smmLayoutToStructure(layout),
-            base: smmThemeToBase(theme),
+            // 必须用 snapshotBase（而非 smmThemeToBase）：后者只搬运 backgroundColor /
+            // lineColor / lineWidth 等旧键，读不到 `theme.__baseStyle`，会让编辑态设的
+            // 连线线型 / 箭头 / 连线配色 / 节点边框线型在阅读 / H5 / 分享三态全部退回默认。
+            // 旧文档没有 __baseStyle 时 snapshotBase 内部自动回落旧键映射。
+            base: snapshotBase(theme),
+            // 画布主题 id 与基础样式一样要跟着走，否则三态配色和编辑态对不上。
+            // 没有存过 id 时整键省略，交回 DEFAULT_CONFIG 的 classic-blue（传 undefined 会覆盖默认值）
+            ...(snapshotThemeId(theme) ? { themeId: snapshotThemeId(theme) as string } : {}),
           }}
           onScaleChange={setScale}
         />

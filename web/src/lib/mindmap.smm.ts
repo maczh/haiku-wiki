@@ -8,7 +8,16 @@
 // 本文件就是两层之间的唯一转换口；新增补齐项（image/tags/formula/frame/
 // generalization/assocLines）也落在 SMM 的 data 里，依旧能被旧客户端读取。
 
-import type { BaseStyle, MindNode, MindNodeFrame, MindNodeImage, MindNodeShape, MindNodeStyle, StructureType } from '../components/mindmap-vite/src/components/MindMap'
+import type {
+  BaseStyle,
+  MindBorderStyle,
+  MindNode,
+  MindNodeFrame,
+  MindNodeImage,
+  MindNodeShape,
+  MindNodeStyle,
+  StructureType,
+} from '../components/mindmap-vite/src/components/MindMap'
 
 export interface SmmNodeData {
   text: string
@@ -109,7 +118,16 @@ function smmStyleToNodeStyle(raw: Record<string, unknown>): MindNodeStyle | unde
   if (typeof raw.lineWidth === 'number') style.borderWidth = raw.lineWidth
   const shape = typeof raw.shape === 'string' ? SHAPE_MAP[raw.shape] : undefined
   if (shape) style.shape = shape
+  // 边框线型（solid/dashed/dotted/dashdot，见 BORDER_DASH）：
+  // 少了这条，节点设的虚线/点线在**存出去**时就丢，刷新后任何模式都变回实线。
+  if (isBorderStyle(raw.borderStyle)) style.borderStyle = raw.borderStyle
   return Object.keys(style).length ? style : undefined
+}
+
+/** 边框线型白名单：值时直接带过（不校验的宽松解析会放过任意字符串） */
+const BORDER_STYLE_SET: ReadonlySet<string> = new Set(["solid", "dashed", "dotted", "dashdot"])
+function isBorderStyle(v: unknown): v is MindBorderStyle {
+  return typeof v === "string" && BORDER_STYLE_SET.has(v)
 }
 
 /** MindNodeStyle → SMM 节点 style */
@@ -133,6 +151,7 @@ function nodeStyleToSmmStyle(style?: MindNodeStyle): Record<string, unknown> | u
   if (style.shape) out.shape = shapeToSmm(style.shape)
   if (style.borderColor) out.lineColor = style.borderColor
   if (style.borderWidth != null) out.lineWidth = style.borderWidth
+  if (style.borderStyle) out.borderStyle = style.borderStyle
   return Object.keys(out).length ? out : undefined
 }
 

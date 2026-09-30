@@ -19,7 +19,7 @@ import type {
   MindNodeStyle,
   TextDefaults,
 } from "./types";
-import { DEFAULT_CONFIG, DEFAULT_TEXT } from "./types";
+import { BORDER_DASH, DEFAULT_CONFIG, DEFAULT_TEXT } from "./types";
 import {
   layoutTree,
   nodeSize,
@@ -200,7 +200,7 @@ function underlineRail(n: PositionedNode): { left: number; right: number; y: num
 /** 生成连线路径（曲线 / 折线，兼容 h / v / diag 三种主轴） */
 function linkPath(l: MindLink): string {
   if (l.path) return l.path;
-  const { from, to, axis, sgn, curve } = l;
+  const { from, to, axis, sgn, curve, straight } = l;
   if (axis === "diag") {
     // 鱼骨图：子节点连线沿骨头方向（父→子中心）画直线，否则会落到水平主轴公式被画歪
     return `M ${from.centerX} ${from.centerY} L ${to.centerX} ${to.centerY}`;
@@ -214,6 +214,7 @@ function linkPath(l: MindLink): string {
       const my = (y1 + y2) / 2;
       return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
     }
+    if (straight) return `M ${x1} ${y1} L ${x2} ${y2}`;
     const my = y1 + sgn * Math.max(14, Math.abs(y2 - y1) * 0.45);
     return `M ${x1} ${y1} L ${x1} ${my} L ${x2} ${my} L ${x2} ${y2}`;
   }
@@ -227,12 +228,114 @@ function linkPath(l: MindLink): string {
   const y1 = rf ? rf.y : from.y + from.h / 2;
   const x2 = rt ? (sgn === 1 ? rt.left : rt.right) : sgn === 1 ? to.x : to.x + to.w;
   const y2 = rt ? rt.y : to.y + to.h / 2;
+  // 直线：既不曲线化，也不拐肘，两端直接相连
+  if (straight) return `M ${x1} ${y1} L ${x2} ${y2}`;
   if (curve) {
     const mx = (x1 + x2) / 2;
     return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
   }
   const mx = x1 + sgn * Math.max(14, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} L ${mx} ${y1} L ${mx} ${y2} L ${x2} ${y2}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* 连线形态：直线 / 箭头 / 从粗到细（taper）                            */
+/*                                                                     */
+/* 连线路径只由 linkPath 产出，形如：                                   */
+/*   M p0 [ L p1        （4 个数，直线 / 折线首末段）                   */
+/*   M p0 C c1 c2 p1    （8 个数，曲线或折线的三段折点）                */
+/* 下面按这个固定格式解析出端点与切向，供箭头朝向与变宽填充带使用。     */
+/* ------------------------------------------------------------------ */
+
+interface LinkGeom {
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  /** 起点单位切向（由 p0 指向终点方向） */
+  v0: { x: number; y: number };
+  /** 终点单位切向 */
+  v1: { x: number; y: number };
+}
+
+function parseLinkPath(d: string): LinkGeom | null {
+  const nums = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+  if (!nums || nums.length < 4) return null;
+  const cubic = nums.length >= 8;
+  const at = (i: number) => ({ x: nums[i * 2], y: nums[i * 2 + 1] });
+  const p0 = at(0);
+  const p1 = cubic ? at(3) : at(1);
+  const unit = (ax: number, ay: number, bx: number, by: number) => {
+    const L = Math.hypot(bx - ax, by - ay) || 1;
+    return { x: (bx - ax) / L, y: (by - ay) / L };
+  };
+  // 三次贝塞尔端点切向由「控制点 - 端点」给出；折线（8 个数但非 C）用相邻折点近似，
+  // 结果一样是最后一段 / 第一段的方向，箭头朝向仍正确。
+  const v0 = cubic ? unit(p0.x, p0.y, at(1).x, at(1).y) : unit(p0.x, p0.y, p1.x, p1.y);
+  const v1 = cubic ? unit(at(2).x, at(2).y, p1.x, p1.y) : unit(p0.x, p0.y, p1.x, p1.y);
+  return { p0, p1, v0, v1 };
+}
+
+/**
+ * 「从粗到细」两端宽度（产品口径，固定值不随 linkWidth 浮动）：
+ * 粗端 8（父端），细端 2（子端）。改这两个即可整体调节 taper 的落差。
+ */
+const TAPER_THICK_W = 8
+const TAPER_THIN_W = 2
+
+/**
+ * 把连线路径变成「从粗到细」的填充带（两端宽度线性插值）。
+ * 变宽只能靠填充多边形表达 —— 描边加 dash 会退化成虚线，所以 taper 与虚线互斥。
+ */
+function taperFillPath(d: string, w0: number, w1: number): string | null {
+  const nums = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+  if (!nums || nums.length < 4) return null;
+  const cubic = nums.length >= 8;
+  const p0 = { x: nums[0], y: nums[1] };
+  const p1 = cubic ? { x: nums[6], y: nums[7] } : { x: nums[2], y: nums[3] };
+  const c1 = cubic ? { x: nums[2], y: nums[3] } : p0;
+  const c2 = cubic ? { x: nums[4], y: nums[5] } : p1;
+  const N = 22;
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const u = 1 - t;
+    let x: number, y: number;
+    if (cubic) {
+      x = u * u * u * p0.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p1.x;
+      y = u * u * u * p0.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p1.y;
+    } else {
+      x = p0.x + (p1.x - p0.x) * t;
+      y = p0.y + (p1.y - p0.y) * t;
+    }
+    pts.push({ x, y });
+  }
+  const fmt = (p: { x: number; y: number }) => `${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+  const left: string[] = [];
+  const right: string[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    let tx = b.x - a.x;
+    let ty = b.y - a.y;
+    const L = Math.hypot(tx, ty) || 1;
+    tx /= L;
+    ty /= L;
+    const w = w0 + (w1 - w0) * (i / N);
+    left.push(fmt({ x: pts[i].x - ty * w * 0.5, y: pts[i].y + tx * w * 0.5 }));
+    right.push(fmt({ x: pts[i].x + ty * w * 0.5, y: pts[i].y - tx * w * 0.5 }));
+  }
+  return `M ${left.join(" L ")} L ${right.reverse().join(" L ")} Z`;
+}
+
+/**
+ * 箭头三角形：`tip` 为尖端位置，`dir` 为尖端所指方向（单位向量）。
+ * inward 的尖端在父端且朝父（dir = -v0），outward 的尖端在子端且朝子（dir = +v1）。
+ */
+function arrowTri(tip: { x: number; y: number }, dir: { x: number; y: number }, size: number, halfW: number) {
+  const baseX = tip.x - dir.x * size;
+  const baseY = tip.y - dir.y * size;
+  const px = -dir.y * halfW;
+  const py = dir.x * halfW;
+  return `${tip.x.toFixed(2)},${tip.y.toFixed(2)} ${(baseX + px).toFixed(2)},${(baseY + py).toFixed(2)} ${(baseX - px).toFixed(2)},${(baseY - py).toFixed(2)}`;
 }
 
 /** 进度饼图扇区路径（fraction 0~1，从 12 点方向顺时针） */
@@ -395,6 +498,12 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
   );
 
   const linkWidth = base.linkWidth ?? theme.linkWidth;
+  /** 连线线型：实线 / 虚线 / 从粗到细（taper 与虚线互斥） */
+  const linkPattern = base.linkPattern ?? "solid";
+  /** 箭头方向：无 / 向内（父端朝父）/ 向外（子端朝子） */
+  const linkArrow = base.linkArrow ?? "none";
+  /** 连线配色：auto 彩色（各分支主题色）/ single 单色（linkColor 统一） */
+  const linkColorMode = base.linkColorMode ?? "auto";
   const radius = base.radius ?? theme.radius;
   const strokeWidth = base.strokeWidth ?? theme.strokeWidth;
   const canvasBg = base.background ?? theme.background;
@@ -1311,14 +1420,19 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
       getTextDefaults: () => textDefaults,
       setTextDefaults: (patch) => setTextDefaults((d) => ({ ...d, ...patch })),
 
-      /* 配置（主题 / 结构 / 连线 / 基础样式） */
-      getConfig: () => config,
+      /* 配置（主题 / 结构 / 连线 / 基础样式）。
+       * ⚠️ getter 必须走 configRef 而不是闭包里的 `config`：本 handle 的依赖数组里没有
+       * config，闭包会一直指向首次渲染那份 —— 宿主算「基础样式全量覆盖」时
+       * （`{...api.getBase(), ...patch}`）就会拿到空的旧 base，每次改一项都把之前设的
+       * 连线线型 / 箭头 / 边框线型全部抹掉，看上去就是「样式存不下来」。
+       * 底下 getScale / getView 同理（transform 对象每次平移都换引用）。 */
+      getConfig: () => configRef.current,
       setConfig: (patch) => setConfig((c) => ({ ...c, ...patch })),
       setStructure: (s) => setConfig((c) => ({ ...c, structure: s })),
       setLineStyle: (s) => setConfig((c) => ({ ...c, lineStyle: s })),
       setThemeId: (t) => setConfig((c) => ({ ...c, themeId: t })),
       setBase: (patch) => setConfig((c) => ({ ...c, base: { ...c.base, ...patch } })),
-      getBase: () => config.base ?? {},
+      getBase: () => configRef.current.base ?? {},
 
       /* 运行期模式 */
       getMode: () => mode,
@@ -1342,8 +1456,12 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
           ty: el.clientHeight / 2 - (root.y + root.h / 2) * s,
         });
       },
-      getScale: () => transform.scale,
-      getView: () => ({ scale: transform.scale, tx: transform.tx, ty: transform.ty }),
+      getScale: () => transformRef.current.scale,
+      getView: () => ({
+        scale: transformRef.current.scale,
+        tx: transformRef.current.tx,
+        ty: transformRef.current.ty,
+      }),
       setView: (v) =>
         setTransform((t) => ({
           scale: v.scale === undefined ? t.scale : Math.min(Math.max(v.scale, MIN_SCALE), MAX_SCALE),
@@ -1503,17 +1621,50 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
             className="mm-root"
             transform={`translate(${transform.tx},${transform.ty}) scale(${transform.scale})`}
           >
-            {layout.links.map((l) => (
-              <path
-                key={`${l.from.node.id}->${l.to.node.id}`}
-                d={linkPath(l)}
-                fill="none"
-                stroke={l.color}
-                strokeWidth={linkWidth}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
+            {layout.links.map((l) => {
+              const d = linkPath(l);
+              // 单色模式：忽略各分支的主题色，整张画布统一用 linkColor
+              const color = linkColorMode === "single" ? linkColor : l.color ?? linkColor;
+              const pattern = base.linkPattern ?? "solid";
+              const arrow = base.linkArrow ?? "none";
+              const geo = arrow === "none" ? null : parseLinkPath(d);
+              // 从粗到细：变宽只能靠填充带表达（描边加 dash 会退化成虚线），与虚线互斥
+              const taper =
+                pattern === "taper" ? taperFillPath(d, TAPER_THICK_W, TAPER_THIN_W) : null;
+              // 箭头跟着「所在端」的线宽：taper 父端 8 / 子端 2，否则用 linkWidth 派生
+              const arrowW =
+                pattern === "taper" ? (arrow === "inward" ? TAPER_THICK_W : TAPER_THIN_W) : linkWidth;
+              const arrowLen = arrowW * 3 + 4
+              const arrowBase = arrowW * 1.7 + 1
+              return (
+                <g key={`${l.from.node.id}->${l.to.node.id}`} className="mm-link">
+                  {taper ? (
+                    <path d={taper} fill={color} stroke="none" />
+                  ) : (
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={linkWidth}
+                      strokeDasharray={pattern === "dashed" ? "7 5" : undefined}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                  {geo && (
+                    <polygon
+                      points={
+                        // 向内：尖端贴在父端并朝父节点（朝画布中心收）；向外：尖端贴在子端朝外
+                        arrow === "inward"
+                          ? arrowTri(geo.p0, { x: -geo.v0.x, y: -geo.v0.y }, arrowLen, arrowBase)
+                          : arrowTri(geo.p1, geo.v1, arrowLen, arrowBase)
+                      }
+                      fill={color}
+                    />
+                  )}
+                </g>
+              );
+            })}
 
             {/* 关联线 / 外框 / 概要：画在连线之上、节点之下 */}
             <ExtrasLayer root={doc.tree} nodes={layoutNodes} />
@@ -1575,6 +1726,8 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
                   : isRoot && showRect
                   ? base.nodeText ?? theme.rootText
                   : base.nodeText ?? theme.nodeText);
+              // 节点边框线型：实线 / 虚线 / 点线 / 点划线（根节点与带框节点生效）
+              const dash = BORDER_DASH[eff.borderStyle ?? "solid"];
               const isSelected = node.id === doc.selectedId && !editing;
               const hasKids = node.children.length > 0;
               const isCollapsed = Boolean(node.collapsed);
@@ -1625,7 +1778,9 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
                     {node.note ? `\n备注：${node.note}` : ""}
                     {node.link ? `\n链接：${node.link}` : ""}
                   </title>
-                  {isSelected && (
+                  {/* 选中环是编辑态的拖拽/工具栏交互提示：阅读 / 分享 / H5 三态下
+                      reducer 仍会默认选中根节点，若照画就会出现一圈蓝虚线选中框。 */}
+                  {isSelected && editableNow && (
                     <rect
                       className="mm-ui-only"
                       x={-4}
@@ -1652,10 +1807,11 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
                       strokeWidth={
                         noBorder
                           ? 0
-                          : isSelected
+                          : isSelected && editableNow
                           ? strokeWidth + 0.6
                           : strokeWidth
                       }
+                      strokeDasharray={dash}
                     />
                   )}
 

@@ -3,6 +3,7 @@ import { Button, Empty, Input, Modal, message } from 'antd'
 import {
   MindMap as MindMapCanvas,
   type BaseStyle,
+  type LineStyle,
   type MindMapApi,
   type MindNode,
   type MindNodeStyle,
@@ -262,15 +263,36 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     scheduleSave()
   }
 
-  /** 切换画布主题（干净切换：主题 id 单独持久化，基础样式覆盖一并清零） */
+  /** 连接方式（曲线 / 折线 / 直线）：写在 MindMapConfig.lineStyle 上，不入基础样式快照 */
+  function handleLineStyle(s: LineStyle) {
+    const api = apiRef.current
+    if (!api) return
+    api.setLineStyle(s)
+    setUiTick((t) => t + 1) // 让顶部面板按新 lineStyle 回显
+    scheduleSave()
+  }
+
+  /**
+   * 切换画布主题（只换配色，不动基础样式）。
+   *
+   * 主题 = 配色方案（层配色 / 背景），基础样式 = 用户手动设的全局覆盖
+   * （连线线型、箭头、连线配色、节点边框线型…）。两者是正交的：
+   * 换主题不该把用户辛苦调的连线线型抹掉 —— 之前这里整份换成 `{[THEME_ID_KEY]: id}`，
+   * 既丢 `__baseStyle`，又会把「已清空」的状态落库，切一次主题就永久丢样式。
+   * 所以现在保留 base：只换 themeId，并把 base 重新写回 themeRef。
+   */
   function handleThemeSelect(id: string) {
     const api = apiRef.current
     if (!api) return
-    api.setConfig({ themeId: id, base: {} })
+    const kept = api.getBase()
+    api.setConfig({ themeId: id, base: kept })
     setThemeIdState(id)
-    themeRef.current = { [THEME_ID_KEY]: id }
+    // 主题 id 要显式写回 themeRef：applyBaseToSnapshot 只搬 __baseStyle，
+    // 不认 THEME_ID_KEY —— 漏了这行切完主题一保存就把主题 id 冲掉，刷新又变回经典蓝。
+    themeRef.current = applyBaseToSnapshot(themeRef.current, kept)
+    themeRef.current = { ...themeRef.current, [THEME_ID_KEY]: id }
     setThemeState(themeRef.current)
-    setBaseStyle({})
+    setBaseStyle(kept)
     scheduleSave()
     message.success('已应用主题')
   }
@@ -647,6 +669,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
               base={baseStyle}
               onNodeStyle={handleNodeStylePatch}
               onBaseStyle={handleBaseStylePatch}
+              onLineStyle={handleLineStyle}
               onThemeId={handleThemeSelect}
               onPriority={handlePriority}
               onProgress={handleProgress}
