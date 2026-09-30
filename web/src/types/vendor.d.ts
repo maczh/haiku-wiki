@@ -1,6 +1,6 @@
 // 第三方库类型补充：mammoth 无官方/社区类型，本地声明 shim。
-// simple-mind-map 无官方 TS 类型，本地声明项目用到的最小 API 面。
 // luckysheet 随包的 dist 不含 .d.ts（package.json 也没有 types 字段），同样声明最小 API 面。
+// 注：思维导图已换成 vendored 的 mindmap-vite（自带类型），无需 simple-mind-map 的 shim。
 
 declare module 'mammoth' {
   export interface ImageConverterResult {
@@ -43,105 +43,6 @@ declare module 'spectrum-colorpicker' {
 
 /** spectrum 自带样式（取色面板必备，否则面板无样式/不可交互） */
 declare module 'spectrum-colorpicker/spectrum.css'
-// simple-mind-map（wanglin2）：仅声明本项目用到的 API（v0.14.x）
-declare module 'simple-mind-map' {
-  /** simple-mind-map 节点数据树（与 docs.content v2 契约同构） */
-  export interface SmmDataNode {
-    data: { text: string; expand: boolean; uid?: string; [key: string]: unknown }
-    children: SmmDataNode[]
-  }
-  export interface SmmOptions {
-    el: HTMLElement
-    data?: SmmDataNode
-    readonly?: boolean
-    layout?: string
-    initRootNodePosition?: Array<number | string>
-    enableAutoEnterTextEditWhenKeydown?: boolean
-    mousewheelAction?: string
-    [key: string]: unknown
-  }
-  export default class MindMap {
-    constructor(options: SmmOptions)
-    static usePlugin(plugin: unknown, ...args: unknown[]): typeof MindMap
-    getData(withOnlySet?: boolean): SmmDataNode
-    setData(data?: SmmDataNode | null): void
-    execCommand(command: string, ...args: unknown[]): void
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    on(event: string, handler: (...args: any[]) => void): void
-    off(event: string, handler: (...args: any[]) => void): void
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-    destroy(): void
-    /** 容器尺寸变化后重新计算画布（左栏折叠/调宽、全屏切换时调用） */
-    resize(): void
-    /** 主题（含连线、节点各层级样式）与布局读写 */
-    getTheme(): Record<string, unknown>
-    setTheme(theme: Record<string, unknown>, notRender?: boolean): void
-    /** 当前已生效的自定义主题配置（opt.themeConfig 的实时快照，setThemeConfig 写入的值） */
-    getCustomThemeConfig(): Record<string, unknown>
-    /** 设置自定义主题配置：传入对象会真正重算渲染用的 themeConfig（区别于仅接受已注册主题名的 setTheme） */
-    setThemeConfig(config: Record<string, unknown>, notRender?: boolean): void
-    getLayout(): string
-    setLayout(layout: string, notRender?: boolean): void
-    /** 只读 / 编辑模式 */
-    setMode(mode: 'edit' | 'readonly'): void
-    /** 运行时更新配置（滚轮行为、自由拖拽等） */
-    updateConfig(opt: Record<string, unknown>): void
-    /**
-     * 视图变换（缩放 / 平移）。
-     * H5 原生无级缩放直接改 `x/y/scale` 三个字段再调 `transform()`，让 simple-mind-map
-     * 按新 scale **重新排布矢量 SVG**（而不是用 CSS transform 拉伸整层位图）——
-     * 放大后依然清晰。见 components/reader/MindmapView.tsx 的 attachNativeZoom。
-     */
-    view: {
-      enlarge(): void
-      narrow(): void
-      fit(): void
-      reset(): void
-      setScale(scale: number): void
-      scale: number
-      /** 画布横向平移量（px） */
-      x: number
-      /** 画布纵向平移量（px） */
-      y: number
-      /** 把 x / y / scale 应用到画布 */
-      transform(): void
-    }
-    /** 屏幕坐标 → 画布坐标（H5 双指缩放按两指中心做锚点时用） */
-    toPos(clientX: number, clientY: number): { x: number; y: number }
-    renderer: { activeNodeList: unknown[]; setRootNodeCenter(): void }
-    export(type: string, isDownload?: boolean, name?: string, ...args: unknown[]): Promise<string | Blob | boolean>
-  }
-}
-
-declare module 'simple-mind-map/src/plugins/Drag.js' {
-  const DragPlugin: unknown
-  export default DragPlugin
-}
-
-declare module 'simple-mind-map/src/plugins/Export.js' {
-  const ExportPlugin: unknown
-  export default ExportPlugin
-}
-
-declare module 'simple-mind-map/src/plugins/Painter.js' {
-  const PainterPlugin: unknown
-  export default PainterPlugin
-}
-
-declare module 'simple-mind-map/src/plugins/AssociativeLine.js' {
-  const AssociativeLinePlugin: unknown
-  export default AssociativeLinePlugin
-}
-
-declare module 'simple-mind-map/src/plugins/OuterFrame.js' {
-  const OuterFramePlugin: unknown
-  export default OuterFramePlugin
-}
-
-declare module 'simple-mind-map/src/plugins/Formula.js' {
-  const FormulaPlugin: unknown
-  export default FormulaPlugin
-}
 
 /**
  * luckysheet（v2.1.13）：dist 只有 UMD/ESM 产物，没有类型声明。

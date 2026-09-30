@@ -46,7 +46,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; tip?: string }, Err
 /**
  * 懒加载边界：为 React.lazy 包裹的编辑器 / 渲染器 / 页面提供统一的加载占位。
  *
- * 背景：Vditor、simple-mind-map、Luckysheet、pdf.js、mermaid 合计体积很大，
+ * 背景：Vditor、思维导图（mindmap-vite）、Luckysheet、pdf.js、mermaid 合计体积很大，
  * 若全部静态 import，会挤进首屏 chunk（实测单包 3.8 MB）。
  * 这些组件都只在打开对应类型的文档时才需要，因此统一改为按需加载。
  *

@@ -1,28 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { message } from 'antd'
-import MindMap from 'simple-mind-map'
-import Drag from 'simple-mind-map/src/plugins/Drag.js'
-import Export from 'simple-mind-map/src/plugins/Export.js'
-import Painter from 'simple-mind-map/src/plugins/Painter.js'
-import AssociativeLine from 'simple-mind-map/src/plugins/AssociativeLine.js'
-import OuterFrame from 'simple-mind-map/src/plugins/OuterFrame.js'
-import Formula from 'simple-mind-map/src/plugins/Formula.js'
 import 'katex/dist/katex.min.css'
+import { MindMap as MindMapCanvas, type MindMapApi } from '../mindmap-vite/src/components/MindMap'
 import { parseMindmapJSON } from '../../lib/mindmap'
+import { smmLayoutToStructure, smmNodeToMind, smmThemeToBase } from '../../lib/mindmap.smm'
 import { useViewMode } from '../../h5/useViewMode'
 
 interface Props {
   content: string
 }
-
-// 插件静态注册（与 MindmapEditor 保持一致）：用户真实导图常带节点图片 / 关联线 / 公式 / 备注，
-// 只读预览若不注册这些插件，simple-mind-map 解析带对应特性的数据时会抛错（#模板预览报错）。
-MindMap.usePlugin(Drag)
-MindMap.usePlugin(Export)
-MindMap.usePlugin(Painter)
-MindMap.usePlugin(AssociativeLine)
-MindMap.usePlugin(OuterFrame)
-MindMap.usePlugin(Formula)
 
 /** 缩放上下限（与 H5ZoomStage 保持一致的手感） */
 const MIN_SCALE = 0.2
@@ -37,75 +23,86 @@ function twoPointDistance(x1: number, y1: number, x2: number, y2: number): numbe
  * H5 原生无级缩放（关键：不用 CSS transform 放大）。
  *
  * 为什么不能套 `H5ZoomStage`：那层是 `transform: scale()` 放大 —— 对位图/PDF 尚可，
- * 对 simple-mind-map 这种「按当前 scale 重新排布矢量 SVG」的渲染器完全是浪费：
- * 放大后节点文字会被整层位图化拉伸，虚化严重。
+ * 对矢量导图渲染器完全是浪费：放大后节点文字会被整层位图化拉伸，虚化严重。
  *
- * 这里直接驱动 `mm.view.scale`（simple-mind-map 自己的缩放），缩放后 SVG 按新比例
- * 重新布局绘制 —— **放大到多少就是多少的真实矢量渲染，永远清晰**，且是无级的。
- * 平移同理走 `view.x / view.y`，放大后单指可拖动查看。
+ * 这里直接驱动画布自己的 view scale / translate（等价于 simple-mind-map 时代的
+ * `view.scale/x/y + view.transform()`），缩放后 SVG 按新比例重新布局绘制 ——
+ * **放大到多少就是多少的真实矢量渲染，永远清晰**，且是无级的。平移同理，
+ * 放大后单指可拖动查看。
  *
  * 交互约定：1:1（未放大）时单指不拦截，纵向划屏仍归浏览器原生滚动；
  * 双指按下即接管缩放；已放大时单指接管平移。
  */
-function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) => void): () => void {
-  const view = mm.view
-  let pinch: { dist: number; scale: number; x: number; y: number; cx: number; cy: number } | null = null
+function attachNativeZoom(
+  api: { current: MindMapApi | null },
+  host: HTMLElement,
+  onScale: (s: number) => void
+): () => void {
+  let pinch: { dist: number; scale: number; tx: number; ty: number; nx: number; ny: number } | null = null
   let pan: { x: number; y: number } | null = null
+  /** 取画布实例（未就绪时静默忽略手势） */
+  const inst = (): MindMapApi | null => api.current
 
-  // 与 simple-mind-map 自带 TouchEvent 插件同一套算法（以两指中心为锚、按初始距离线性缩放）
-  const mid = (t: TouchList) => {
-    const a = mm.toPos(t[0].clientX, t[0].clientY) as { x: number; y: number }
-    const b = mm.toPos(t[1].clientX, t[1].clientY) as { x: number; y: number }
+  /** 容器内的手指坐标（相对 host 左上角，与画布 transform 同一坐标系） */
+  const local = (t: Touch) => {
+    const r = host.getBoundingClientRect()
+    return { x: t.clientX - r.left, y: t.clientY - r.top }
+  }
+  /** 两指中心（host 内坐标） */
+  const midLocal = (ts: TouchList) => {
+    const a = local(ts[0])
+    const b = local(ts[1])
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
   }
 
   const onStart = (e: TouchEvent) => {
-    if (e.touches.length >= 2) {
+    if (e.touches.length >= 2 && inst()) {
       e.preventDefault()
-      const m = mid(e.touches)
+      const cur = inst()!.getScale()
+      const m = midLocal(e.touches)
+      // 锚点：手指中心当前对应的「内容坐标」，缩放前后都保持停在这只手指下面
+      const t = inst()!.getView()
       pinch = {
         dist:
           twoPointDistance(e.touches[0].clientX, e.touches[0].clientY, e.touches[1].clientX, e.touches[1].clientY) || 1,
-        scale: view.scale,
-        x: view.x,
-        y: view.y,
-        cx: m.x,
-        cy: m.y,
+        scale: cur,
+        tx: t.tx,
+        ty: t.ty,
+        nx: (m.x - t.tx) / cur,
+        ny: (m.y - t.ty) / cur,
       }
       pan = null
       return
     }
-    if (e.touches.length === 1 && view.scale > 1.001) {
+    if (e.touches.length === 1 && (inst()?.getScale() ?? 0) > 1.001) {
       e.preventDefault()
       pan = { x: e.touches[0].clientX, y: e.touches[0].clientY }
     }
   }
 
   const onMove = (e: TouchEvent) => {
-    if (e.touches.length >= 2 && pinch) {
+    if (e.touches.length >= 2 && pinch && inst()) {
       e.preventDefault()
       const d = twoPointDistance(e.touches[0].clientX, e.touches[0].clientY, e.touches[1].clientX, e.touches[1].clientY)
-      const m = mid(e.touches)
+      const m = midLocal(e.touches)
       let scale = pinch.scale * (d / pinch.dist)
       // 距离变化小于 10px 视为没动，避免手指微抖引起跳动
       if (Math.abs(d - pinch.dist) <= 10) scale = pinch.scale
       scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale))
-      const ratio = 1 - scale / pinch.scale
-      view.x = pinch.x + (m.x - pinch.x) * ratio + (m.x - pinch.cx) * scale
-      view.y = pinch.y + (m.y - pinch.y) * ratio + (m.y - pinch.cy) * scale
-      view.scale = scale
-      view.transform()
+      // 让锚点内容坐标在新缩放下沉到当前手指中心
+      const a = inst()!
+      a.setView({ scale, tx: m.x - pinch.nx * scale, ty: m.y - pinch.ny * scale })
       onScale(scale)
       return
     }
-    if (e.touches.length === 1 && pan && view.scale > 1.001) {
+    if (e.touches.length === 1 && pan && (inst()?.getScale() ?? 0) > 1.001) {
       e.preventDefault()
       const dx = e.touches[0].clientX - pan.x
       const dy = e.touches[0].clientY - pan.y
       pan = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-      view.x += dx
-      view.y += dy
-      view.transform()
+      const a = inst()!
+      const t = a.getView()
+      a.setView({ tx: t.tx + dx, ty: t.ty + dy })
     }
   }
 
@@ -113,7 +110,7 @@ function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) =
     if (e.touches.length < 2) pinch = null
     if (e.touches.length === 0) {
       pan = null
-      onScale(view.scale)
+      onScale(inst()?.getScale() ?? 1)
     } else if (e.touches.length === 1) {
       // 双指抬起一根：不接着平移，避免画面突然跳动
       pan = null
@@ -132,61 +129,42 @@ function attachNativeZoom(mm: MindMap, host: HTMLElement, onScale: (s: number) =
   }
 }
 
-/** 思维导图只读渲染（simple-mind-map readonly，禁止编辑/拖拽，初始 fit 视图） */
+/**
+ * 思维导图只读渲染（mindmap-vite，禁止编辑/拖拽，初始 fit 视图）。
+ *
+ * 画布实例通过 `apiRef` 拿到命令式句柄：适应视图、重置视图、H5 手势缩放都走它，
+ * 与编辑态共用同一套组件，仅 `editable={false}`。
+ */
 export default function MindmapView({ content }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  /** simple-mind-map 实例（「重置视图」按钮要用） */
-  const mmRef = useRef<MindMap | null>(null)
+  const apiRef = useRef<MindMapApi | null>(null)
   const { mode: viewMode } = useViewMode()
   const mobile = viewMode === 'h5'
   /** 当前缩放百分比（驱动 touch-action 与「重置」按钮） */
   const [scale, setScale] = useState(1)
 
+  const { tree, layout, theme, reset } = useMemo(() => {
+    const parsed = parseMindmapJSON(content)
+    return {
+      tree: smmNodeToMind(parsed.data.root),
+      layout: parsed.data.layout,
+      theme: parsed.data.theme,
+      reset: parsed.reset,
+    }
+  }, [content])
+
+  useEffect(() => {
+    if (reset) message.warning('内容格式异常，已按默认思维导图展示')
+  }, [reset])
+
   useEffect(() => {
     const host = elRef.current
     if (!host) return
 
-    const { data, reset } = parseMindmapJSON(content)
-    if (reset) message.warning('内容格式异常，已按默认思维导图展示')
-
-    const mm = new MindMap({
-      el: host,
-      data: data.root,
-      readonly: true,
-      layout: data.layout || 'mindMap',
-      initRootNodePosition: ['center', 'center'],
-    })
-    mmRef.current = mm
-    // 只读也还原持久化的主题配置（#31）：保持与编辑态一致的视觉样式。
-    // 必须用 setThemeConfig（setTheme 仅接受已注册主题名，传入对象不会生效）。
-    if (data.theme && typeof data.theme === 'object') {
-      try {
-        mm.setThemeConfig(data.theme as never)
-      } catch {
-        /* 主题格式异常时忽略，按默认渲染 */
-      }
-    }
-    // 自适应缩放：
-    //   1) 渲染结束后 fit 一次；
-    //   2) 再补一次延时 fit —— 模板预览弹窗有入场动画，首帧拿到的容器宽度偏小，
-    //      只 fit 一次会让导图右侧被裁掉（弹窗稳定后不会再有渲染事件，必须补这一刀）；
-    //   3) 容器尺寸变化（窗口缩放 / 侧栏收起 / 弹窗尺寸变化）时重新 fit。
-    const fit = () => {
-      try {
-        mm.view.fit()
-        setScale(mm.view.scale)
-      } catch {
-        /* 实例已销毁或尚未就绪时忽略 */
-      }
-    }
-    const onRenderEnd = () => fit()
-    mm.on('node_tree_render_end', onRenderEnd)
-    // 用户在 H5 上手动缩放后也同步百分比（用于 touch-action 与重置按钮）
-    const onScaleEvt = (s: unknown) => {
-      if (typeof s === 'number') setScale(s)
-    }
-    mm.on('scale', onScaleEvt)
-    const timers = [setTimeout(fit, 320), setTimeout(fit, 760)]
+    // 自适应缩放：挂载后组件自带 fitOnMount，这里再补两刀延时 fit ——
+    // 模板预览弹窗有入场动画，首帧拿到的容器宽度偏小，只 fit 一次会让导图右侧被裁掉
+    //（弹窗稳定后不会再有渲染事件，必须补这一刀）。
+    const timers = [setTimeout(() => apiRef.current?.fitView(), 320), setTimeout(() => apiRef.current?.fitView(), 760)]
     let raf = 0
     let lastW = host.clientWidth
     let lastH = host.clientHeight
@@ -197,41 +175,30 @@ export default function MindmapView({ content }: Props) {
       lastW = w
       lastH = h
       if (raf) cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(fit)
+      raf = requestAnimationFrame(() => apiRef.current?.fitView())
     })
     ro.observe(host)
 
     // H5：原生无级缩放（见 attachNativeZoom 注释）。桌面端不需要（有滚轮 + 拖拽画布）。
-    const detach = mobile ? attachNativeZoom(mm, host, setScale) : null
+    const detach = mobile ? attachNativeZoom(apiRef, host, setScale) : null
 
     return () => {
       detach?.()
-      mmRef.current = null
       ro.disconnect()
       timers.forEach(clearTimeout)
       if (raf) cancelAnimationFrame(raf)
-      mm.off('node_tree_render_end', onRenderEnd)
-      mm.off('scale', onScaleEvt)
-      try {
-        mm.destroy()
-      } catch {
-        /* 忽略重复销毁 */
-      }
+      apiRef.current = null
     }
-  }, [content, mobile])
+  }, [mobile, tree])
 
   /** 回到自适应视图（缩放/平移后可用）：先复位 1:1，再按当前容器 fit */
-  const resetView = () => {
-    const mm = mmRef.current
-    if (!mm) return
-    try {
-      mm.view.reset()
-      mm.view.fit()
-      setScale(mm.view.scale)
-    } catch {
-      /* 实例已销毁时忽略 */
-    }
-  }
+  const resetView = useCallback(() => {
+    const api = apiRef.current
+    if (!api) return
+    api.resetView()
+    api.fitView()
+    setScale(api.getScale())
+  }, [])
 
   const zoomed = scale > 1.001
 
@@ -247,7 +214,23 @@ export default function MindmapView({ content }: Props) {
           // 未放大时放行纵向划屏（阅读容器可滚）；放大后交给本组件单指平移
           touchAction: zoomed ? 'none' : 'pan-y',
         }}
-      />
+      >
+        <MindMapCanvas
+          key={content}
+          ref={apiRef}
+          data={tree}
+          editable={false}
+          showToolbar={false}
+          fitOnMount
+          width="100%"
+          height="100%"
+          defaultConfig={{
+            structure: smmLayoutToStructure(layout),
+            base: smmThemeToBase(theme),
+          }}
+          onScaleChange={setScale}
+        />
+      </div>
       {mobile && zoomed && (
         <button
           type="button"

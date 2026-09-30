@@ -1,40 +1,43 @@
 // 思维导图编辑器浮动工具条的共享类型与常量。
 // 说明：simple-mind-map 未提供 TS 类型，这里只声明本项目用到的成员。
 
-import type MindMap from 'simple-mind-map'
+import type { MindMapApi, MindNodeShape, MindNodeStyle } from '../../mindmap-vite/src/components/MindMap'
 import { MM_EXTRA_THEME_PRESETS } from './mmThemePresets.generated'
 
-/** 节点实例（仅取用到的成员） */
-export interface MmNodeLike {
-  isRoot?: boolean
-  getData?(): { text?: string; style?: Record<string, unknown> }
-  getStyle?(): Record<string, unknown>
-  setStyle?(prop: string, value: unknown, isRender?: boolean): void
-  setShape?(shape: string): void
-  setImage?(img: { url: string; title?: string; width?: number; height?: number } | null): void
-  setIcon?(icons: string[]): void
-  setHyperlink?(url: string, title?: string): void
-  setNote?(note: string): void
-  setTag?(tags: string[]): void
-}
-
-/** 供浮动工具条使用的编辑器句柄（由 MindmapEditor 注入） */
+/**
+ * 供浮动工具条使用的编辑器句柄（由 MindmapEditor 注入）。
+ *
+ * 画布已从 simple-mind-map 换成 mindmap-vite：simple-mind-map 的「节点实例 / 插件」
+ * （execCommand / setThemeConfig / getCustomThemeConfig …）全部收敛为 MindMapApi
+ * 上的方法，这里只把工具条需要的能力再包一层，工具条本身不必关心底层引擎。
+ */
 export interface MmHandle {
-  /** 画布实例（未初始化时 null） */
-  mm: MindMap | null
+  /** 画布命令式句柄（未就绪时 null） */
+  api: MindMapApi | null
   /** 当前是否有选中节点 */
   hasActive: boolean
-  /** 取选中节点：无选中时提示并返回 null */
-  activeNode: () => MmNodeLike | null
-  /** 取实例：未就绪时提示并返回 null */
-  requireMm: () => MindMap | null
+  /** 当前选中节点 id（无选中时 null） */
+  selectedId: () => string | null
+  /** 选中节点的.style（无选中时空对象） */
+  nodeStyle: () => MindNodeStyle
+  /** 给选中节点合并样式（style 与新建节点默认值共用） */
+  setNodeStyle: (patch: Partial<MindNodeStyle>) => void
+  setNodeShape: (shape: MindNodeShape) => void
+  clearNodeStyles: () => void
+  /** 当前生效的主题快照（SMM themeConfig 口径，持久化不变） */
+  theme: () => Record<string, unknown>
+  /** 在当前主题上做一次合并覆盖（基础样式 / 字体等） */
+  setTheme: (patch: Record<string, unknown>) => void
+  /** 回到默认主题基准并套用给定预设（干净切换预设用）；不传则只回基准 */
+  resetTheme: (preset?: Record<string, unknown>) => void
+  /** 画布命令（undo / redo / EXPAND_ALL / UNEXPAND_ALL …） */
+  execCommand: (cmd: string, ...args: unknown[]) => void
+  setMode: (m: 'edit' | 'readonly') => void
+  setWheelAction: (a: 'zoom' | 'move') => void
+  setFreeDrag: (v: boolean) => void
   /** 提示统一出口 */
   toast: (msg: string, kind?: 'info' | 'success' | 'warning' | 'error') => void
-  /** 当前已生效的自定义主题配置（opt.themeConfig 的实时快照，用于基础样式/字体的累加式覆盖） */
-  baseTheme: () => Record<string, unknown>
-  /** 默认主题配置（未叠加任何自定义样式时的基准，用于主题预设的「干净切换」与高亮匹配） */
-  defaultTheme: () => Record<string, unknown>
-  /** 触发防抖自动保存（主题/基础样式/字体等不触发 data_change 的改动需显式调用） */
+  /** 触发防抖自动保存（主题/基础样式/字体等不触发 onChange 的改动需显式调用） */
   scheduleSave: () => void
 }
 

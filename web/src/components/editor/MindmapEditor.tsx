@@ -1,30 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Empty, message } from 'antd'
-import MindMap from 'simple-mind-map'
-import Drag from 'simple-mind-map/src/plugins/Drag.js'
-import Export from 'simple-mind-map/src/plugins/Export.js'
-import Painter from 'simple-mind-map/src/plugins/Painter.js'
-import AssociativeLine from 'simple-mind-map/src/plugins/AssociativeLine.js'
-import OuterFrame from 'simple-mind-map/src/plugins/OuterFrame.js'
-import Formula from 'simple-mind-map/src/plugins/Formula.js'
+import { Button, Empty, Input, Modal, message } from 'antd'
+import {
+  MindMap as MindMapCanvas,
+  type MindMapApi,
+  type MindNode,
+  type MindNodeShape,
+  type MindNodeStyle,
+  type StructureType,
+} from '../mindmap-vite/src/components/MindMap'
 import 'katex/dist/katex.min.css'
 import { patchDoc } from '../../api/docs'
 import { uploadWithDedup } from '../../lib/uploadFlow'
-import { parseMindmapJSON, stringifyMindmap, type SmmNode } from '../../lib/mindmap'
+import { parseMindmapJSON, stringifyMindmap } from '../../lib/mindmap'
+import {
+  baseToSmmTheme,
+  mindNodeToSmm,
+  smmLayoutToStructure,
+  smmNodeToMind,
+  smmThemeToBase,
+  structureToSmmLayout,
+  type SmmNode,
+} from '../../lib/mindmap.smm'
 import VersionDrawer from './VersionDrawer'
 import MindmapTopToolbar from './mindmap/MindmapTopToolbar'
 import MindmapSideToolbar from './mindmap/MindmapSideToolbar'
 import MindmapZoomBar from './mindmap/MindmapZoomBar'
-import { deepMerge, MM_THEME_PRESETS, type MmHandle, type MmNodeLike, type MmPainter } from './mindmap/mmShared'
+import { deepMerge, MM_THEME_PRESETS, type MmHandle } from './mindmap/mmShared'
 import { type SaveStatus } from './SaveIndicator'
-
-// 插件静态注册（模块级一次即可，所有实例共享）
-MindMap.usePlugin(Drag) // 节点拖拽调整层级
-MindMap.usePlugin(Export) // export('png'|'svg'|...)
-MindMap.usePlugin(Painter) // 格式刷
-MindMap.usePlugin(AssociativeLine) // 关联线
-MindMap.usePlugin(OuterFrame) // 外框
-MindMap.usePlugin(Formula) // 公式（katex）
 
 interface Props {
   docId: number
@@ -43,221 +45,125 @@ function matchThemeKey(theme: Record<string, unknown>, base: Record<string, unkn
   return null
 }
 
-/** 节点实例（simple-mind-map 未暴露类型，仅取用到的属性） */
-interface SmmNodeInstance extends MmNodeLike {
-  isRoot?: boolean
-  getData?(): { text?: string; style?: Record<string, unknown> }
-}
-
-/** 大纲递归所需的最小结构 */
-interface OutlineNode {
-  data?: { text?: string }
-  children?: OutlineNode[]
+/** 取树上最深的后代 id（概要默认汇总到最深一层） */
+function deepestChild(node: MindNode): string {
+  if (!node.children.length) return node.id
+  return deepestChild(node.children[node.children.length - 1])
 }
 
 /**
- * 思维导图编辑器（simple-mind-map 方案，仿官方 Demo 三处浮动工具条）：
+ * 思维导图编辑器（mindmap-vite 方案，仿官方 Demo 三处浮动工具条）：
  *  - 顶部浮动工具条：回退/前进/格式刷/同级/子节点/删除/图片/超链接/备注/标签/概要/关联线/公式/外框 + 保存/历史/导出
  *  - 右侧浮动工具条：节点样式/基础样式/主题/结构/大纲/设置
  *  - 右下缩放工具条：字体/缩小/比例/放大/适应画布/居中/复位/全屏
  *  画布数据 3s 防抖自动保存（v2 契约）+ 手动保存 + 历史版本。
+ *
+ * 存储侧仍写 simple-mind-map 时代的 v2 契约（root:{data,children} + layout + theme），
+ * 转换全部走 lib/mindmap.smm.ts；组件只认嵌套的 MindNode。
  */
 export default function MindmapEditor({ docId, initialContent, title }: Props) {
-  const elRef = useRef<HTMLDivElement>(null)
-  const mindMapRef = useRef<MindMap | null>(null)
+  const apiRef = useRef<MindMapApi | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const latestRef = useRef<SmmNode | null>(null)
+  const latestRef = useRef<MindNode | null>(null)
   const dirtyRef = useRef(false)
   const titleRef = useRef(title)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   /** 默认主题配置（未叠加任何自定义样式时的基准，用于主题预设干净切换与高亮匹配） */
   const defaultThemeRef = useRef<Record<string, unknown>>({})
-  const imageInputRef = useRef<HTMLInputElement>(null)
 
-  // 在组件顶层解析一次，用于初始化 layout/theme 状态（文档切换时 key 会变，整个组件会重建）
+  // 在组件顶层解析一次，用于初始化结构/主题状态（文档切换时 key 会变，整个组件会重建）
   const initialData = parseMindmapJSON(initialContent).data
+  const initialTree = useMemo<MindNode>(() => smmNodeToMind(initialData.root), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const initialStructure = useMemo<StructureType>(() => smmLayoutToStructure(initialData.layout), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const initialTheme = useMemo<Record<string, unknown>>(() => initialData.theme ?? {}, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
   const [hasActive, setHasActive] = useState(false)
   const [brushing, setBrushing] = useState(false)
+  /** 关联线拾取中（已选出起点，等待终点） */
+  const [assocFrom, setAssocFrom] = useState<string | null>(null)
   const [scale, setScale] = useState(1)
   const [fullscreen, setFullscreen] = useState(false)
   const [fontFamily, setFontFamily] = useState('')
   const [ready, setReady] = useState(false)
   const [initFailed, setInitFailed] = useState(false)
-  // 当前布局/主题选择（持久化到 docs.content）。
-  // 默认结构从「逻辑结构图」改为「思维导图」：新建与导入的思维导图默认即思维导图结构（#需求）。
-  const [layout, setLayout] = useState(initialData.layout || 'mindMap')
+  /** 文本输入弹窗（超链接 / 备注 / 标签 / 公式 / 概要） */
+  const [prompt, setPrompt] = useState<{ kind: 'link' | 'note' | 'tag' | 'formula' | 'generalization'; value: string } | null>(null)
+  // 当前结构 / 主题（持久化到 docs.content 的仍是 SMM layout / theme 口径）
+  const [structure, setStructure] = useState<StructureType>(initialStructure)
+  const [theme, setThemeState] = useState<Record<string, unknown>>(initialTheme)
   const [activeThemeKey, setActiveThemeKey] = useState<string | null>(null)
-  const layoutRef = useRef(layout)
-  layoutRef.current = layout
+  const structureRef = useRef(structure)
+  structureRef.current = structure
+  const themeRef = useRef(theme)
+  themeRef.current = theme
 
-  /**
-   * 抖动治理用的两个闸门（见下方 ResizeObserver）：
-   *   · suppressUntilRef：右侧面板开合/滑入滑出期间直接忽略尺寸变化；
-   *   · lastSizeRef：只在宽高真的变化（>1px）时才 resize，切断
-   *     「resize → render → 再触发 resize」的自激回路。
-   */
-  const suppressUntilRef = useRef(0)
-  const lastSizeRef = useRef({ w: 0, h: 0 })
-  /** 面板开合期间完全跳过画布 resize（抽屉滑入/滑出每帧都在改布局） */
-  const onPanelToggle = useCallback(() => {
-    suppressUntilRef.current = Date.now() + 500
+  /** 主题快照 → 组件基础样式（卸载 / 变更时同步） */
+  const applyBase = useCallback((next: Record<string, unknown>) => {
+    apiRef.current?.setBase(smmThemeToBase(next))
   }, [])
 
-  titleRef.current = title
-
   // ---------- 画布初始化 ----------
-
   useEffect(() => {
-    const host = elRef.current
-    if (!host) return
-
-    const { data, reset } = parseMindmapJSON(initialContent)
-    if (reset) message.warning('内容格式异常，已重置默认思维导图')
-    latestRef.current = data.root
+    const { reset } = parseMindmapJSON(initialContent)
+    if (reset) message.warning('内容格式异常，已按默认思维导图展示')
+    latestRef.current = initialTree
     dirtyRef.current = false
     setStatus('editing')
     setSavedAt(null)
     setHasActive(false)
     setBrushing(false)
+    setAssocFrom(null)
     setScale(1)
     setInitFailed(false)
-
-    let mm: MindMap | null = null
-    let cancelled = false
-    let raf = 0
-    let attempts = 0
-
-    /**
-     * 构造画布。simple-mind-map 在容器宽高为 0 时会直接抛错，
-     * 而 effect 内抛错会让 React 卸载整棵树（整页白屏），
-     * 因此这里对「尺寸尚未就绪」做下一帧重试，并在持续失败时降级为可恢复的提示态。
-     */
-    const create = () => {
-      if (cancelled) return
-      try {
-        mm = new MindMap({
-          el: host,
-          data: data.root,
-          layout,
-          initRootNodePosition: ['center', 'center'],
-          enableAutoEnterTextEditWhenKeydown: true,
-          mousewheelAction: 'zoom',
-        })
-      } catch {
-        if (attempts++ < 20) {
-          raf = requestAnimationFrame(create)
-          return
-        }
-        setInitFailed(true)
-        message.error('画布初始化失败：容器尺寸异常，请刷新页面重试')
-        return
-      }
-      mindMapRef.current = mm
-      // 记录初始尺寸：ResizeObserver 首次回调（0 → N）不该被当成「真实变化」而触发一次 render
-      const r0 = host.getBoundingClientRect()
-      lastSizeRef.current = { w: Math.round(r0.width), h: Math.round(r0.height) }
-      // 默认主题配置快照：未叠加任何自定义样式时的基准，供主题预设「干净切换」与高亮匹配使用
-      try {
-        defaultThemeRef.current = JSON.parse(JSON.stringify(mm.getCustomThemeConfig() ?? {}))
-      } catch {
-        defaultThemeRef.current = {}
-      }
-      // 还原持久化的自定义主题配置（v2.1+）：
-      // 必须用 setThemeConfig 才会真正重算渲染用的 themeConfig（setTheme 仅接受已注册主题名，
-      // 传入对象不会生效），这样主题/基础样式/字体等样式在重载后保持用户修改后的样子（#31 修复点）。
-      if (data.theme && typeof data.theme === 'object') {
-        try {
-          mm.setThemeConfig(data.theme as never)
-        } catch {
-          /* 主题格式异常时忽略，按默认渲染 */
-        }
-      }
-      // 应用后高亮对应预设（与 setThemeConfig 后的真实配置比对）
-      try {
-        setActiveThemeKey(matchThemeKey(mm.getCustomThemeConfig() ?? {}, defaultThemeRef.current) ?? 'default')
-      } catch {
-        setActiveThemeKey('default')
-      }
-      setReady(true)
-
-      mm.on('data_change', (d: SmmNode) => {
-        latestRef.current = d
-        dirtyRef.current = true
-        setStatus('editing')
-        if (timerRef.current) clearTimeout(timerRef.current)
-        timerRef.current = setTimeout(() => void doSave('auto'), SAVE_DEBOUNCE_MS)
-      })
-      mm.on('node_active', (_node: unknown, activeNodeList: unknown[]) => {
-        setHasActive(activeNodeList.length > 0)
-      })
-      mm.on('scale', (s: number) => setScale(s))
-      mm.on('painter_start', () => setBrushing(true))
-      mm.on('painter_end', () => setBrushing(false))
-    }
-    create()
+    setReady(true)
 
     return () => {
-      cancelled = true
-      if (raf) cancelAnimationFrame(raf)
-      if (timerRef.current) clearTimeout(timerRef.current)
-      // 切换文档前若有未保存内容（含节点改动或样式改动），立即保存（fire-and-forget）。
-      // 直接读取画布实例的最新数据树与主题配置，避免依赖被节流的 data_change 事件导致漏存。
+      // 切换文档前若有未保存内容，立即保存（fire-and-forget），避免丢节点改动
       if (dirtyRef.current && latestRef.current) {
-        const liveMm = mindMapRef.current
-        const root = (liveMm?.getData?.() ?? latestRef.current) as SmmNode
-        const theme = liveMm?.getCustomThemeConfig?.() ?? undefined
-        void patchDoc(docId, { content: stringifyMindmap(root, theme ?? undefined, layoutRef.current), source: 'auto' }).catch(
-          () => undefined,
-        )
+        const tree = latestRef.current
+        const themeSnapshot = themeRef.current
+        void patchDoc(
+          docId,
+          { content: stringifyMindmap(mindNodeToSmm(tree), themeSnapshot, structureRef.current), source: 'auto' },
+        ).catch(() => undefined)
         dirtyRef.current = false
       }
-      mindMapRef.current = null
+      if (timerRef.current) clearTimeout(timerRef.current)
       setReady(false)
-      try {
-        mm?.destroy()
-      } catch {
-        /* 重复销毁等场景忽略 */
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId])
 
-  // 容器尺寸变化（左栏折叠/调宽、窗口缩放）时同步画布。
-  //
-  // 这里是「点击右侧工具条后画布剧烈抖动」的根因所在，三重防护：
-  //   1) **阈值判定**：simple-mind-map 的 resize() 在宽高变化时立刻 render()（整树重排 + 重绘），
-  //      而重绘又会让 ResizeObserver 再次回调 —— 形成自激回路。这里记录上次生效尺寸，
-  //      只有变化超过 1px 才真正 resize，回路在第一圈就被切断。
-  //   2) **抑制窗口**：右侧面板（antd Drawer 内联渲染在画布容器内）开合与滑入滑出动画期间
-  //      浏览器连续 reflow，这段时间内一律不 resize，动画结束后再补一次。
-  //   3) **rAF 节流**：同一帧内多次回调只处理最后一次。
+  /** 主题变化同步到画布基础样式 */
   useEffect(() => {
-    const host = elRef.current
+    if (!ready) return
+    applyBase(theme)
+  }, [theme, ready, applyBase])
+
+  /** 结构变化同步到画布（结构切换后组件会自行 fit） */
+  useEffect(() => {
+    if (!ready) return
+    apiRef.current?.setStructure(structure)
+  }, [structure, ready])
+
+  // 容器尺寸变化：面板开合 / 窗口缩放时重新适配视图（仅在未手动缩放时 fit，避免抢用户视角）
+  useEffect(() => {
+    const host = document.querySelector('.hk-mm-stage') as HTMLElement | null
     if (!host || typeof ResizeObserver === 'undefined') return
     let raf = 0
+    let last = { w: 0, h: 0 }
     const apply = () => {
       raf = 0
-      const mm = mindMapRef.current
-      if (!mm) return
-      const rect = host.getBoundingClientRect()
-      const w = Math.round(rect.width)
-      const h = Math.round(rect.height)
-      // 抑制窗口内只登记尺寸，不触发 render（动画结束后会自然再回调一次）
-      if (Date.now() < suppressUntilRef.current) {
-        lastSizeRef.current = { w, h }
-        return
-      }
-      const last = lastSizeRef.current
-      if (w > 0 && h > 0 && Math.abs(w - last.w) <= 1 && Math.abs(h - last.h) <= 1) return
-      lastSizeRef.current = { w, h }
-      try {
-        mm.resize()
-      } catch {
-        /* 销毁瞬间忽略 */
-      }
+      const api = apiRef.current
+      if (!api) return
+      const w = Math.round(host.clientWidth)
+      const h = Math.round(host.clientHeight)
+      if (w === last.w && h === last.h) return
+      last = { w, h }
+      if (api.getScale() === 1) api.fitView()
     }
     const ro = new ResizeObserver(() => {
       if (raf) cancelAnimationFrame(raf)
@@ -273,21 +179,12 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
   // 全屏切换后重新适配画布尺寸
   useEffect(() => {
     const t = setTimeout(() => {
-      const mm = mindMapRef.current
-      if (!mm) return
-      const host = elRef.current
-      if (host) {
-        const rect = host.getBoundingClientRect()
-        lastSizeRef.current = { w: Math.round(rect.width), h: Math.round(rect.height) }
-      }
-      try {
-        mm.resize()
-      } catch {
-        /* 忽略 */
-      }
+      if (fullscreen) apiRef.current?.fitView()
     }, 150)
     return () => clearTimeout(t)
   }, [fullscreen])
+
+  // ---------- 自动保存 ----------
 
   /** 防抖自动保存（节点编辑 / 主题·基础样式·字体等样式改动共用） */
   function scheduleSave() {
@@ -298,17 +195,11 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
 
   async function doSave(source: 'auto' | 'manual') {
     if (timerRef.current) clearTimeout(timerRef.current)
-    const liveMm = mindMapRef.current
-    if (!liveMm) return
-    // 直接读取画布实例的最新数据树与主题配置，确保刚改完样式就保存时不会漏存
-    // （setThemeConfig 不触发 data_change，主题必须主动读取实例而非依赖事件刷新）。
-    const root = (liveMm.getData?.() ?? latestRef.current) as SmmNode
-    const theme = liveMm.getCustomThemeConfig?.() ?? undefined
-    if (!root) return
+    const tree = latestRef.current
+    if (!tree) return
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyMindmap(root, theme ?? undefined, layoutRef.current), source })
-      latestRef.current = root
+      await patchDoc(docId, { content: stringifyMindmap(mindNodeToSmm(tree), themeRef.current, structureRef.current), source })
       dirtyRef.current = false
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
@@ -318,114 +209,174 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     }
   }
 
+  /**
+   * 画布数据变更：记录最新树 + 触发防抖保存。
+   * 注意这里不回写组件 data 属性（组件内部已经是最新树，回写会清空撤销历史）。
+   */
+  const handleChange = useCallback((tree: MindNode) => {
+    latestRef.current = tree
+    dirtyRef.current = true
+    setStatus('editing')
+    scheduleSave()
+  }, [])
+
   // ---------- 工具条基础设施 ----------
 
-  function requireMindMap(): MindMap | null {
-    const mm = mindMapRef.current
-    if (!mm) message.warning('画布尚未就绪')
-    return mm
+  /** 取画布句柄（未就绪时提示） */
+  function requireApi(): MindMapApi | null {
+    const api = apiRef.current
+    if (!api) message.warning('画布尚未就绪')
+    return api
   }
 
-  /** 取当前激活节点实例（无激活节点时提示） */
-  function requireActiveNode(mm: MindMap): SmmNodeInstance | null {
-    const list = (mm.renderer as unknown as { activeNodeList: SmmNodeInstance[] }).activeNodeList
-    const node = list.length > 0 ? list[list.length - 1] : null
-    if (!node) message.info('请先单击选中一个节点')
-    return node
+  /** 主题 / 基础样式统一入口：在当前已生效快照上合并 */
+  function applyThemePatch(patch: Record<string, unknown>) {
+    const next = deepMerge(themeRef.current, patch)
+    themeRef.current = next
+    setThemeState(next)
+    applyBase(next)
+    scheduleSave()
   }
 
-  /** 供浮动工具条使用的句柄（含激活节点判定与提示出口） */
   const handle = useMemo<MmHandle>(
     () => ({
-      get mm() {
-        return mindMapRef.current
-      },
+      api: apiRef.current,
       hasActive,
-      activeNode: () => {
-        const mm = mindMapRef.current
-        if (!mm) return null
-        return requireActiveNode(mm)
+      selectedId: () => apiRef.current?.getSelectedId() ?? null,
+      nodeStyle: () => apiRef.current?.getNodeStyle?.() ?? {},
+      setNodeStyle: (patch: Partial<MindNodeStyle>) => {
+        apiRef.current?.setNodeStyle(patch)
+        scheduleSave()
       },
-      requireMm: () => requireMindMap(),
+      setNodeShape: (shape: MindNodeShape) => {
+        apiRef.current?.setNodeStyle({ shape })
+        scheduleSave()
+      },
+      clearNodeStyles: () => {
+        apiRef.current?.clearNodeStyles()
+        scheduleSave()
+      },
+      theme: () => themeRef.current,
+      setTheme: (patch: Record<string, unknown>) => applyThemePatch(patch),
+      resetTheme: (preset?: Record<string, unknown>) => {
+        applyThemePatch(deepMerge({}, preset ?? {}))
+        setActiveThemeKey(null)
+      },
+      execCommand: (cmd: string, ...args: unknown[]) => {
+        const api = apiRef.current
+        if (!api) return
+        switch (cmd) {
+          case 'undo':
+            api.undo()
+            break
+          case 'redo':
+            api.redo()
+            break
+          case 'EXPAND_ALL':
+            api.expandAll()
+            break
+          case 'UNEXPAND_ALL':
+            api.collapseToDepth(Number(args[0]) || 2)
+            break
+          default:
+            break
+        }
+      },
+      setMode: (m) => {
+        apiRef.current?.setMode(m)
+        scheduleSave()
+      },
+      setWheelAction: (a) => apiRef.current?.setWheelAction(a),
+      setFreeDrag: (v) => apiRef.current?.setFreeDrag(v),
       toast: (msg, kind = 'info') => {
         message[kind](msg)
       },
-      // 当前已生效的自定义主题配置（实时从实例读取，供基础样式/字体累加式覆盖）
-      baseTheme: () => mindMapRef.current?.getCustomThemeConfig?.() ?? {},
-      // 默认主题配置基准（供主题预设干净切换与高亮匹配）
-      defaultTheme: () => defaultThemeRef.current,
-      scheduleSave: () => scheduleSave(),
+      scheduleSave,
     }),
-    // requireActiveNode / requireMindMap / scheduleSave 均为稳定引用或仅依赖 ref
+    // scheduleSave / applyThemePatch 均为稳定引用或仅依赖 ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasActive, ready, scheduleSave],
+    [hasActive, ready]
   )
 
   // ---------- 顶部工具条操作 ----------
 
-  function goBack() {
-    requireMindMap()?.execCommand('BACK')
+  function isRootSelected(): boolean {
+    const api = apiRef.current
+    return !!api && api.getSelectedId() === latestRef.current?.id
   }
 
-  function goForward() {
-    requireMindMap()?.execCommand('FORWARD')
-  }
-
-  /** 格式刷：开始/结束由 Painter 插件管理，状态通过 painter_start/end 事件回填 */
-  function toggleBrush() {
-    const mm = requireMindMap()
-    if (!mm) return
-    const painter = (mm as unknown as { painter?: MmPainter }).painter
-    if (!painter) {
-      message.warning('格式刷插件未就绪')
-      return
+  const requireSelection = (): boolean => {
+    if (!hasActive) {
+      message.info('请先单击选中一个节点')
+      return false
     }
+    return true
+  }
+
+  /** 格式刷：把源节点样式暂存，选中下一个节点时套用 */
+  const brushRef = useRef<MindNodeStyle | null>(null)
+  function toggleBrush() {
+    if (!requireApi()) return
     if (brushing) {
-      painter.endPainter?.()
+      brushRef.current = null
       setBrushing(false)
       message.info('已退出格式刷')
       return
     }
-    if (!requireActiveNode(mm)) return
-    painter.startPainter?.()
+    if (!requireSelection()) return
+    brushRef.current = apiRef.current?.getNodeStyle?.() ?? {}
+    setBrushing(true)
     message.success('已复制节点样式，点击其它节点即可应用')
   }
 
+  // 选中变化：格式刷 / 关联线拾取 在选中落地瞬间生效
+  useEffect(() => {
+    if (!hasActive) return
+    if (brushing && brushRef.current) {
+      apiRef.current?.setNodeStyle(brushRef.current)
+      scheduleSave()
+    }
+    if (assocFrom && hasActive) {
+      const api = apiRef.current
+      const to = api?.getSelectedId()
+      if (api && to && to !== assocFrom) {
+        api.addAssocLine(assocFrom, to)
+        setAssocFrom(null)
+        scheduleSave()
+        message.success('已生成关联线')
+      }
+    }
+  }, [hasActive]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function addChild() {
-    const mm = requireMindMap()
-    if (!mm) return
-    if (!requireActiveNode(mm)) return
-    mm.execCommand('INSERT_CHILD_NODE')
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    apiRef.current?.addChild()
   }
 
   function addSibling() {
-    const mm = requireMindMap()
-    if (!mm) return
-    const node = requireActiveNode(mm)
-    if (!node) return
-    if (node.isRoot) {
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    if (isRootSelected()) {
       message.info('根节点没有同级节点，请使用「添加子节点」')
       return
     }
-    mm.execCommand('INSERT_NODE')
+    apiRef.current?.addSibling(false)
   }
 
   function removeActiveNode() {
-    const mm = requireMindMap()
-    if (!mm) return
-    const node = requireActiveNode(mm)
-    if (!node) return
-    if (node.isRoot) {
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    if (isRootSelected()) {
       message.info('根节点不可删除')
       return
     }
-    mm.execCommand('REMOVE_NODE')
+    apiRef.current?.removeNode()
   }
 
   function pickImage() {
-    const mm = requireMindMap()
-    if (!mm) return
-    if (!requireActiveNode(mm)) return
+    if (!requireApi()) return
+    if (!requireSelection()) return
     imageInputRef.current?.click()
   }
 
@@ -433,72 +384,132 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const mm = mindMapRef.current
-    if (!mm) return
-    const node = requireActiveNode(mm)
-    if (!node) return
+    if (!requireApi()) return
+    if (!requireSelection()) return
     try {
       // 走秒传链路：节点图片重复插入时不重复传输字节（降级由 uploadFlow 内部保证）
       const up = await uploadWithDedup(file)
-      node.setImage?.({ url: up.url, title: up.filename, width: 120, height: 120 })
+      apiRef.current?.setImage({ url: up.url, title: up.filename, width: 120, height: 120 })
+      scheduleSave()
       message.success('图片已插入节点')
     } catch (err) {
       message.error((err as Error)?.message || '图片插入失败')
     }
   }
 
-  function runNodeCommand(command: string, tip: string) {
-    const mm = requireMindMap()
-    if (!mm) return
-    if (!requireActiveNode(mm)) return
-    mm.execCommand(command)
-    if (tip) message.info(tip)
+  /** 打开文本输入弹窗（超链接 / 备注 / 标签 / 公式 / 概要） */
+  function ask(kind: 'link' | 'note' | 'tag' | 'formula' | 'generalization') {
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    const api = apiRef.current
+    const current =
+      kind === 'link'
+        ? api?.getLink() ?? ''
+        : kind === 'note'
+          ? api?.getNote() ?? ''
+          : kind === 'tag'
+            ? (api?.getTags() ?? []).join('、')
+            : kind === 'formula'
+              ? api?.getFormula() ?? ''
+              : ''
+    setPrompt({ kind, value: current })
   }
 
-  function centerRoot() {
-    const mm = requireMindMap()
-    if (!mm) return
-    mm.renderer.setRootNodeCenter()
-    mm.view.reset()
-  }
-
-  function zoomIn() {
-    requireMindMap()?.view.enlarge()
-  }
-
-  function zoomOut() {
-    requireMindMap()?.view.narrow()
-  }
-
-  function resetZoom() {
-    requireMindMap()?.view.reset()
-  }
-
-  function fitCanvas() {
-    requireMindMap()?.view.fit()
-  }
-
-  function applyFont(family: string) {
-    const mm = requireMindMap()
-    if (!mm) return
-    setFontFamily(family)
-    setActiveThemeKey(null)
-    // 在「当前已生效配置」上叠加字体，setThemeConfig 才会真正重算渲染主题
-    const base = (mm.getCustomThemeConfig?.() ?? {}) as Record<string, unknown>
-    mm.setThemeConfig({
-      ...base,
-      root: { ...(base.root as Record<string, unknown>), fontFamily: family },
-      second: { ...(base.second as Record<string, unknown>), fontFamily: family },
-      node: { ...(base.node as Record<string, unknown>), fontFamily: family },
-    } as never)
+  function confirmPrompt() {
+    const api = apiRef.current
+    const p = prompt
+    setPrompt(null)
+    if (!api || !p) return
+    const value = p.value.trim()
+    switch (p.kind) {
+      case 'link':
+        api.setLink(value)
+        break
+      case 'note':
+        api.setNote(value)
+        break
+      case 'tag':
+        api.setTags(
+          value
+            .split(/[、,，\s]+/)
+            .filter(Boolean)
+        )
+        break
+      case 'formula':
+        api.setFormula(value)
+        break
+      case 'generalization': {
+        // 概要汇总到选中节点的子树末端：画一条虚线汇总线
+        const target = deepestChild(latestRef.current ?? ({} as MindNode))
+        api.setGeneralization(value ? { targetId: target, text: value } : null)
+        break
+      }
+      default:
+        break
+    }
     scheduleSave()
   }
 
-  async function exportPng() {
-    const mm = requireMindMap()
-    if (!mm) return
+  function addOuterFrame() {
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    apiRef.current?.setFrame({ color: '#2f6fed' })
+    scheduleSave()
+    message.info('已为选中节点及其子树添加外框')
+  }
+
+  function toggleAssociativeLine() {
+    if (!requireApi()) return
+    if (!requireSelection()) return
+    if (assocFrom) {
+      setAssocFrom(null)
+      message.info('已取消关联线拾取')
+      return
+    }
+    setAssocFrom(apiRef.current?.getSelectedId() ?? null)
+    message.info('再点击另一个节点即可生成关联线')
+  }
+
+  function centerRoot() {
+    requireApi()?.centerRoot()
+  }
+
+  function zoomIn() {
+    requireApi()?.zoomIn()
+  }
+
+  function zoomOut() {
+    requireApi()?.zoomOut()
+  }
+
+  function resetZoom() {
+    requireApi()?.resetView()
+  }
+
+  function fitCanvas() {
+    requireApi()?.fitView()
+  }
+
+  function applyFont(family: string) {
+    if (!requireApi()) return
+    setFontFamily(family)
+    setActiveThemeKey(null)
+    applyThemePatch(
+      family
+        ? {
+            fontFamily: family,
+            root: { fontFamily: family },
+            second: { fontFamily: family },
+            node: { fontFamily: family },
+          }
+        : {},
+    )
+  }
+
+  function exportPng() {
+    if (!requireApi()) return
     try {
-      await mm.export('png', true, titleRef.current || '思维导图')
+      apiRef.current?.exportPng()
     } catch {
       message.error('导出失败，请重试')
     }
@@ -506,17 +517,24 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
 
   /** 从当前导图数据生成缩进大纲文本 */
   const getOutline = useCallback(() => {
-    const root = latestRef.current as unknown as OutlineNode | null
+    const root = latestRef.current
     if (!root) return ''
     const lines: string[] = []
-    const walk = (n: OutlineNode, depth: number) => {
-      const text = n.data?.text ?? ''
-      lines.push(`${'    '.repeat(depth)}${depth > 0 ? '- ' : '# '}${text || '（无标题）'}`)
+    const walk = (n: MindNode, depth: number) => {
+      lines.push(`${'    '.repeat(depth)}${depth > 0 ? '- ' : '# '}${n.title || '（无标题）'}`)
       for (const c of n.children ?? []) walk(c, depth + 1)
     }
     walk(root, 0)
     return lines.join('\n')
   }, [])
+
+  const promptTitle: Record<string, string> = {
+    link: '设置超链接',
+    note: '节点备注',
+    tag: '节点标签（多个用顿号或逗号分隔）',
+    formula: 'LaTeX 公式（不含 $ 定界符）',
+    generalization: '概要文本（汇总到子树末端）',
+  }
 
   return (
     <div
@@ -527,13 +545,26 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
       }
     >
       {/* 画布与浮动工具条同层容器（工具条绝对定位在画布之上，不占布局高度） */}
-      {/* 画布与浮动工具条同层容器：工具条与面板抽屉都绝对定位，不参与布局，
-          因此画布宿主的尺寸只由本容器决定，面板开合不会改变它（避免 resize→render 抖动回路） */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fbfbfc', overflow: 'hidden' }}>
-        {/* simple-mind-map 自管理内部尺寸（拖拽画布平移 / 滚轮缩放）。
-            overflow:hidden —— 画布内容外溢时不产生滚动条，也就不可能反过来撑大本容器
-            （容器尺寸一旦被内容影响，就会和 ResizeObserver 形成抖动回路） */}
-        <div ref={elRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden' }} />
+        {/* 画布宿主：类名为 ResizeObserver 提供尺寸观测锚点 */}
+        <div className="hk-mm-stage" style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+          <MindMapCanvas
+            ref={apiRef}
+            data={initialTree}
+            editable
+            showToolbar={false}
+            fitOnMount
+            defaultConfig={{
+              structure: initialStructure,
+              themeId: 'classic-blue',
+              lineStyle: 'curve',
+              base: smmThemeToBase(initialTheme),
+            }}
+            onChange={handleChange}
+            onScaleChange={setScale}
+            onSelectChange={(id) => setHasActive(!!id)}
+          />
+        </div>
 
         {/* 画布初始化降级态（容器尺寸异常时不再整页白屏，给出可恢复入口） */}
         {initFailed && (
@@ -561,37 +592,33 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
           savedAt={savedAt}
           brushing={brushing}
           hasActive={hasActive}
-          onBack={goBack}
-          onForward={goForward}
+          onBack={() => handle.execCommand('undo')}
+          onForward={() => handle.execCommand('redo')}
           onToggleBrush={toggleBrush}
           onAddSibling={addSibling}
           onAddChild={addChild}
           onRemoveNode={removeActiveNode}
           onPickImage={pickImage}
-          onHyperlink={() => runNodeCommand('SET_NODE_HYPERLINK', '')}
-          onNote={() => runNodeCommand('SET_NODE_NOTE', '')}
-          onTag={() => runNodeCommand('SET_NODE_TAG', '')}
-          onGeneralization={() => runNodeCommand('ADD_GENERALIZATION', '请在选中节点上输入概要文本')}
-          onAssociativeLine={() => runNodeCommand('ADD_ASSOCIATIVE_LINE', '再点击另一个节点即可生成关联线')}
-          onFormula={() => runNodeCommand('INSERT_FORMULA', '')}
-          onOuterFrame={() => runNodeCommand('ADD_OUTER_FRAME', '已为选中节点添加外框')}
+          onHyperlink={() => ask('link')}
+          onNote={() => ask('note')}
+          onTag={() => ask('tag')}
+          onGeneralization={() => ask('generalization')}
+          onAssociativeLine={toggleAssociativeLine}
+          onFormula={() => ask('formula')}
+          onOuterFrame={addOuterFrame}
           onSave={() => void doSave('manual')}
           onOpenVersions={() => setVersionOpen(true)}
-          onExportPng={() => void exportPng()}
+          onExportPng={() => exportPng()}
         />
 
-        {/* onPanelToggle：面板开合期间通知画布跳过 resize（抽屉动画会连续 reflow） */}
         <MindmapSideToolbar
           handle={handle}
           getOutline={getOutline}
-          onPanelToggle={onPanelToggle}
-          layout={layout}
+          onPanelToggle={() => undefined}
+          layout={structureToSmmLayout(structure)}
           activeThemeKey={activeThemeKey}
           onLayoutChange={(next) => {
-            const mm = mindMapRef.current
-            if (!mm) return
-            mm.setLayout(next)
-            setLayout(next)
+            setStructure(smmLayoutToStructure(next))
             scheduleSave()
           }}
           onThemeKeyChange={setActiveThemeKey}
@@ -615,6 +642,23 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={(e) => void onImageChosen(e)} />
       </div>
 
+      <Modal
+        open={!!prompt}
+        title={prompt ? promptTitle[prompt.kind] : ''}
+        okText="确定"
+        cancelText="取消"
+        onOk={confirmPrompt}
+        onCancel={() => setPrompt(null)}
+        destroyOnClose
+      >
+        <Input
+          autoFocus
+          value={prompt?.value ?? ''}
+          onChange={(e) => setPrompt((p) => (p ? { ...p, value: e.target.value } : p))}
+          onPressEnter={confirmPrompt}
+        />
+      </Modal>
+
       <VersionDrawer
         open={versionOpen}
         docId={docId}
@@ -626,3 +670,6 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
     </div>
   )
 }
+
+// 让 SmmNode 类型在文件内被引用（存储契约的唯一入口在 lib/mindmap.ts）
+export type { SmmNode }

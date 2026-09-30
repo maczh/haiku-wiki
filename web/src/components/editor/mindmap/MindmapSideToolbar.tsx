@@ -9,7 +9,8 @@ import {
   SlidersOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
-import { deepMerge, MM_FONTS, MM_LAYOUTS, MM_SHAPES, MM_THEME_PRESETS, type MmHandle, type MmThemePreset } from './mmShared'
+import type { MindNodeShape } from '../../mindmap-vite/src/components/MindMap'
+import { MM_FONTS, MM_LAYOUTS, MM_SHAPES, MM_THEME_PRESETS, type MmHandle, type MmThemePreset } from './mmShared'
 
 interface Props {
   handle: MmHandle
@@ -75,40 +76,31 @@ export default function MindmapSideToolbar({
     run()
   }
 
-  /** 主题/基础样式统一入口：在当前已生效配置上做覆盖（setThemeConfig 才会真正重算渲染主题） */
+  /** 主题/基础样式统一入口：在当前已生效配置上做覆盖 */
   function applyThemePatch(patch: Record<string, unknown>, tip: string) {
-    const mm = handle.requireMm()
-    if (!mm) return
-    mm.setThemeConfig(deepMerge(handle.baseTheme(), patch) as never)
+    if (!handle.api) return
+    handle.setTheme(patch)
     onThemeKeyChange(null)
     setBaseTick((n) => n + 1)
     handle.scheduleSave()
     handle.toast(tip, 'success')
   }
 
-  /** 取当前主题配置值（用于面板回显） */
+  /** 取当前基础样式值（用于面板回显） */
   function themeValue(key: string, fallback: unknown): unknown {
     void baseTick
-    const mm = handle.mm
-    if (!mm) return fallback
-    const t = (mm.getCustomThemeConfig?.() ?? {}) as Record<string, unknown>
-    return t[key] ?? fallback
+    const v = handle.theme()
+    return v[key] ?? fallback
   }
 
-  const nodeStyle: Record<string, unknown> = (() => {
+  const nodeStyle = (() => {
     void styleTick
-    if (!handle.mm || !handle.hasActive) return {}
-    try {
-      return (handle.activeNode()?.getData?.().style ?? {}) as Record<string, unknown>
-    } catch {
-      return {}
-    }
+    if (!handle.hasActive) return {} as Record<string, unknown>
+    return handle.nodeStyle() as Record<string, unknown>
   })()
 
-  function setNodeStyle(prop: string, value: unknown) {
-    const node = handle.activeNode()
-    if (!node) return
-    node.setStyle?.(prop, value)
+  function patchNodeStyle(patch: Record<string, unknown>) {
+    handle.setNodeStyle(patch)
     setStyleTick((n) => n + 1)
   }
 
@@ -129,7 +121,7 @@ export default function MindmapSideToolbar({
         {!handle.hasActive && <Alert type="info" showIcon message="请先在画布中单击选中一个节点" style={{ marginBottom: 12 }} />}
         <Section title="文字">
           <Row label="颜色">
-            <ColorField value={(nodeStyle.color as string) ?? ''} onChange={(v) => setNodeStyle('color', v)} />
+            <ColorField value={(nodeStyle.color as string) ?? ''} onChange={(v) => patchNodeStyle({ color: v })} />
           </Row>
           <Row label="字号">
             <InputNumber
@@ -138,26 +130,26 @@ export default function MindmapSideToolbar({
               max={48}
               value={Number(nodeStyle.fontSize ?? 14)}
               disabled={!handle.hasActive}
-              onChange={(v) => setNodeStyle('fontSize', Number(v ?? 14))}
+              onChange={(v) => patchNodeStyle({ fontSize: Number(v ?? 14) })}
               addonAfter="px"
             />
             <Space size={4} style={{ marginLeft: 8 }}>
-              <Check glyph="B" title="加粗" active={nodeStyle.fontWeight === 'bold'} disabled={!handle.hasActive} onClick={() => setNodeStyle('fontWeight', nodeStyle.fontWeight === 'bold' ? 'normal' : 'bold')} />
-              <Check glyph="I" title="斜体" active={nodeStyle.fontStyle === 'italic'} disabled={!handle.hasActive} onClick={() => setNodeStyle('fontStyle', nodeStyle.fontStyle === 'italic' ? 'normal' : 'italic')} italic />
+              <Check glyph="B" title="加粗" active={nodeStyle.fontWeight === 'bold'} disabled={!handle.hasActive} onClick={() => patchNodeStyle({ fontWeight: nodeStyle.fontWeight === 'bold' ? 'normal' : 'bold' })} />
+              <Check glyph="I" title="斜体" active={nodeStyle.fontStyle === 'italic'} disabled={!handle.hasActive} onClick={() => patchNodeStyle({ fontStyle: nodeStyle.fontStyle === 'italic' ? 'normal' : 'italic' })} italic />
             </Space>
           </Row>
           <Row label="装饰">
             <Checkbox
               disabled={!handle.hasActive}
               checked={nodeStyle.textDecoration === 'underline'}
-              onChange={(e) => setNodeStyle('textDecoration', e.target.checked ? 'underline' : 'none')}
+              onChange={(e) => patchNodeStyle({ textDecoration: e.target.checked ? 'underline' : 'none' })}
             >
               下划线
             </Checkbox>
             <Checkbox
               disabled={!handle.hasActive}
               checked={nodeStyle.textDecoration === 'line-through'}
-              onChange={(e) => setNodeStyle('textDecoration', e.target.checked ? 'line-through' : 'none')}
+              onChange={(e) => patchNodeStyle({ textDecoration: e.target.checked ? 'line-through' : 'none' })}
             >
               删除线
             </Checkbox>
@@ -168,10 +160,10 @@ export default function MindmapSideToolbar({
 
         <Section title="外观">
           <Row label="填充色">
-            <ColorField value={(nodeStyle.fillColor as string) ?? ''} onChange={(v) => setNodeStyle('fillColor', v)} />
+            <ColorField value={(nodeStyle.fillColor as string) ?? ''} onChange={(v) => patchNodeStyle({ fillColor: v })} />
           </Row>
           <Row label="边框色">
-            <ColorField value={(nodeStyle.borderColor as string) ?? ''} onChange={(v) => setNodeStyle('borderColor', v)} />
+            <ColorField value={(nodeStyle.borderColor as string) ?? ''} onChange={(v) => patchNodeStyle({ borderColor: v })} />
           </Row>
           <Row label="边框宽">
             <InputNumber
@@ -180,7 +172,7 @@ export default function MindmapSideToolbar({
               max={10}
               value={Number(nodeStyle.borderWidth ?? 0)}
               disabled={!handle.hasActive}
-              onChange={(v) => setNodeStyle('borderWidth', Number(v ?? 0))}
+              onChange={(v) => patchNodeStyle({ borderWidth: Number(v ?? 0) })}
               addonAfter="px"
             />
           </Row>
@@ -191,7 +183,7 @@ export default function MindmapSideToolbar({
               max={40}
               value={Number(nodeStyle.borderRadius ?? 0)}
               disabled={!handle.hasActive}
-              onChange={(v) => setNodeStyle('borderRadius', Number(v ?? 0))}
+              onChange={(v) => patchNodeStyle({ borderRadius: Number(v ?? 0) })}
               addonAfter="px"
             />
           </Row>
@@ -204,9 +196,7 @@ export default function MindmapSideToolbar({
               value={(nodeStyle.shape as string) || undefined}
               options={MM_SHAPES.map((s) => ({ value: s.value, label: s.label }))}
               onChange={(v) => {
-                const node = handle.activeNode()
-                if (!node) return
-                node.setShape?.(v)
+                handle.setNodeShape(v as MindNodeShape)
                 setStyleTick((n) => n + 1)
               }}
             />
@@ -217,7 +207,7 @@ export default function MindmapSideToolbar({
 
         <Section title="连线（该节点与父节点之间）">
           <Row label="颜色">
-            <ColorField value={(nodeStyle.lineColor as string) ?? ''} onChange={(v) => setNodeStyle('lineColor', v)} />
+            <ColorField value={(nodeStyle.lineColor as string) ?? ''} onChange={(v) => patchNodeStyle({ lineColor: v })} />
           </Row>
           <Row label="宽度">
             <InputNumber
@@ -226,7 +216,7 @@ export default function MindmapSideToolbar({
               max={10}
               value={Number(nodeStyle.lineWidth ?? 2)}
               disabled={!handle.hasActive}
-              onChange={(v) => setNodeStyle('lineWidth', Number(v ?? 2))}
+              onChange={(v) => patchNodeStyle({ lineWidth: Number(v ?? 2) })}
               addonAfter="px"
             />
           </Row>
@@ -238,9 +228,8 @@ export default function MindmapSideToolbar({
             size="small"
             disabled={!handle.hasActive}
             onClick={() => {
-              const mm = handle.requireMm()
-              if (!mm) return
-              mm.execCommand('REMOVE_CUSTOM_STYLES')
+              if (!handle.api) return
+              handle.clearNodeStyles()
               setStyleTick((n) => n + 1)
               handle.toast('已清除自定义样式，恢复主题默认', 'success')
             }}
@@ -372,14 +361,8 @@ export default function MindmapSideToolbar({
               onClick={() =>
                 // 主题切换会整树重排：连点去重，避免连续 render 引起的视觉抖动
                 throttleCmd(`theme:${preset.key}`, () => {
-                  const mm = handle.requireMm()
-                  if (!mm) return
-                  // 以「默认主题配置」为基准做干净切换（setThemeConfig 才会真正重算渲染主题）
-                  mm.setThemeConfig(
-                    preset.key === 'default'
-                      ? {}
-                      : (deepMerge(handle.defaultTheme(), preset.theme) as never),
-                  )
+                  // 以「默认主题配置」为基准做干净切换
+                  handle.resetTheme(preset.theme)
                   onThemeKeyChange(preset.key)
                   setBaseTick((n) => n + 1)
                   handle.scheduleSave()
@@ -448,10 +431,8 @@ export default function MindmapSideToolbar({
               size="small"
               checked={mode === 'readonly'}
               onChange={(v) => {
-                const mm = handle.requireMm()
-                if (!mm) return
                 const next = v ? 'readonly' : 'edit'
-                mm.setMode(next)
+                handle.setMode(next)
                 setMode(next)
                 handle.toast(v ? '已切换为只读模式' : '已恢复编辑模式', 'success')
               }}
@@ -467,9 +448,7 @@ export default function MindmapSideToolbar({
                 { value: 'move', label: '平移画布' },
               ]}
               onChange={(v: 'zoom' | 'move') => {
-                const mm = handle.requireMm()
-                if (!mm) return
-                mm.updateConfig({ mousewheelAction: v })
+                handle.setWheelAction(v)
                 setWheel(v)
               }}
             />
@@ -479,9 +458,7 @@ export default function MindmapSideToolbar({
               size="small"
               checked={freeDrag}
               onChange={(v) => {
-                const mm = handle.requireMm()
-                if (!mm) return
-                mm.updateConfig({ enableFreeDrag: v })
+                handle.setFreeDrag(v)
                 setFreeDrag(v)
                 handle.toast(v ? '已开启画布自由拖拽' : '已关闭画布自由拖拽', 'success')
               }}
@@ -497,7 +474,7 @@ export default function MindmapSideToolbar({
               block
               size="small"
               onClick={() => {
-                handle.requireMm()?.execCommand('EXPAND_ALL')
+                handle.execCommand('EXPAND_ALL')
                 handle.toast('已展开全部节点')
               }}
             >
@@ -507,7 +484,7 @@ export default function MindmapSideToolbar({
               block
               size="small"
               onClick={() => {
-                handle.requireMm()?.execCommand('UNEXPAND_ALL', false, 2)
+                handle.execCommand('UNEXPAND_ALL', 2)
                 handle.toast('已收起到二级节点')
               }}
             >

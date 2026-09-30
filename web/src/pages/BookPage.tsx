@@ -47,7 +47,7 @@ import TemplateGallery from '../components/template/TemplateGallery'
 import TemplatePreview from '../components/template/TemplatePreview'
 import { createTemplate, listTemplateCategories, type DocTemplate } from '../api/templates'
 
-// 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
+// 编辑器按需加载：Vditor / 思维导图（mindmap-vite，含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
 const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
 const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))

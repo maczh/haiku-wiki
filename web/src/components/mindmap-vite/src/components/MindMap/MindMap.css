@@ -1,0 +1,984 @@
+/* ============================ 容器 ============================ */
+.mm-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e6e8eb;
+  border-radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    "Segoe UI", sans-serif;
+  color: #1f2329;
+}
+
+/* ============================ 工具栏 ============================ */
+.mm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  height: 44px;
+  padding: 0 10px;
+  background: #fff;
+  border-bottom: 1px solid #eceef1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.mm-toolbar::-webkit-scrollbar {
+  height: 4px;
+}
+.mm-toolbar::-webkit-scrollbar-thumb {
+  background: #dfe3e8;
+  border-radius: 4px;
+}
+
+.mm-tb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.mm-tb-sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 7px;
+  background: #e6e8eb;
+}
+
+.mm-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #4a5262;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.mm-tb-btn:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+.mm-tb-btn.is-on,
+.mm-tb-btn.is-open {
+  background: #eaf1ff;
+  border-color: #c9dcff;
+  color: #2f6fed;
+}
+.mm-tb-btn:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+.mm-tb-letter {
+  font-size: 15px;
+  font-family: -apple-system, "Segoe UI", sans-serif;
+  width: 30px;
+}
+
+.mm-tb-select {
+  flex: none;
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #4a5262;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  text-align: center;
+}
+.mm-tb-select:hover {
+  background: #f2f4f7;
+}
+.mm-tb-select:focus {
+  border-color: #c9dcff;
+  background: #fff;
+}
+.mm-tb-size {
+  width: 44px;
+}
+.mm-tb-font {
+  width: 82px;
+  text-align: left;
+  padding-left: 8px;
+}
+
+.mm-tb-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.mm-tb-combo .mm-dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e34d59;
+}
+.mm-tb-combo-text {
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.mm-color-trigger {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 30px;
+  height: 30px;
+  position: relative;
+}
+.mm-color-letter {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 15px;
+  margin-top: -1px;
+}
+.mm-color-bar {
+  display: block;
+  width: 16px;
+  height: 3px;
+  margin-top: 1px;
+  border-radius: 2px;
+}
+
+.mm-file-input {
+  display: none;
+}
+
+/* ============================ 浮层 ============================ */
+.mm-pop {
+  position: relative;
+  flex: none;
+}
+/* 面板经 Portal 挂到 body，使用 fixed 定位，避免被工具栏 / 画布的 overflow 裁剪。
+   具体 top / left / width / maxHeight 由 Popover 内联计算。 */
+.mm-pop-panel {
+  position: fixed;
+  z-index: 1000;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e6e8eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(24, 35, 56, 0.14);
+  animation: mm-pop-in 0.12s ease;
+}
+@keyframes mm-pop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.mm-pop-label {
+  padding: 6px 8px 4px;
+  font-size: 12px;
+  color: #8b95a5;
+}
+.mm-pop-tip {
+  padding: 4px 8px 8px;
+  font-size: 11px;
+  color: #a2aab6;
+  line-height: 1.5;
+}
+.mm-pop-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #3d4451;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.mm-pop-action:hover {
+  background: #f2f4f7;
+}
+.mm-pop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: #3d4451;
+}
+.mm-pop-row input[type="color"] {
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.mm-marker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 2px 4px 8px;
+}
+.mm-marker-chip {
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.62;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.mm-marker-chip:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.mm-marker-chip.is-on {
+  opacity: 1;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #2f6fed;
+}
+
+.mm-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
+  padding: 2px 4px 8px;
+}
+.mm-swatch {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.mm-swatch.is-on {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #2f6fed;
+}
+.mm-swatch.is-none {
+  background-image: linear-gradient(
+    135deg,
+    transparent 46%,
+    #e34d59 46%,
+    #e34d59 54%,
+    transparent 54%
+  );
+}
+
+.mm-canvas-styles {
+  display: flex;
+  gap: 10px;
+  padding: 4px 6px 10px;
+}
+.mm-canvas-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 6px;
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.mm-canvas-card:hover {
+  border-color: #c9dcff;
+}
+.mm-canvas-card.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+
+.mm-layout-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 6px 8px;
+}
+.mm-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #3d4451;
+  cursor: pointer;
+}
+.mm-check-row:hover {
+  background: #f7f8fa;
+}
+.mm-check-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #2f6fed;
+  cursor: pointer;
+}
+
+.mm-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px;
+}
+.mm-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 4px;
+  font-size: 12px;
+  color: #4a5262;
+}
+.mm-shortcut-row kbd {
+  flex: none;
+  min-width: 86px;
+  padding: 2px 6px;
+  border: 1px solid #dfe3e8;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #f7f8fa;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #5b6472;
+  text-align: center;
+}
+
+/* ============================ 画布 ============================ */
+.mm-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+.mm-stage:active {
+  cursor: grabbing;
+}
+.mm-stage.is-editable:focus-visible {
+  box-shadow: inset 0 0 0 2px #c9dcff;
+}
+.mm-svg {
+  display: block;
+}
+.mm-node .mm-rect {
+  transition: filter 0.15s ease;
+}
+.mm-node:hover .mm-rect {
+  filter: drop-shadow(0 2px 7px rgba(24, 35, 56, 0.16));
+}
+.mm-text {
+  pointer-events: none;
+  user-select: none;
+}
+.mm-collapse {
+  cursor: pointer;
+}
+.mm-collapse:hover .mm-collapse-dot {
+  filter: brightness(1.12);
+}
+
+/* ============================ 内联编辑框 ============================ */
+.mm-editor {
+  position: absolute;
+  z-index: 12;
+}
+.mm-editor-input {
+  display: block;
+  box-sizing: border-box;
+  padding: 9px 15px;
+  border: 2px solid #2f6fed;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(47, 111, 237, 0.18);
+  font-family: inherit;
+}
+
+/* ============================ 左下角停靠区 ============================ */
+/* 缩放控件 + 紧邻其右侧的位置预览面板，作为一个整体停靠在左下角 */
+.mm-dock-bl {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 11;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  /* 容器本身不拦截画布事件，仅子元素可交互 */
+  pointer-events: none;
+}
+.mm-dock-bl > * {
+  pointer-events: auto;
+}
+
+/* ============================ 缩放控件 ============================ */
+.mm-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 5px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e6e8eb;
+  border-radius: 9px;
+  box-shadow: 0 2px 10px rgba(24, 35, 56, 0.07);
+  backdrop-filter: blur(4px);
+}
+.mm-zoom .mm-tb-sep {
+  margin: 0 4px;
+}
+.mm-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #4a5262;
+  cursor: pointer;
+}
+.mm-zoom-btn:hover {
+  background: #f2f4f7;
+}
+.mm-zoom-value {
+  min-width: 48px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #4a5262;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.mm-zoom-value:hover {
+  background: #f2f4f7;
+}
+/* 竖向排布（参照截图 4） */
+.mm-zoom.is-vertical {
+  flex-direction: column;
+}
+.mm-zoom-sep {
+  width: 18px;
+  height: 1px;
+  margin: 2px auto;
+  background: #e6e8eb;
+}
+
+/* ============================ 缩略图（位置预览） ============================ */
+.mm-minimap {
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e6e8eb;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(24, 35, 56, 0.08);
+  backdrop-filter: blur(4px);
+}
+.mm-minimap-svg {
+  display: block;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.mm-minimap.is-hover {
+  border-color: #c9dcff;
+}
+.mm-minimap-tip {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #a2aab6;
+  text-align: center;
+}
+
+/* ============================ 工具栏新面板 ============================ */
+.mm-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mm-shape-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 2px 4px 8px;
+}
+.mm-shape-chip {
+  height: 28px;
+  border: 1px solid #e6e8eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.mm-shape-chip:hover {
+  border-color: #c9dcff;
+}
+.mm-shape-chip.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+
+.mm-pop-select {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 2px 8px 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 7px;
+  background: #fff;
+  color: #3d4451;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.mm-pop-select:focus {
+  border-color: #2f6fed;
+}
+.mm-pop-range {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 2px 8px 8px;
+  accent-color: #2f6fed;
+  cursor: pointer;
+}
+
+.mm-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 2px 4px 8px;
+}
+.mm-theme-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid #e6e8eb;
+  border-radius: 7px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.mm-theme-card:hover {
+  border-color: #c9dcff;
+}
+.mm-theme-card.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+.mm-theme-swatch {
+  flex: none;
+  width: 22px;
+  height: 16px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.mm-structure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+  padding: 2px 4px 8px;
+}
+.mm-structure-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 5px;
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.mm-structure-card:hover {
+  border-color: #c9dcff;
+}
+.mm-structure-card.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+
+.mm-seg {
+  display: flex;
+  gap: 4px;
+  padding: 2px 6px 8px;
+}
+.mm-seg-btn {
+  flex: 1;
+  height: 28px;
+  border: 1px solid #e6e8eb;
+  border-radius: 7px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mm-seg-btn.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+
+.mm-prio-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 2px 4px 8px;
+}
+.mm-prio-chip {
+  height: 28px;
+  border: 1px solid #e6e8eb;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.mm-prio-chip:hover {
+  transform: translateY(-1px);
+}
+.mm-prio-chip.is-on {
+  border-color: transparent;
+}
+
+.mm-prog-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+  padding: 2px 4px 8px;
+}
+.mm-prog-chip {
+  height: 26px;
+  border: 1px solid #e6e8eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mm-prog-chip:hover {
+  border-color: #8bc34a;
+}
+.mm-prog-chip.is-on {
+  border-color: #8bc34a;
+  background: #f1f8e9;
+  color: #4e7d22;
+}
+
+.mm-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+  padding: 2px 4px 8px;
+}
+.mm-icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #e6e8eb;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.mm-icon-chip:hover {
+  border-color: #c9dcff;
+  background: #f7f8fa;
+}
+.mm-icon-chip.is-on {
+  border-color: #2f6fed;
+  background: #eaf1ff;
+}
+.mm-icon-emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* ==================== 节点右键环形功能菜单 ==================== */
+.mm-radial {
+  position: absolute;
+  z-index: 40;
+  width: 260px;
+  height: 260px;
+  margin: -130px 0 0 -130px; /* 以节点中心为圆心 */
+  animation: mm-radial-in 0.16s ease-out;
+  /* 圆盘半透明后，空白处不应再挡住底下的节点：只有按钮本身可点 */
+  pointer-events: none;
+}
+@keyframes mm-radial-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* 深色圆盘底衬，外缘渐隐 */
+.mm-radial-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* 色标按「圆盘核心」的相对明暗排布，整体透明度由下面的 opacity 统一控制 */
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(64, 69, 80, 0.96) 0%,
+    rgba(64, 69, 80, 0.96) 58%,
+    rgba(76, 82, 94, 0.92) 70%,
+    rgba(96, 103, 116, 0.6) 84%,
+    rgba(118, 125, 138, 0.16) 94%,
+    rgba(128, 135, 148, 0) 100%
+  );
+  box-shadow: 0 16px 44px rgba(15, 22, 36, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  /* 半透明圆底：80% 透明度（= 不透明度 20%），底下的脑图内容可透出。
+     想调整透明度只改这一个数值即可（例如 0.35 / 0.5）。 */
+  opacity: 0.2;
+  pointer-events: none;
+}
+.mm-radial-btn,
+.mm-radial-center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 62px;
+  height: 62px;
+  margin: -31px 0 0 -31px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-family: inherit;
+  cursor: pointer;
+  pointer-events: auto; /* 覆盖 .mm-radial 的穿透，仅按钮本身可交互 */
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+.mm-radial-btn {
+  background: #fff;
+  color: #1f2329;
+  box-shadow: 0 3px 12px rgba(15, 22, 36, 0.24);
+}
+.mm-radial-btn b {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.mm-radial-btn span {
+  font-size: 10px;
+  line-height: 1.1;
+  color: #9aa2ae;
+  white-space: nowrap;
+}
+.mm-radial-btn:hover:not(:disabled) {
+  background: #f2f6ff;
+  color: #2f6fed;
+  transform: scale(1.07);
+  box-shadow: 0 6px 18px rgba(47, 111, 237, 0.28);
+}
+.mm-radial-btn:hover:not(:disabled) span {
+  color: #7d97d6;
+}
+.mm-radial-btn:disabled {
+  color: #c3c8d1;
+  cursor: not-allowed;
+  box-shadow: 0 2px 8px rgba(15, 22, 36, 0.14);
+}
+.mm-radial-btn:disabled span {
+  color: #d8dbe1;
+}
+.mm-radial-center {
+  left: 50%;
+  top: 50%;
+  background: linear-gradient(180deg, #f0605a, #e04a44);
+  color: #fff;
+  box-shadow: 0 5px 16px rgba(224, 74, 68, 0.44);
+}
+.mm-radial-center b {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.mm-radial-center span {
+  font-size: 10.5px;
+  line-height: 1.1;
+  opacity: 0.85;
+}
+.mm-radial-center:hover {
+  background: linear-gradient(180deg, #f36e68, #e5544e);
+  transform: scale(1.06);
+}
+
+/* ============================ 提示 / 通知 ============================ */
+.mm-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 20px;
+  z-index: 9;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  color: #9aa2ae;
+  font-size: 12px;
+  pointer-events: none;
+}
+.mm-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 30;
+  transform: translateX(-50%);
+  padding: 9px 16px;
+  background: #232a35;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(24, 35, 56, 0.26);
+  animation: mm-toast-in 0.18s ease;
+}
+.mm-toast.is-err {
+  background: #c23b45;
+}
+@keyframes mm-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ============================ 模态框 ============================ */
+.mm-modal-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 35, 56, 0.28);
+}
+.mm-modal {
+  width: min(420px, 86%);
+  padding: 18px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(24, 35, 56, 0.24);
+}
+.mm-modal-title {
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.mm-modal-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1f2329;
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+}
+.mm-modal-input:focus {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+.mm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.mm-btn-ghost,
+.mm-btn-primary {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.mm-btn-ghost {
+  border: 1px solid #dcdfe6;
+  background: #fff;
+  color: #4a5262;
+}
+.mm-btn-ghost:hover {
+  background: #f7f8fa;
+}
+.mm-btn-primary {
+  border: 1px solid #2f6fed;
+  background: #2f6fed;
+  color: #fff;
+}
+.mm-btn-primary:hover {
+  background: #2a63d4;
+}

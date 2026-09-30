@@ -3,6 +3,9 @@
 > 模板手册见技能 haiku-wiki-template-authoring 与 tools/verify/README.md。
 
 ## 构建
+- 思维导图（v1-mm 起）用 vendored 组件 `src/components/mindmap-vite/src`；`simple-mind-map` 已下线。
+  适配层 `src/lib/mindmap.smm.ts` 是 SMM 契约 ⇄ `MindNode` 唯一转换口；保存必须
+  `stringifyMindmap(mindNodeToSmm(tree), theme, layout)`。
 - Go+Gin+GORM+JWT 后端（embed 托管 dist）；Vite5+React18 前端，编辑器全自托管。
 - Go 只能用系统 `/usr/local/go/bin`（go.mod 要 1.25）；一条龙 `bash tools/build/build-embed.sh`。
 - vite/npm build 前须 `CODEBUDDY_SAFE_DELETE_ENABLED=0`；手动 rsync 后必须补回 `server/internal/static/dist/.gitkeep`（否则 build-embed 静默跳过 go build）。
@@ -10,6 +13,8 @@
 
 ## 实测铁律
 - DOM 测试用无头 Chrome：`/opt/google/chrome/chrome --headless=new --no-proxy-server --no-sandbox`；curl 加 `--noproxy '*'`；截图高度=窗口高度。
+- 无头 Chrome 可用，但 **`HOME` 必须是 `/home/Macro`（大写 M，小写会 FATAL `Failed to get the path for 1001`）**；起服务与跑 Chrome 放同一条命令（后台服务跨调用会被沙箱回收）。`agent-browser` 没装，`tools/verify/*` 跑不了。
+  纯逻辑校验走临时入口 + `esbuild --bundle --platform=node --format=cjs` + 托管 node 跑断言（构建与运行放同一条非沙箱命令，否则 `~/hk-tmp` 写入会被回滚）。
 - 后台进程两次工具调用间被回收：起服务+验证+停服务放同一命令或 `setsid`。
 - 本机 shell 无 HOME：脚本 `export HOME=${HOME:-/home/macro}`，Node 用 `os.homedir()`；禁止写死 /Users/macro 路径。
 - `html/body` 必须保持 `overflow-x: clip`（不是 hidden，否则 H5 触摸划屏失灵，勿回退）。

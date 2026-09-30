@@ -3,27 +3,11 @@
 // 兼容：v1 旧格式（{"version":1,"tree":{"text":…,"children":[…]}}）读取时递归升级为 v2，
 // 旧文档升级后下次保存自然落为 v2。
 
-export interface SmmNodeData {
-  text: string
-  /** 是否展开子节点（simple-mind-map 节点属性） */
-  expand: boolean
-  /** 其余 simple-mind-map 节点属性（uid 等）原样透传 */
-  [key: string]: unknown
-}
+// 存储节点类型统一定义在「适配层」（mindmap.smm.ts），这里引入并再导出，
+// 保证编辑器 / 阅读 / 模板预览引用的是同一份契约。
+import type { MindmapJSON, SmmNode, SmmNodeData } from './mindmap.smm'
 
-export interface SmmNode {
-  data: SmmNodeData
-  children: SmmNode[]
-}
-
-export interface MindmapJSON {
-  version: 2
-  root: SmmNode
-  /** 布局（simple-mind-map 的 layout，v2.2 起持久化；旧文档无此字段） */
-  layout?: string
-  /** 主题/全局样式（simple-mind-map 的 opt.theme 快照，v2.1 起持久化；旧文档无此字段） */
-  theme?: Record<string, unknown>
-}
+export type { MindmapJSON, SmmNode, SmmNodeData } from './mindmap.smm'
 
 /** v1 旧格式节点（自研树） */
 interface V1Node {
