@@ -498,10 +498,6 @@ export const MindMap = forwardRef<MindMapApi, MindMapProps>(function MindMap(
   );
 
   const linkWidth = base.linkWidth ?? theme.linkWidth;
-  /** 连线线型：实线 / 虚线 / 从粗到细（taper 与虚线互斥） */
-  const linkPattern = base.linkPattern ?? "solid";
-  /** 箭头方向：无 / 向内（父端朝父）/ 向外（子端朝子） */
-  const linkArrow = base.linkArrow ?? "none";
   /** 连线配色：auto 彩色（各分支主题色）/ single 单色（linkColor 统一） */
   const linkColorMode = base.linkColorMode ?? "auto";
   const radius = base.radius ?? theme.radius;

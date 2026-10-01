@@ -78,6 +78,7 @@ export * from "./tree";
 
 /* ------------------------- 文件读写（导入 / 导出） ------------------------- */
 export {
+  mapFileStructure,
   parseMindmapFile,
   exportTree,
   downloadBlob,

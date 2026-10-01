@@ -96,7 +96,6 @@ export const IMAGE_BOX = 40;
 /** 缩略图与文字之间的间距 */
 const IMAGE_GAP = 6;
 /** 标签小色块高度与水平间距 */
-const TAG_H = 16;
 const TAG_PAD_X = 6;
 const TAG_GAP = 4;
 

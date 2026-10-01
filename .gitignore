@@ -23,8 +23,11 @@ server/internal/static/dist/*
 !server/internal/static/dist/.gitkeep
 .Trash-0/
 
-# 运行数据
-data/
+# 运行数据（只忽略仓库根的运行数据目录；
+# 注意不能用裸 `data/` —— 它会连 vendored 组件包
+# web/src/components/mindmap-vite/src/data/adapter.ts 一起忽略，
+# 导致全新克隆时 MindMap/index.ts 引用一个不存在的文件）
+/server/data/
 *.db
 *.db-shm
 *.db-wal
