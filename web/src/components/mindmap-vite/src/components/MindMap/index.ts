@@ -9,6 +9,7 @@ export type {
   MindNode,
   MindNodeShape,
   MindNodeStyle,
+  MindBorderStyle,
   MindNodeImage,
   MindNodeFrame,
   MindGeneralization,
@@ -21,6 +22,9 @@ export type {
   LineStyle,
   StructureType,
   TextDefaults,
+  LinkPattern,
+  LinkArrow,
+  LinkColorMode,
 } from "./types";
 export {
   DEFAULT_CONFIG,
@@ -28,6 +32,11 @@ export {
   FONT_FAMILIES,
   FONT_SIZES,
   SHAPES,
+  BORDER_STYLES,
+  BORDER_DASH,
+  LINK_PATTERNS,
+  LINK_ARROWS,
+  LINK_COLOR_MODES,
 } from "./types";
 
 export { layoutTree, nodeSize, textCenterX } from "./layout";

@@ -48,6 +48,11 @@ export interface MindLink {
   sgn: 1 | -1;
   /** 预计算路径（时间轴 / 鱼骨图等复杂连线） */
   path?: string;
+  /**
+   * 是否画成直线（lineStyle = "straight"）。
+   * 由 layoutTree 在出口统一按 lineStyle 回填，各布局函数无需关心这个形态差异。
+   */
+  straight?: boolean;
 }
 
 export interface LayoutResult {
@@ -359,16 +364,17 @@ function layoutSide(
       const w = getW(n);
       let x: number;
       if (side === 1) {
-        // 右向：子节点在父节点右侧，按「父所在相对深度的最大宽度」推进，列宽仅限本分支。
-        // 同级兄弟共享同一左缘（列对齐），但只取本分支内该深度的最大宽，不会因其它分支的
-        // 宽节点而被推远。
-        x = rd === 0 ? rootEdge + H_GAP : (parent as PositionedNode).x + br.widths[rd - 1] + H_GAP;
+        // 右向：子节点紧贴「父节点右缘 + 层间距」，父右到哪里子就接哪里。
+        // 这里刻意**不用**本分支该深度的最大宽度（br.widths[rd-1]）当列宽：同一个父节点下
+        // 只要有一个宽兄弟（比如「预订规则：时段、最低消费、超时释放」），整列就会被推到最宽那个
+        // 兄弟的宽度之外，窄父节点（如「定金与退订」）的子节点因此被甩出两百多像素，
+        // 视觉上就是大片空白。按父宽推进既紧凑，也不会与同层节点重叠。
+        x = rd === 0 ? rootEdge + H_GAP : (parent as PositionedNode).x + (parent as PositionedNode).w + H_GAP;
       } else {
-        // 左向：按「右缘」对齐每一列 —— 子节点右缘 = 父右缘 - (父相对深度最大宽) - H_GAP。
-        // 必须用父相对深度的最大宽而非子自身宽来定位，否则当某个子节点比父还宽时，
-        // 其子树的右缘会越过父节点的左缘，与父节点（连同折叠按钮）水平重叠。
+        // 左向：子节点右缘 = 父左缘 - 层间距（父宽在这里自动约掉）。
+        // 同样不用最大宽度，否则一个宽兄弟会把整条左链往外推很远，正是「左右间距过大」的来源。
         if (rd === 0) x = rootEdge - H_GAP - w;
-        else x = (parent as PositionedNode).x + (parent as PositionedNode).w - br.widths[rd - 1] - H_GAP - w;
+        else x = (parent as PositionedNode).x - H_GAP - w;
       }
       const pos = mkNode(n, x, yTop.get(n.id)!, baseDepth + 1 + rd, "h", side, sizeOf(n));
       nodes.push(pos);
@@ -1060,6 +1066,7 @@ export function layoutTree(root: MindNode, opts: LayoutOptions): LayoutResult {
   // 注意：raw.root 已是 nodes 中的元素（各布局均把根节点放入 nodes），上面的循环已经平移过它，
   // 这里不能再平移一次，否则根节点会被重复偏移（minX<0 时尤其明显，会把思维导图/鱼骨图的根推出去压住分支）。
   for (const l of links) {
+    l.straight = lineStyle === "straight";
     if (l.path) {
       l.path = l.path.replace(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g, (_m, a: string, b: string) => {
         const x = parseFloat(a) - minX;

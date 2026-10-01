@@ -199,6 +199,45 @@ h5-reader-check.sh / ui-doc-types.sh / ui-shot.sh
 | `check-lazy-routes.sh` | ✅ 14/14，MindmapEditor chunk 已加载 / View 未加载 / 非本地请求 0 |
 | `embed-prod-check.sh` | ✅ PASS=17 FAIL=0，`PROD_FORM_OK` |
 | `h5-reader-check.sh` | ✅ 68/68，`H5_READER_CHECK_PASS` |
+| `h5-scroll-back-check.sh` | ✅ 24/24，`TOUCH_SCROLL_FAILURES=0`（本轮修复后补跑，见下） |
+| `e2e-editor-menus.sh` | ✅ 48/48，控制台零错误 |
+| `preview-zoom-check.sh` | ✅ PASS=13 FAIL=0，`PREVIEW_ZOOM_OK` |
+
+### 顺带修掉的两个坑：`run-all.sh` 孤儿登记 + `tools/` 隐形
+
+追查「还有哪些套件没跑」时发现两个连带问题，都在本次一并修了。
+
+**① `run-all.sh` 在本分支有两处孤儿登记**（登记了脚本却不存在），全量跑到那里会输出「脚本不存在，跳过」
+并计入失败，所以 **`ALL_SUITES_PASS` 在 `v1-mm` 上其实一直拿不到**：
+
+| 缺失套件 | 端口 | 实际存在位置 | 处理 |
+|---------|------|------------|------|
+| `h5-scroll-back-check` | 8178 | `master` / `v2-oo`，源自 `ac3f90a` | ✅ 取回脚本 + 探针 `h5-touch-scroll.mjs`，补跑 **24/24 / `TOUCH_SCROLL_FAILURES=0`** |
+| `wechat-login-check` | 8185 | 同上 | ✅ 取回脚本，补跑 **13/13** |
+
+```bash
+git show master:tools/verify/h5-scroll-back-check.sh > tools/verify/h5-scroll-back-check.sh
+git show master:tools/verify/h5-touch-scroll.mjs      > tools/verify/h5-touch-scroll.mjs
+git show master:tools/verify/wechat-login-check.sh    > tools/verify/wechat-login-check.sh
+chmod +x tools/verify/*.sh
+```
+
+`h5-scroll-back-check` 这条尤其值得跑：它测的是 H5「进文档页 → 返回后目录失去上下划屏能力」，
+正好覆盖本次改过的 `MindmapView.tsx` 触摸链路。
+
+**② `.gitignore` 第 3 行的 `tools/` 让新增套件脚本对 git 隐形。** 这条规则是 2026-09 批量修 bug 的提交
+`79edb39` 顺手带进来的（而 `tools/verify` 的脚本早在 09-19 就入库了，`ignore` 管不到已跟踪文件），后果是：
+本次新建的 `mm-editor-check.sh` / `mm-h5-pan-check.sh` / `mm-h5-pan.mjs` **从未出现在 `git status` 里**，
+一次 clean checkout 就会永久丢失。
+
+修法是删掉这条粗放规则——真正该忽略的（`web/dist`、`vendor/drawio`、`md.zip` 夹具等）都已单列显式规则；
+同时对 6 个脚本补 `git add -f` 纳入追踪。改完后 `tools/` 下的隐形文件只剩那个本就该忽略的
+`import-fixtures/图文演示.md.zip`，符合预期。
+
+```gitignore
+- tools/          # ← 删掉：会让 tools/verify 下新增脚本静默隐身
+```
+
 
 ## 七、写脚本踩的坑
 

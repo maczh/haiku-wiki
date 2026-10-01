@@ -1,12 +1,21 @@
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
 import { Icon } from '../../mindmap-vite/src/components/MindMap/Icons'
 import { Popover, PopLabel } from '../../mindmap-vite/src/components/MindMap/Popover'
-import type { BaseStyle, MindMapApi, MindNodeStyle } from '../../mindmap-vite/src/components/MindMap'
+import type {
+  BaseStyle,
+  LineStyle,
+  MindMapApi,
+  MindNodeStyle,
+} from '../../mindmap-vite/src/components/MindMap'
 import {
   BORDER_COLORS,
+  BORDER_STYLES,
   FONT_FAMILIES,
   FONT_SIZES,
   HIGHLIGHT_COLORS,
+  LINK_ARROWS,
+  LINK_COLOR_MODES,
+  LINK_PATTERNS,
   NODE_ICONS,
   PRIORITY_COLORS,
   PRIORITY_LEVELS,
@@ -34,6 +43,8 @@ interface Props {
   base: BaseStyle
   onNodeStyle: (patch: Partial<MindNodeStyle>) => void
   onBaseStyle: (patch: Partial<BaseStyle>) => void
+  /** 连接方式（曲线 / 折线 / 直线）改的是 MindMapConfig.lineStyle，不走 BaseStyle */
+  onLineStyle: (s: LineStyle) => void
   onThemeId: (id: string) => void
   onPriority: (v: number | undefined) => void
   onProgress: (v: number | undefined) => void
@@ -53,6 +64,60 @@ function ThemeSwatch({ id }: { id: string }) {
         boxShadow: `inset 6px 0 0 ${t.rootFill}`,
       }}
     />
+  )
+}
+
+/** 边框线型 → CSS border-style 预览（dashdot 无对应 CSS 值，退化为 double） */
+const BORDER_PREVIEW: Record<string, CSSProperties['borderBottomStyle']> = {
+  solid: "solid",
+  dashed: "dashed",
+  dotted: "dotted",
+  dashdot: "double",
+};
+
+/** 连接方式候选（对应 MindMapConfig.lineStyle） */
+const LINK_SHAPES: SegItem[] = [
+  { id: "curve", label: "曲线" },
+  { id: "elbow", label: "折线" },
+  { id: "straight", label: "直线" },
+];
+
+interface SegItem {
+  id: string;
+  label: string;
+}
+
+/** 一排互斥小 chip：与 mindmap-vite 工具条的「曲线/折线」分段按钮同款样式 */
+function SegRow({
+  items,
+  value,
+  onPick,
+  disabled,
+  cols,
+  disableDeselect,
+}: {
+  items: SegItem[]
+  value: string | undefined
+  onPick: (v: string | undefined) => void
+  disabled?: boolean
+  cols?: 3 | 4
+  /** 无「再点取消」语义的项（如 lineStyle 是 config 必填字段，无法回退到 undefined） */
+  disableDeselect?: boolean
+}) {
+  return (
+    <div className={`mm-shape-grid${cols === 4 ? ' mm-line-grid' : ''}`}>
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          className={`mm-shape-chip ${value === it.id ? 'is-on' : ''}`}
+          disabled={disabled}
+          onClick={() => onPick(disableDeselect ? it.id : value === it.id ? undefined : it.id)}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -81,6 +146,10 @@ export default function MindmapStyleCombos(p: Props) {
   const progress = hasActive ? api?.getProgress?.() : undefined
   const icons = hasActive ? (api?.getIcons?.() ?? []) : []
   const disabledCls = hasActive ? '' : 'mm-tb-disabled'
+  /** 连线色彩模式缺省「彩色」 */
+  const linkColorMode = base.linkColorMode ?? 'auto'
+  /** 连接方式直接读画布 config（lineStyle 不在 BaseStyle 里，无法从 base 回显） */
+  const currentLineStyle: string = api?.getConfig?.()?.lineStyle ?? 'curve'
 
   const themesByCat: { cat: CanvasCategory; label: string; items: typeof THEME_LIST }[] =
     THEME_CATEGORIES.map((c) => ({
@@ -133,6 +202,21 @@ export default function MindmapStyleCombos(p: Props) {
                 <button key={c} type="button" disabled={!hasActive} className={`mm-swatch ${style.borderColor === c ? 'is-on' : ''}`} style={{ background: c }} title={c} onClick={() => p.onNodeStyle({ borderColor: style.borderColor === c ? undefined : c })} />
               ))}
             </div>
+            <PopLabel>边框线型</PopLabel>
+            <div className="mm-shape-grid mm-line-grid">
+              {BORDER_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`mm-shape-chip mm-bs-chip ${style.borderStyle === s.id ? 'is-on' : ''}`}
+                  disabled={!hasActive}
+                  onClick={() => p.onNodeStyle({ borderStyle: style.borderStyle === s.id ? undefined : s.id })}
+                >
+                  <i className="mm-bs-line" style={{ borderBottomStyle: BORDER_PREVIEW[s.id] ?? 'solid' }} />
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
           </>
         )}
       </Popover>
@@ -161,11 +245,43 @@ export default function MindmapStyleCombos(p: Props) {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <PopLabel>连线颜色</PopLabel>
-            <div className="mm-swatches">
-              {BORDER_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${base.linkColor === c ? 'is-on' : ''}`} style={{ background: c }} title={c} onClick={() => p.onBaseStyle({ linkColor: base.linkColor === c ? undefined : c })} />
-              ))}
+            <PopLabel>连线线型</PopLabel>
+            <SegRow
+              items={LINK_PATTERNS}
+              value={base.linkPattern}
+              onPick={(v) => p.onBaseStyle({ linkPattern: v as BaseStyle['linkPattern'] })}
+            />
+            <PopLabel>连接方式</PopLabel>
+            <SegRow
+              items={LINK_SHAPES}
+              value={currentLineStyle}
+              disableDeselect
+              onPick={(v) => v && p.onLineStyle(v as LineStyle)}
+            />
+            <PopLabel>箭头</PopLabel>
+            <SegRow
+              items={LINK_ARROWS}
+              value={base.linkArrow}
+              onPick={(v) => p.onBaseStyle({ linkArrow: v as BaseStyle['linkArrow'] })}
+            />
+            <PopLabel>连线色彩</PopLabel>
+            <SegRow
+              items={LINK_COLOR_MODES}
+              value={base.linkColorMode}
+              onPick={(v) => p.onBaseStyle({ linkColorMode: v as BaseStyle['linkColorMode'] })}
+            />
+            {linkColorMode === 'single' && (
+              <>
+                <div className="mm-swatches">
+                  {BORDER_COLORS.map((c) => (
+                    <button key={c} type="button" className={`mm-swatch ${base.linkColor === c ? 'is-on' : ''}`} style={{ background: c }} title={c} onClick={() => p.onBaseStyle({ linkColor: base.linkColor === c ? undefined : c })} />
+                  ))}
+                </div>
+                {!base.linkColor && <div className="mm-pop-hint">未选色时沿用主题连线色</div>}
+              </>
+            )}
+            <div className="mm-pop-hint">
+              {linkColorMode === 'single' ? '单色：整图连线统一用下方颜色' : '彩色：每条分支用主题配色'}
             </div>
             <PopLabel>连线粗细 · {base.linkWidth ?? '默认'}</PopLabel>
             <input className="mm-pop-range" type="range" min={1} max={5} step={1} value={base.linkWidth ?? 2} onChange={(e) => p.onBaseStyle({ linkWidth: Number(e.target.value) })} />

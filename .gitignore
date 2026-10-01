@@ -1,6 +1,9 @@
 # 依赖与构建产物
 node_modules/
-tools/
+# ⚠️ 这里曾有一条粗放的 `tools/`（2026-09 的批量提交误加），它把整个 tools/verify 回归套件目录
+#    连同新增脚本一起隐藏：新建的 .sh / .mjs 在 `git status` 里完全看不见，既提交不上去，
+#    也极易在 clean checkout 时被无声丢弃。凡是该忽略的都已单列显式规则，故该条删除。
+#    若个别工具目录确需忽略，请像下面这样写具体路径，不要整段目录一刀切。
 web/dist/
 # Vditor 自托管静态资源（由 web/scripts/copy-vditor-assets.mjs 生成，勿手动提交）
 web/public/vditor/

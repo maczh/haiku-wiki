@@ -299,5 +299,46 @@ H5 思维导图手势专项（`mm-h5-pan.mjs`，Playwright CDP `Input.dispatchTo
 真实触摸序列）：`touch-action=none`、单指右下/左上划屏平移画布（`g.mm-root`
 transform 双向变化）、纵向划屏归画布（页面不滚）。
 
+## 浏览器套件：`mm-style-shot.sh`（8 项，端口 8194）
+
+样式选项实拍 + 间距探针专项：先用「海鲜火锅·包厢预订系统」那份三级导图**替换临时夹具
+`docId=3`**（只改 `$DATA` 副本，仓库夹具不动），再按真实数据读 `.mm-node` 的屏幕几何。
+
+断言：节点样式面板的「边框线型」4 项（实线/虚线/点线/点划线）、基础样式面板的
+「连线线型」3 项（实线/虚线/从粗到细）、「连接方式」3 项（曲线/折线/直线）、
+「箭头」3 项（无/向内/向外）、「连线色彩」2 项（彩色/单色）；并实点虚线 + 向外箭头 + 单色。
+几何探针会把每个节点的 `x/w` 打出来，用来盯 `layoutSide` 的水平间距。
+
+功能面：`MindmapSideToolbar` / `MindmapStyleCombos` / `MindMap.css` / `layout.ts` 的
+水平定位 / `MindMap.tsx` 的连线渲染。
+
+## 浏览器套件：`mm-xmode-check.sh`（23 项，端口 8195）
+
+**基础样式跨模式一致专项** —— 盯死「编辑态设的样式，阅读 / H5 / 分享三态必须一样」。
+
+流程：`docId=3` 换成多分支导图 → 编辑态点「从粗到细 + 向外箭头 + 单色 + 节点边框虚线」
+→ 等 3s 防抖自动保存 → API 回读 `content` 断言 `theme.__baseStyle` 落库 → 分别打开
+阅读模式 / H5 / 文档级分享（`/doc-share/:slug`）断言渲染结果 → 最后**直接量 taper 填充带
+`path.d` 的坐标**，反解粗细端宽度必须是 `8 : 2`。
+
+踩过的坑（改这个套件时别再踩）：
+
+- 分享页要用 `/doc-share/:slug`（**文档级**分享）。`/share/:slug` 是**文库级**分享，
+  打开只会默认选第一篇文档，未必是 `docId=3`。
+- H5 要先 `localStorage.setItem('haiku_view_mode','h5')` 再 `open` `/m/doc/3`：
+  `/m/*` 只在 `H5Router` 里登记，而无头 Chrome 是桌面 UA，不切模式路由根本不挂载。
+- 反过来，第 6 段量宽度前要把 `haiku_view_mode` 切回 `'desktop'`，否则桌面路由被挡掉。
+- 刷新回显类的断言，popover 是**收起**的，必须先点开 combo 再查 `.mm-pop-label`，
+  否则选择器查不到东西（曾因此假失败）。
+- 第 7 段（旧文档兼容）里：画布底色是 `.mm-stage` 的 **CSS `background`**，不是 SVG `<rect>`
+  （`<rect>` 只在导出克隆里临时塞），且 Chrome 把 `#fff3e0` 序列化成 `rgb(255, 243, 224)`。
+- 同理，默认 `linkColorMode = auto` 时连线走**各分支色**、`theme.lineColor` 只作兜底，
+  所以旧 `lineColor` 断言不了 —— 用 `lineWidth` → `.mm-link path` 的 `stroke-width` 证明回落更稳。
+- 只读态下 `.mm-node .mm-rect` 的 `stroke-width` 恒等于 `base.strokeWidth`：
+  选中态才 `+0.6`，而 `editable={false}` 时 reducer 仍默认选中根节点，别把差异当成渲染失败。
+
+功能面：`reader/MindmapView.tsx` 的 `defaultConfig`（`snapshotBase` 而非 `smmThemeToBase`）、
+`lib/mindmap.smm.ts` 的 `__baseStyle` / `borderStyle` 双向映射。
+
 改 `MindmapEditor` / `MindmapStyleCombos` / `MindmapView` / `lib/mindmap.smm.ts`
-后必须连带跑这两套 + `ui-doc-types` + `h5-reader-check`。
+后必须连带跑这三套 + `ui-doc-types` + `h5-reader-check`。

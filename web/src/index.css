@@ -253,6 +253,42 @@ mark.hk-hit {
   opacity: 0.38;
 }
 
+/* 边框线型：4 列 chip（实线 / 虚线 / 点线 / 点划线），上排是线型预览 */
+.mm-line-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+.mm-bs-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 36px;
+  color: #4a5262;
+}
+.mm-bs-chip.is-on {
+  color: #2f6fed;
+}
+.mm-bs-chip > span {
+  font-size: 11px;
+  line-height: 1;
+}
+/* 预览条：用 border-bottom-style 直接画出所选线型 */
+.mm-bs-line {
+  width: 82%;
+  height: 0;
+  border-bottom-width: 2px;
+  border-bottom-color: currentColor;
+}
+
+/* 面板内辅助说明（单色模式的当前口径提示等） */
+.mm-pop-hint {
+  margin: -2px 8px 6px;
+  color: #9aa1ad;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 /* 右侧竖排：面板入口 */
 .hk-mm-side {
   top: 50%;

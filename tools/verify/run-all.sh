@@ -48,6 +48,9 @@ DEFAULT_SUITES=(
   wechat-login-check
   mm-editor-check
   mm-h5-pan-check
+  mm-style-shot
+  # ⚠️ 新套件一律插在 sim-docker-web **之前**（它必须保持最后：要跑一次完整 npm build）
+  mm-xmode-check
   sim-docker-web
 )
 read -r -a SUITES <<<"${SUITES:-${DEFAULT_SUITES[*]}}"
@@ -81,6 +84,8 @@ declare -A PORT_OF=(
   [h5-scroll-back-check]=8178
   [mm-editor-check]=8186
   [mm-h5-pan-check]=8193
+  [mm-style-shot]=8194
+  [mm-xmode-check]=8195
   [wechat-login-check]=8185
   [template-check]=0
   [sim-docker-web]=0

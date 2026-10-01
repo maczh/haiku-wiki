@@ -1,6 +1,28 @@
 /** 节点形状 */
 export type MindNodeShape = "rect" | "rounded" | "capsule" | "underline" | "none";
 
+/**
+ * 节点边框线型（描边 dash 图案）。
+ * `solid` 是缺省值（不写 strokeDasharray），其余三种对应常见虚线家族。
+ */
+export type MindBorderStyle = "solid" | "dashed" | "dotted" | "dashdot";
+
+/** 各线型对应的 strokeDasharray；solid 返回 undefined（不设 dash，保持实线） */
+export const BORDER_DASH: Record<MindBorderStyle, string | undefined> = {
+  solid: undefined,
+  dashed: "7 4",
+  dotted: "2 3",
+  dashdot: "9 3 2 3",
+};
+
+/** 节点边框线型候选（顺序与 UI 一致） */
+export const BORDER_STYLES: { id: MindBorderStyle; label: string }[] = [
+  { id: "solid", label: "实线" },
+  { id: "dashed", label: "虚线" },
+  { id: "dotted", label: "点线" },
+  { id: "dashdot", label: "点划线" },
+];
+
 /** 单个节点的文字 / 外观样式。 */
 export interface MindNodeStyle {
   /** 字号，默认 14 */
@@ -19,6 +41,8 @@ export interface MindNodeStyle {
   borderColor?: string;
   /** 描边宽度 */
   borderWidth?: number;
+  /** 描边线型：实线 / 虚线 / 点线 / 点划线（见 BORDER_DASH） */
+  borderStyle?: MindBorderStyle;
   /** 节点圆角（覆盖主题基准圆角；按节点宽高一半内敛） */
   borderRadius?: number;
   /** 节点形状 */
@@ -106,8 +130,11 @@ export interface MindNode {
 
 /** 主题分类：经典 / 深色 / 朴素 */
 export type CanvasCategory = "classic" | "dark" | "plain";
-/** 连线样式 */
-export type LineStyle = "curve" | "elbow";
+/**
+ * 连线形态（连接方式）：曲线 / 折线（肘形）/ 直线。
+ * `straight` 只影响路径绘制（两端直线相连），折点 still 由 layout 决定。
+ */
+export type LineStyle = "curve" | "elbow" | "straight";
 /** 结构（对应「结构」面板） */
 export type StructureType =
   | "logical-right"
@@ -117,6 +144,21 @@ export type StructureType =
   | "catalog"
   | "timeline"
   | "fishbone";
+
+/**
+ * 连线线型：实线 / 虚线 / **从粗到细**（taper，画成两端宽度渐变的填充带）。
+ * `taper` 与 dash 互斥（填充带无法用 dasharray 表现），UI 上互斥选中。
+ */
+export type LinkPattern = "solid" | "dashed" | "taper";
+/**
+ * 箭头方向：
+ * - `none` 无箭头
+ * - `inward` 向内箭头 —— 箭头画在**父端**，尖端朝向父/根节点（朝画布中心收）
+ * - `outward` 向外箭头 —— 箭头画在**子端**，尖端朝向子/叶子节点（朝外发散）
+ */
+export type LinkArrow = "none" | "inward" | "outward";
+/** 连线配色模式：`auto` 彩色（按分支主题色）/ `single` 单色（统一用 linkColor） */
+export type LinkColorMode = "auto" | "single";
 
 /** 全局「基础样式」覆盖（作用于整张画布） */
 export interface BaseStyle {
@@ -128,6 +170,12 @@ export interface BaseStyle {
   linkColor?: string;
   /** 连线宽度 */
   linkWidth?: number;
+  /** 连线线型：实线 / 虚线 / 从粗到细 */
+  linkPattern?: LinkPattern;
+  /** 箭头方向：无 / 向内 / 向外 */
+  linkArrow?: LinkArrow;
+  /** 连线配色：auto 彩色 / single 单色 */
+  linkColorMode?: LinkColorMode;
   /** 节点圆角 */
   radius?: number;
   /** 节点描边宽度 */
@@ -137,6 +185,26 @@ export interface BaseStyle {
   /** 默认节点文字色 */
   nodeText?: string;
 }
+
+/** 连线线型候选（顺序与 UI 一致） */
+export const LINK_PATTERNS: { id: LinkPattern; label: string }[] = [
+  { id: "solid", label: "实线" },
+  { id: "dashed", label: "虚线" },
+  { id: "taper", label: "从粗到细" },
+];
+
+/** 箭头候选（顺序与 UI 一致） */
+export const LINK_ARROWS: { id: LinkArrow; label: string }[] = [
+  { id: "none", label: "无箭头" },
+  { id: "inward", label: "向内箭头" },
+  { id: "outward", label: "向外箭头" },
+];
+
+/** 连线配色模式候选 */
+export const LINK_COLOR_MODES: { id: LinkColorMode; label: string }[] = [
+  { id: "auto", label: "彩色" },
+  { id: "single", label: "单色" },
+];
 
 /** 全局视图配置（对应工具栏 4 个面板）。 */
 export interface MindMapConfig {

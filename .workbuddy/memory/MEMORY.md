@@ -24,7 +24,10 @@
 
 ## 实测铁律
 - DOM 测试用无头 Chrome：`/opt/google/chrome/chrome --headless=new --no-proxy-server --no-sandbox`；curl 加 `--noproxy '*'`；截图高度=窗口高度。
-- 无头 Chrome 可用，但 **`HOME` 必须是 `/home/Macro`（大写 M，小写会 FATAL `Failed to get the path for 1001`）**；起服务与跑 Chrome 放同一条命令（后台服务跨调用会被沙箱回收）。`agent-browser` 没装，`tools/verify/*` 跑不了。
+- 无头 Chrome 可用，且 **`agent-browser` 已装（`/usr/local/bin/agent-browser`）**，`tools/verify/*` 能跑；
+  `open <url>` → `eval <js>`（支持 async 返回 Promise）→ `screenshot <绝对路径>` → `close`。
+  `eval` 里的中文会被转义（jq 解析必炸）→ **逐组单独求值返回纯数字，别拼一次性 JSON**。
+  直跑 Chrome 时 **`HOME` 必须是 `/home/Macro`（大写 M，小写 FATAL `Failed to get the path for 1001`）**；起服务与跑 Chrome 放同一条命令（后台服务跨调用会被沙箱回收）。
   纯逻辑校验走临时入口 + `esbuild --bundle --platform=node --format=cjs` + 托管 node 跑断言（构建与运行放同一条非沙箱命令，否则 `~/hk-tmp` 写入会被回滚）。
 - 后台进程两次工具调用间被回收：起服务+验证+停服务放同一命令或 `setsid`。
 - 本机 shell 无 HOME：脚本 `export HOME=${HOME:-/home/macro}`，Node 用 `os.homedir()`；禁止写死 /Users/macro 路径。
@@ -47,6 +50,37 @@
 - 文档分享链接 PUT 即刷新 slug：分享面板先 GET 复用；H5 分享三级策略 lib/share.ts。
 - 接口文档刷新 apidoc.Parse→mergeApiDoc 原地合并；点评区根主题=docs.ID、Markdown 包 `.hk-comment-md`、禁言走 banned_uids。
 - 甘特（SVAR@2.7.3）：只给有子节点的父节点写 open:true；PPTX H5 全屏必须 createPortal(document.body)。
+- 思维导图线型（2026-10-01）：节点边框 `MindNode.style.borderStyle`（solid/dashed/dotted/dashdot，走 `BORDER_DASH`）；
+  连线 `BaseStyle.linkPattern`(solid/dashed/taper) / `linkArrow`(none/inward/outward) / `linkColorMode`(auto/single)，
+  整块由 `applyBaseToSnapshot` 写进 `theme.__baseStyle`，**存储层零改动**。
+  `taper`（从粗到细）只能用**填充多边形**表达，与 dasharray 互斥；箭头是端点切向解析出的 `polygon`
+  （inward=尖端朝父/中心，outward=朝子/外）。`直线` 由 `layoutTree` 出口回填 `MindLink.straight`，
+  `linkPath` 直接 `M…L…`，**6 个布局函数签名不动**。
+- 思维导图「基础样式」（连线线型/箭头/连线色彩/节点边框线型）存 `theme.__baseStyle`。
+  **只读三态（`reader/MindmapView.tsx`）必须走 `snapshotBase(theme)`**：走 `smmThemeToBase()`
+  只搬旧键、认不出 `__baseStyle`，阅读/H5/分享全变默认样式（旧文档由 snapshotBase 自动回落，无需迁移）。
+  `MindMap.tsx` 的 `useImperativeHandle` 依赖数组里**没有 `config`** → `getBase()` 恒返回首次渲染的空
+  base，宿主 `{...getBase(), ...patch}` 每改一项就抹掉其它项（「面板高亮但存库只剩最后一项」）。
+  getter 一律改走 ref：`getConfig/getBase → configRef`、`getScale/getView → transformRef`。
+  `borderStyle` 还需在 `lib/mindmap.smm.ts` 的 `nodeStyleToSmmStyle`/`smmStyleToNodeStyle`
+  双向映射（读入白名单 solid/dashed/dotted/dashdot），否则存出去读回来都丢。
+  taper 粗细端 = `TAPER_THICK_W=8`/`TAPER_THIN_W=2` 常量，箭头尺寸跟着所在端线宽走。
+  切主题保留 base，但**必须显式写回 `THEME_ID_KEY`**（`applyBaseToSnapshot` 不认它）。
+  跨模式回归套件 `mm-xmode-check.sh`（17 项，端口 8195；验证见 `overview-mindmap-xmode-20261001.md`）。
+- 跑回归撞到「port NNNN busy」＝别的会话的幽灵实例占着端口（run-all 的 `port_busy` 探测命中
+  会**直接跳过该套件**并让 `ALL_SUITES` 打 fail）。**套件端口都支持环境变量覆盖**
+  （`PORT=${PORT:-18081}`），别去抢端口：`PORT=18085 bash tools/verify/e2e-import.sh` 补跑即可。
+- 思维导图间距：`layoutSide` 曾以 `br.widths[rd-1]`（本分支该深度**最宽**节点）当列宽 → 一个宽兄弟把窄父分支整列推远
+  （实测空白 182 内容 px）。现改为**贴父边缘 + 一个 H_GAP**（左向写 `子右缘 = 父左缘 - H_GAP` 最稳），
+  空白收敛到约 49 内容 px；三种结构（思维导图/逻辑向右/逻辑向左）同因同源。
+- 思维导图只读态（MindMap.tsx）：reducer 初始化 `selectedId: data.id` = **一打开就默认选中根节点**；
+  所以凡「选中态专属表现」（`mm-ui-only` 选中环、节点描边 `strokeWidth+0.6`）都必须显式挂 `editableNow`，
+  否则阅读 / H5 / 分享三态会画出蓝色虚线选中框。
+- 思维导图探针口径：底色是 `.mm-stage` 的 **CSS `background`**（Chrome 把 hex 序列化成 `rgb()`），
+  不是 SVG `<rect>`（`<rect>` 只在 `buildSvgPayload` 导出克隆里临时塞）；
+  连线默认 `linkColorMode=auto` 走分支色，旧 `theme.lineColor` 只兜底 → 验旧键回落要用
+  `lineWidth` 的 `stroke-width`，别验颜色。
+  复盘时注意：靠截图目测定位间距不可靠，必须用 `getBoundingClientRect()` 量 `.mm-node` 的 x/w。
 
 ## 导入
 - 解析器注册表 `web/src/lib/import/parse.ts`；格式映射 formats.ts（accept 与注册表必须一致）。
@@ -57,7 +91,16 @@
 - `templates/*.json` 是产物不手改（改 _src/ 跑生成器，template-check.sh 校验）；DocTemplate.Builtin 禁 default:true；批量导入 errors 初始化 []；validTemplateDocTypes=markdown/sheet/mindmap/gantt/whiteboard/drawing/flowchart。
 
 ## 回归
-- tools/verify/ 顺序执行，登记 run-all.sh（23 套）；夹具账号 `e2e@example.com/secret123`。
+- tools/verify/ 顺序执行，登记 run-all.sh（28 套，含 mm-style-shot 8194）；夹具账号 `e2e@example.com/secret123`。
+- 思维导图样式面板/布局改动 → 必跑 `mm-editor-check` + `mm-h5-pan-check` + `mm-style-shot` +
+  `preview-zoom-check` + `ui-doc-types` + `h5-reader-check` + `e2e-editor-menus`。
+- **`run-all.sh` 的 SUITES 清单 ≠ 磁盘上的脚本**：跨分支合并时 run-all.sh 容易过来、而新套件的 .sh / .mjs
+  探针没跟着过来 → 产生孤儿登记，跑到那步判 `(missing)` 失败，该分支永远拿不到 ALL_SUITES_PASS。
+  新增或取回套件后必须 `ls tools/verify/$n.sh` 复核（`h5-scroll-back-check` / `wechat-login-check`
+  就曾在 v1-mm 缺文件，2026-10-01 从 master 取回并各自跑通）。
+- **`.gitignore` 里禁止整段忽略 `tools/`**：2026-09 的 `79edb39` 误加过这一条，导致 tools/verify 下
+  新建脚本在 git status 中完全隐形（ignore 管不到已跟踪文件，所以只有新文件受害，极难察觉）。
+  该忽略的一律写具体路径（web/dist、vendor/drawio、md.zip 夹具等），新增脚本必要时 `git add -f`。
 - AutoMigrate 异步：套件登录须重试轮询（40×0.5s）。
 - **产品行为改了必须同步改套件并跑全量确认 ALL_SUITES_PASS**；gantt-ui 第 1 段子菜单需派发 mouseover。
 - 改 GanttChart/SheetView 等共用组件要连带跑 gantt-fold-*、preview-zoom-check；H5 阅读态套件 h5-reader-check.sh（68 项）。
