@@ -1,6 +1,25 @@
 export { MindMap } from "./MindMap";
 export { Toolbar } from "./Toolbar";
 export type { ToolbarProps } from "./Toolbar";
+/* 多选浮动条（关联线 / 概要 / 分组）与九宫格主菜单 */
+export { MultiSelectBar } from "./MultiSelectBar";
+export type { MultiSelectBarProps } from "./MultiSelectBar";
+export { MainMenu, buildMainMenu } from "./Menu";
+export type { MainMenuItem, MainMenuProps, MainMenuActions } from "./Menu";
+/* 工具条 / 主菜单共用的面板（可在外层自定义菜单时复用） */
+export {
+  NodeStylePanel,
+  BaseStylePanel,
+  ThemePanel,
+  StructurePanel,
+  MarkerPanel,
+  PriorityPanel,
+  ProgressPanel,
+  IconPanel,
+  StructureThumb,
+  ThemeSwatch,
+  BranchThumb,
+} from "./panels";
 export { Dialog } from "./Dialog";
 export { Icon } from "./Icons";
 export type { IconName, IconProps } from "./Icons";
@@ -14,6 +33,9 @@ export type {
   MindNodeFrame,
   MindGeneralization,
   MindAssocLine,
+  MindAssocArrow,
+  MindSummaryGroup,
+  MindFrameGroup,
   MindMapApi,
   MindMapProps,
   MindMapConfig,
@@ -25,6 +47,7 @@ export type {
   LinkPattern,
   LinkArrow,
   LinkColorMode,
+  BranchStyle,
 } from "./types";
 export {
   DEFAULT_CONFIG,
@@ -37,10 +60,33 @@ export {
   LINK_PATTERNS,
   LINK_ARROWS,
   LINK_COLOR_MODES,
+  BRANCH_STYLES,
 } from "./types";
 
 export { layoutTree, nodeSize, textCenterX } from "./layout";
 export type { PositionedNode, MindLink, LayoutResult, SizedNode } from "./layout";
+
+/* --------------------- 手绘风格 / 分支样式路径生成 --------------------- */
+/**
+ * `sketch*` 是「双笔触」手绘（仿参考截图：每笔画两遍、两笔在两端收拢、
+ * 中段错开、转角出头）；`hand*` 是它的单笔兼容版（取第 0 笔），
+ * 保留给老调用方与新导出路径。
+ */
+export {
+  handLine,
+  handCurve,
+  handRect,
+  handEllipse,
+  sketchLine,
+  sketchCurve,
+  sketchRect,
+  sketchEllipse,
+  sketchPath,
+  sketchArrowHead,
+} from "./handdrawn";
+export type { SketchOptions } from "./handdrawn";
+export { branchPath } from "./branchstyle";
+export type { BranchGeom } from "./branchstyle";
 
 export {
   THEME_LIST,

@@ -325,10 +325,25 @@ export function exportSmm(root: MindNode): string {
       color: n.style?.color,
       fillColor: n.style?.background,
       borderColor: n.color ?? n.style?.borderColor,
+      // 节点外框线型 / 形状：写在 data 内，与 readStyle 的读取源保持一致
+      borderStyle: n.style?.borderStyle,
+      shape: n.style?.shape,
     },
     ...(n.priority != null ? { priority: n.priority } : {}),
     ...(n.progress != null ? { progress: n.progress } : {}),
     ...(n.icons && n.icons.length ? { icons: n.icons } : {}),
+    // 节点外框线型（实线 / 虚线 / 点线 / 点划线）
+    ...(n.style?.borderStyle ? { borderStyle: n.style.borderStyle } : {}),
+    ...(n.style?.shape ? { shape: n.style.shape } : {}),
+    // 逐节点的外框 / 概要
+    ...(n.frame ? { frame: n.frame } : {}),
+    ...(n.generalization ? { generalization: n.generalization } : {}),
+    // 根节点专属聚合字段：关联线 / 多选概要 / 多选分组框
+    ...(n.assocLines && n.assocLines.length ? { assocLines: n.assocLines } : {}),
+    ...(n.summaryGroups && n.summaryGroups.length
+      ? { summaryGroups: n.summaryGroups }
+      : {}),
+    ...(n.frameGroups && n.frameGroups.length ? { frameGroups: n.frameGroups } : {}),
     children: n.children.map(walk),
   });
   return JSON.stringify(

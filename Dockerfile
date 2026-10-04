@@ -37,11 +37,11 @@ ARG LIBREDWG_URL=https://ftp.gnu.org/gnu/libredwg
 #     （libtool / bash / perl 是 libredwg 构建脚本的常见依赖，一并装上以求稳。）
 # APK_MIRROR 非空时把官方源域名换成镜像站（alpine 的 /etc/apk/repositories 里是
 # https://dl-cdn.alpinelinux.org/alpine/v3.20/{main,community} 两行）。留空是 no-op。
-RUN if [ -n "${APK_MIRROR}" ]; then \
+RUN mkdir -p /out \
+ && if [ -n "${APK_MIRROR}" ]; then \
       sed -i -E "s#https?://dl-cdn\.alpinelinux\.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories; \
     fi \
  && apk add --no-cache build-base curl pkgconf libtool bash perl \
- && mkdir -p /out \
  && ( \
       set -eux; \
       log=/tmp/libredwg-build.log; \

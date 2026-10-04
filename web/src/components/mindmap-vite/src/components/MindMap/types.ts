@@ -68,6 +68,44 @@ export interface MindAssocLine {
   /** 连线文案（居中显示） */
   label?: string;
   color?: string;
+  /**
+   * 箭头方向（参照截图 2 的「回环指向」观感）：
+   * - `out`（默认）在目标端画箭头，尖端朝目标节点
+   * - `in` 在来源端画箭头
+   * - `none` 不画箭头
+   */
+  arrow?: MindAssocArrow;
+}
+
+/** 关联线箭头方向 */
+export type MindAssocArrow = "none" | "in" | "out";
+
+/**
+ * 概要（多选节点汇总，参照截图 3）：
+ * 用一个右侧的括号把若干「任意节点」括起来，再连到一个概要标签节点。
+ * 与节点自身的 `generalization`（子树汇总）不同，这里挂在根节点上，
+ * 因此可以跨越不同分支汇总。
+ */
+export interface MindSummaryGroup {
+  id: string;
+  /** 被汇总的节点 id（≥2） */
+  nodeIds: string[];
+  /** 概要节点文案 */
+  text: string;
+  color?: string;
+}
+
+/**
+ * 分组框（多选节点成组，参照截图 4）：
+ * 用一个虚线圆角框把若干「任意节点」圈成一组，可带左上角标签。
+ */
+export interface MindFrameGroup {
+  id: string;
+  /** 被框住的节点 id（≥1） */
+  nodeIds: string[];
+  /** 标签（框左上角） */
+  label?: string;
+  color?: string;
 }
 
 /** 外框（simple-mind-map 迁移补齐项）：框住该节点及其子树 */
@@ -126,10 +164,19 @@ export interface MindNode {
    * 只有 tree 的根节点会读取该字段。
    */
   assocLines?: MindAssocLine[];
+  /**
+   * 根节点专属：多选节点生成的概要集合（截图 3）。
+   * 与逐节点的 `generalization` 并存，后者仍用于「子树汇总」。
+   */
+  summaryGroups?: MindSummaryGroup[];
+  /**
+   * 根节点专属：多选节点生成的分组框集合（截图 4）。
+   */
+  frameGroups?: MindFrameGroup[];
 }
 
-/** 主题分类：经典 / 深色 / 朴素 */
-export type CanvasCategory = "classic" | "dark" | "plain";
+/** 主题分类：经典 / 深色 / 朴素 / 手绘 */
+export type CanvasCategory = "classic" | "dark" | "plain" | "hand";
 /**
  * 连线形态（连接方式）：曲线 / 折线（肘形）/ 直线。
  * `straight` 只影响路径绘制（两端直线相连），折点 still 由 layout 决定。
@@ -184,6 +231,8 @@ export interface BaseStyle {
   nodeFill?: string;
   /** 默认节点文字色 */
   nodeText?: string;
+  /** 分支样式（括号 / 圆弧等，截图 1） */
+  branchStyle?: BranchStyle;
 }
 
 /** 连线线型候选（顺序与 UI 一致） */
@@ -204,6 +253,33 @@ export const LINK_ARROWS: { id: LinkArrow; label: string }[] = [
 export const LINK_COLOR_MODES: { id: LinkColorMode; label: string }[] = [
   { id: "auto", label: "彩色" },
   { id: "single", label: "单色" },
+];
+
+/**
+ * 分支样式（截图 1）：父节点到子节点的连接线形态。
+ * 这类「括号 / 圆弧」样式与 `lineStyle`（曲线 / 折线）正交 ——
+ * `lineStyle` 决定基础折线怎么走，`branchStyle` 在其上再套一层括号化外壳。
+ * `default` 表示沿用 lineStyle 的原始形态（不额外包装）。
+ */
+export type BranchStyle =
+  | "default"
+  | "bracket-left"
+  | "bracket-right"
+  | "brace"
+  | "arc-right"
+  | "arc-left"
+  | "fork"
+  | "hook";
+
+export const BRANCH_STYLES: { id: BranchStyle; label: string }[] = [
+  { id: "default", label: "默认" },
+  { id: "bracket-left", label: "左括号" },
+  { id: "bracket-right", label: "右括号" },
+  { id: "brace", label: "花括号" },
+  { id: "arc-right", label: "右圆弧" },
+  { id: "arc-left", label: "左圆弧" },
+  { id: "fork", label: "分叉" },
+  { id: "hook", label: "钩形" },
 ];
 
 /** 全局视图配置（对应工具栏 4 个面板）。 */
@@ -313,6 +389,20 @@ export interface MindMapApi {
   select(id: string | null): boolean;
   getSelectedId(): string | null;
   hasSelection(): boolean;
+
+  /* 多选（Ctrl / Cmd + 左键点选） */
+  /** 读取当前多选集合（未选中任何节点时为空数组） */
+  getSelectedIds(): string[];
+  /** 切换某节点的选中态（等价于 Ctrl/Cmd + 左键） */
+  toggleSelect(id: string): boolean;
+  /** 清空全部选中 */
+  clearSelect(): void;
+  /** 给当前多选节点两两添加关联线（链式，N 个节点 → N-1 条） */
+  addAssocBetween(): void;
+  /** 把当前多选节点汇总为一个概要（text 为概要框文案） */
+  addSummaryFor(text: string): void;
+  /** 把当前多选节点圈成一个分组框（label 可选） */
+  addFrameFor(label: string): void;
 
   /* 节点样式 / 新建节点文字默认值 */
   setNodeStyle(patch: Partial<MindNodeStyle>): void;

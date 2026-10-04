@@ -10,12 +10,15 @@
 
 import type {
   BaseStyle,
+  MindAssocLine,
   MindBorderStyle,
+  MindFrameGroup,
   MindNode,
   MindNodeFrame,
   MindNodeImage,
   MindNodeShape,
   MindNodeStyle,
+  MindSummaryGroup,
   StructureType,
 } from '../components/mindmap-vite/src/components/MindMap'
 
@@ -260,6 +263,17 @@ export function smmNodeToMind(raw: SmmNode, index = 0): MindNode {
     const icons = d.icons.filter((i): i is string => typeof i === 'string' && i !== '')
     if (icons.length) node.icons = icons
   }
+  // 根级关联线 / 概要组 / 分组框：组件统一挂在根节点上，随树数据一起序列化。
+  // 旧 SMM 客户端读到会忽略这些未知键，属安全扩展；只有根节点会携带，非根节点读到即为空。
+  if (Array.isArray(d.assocLines) && d.assocLines.length) {
+    node.assocLines = d.assocLines as MindAssocLine[]
+  }
+  if (Array.isArray(d.summaryGroups) && d.summaryGroups.length) {
+    node.summaryGroups = d.summaryGroups as MindSummaryGroup[]
+  }
+  if (Array.isArray(d.frameGroups) && d.frameGroups.length) {
+    node.frameGroups = d.frameGroups as MindFrameGroup[]
+  }
   return node
 }
 
@@ -280,13 +294,21 @@ export function mindNodeToSmm(node: MindNode): SmmNode {
   if (typeof node.priority === 'number') data.priority = node.priority
   if (typeof node.progress === 'number') data.progress = node.progress
   if (node.icons?.length) data.icons = node.icons
+  // 根级关联线 / 概要组 / 分组框：与组件保持一致，挂在根节点 data 上随树序列化。
+  if (node.assocLines?.length) data.assocLines = node.assocLines
+  if (node.summaryGroups?.length) data.summaryGroups = node.summaryGroups
+  if (node.frameGroups?.length) data.frameGroups = node.frameGroups
   return {
     data,
     children: (node.children ?? []).map((c) => mindNodeToSmm(c)),
   }
 }
 
-/** 关联线由组件统一挂在根节点上，随树数据一起序列化，无需单独转换。 */
+/**
+ * 关联线 / 概要组 / 分组框由组件统一挂在根节点上，随树数据一起序列化：
+ * 上面 mindNodeToSmm 已把这三个数组写进 root.data（旧客户端忽略未知键，安全扩展），
+ * smmNodeToMind 也在根节点上原样读回，无需单独的转换入口。
+ */
 
 /* ------------------------------------------------------------------ *
  * 主题（SMM themeConfig）⇄ 组件 BaseStyle

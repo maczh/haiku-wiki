@@ -161,6 +161,182 @@
   display: none;
 }
 
+/* ==================== 多选浮动条（关联线 / 概要 / 分组） ==================== */
+/* 透明毛玻璃卡片，浮在选区旁；经 Portal 挂到 body，用 fixed 定位，
+   避免被画布容器的 overflow:hidden 裁剪。top / left 由组件内联计算。 */
+.mm-msbar {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 12px;
+  /* 半透明 + 背景模糊：下方节点透出一点层次，但不干扰读图 */
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(14px) saturate(1.6);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 1px 2px rgba(24, 35, 56, 0.06),
+    0 10px 28px rgba(24, 35, 56, 0.16);
+  animation: mm-msbar-in 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes mm-msbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.mm-msbar-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.mm-msbar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 54px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #3d4451;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.mm-msbar-btn span {
+  font-size: 11px;
+  line-height: 1;
+  color: #79808d;
+  transition: color 0.12s ease;
+}
+.mm-msbar-btn:hover {
+  background: rgba(47, 111, 237, 0.09);
+  color: #2f6fed;
+}
+.mm-msbar-btn:hover span {
+  color: #2f6fed;
+}
+.mm-msbar-btn.is-on {
+  background: #eaf1ff;
+  border-color: #c9dcff;
+  color: #2f6fed;
+}
+.mm-msbar-btn.is-on span {
+  color: #2f6fed;
+}
+.mm-msbar-btn.is-ghost {
+  width: 32px;
+  color: #98a0ad;
+}
+.mm-msbar-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: rgba(0, 0, 0, 0.08);
+}
+/* 注：原先的「概要 / 分组文案输入框 + 确认按钮」面板已移除——
+   点按钮即落地，文案直接在画布上内联编辑，见 .mm-editor-input.is-extra。 */
+
+/* ==================== 九宫格主菜单 ==================== */
+.mm-menu {
+  min-width: 188px;
+  padding: 6px;
+}
+.mm-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #3d4451;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.mm-menu-item:hover:not(:disabled),
+.mm-menu-item.is-active:not(:disabled) {
+  background: #f2f4f7;
+}
+.mm-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mm-menu-item > span {
+  flex: 1;
+  min-width: 0;
+}
+.mm-menu-item kbd {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid #e6e8eb;
+  border-radius: 4px;
+  background: #fafbfc;
+  color: #98a0ad;
+  font-family: inherit;
+  font-size: 11px;
+}
+/* 有下级的项：右侧小箭头 */
+.mm-menu-arrow {
+  flex: none;
+  color: #b3b9c4;
+  transition: transform 0.12s ease;
+}
+.mm-menu-item.is-active .mm-menu-arrow {
+  transform: translateX(1px);
+  color: #2f6fed;
+}
+.mm-menu-sep {
+  height: 1px;
+  margin: 5px 8px;
+  background: #eef0f3;
+}
+.mm-menu-head {
+  padding: 6px 9px 3px;
+  font-size: 11px;
+  color: #a2aab6;
+}
+/* 二级面板向右飞出；空间不足时由组件加 .is-left 翻到左侧 */
+.mm-submenu {
+  animation: mm-submenu-in 0.13s ease;
+}
+.mm-submenu.is-left {
+  animation-name: mm-submenu-in-left;
+}
+@keyframes mm-submenu-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes mm-submenu-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ============================ 浮层 ============================ */
 .mm-pop {
   position: relative;
@@ -426,6 +602,14 @@
   font-family: inherit;
 }
 
+/* 概要 / 分组框文案的内联编辑：单行输入框，尺寸由 JS 贴合原文案胶囊 */
+.mm-editor-input.is-extra {
+  padding: 1px 6px;
+  text-align: center;
+  background: #fff;
+  transition: width 0.08s ease;
+}
+
 /* ============================ 左下角停靠区 ============================ */
 /* 缩放控件 + 紧邻其右侧的位置预览面板，作为一个整体停靠在左下角 */
 .mm-dock-bl {
@@ -672,6 +856,97 @@
   border-color: #2f6fed;
   background: #f5f9ff;
   color: #2f6fed;
+}
+
+/* 线型 / 箭头 / 色彩等「图标 + 说明」竖排分段按钮 */
+.mm-seg-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 42px;
+  padding: 4px 2px;
+}
+.mm-seg-btn svg {
+  display: block;
+  flex: none;
+}
+.mm-seg-cap {
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* 分支样式缩略图网格（截图 1） */
+.mm-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 2px 4px 8px;
+}
+.mm-branch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px 5px;
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #4a5262;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mm-branch-card:hover {
+  border-color: #b8c4d8;
+  background: #fafbfc;
+}
+.mm-branch-card.is-on {
+  border-color: #2f6fed;
+  background: #f5f9ff;
+  color: #2f6fed;
+}
+.mm-branch-card svg {
+  display: block;
+}
+
+/* 多选聚合面板的文案输入 */
+.mm-pop-input {
+  width: 100%;
+  height: 30px;
+  margin: 2px 0 6px;
+  padding: 0 10px;
+  border: 1px solid #e6e8eb;
+  border-radius: 8px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: #1f2329;
+  outline: none;
+}
+.mm-pop-input:focus {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+.mm-pop-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mm-pop-tip kbd {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid #dcdfe6;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f7f8fa;
+  font-family: inherit;
+  font-size: 10.5px;
+  color: #4a5262;
 }
 
 .mm-prio-grid {

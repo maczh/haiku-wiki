@@ -1,35 +1,25 @@
-import { useRef, type MouseEvent as ReactMouseEvent } from "react";
-import { Icon } from "./Icons";
+import { useRef, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { Icon, type IconName } from "./Icons";
 import { Popover, PopLabel } from "./Popover";
+import {
+  BaseStylePanel,
+  IconPanel,
+  MarkerPanel,
+  NodeStylePanel,
+  PriorityPanel,
+  ProgressPanel,
+  StructurePanel,
+  ThemePanel,
+} from "./panels";
 import {
   FONT_FAMILIES,
   FONT_SIZES,
-  SHAPES,
   type BaseStyle,
-  type CanvasCategory,
   type MindMapConfig,
   type MindNodeStyle,
-  type StructureType,
   type TextDefaults,
 } from "./types";
-import {
-  BORDER_COLORS,
-  HIGHLIGHT_COLORS,
-  MARKERS,
-  NODE_ICONS,
-  PRIORITY_COLORS,
-  PRIORITY_LEVELS,
-  PROGRESS_LEVELS,
-  STRUCTURES,
-  TEXT_COLORS,
-  THEME_CATEGORIES,
-  THEME_LIST,
-} from "./theme";
-import {
-  EXPORT_LABELS,
-  IMPORT_ACCEPT,
-  type ExportFormat,
-} from "./io";
+import { EXPORT_LABELS, IMPORT_ACCEPT, type ExportFormat } from "./io";
 
 export interface ToolbarProps {
   canUndo: boolean;
@@ -58,7 +48,6 @@ export interface ToolbarProps {
   onConfig: (patch: Partial<MindMapConfig>) => void;
   /** 基础（默认）样式：影响新建节点与画布 */
   onBase: (patch: Partial<BaseStyle>) => void;
-  /** 优先级 / 进度 / 图标前缀 */
   priority?: number;
   onSetPriority: (v: number | undefined) => void;
   progress?: number;
@@ -68,6 +57,8 @@ export interface ToolbarProps {
   onImport: (file: File) => void;
   onExport: (format: ExportFormat) => void;
   onNew: () => void;
+  /** 九宫格主菜单（内含工具条全部功能 + 下级子菜单） */
+  mainMenu: ReactNode;
 }
 
 const SHORTCUTS: [string, string][] = [
@@ -79,118 +70,26 @@ const SHORTCUTS: [string, string][] = [
   ["Delete", "删除节点"],
   ["空格", "折叠 / 展开"],
   ["方向键", "切换选中节点"],
+  ["Ctrl / Cmd + 左键", "多选节点（选中 ≥2 个后浮现关联线 / 概要 / 分组）"],
   ["Ctrl + Z", "撤销"],
   ["Ctrl + Shift + Z", "重做"],
   ["Ctrl + S", "保存 .km 文件"],
   ["Esc", "取消选中 / 退出编辑"],
 ];
 
-/* ----------------------------- 缩略图预览 ----------------------------- */
-
-function StructureThumb({ kind }: { kind: string }) {
-  const colors = ["#00a870", "#f0a020", "#e34d59", "#2f6fed"];
-  const root = (x: number, y: number, w = 14, h = 8) => (
-    <rect x={x} y={y} width={w} height={h} rx={2} fill="#2f6fed" />
-  );
-  const rightBranches = (
-    <>
-      {[5, 16, 27].map((y, i) => (
-        <g key={i}>
-          <path d={`M17 18 C 24 18, 24 ${y + 3}, 31 ${y + 3}`} fill="none" stroke={colors[i]} strokeWidth={1.3} />
-          <rect x={31} y={y} width={18} height={6} rx={2} fill="#fff" stroke={colors[i]} strokeWidth={1} />
-        </g>
-      ))}
-    </>
-  );
-  return (
-    <svg width="52" height="36" viewBox="0 0 52 36" aria-hidden="true">
-      {/* 逻辑结构图（右） */}
-      {kind === "logical-right" && (<>{root(3, 14)}{rightBranches}</>)}
-      {/* 逻辑结构图（左）：整体镜像 */}
-      {kind === "logical-left" && (
-        <g transform="translate(52,0) scale(-1,1)">{root(3, 14)}{rightBranches}</g>
-      )}
-      {/* 思维导图：根居中，左右均衡 */}
-      {kind === "mindmap" && (
-        <>
-          {root(19, 14)}
-          {[6, 22].map((y, i) => (
-            <g key={`r${i}`}>
-              <path d={`M33 18 C 38 18, 36 ${y + 3}, 38 ${y + 3}`} fill="none" stroke={colors[i]} strokeWidth={1.3} />
-              <rect x={38} y={y} width={12} height={6} rx={2} fill="#fff" stroke={colors[i]} strokeWidth={1} />
-            </g>
-          ))}
-          {[6, 22].map((y, i) => (
-            <g key={`l${i}`}>
-              <path d={`M19 18 C 14 18, 16 ${y + 3}, 14 ${y + 3}`} fill="none" stroke={colors[i + 2]} strokeWidth={1.3} />
-              <rect x={2} y={y} width={12} height={6} rx={2} fill="#fff" stroke={colors[i + 2]} strokeWidth={1} />
-            </g>
-          ))}
-        </>
-      )}
-      {/* 组织结构图：顶级横向铺开（梳状） */}
-      {kind === "org" && (
-        <>
-          {root(19, 3, 14, 7)}
-          <path d={`M26 10 L26 20 L14 20`} fill="none" stroke={colors[0]} strokeWidth={1.2} />
-          <path d={`M26 20 L38 20`} fill="none" stroke={colors[1]} strokeWidth={1.2} />
-          <rect x={6} y={20} width={16} height={6} rx={1.5} fill="#fff" stroke={colors[0]} strokeWidth={1} />
-          <rect x={30} y={20} width={16} height={6} rx={1.5} fill="#fff" stroke={colors[1]} strokeWidth={1} />
-        </>
-      )}
-      {/* 目录组织图：顶级横向，深层垂直堆叠（竖向列表） */}
-      {kind === "catalog" && (
-        <>
-          {root(19, 3, 14, 7)}
-          <path d={`M26 10 L26 16`} fill="none" stroke={colors[0]} strokeWidth={1.2} />
-          <rect x={19} y={13} width={14} height={6} rx={1.5} fill="#fff" stroke={colors[0]} strokeWidth={1} />
-          <path d={`M26 19 L29 22`} fill="none" stroke={colors[1]} strokeWidth={1.2} />
-          <rect x={23} y={22} width={12} height={5} rx={1.5} fill="#fff" stroke={colors[1]} strokeWidth={1} />
-          <path d={`M29 27 L29 29`} fill="none" stroke={colors[2]} strokeWidth={1.2} />
-          <rect x={23} y={29} width={12} height={5} rx={1.5} fill="#fff" stroke={colors[2]} strokeWidth={1} />
-        </>
-      )}
-      {/* 时间轴：根在左，节点位于同一水平线 */}
-      {kind === "timeline" && (
-        <>
-          {root(3, 15, 11, 7)}
-          <path d={`M14 18.5 L48 18.5`} fill="none" stroke="#8b95a5" strokeWidth={1.4} />
-          {[18, 30, 42].map((x, i) => (
-            <rect key={i} x={x} y={15} width={11} height={7} rx={2} fill="#fff" stroke={colors[i]} strokeWidth={1} />
-          ))}
-        </>
-      )}
-      {/* 鱼骨图：脊柱 + 上下交替的骨头 */}
-      {kind === "fishbone" && (
-        <>
-          {root(40, 15, 11, 7)}
-          <path d={`M45 18.5 L8 18.5`} fill="none" stroke="#8b95a5" strokeWidth={1.4} />
-          <path d={`M30 18.5 L24 7`} fill="none" stroke={colors[0]} strokeWidth={1.2} />
-          <rect x={18} y={4} width={12} height={6} rx={1.5} fill="#fff" stroke={colors[0]} strokeWidth={1} />
-          <path d={`M16 18.5 L16 30`} fill="none" stroke={colors[1]} strokeWidth={1.2} />
-          <rect x={10} y={27} width={12} height={6} rx={1.5} fill="#fff" stroke={colors[1]} strokeWidth={1} />
-        </>
-      )}
-    </svg>
-  );
-}
-
-function ThemeSwatch({ id }: { id: string }) {
-  const t = THEME_LIST.find((x) => x.id === id);
-  if (!t) return null;
-  return (
-    <span
-      className="mm-theme-swatch"
-      style={{
-        background: t.nodeFill,
-        borderColor: t.nodeStroke,
-        boxShadow: `inset 6px 0 0 ${t.rootFill}`,
-      }}
-    />
-  );
-}
-
-/* ----------------------------- 工具栏主体 ----------------------------- */
+/* ------------------------------------------------------------------ *
+ * 工具条主体
+ *
+ * 编排顺序（从左到右）：
+ *   ① 主菜单（九宫格）→ ② 文件 → ③ 撤销/重做 → ④ 结构编辑 + 标记
+ *   → ⑤ 字号/字体 → ⑥ 字符样式 → ⑦ 备注/链接
+ *   → ⑧ 节点样式 → ⑨ 基础样式 → ⑩ 主题 → ⑪ 结构
+ *   → ⑫ 优先级 → ⑬ 进度 → ⑭ 图标 → ⑮ 快捷键 → ⑯ 删除
+ *
+ * 所有功能按钮一律**只留图标**，文字信息通过 `title`（悬停提示）承载。
+ * 多选聚合（关联线 / 概要 / 分组）不在这里 —— 它由画布上的
+ * MultiSelectBar 在选中 ≥2 个节点时浮动出现。
+ * ------------------------------------------------------------------ */
 
 export function Toolbar(props: ToolbarProps) {
   const {
@@ -224,6 +123,7 @@ export function Toolbar(props: ToolbarProps) {
     onImport,
     onExport,
     onNew,
+    mainMenu,
   } = props;
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -243,86 +143,80 @@ export function Toolbar(props: ToolbarProps) {
     ? defaults.fontFamily
     : FONT_FAMILIES[0].value;
 
-  const themesByCat: { cat: CanvasCategory; label: string; items: typeof THEME_LIST }[] =
-    THEME_CATEGORIES.map((c) => ({
-      cat: c.id,
-      label: c.label,
-      items: THEME_LIST.filter((t) => t.category === c.id),
-    }));
+  /** 纯图标按钮的内容（文字信息走 title） */
+  const ico = (name: IconName, size = 18) => <Icon name={name} size={size} />;
 
   return (
     <div className="mm-toolbar" onMouseDown={guard}>
-      {/* 撤销 / 重做 */}
+      {/* ① 主菜单（九宫格）：内含工具条全部功能 */}
+      {mainMenu}
+
+      {/* ② 文件 */}
+      <Popover
+        title="文件：新建 / 打开 / 保存 / 导出"
+        align="left"
+        width={244}
+        trigger={() => ico("folder", 17)}
+      >
+        {(close) => (
+          <>
+            <button type="button" className="mm-pop-action" onClick={() => fileRef.current?.click()}>
+              <Icon name="folder" size={15} /> 打开…
+            </button>
+            <button type="button" className="mm-pop-action" onClick={() => { onExport("km"); close(); }}>
+              <Icon name="save" size={15} /> 保存（.km）
+            </button>
+            <PopLabel>导出为</PopLabel>
+            {(Object.keys(EXPORT_LABELS) as ExportFormat[]).map((f) => (
+              <button key={f} type="button" className="mm-pop-action" onClick={() => { onExport(f); close(); }}>
+                <Icon name="save" size={15} /> {EXPORT_LABELS[f]}
+              </button>
+            ))}
+            <div className="mm-pop-tip">默认打开 / 保存格式为 .km</div>
+            <PopLabel>其他</PopLabel>
+            <button type="button" className="mm-pop-action" onClick={() => { onNew(); close(); }}>
+              <Icon name="file-plus" size={15} /> 新建空白导图
+            </button>
+          </>
+        )}
+      </Popover>
+
+      <i className="mm-tb-sep" />
+
+      {/* ③ 撤销 / 重做 */}
       <div className="mm-tb-group">
         <button type="button" className="mm-tb-btn" title="撤销 (Ctrl+Z)" disabled={!canUndo} onClick={onUndo}>
-          <Icon name="undo" />
+          {ico("undo")}
         </button>
         <button type="button" className="mm-tb-btn" title="重做 (Ctrl+Shift+Z)" disabled={!canRedo} onClick={onRedo}>
-          <Icon name="redo" />
+          {ico("redo")}
         </button>
       </div>
 
       <i className="mm-tb-sep" />
 
-      {/* 结构编辑 */}
+      {/* ④ 结构编辑 + 标记 */}
       <div className="mm-tb-group">
         <button type="button" className="mm-tb-btn" title="插入上级节点" onClick={onInsertParent}>
-          <Icon name="insert-parent" />
+          {ico("insert-parent")}
         </button>
         <button type="button" className="mm-tb-btn" title="在下方插入同级节点 (Enter)" onClick={onInsertSiblingAfter}>
-          <Icon name="insert-sibling-below" />
+          {ico("insert-sibling-below")}
         </button>
         <button type="button" className="mm-tb-btn" title="在上方插入同级节点 (Shift+Enter)" onClick={onInsertSiblingBefore}>
-          <Icon name="insert-sibling-above" />
+          {ico("insert-sibling-above")}
         </button>
         <button type="button" className="mm-tb-btn" title="插入子节点 (Tab)" onClick={onInsertChild}>
-          <Icon name="insert-child" />
+          {ico("insert-child")}
         </button>
-        <Popover
-          title="标记"
-          width={224}
-          trigger={() => (
-            <span className="mm-tb-combo">
-              <Icon name="marker" />
-              {markers.length > 0 && <b className="mm-dot" />}
-            </span>
-          )}
-        >
-          {(close) => (
-            <>
-              <PopLabel>标记（可多选）</PopLabel>
-              <div className="mm-marker-grid">
-                {MARKERS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={`mm-marker-chip ${markers.includes(m.id) ? "is-on" : ""}`}
-                    title={m.label}
-                    style={{ background: m.bg, color: m.fg }}
-                    onClick={() => onToggleMarker(m.id)}
-                  >
-                    {m.char}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="mm-pop-action"
-                onClick={() => {
-                  markers.forEach((m) => onToggleMarker(m));
-                  close();
-                }}
-              >
-                <Icon name="trash" size={14} /> 清除全部标记
-              </button>
-            </>
-          )}
+        <Popover title="标记（可多选）" width={224} trigger={() => ico("marker")}>
+          {() => <MarkerPanel markers={markers} onToggleMarker={onToggleMarker} />}
         </Popover>
       </div>
 
       <i className="mm-tb-sep" />
 
-      {/* 字号 / 字体 */}
+      {/* ⑤ 字号 / 字体 */}
       <select
         className="mm-tb-select mm-tb-size"
         title="字号"
@@ -346,7 +240,7 @@ export function Toolbar(props: ToolbarProps) {
 
       <i className="mm-tb-sep" />
 
-      {/* 字符样式 */}
+      {/* ⑥ 字符样式 */}
       <div className="mm-tb-group">
         <button type="button" className={`mm-tb-btn mm-tb-letter ${style.bold ? "is-on" : ""}`} title="加粗 (Ctrl+B)" style={{ fontWeight: 800 }} onClick={() => onStyle({ bold: !style.bold })}>B</button>
         <button type="button" className={`mm-tb-btn mm-tb-letter ${style.italic ? "is-on" : ""}`} title="斜体 (Ctrl+I)" style={{ fontStyle: "italic", fontFamily: "Georgia, serif" }} onClick={() => onStyle({ italic: !style.italic })}>I</button>
@@ -356,372 +250,57 @@ export function Toolbar(props: ToolbarProps) {
 
       <i className="mm-tb-sep" />
 
-      {/* 备注 / 链接 */}
+      {/* ⑦ 备注 / 链接 */}
       <div className="mm-tb-group">
         <button type="button" className="mm-tb-btn" title="节点备注" onClick={onNote}>
-          <Icon name="note" />
+          {ico("note")}
         </button>
         <button type="button" className="mm-tb-btn" title="超链接" onClick={onLink}>
-          <Icon name="link" />
+          {ico("link")}
         </button>
       </div>
 
       <i className="mm-tb-sep" />
 
-      {/* ===== 节点样式 ===== */}
-      <Popover
-        title="节点样式"
-        align="left"
-        width={236}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="node-style" size={17} />
-            <span>节点样式</span>
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>形状</PopLabel>
-            <div className="mm-shape-grid">
-              {SHAPES.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`mm-shape-chip ${style.shape === s.id ? "is-on" : ""}`}
-                  onClick={() => onStyle({ shape: style.shape === s.id ? undefined : s.id })}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <PopLabel>文字颜色</PopLabel>
-            <div className="mm-swatches">
-              {TEXT_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${style.color === c ? "is-on" : ""}`} style={{ background: c }} title={c} onClick={() => onStyle({ color: style.color === c ? undefined : c })} />
-              ))}
-            </div>
-            <PopLabel>填充背景</PopLabel>
-            <div className="mm-swatches">
-              {HIGHLIGHT_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${(style.background ?? "transparent") === c ? "is-on" : ""} ${c === "transparent" ? "is-none" : ""}`} style={{ background: c === "transparent" ? "#fff" : c }} title={c === "transparent" ? "无填充" : c} onClick={() => onStyle({ background: c === "transparent" ? undefined : c })} />
-              ))}
-            </div>
-            <PopLabel>边框颜色</PopLabel>
-            <div className="mm-swatches">
-              {BORDER_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${style.borderColor === c ? "is-on" : ""}`} style={{ background: c }} title={c} onClick={() => onStyle({ borderColor: style.borderColor === c ? undefined : c })} />
-              ))}
-            </div>
-          </>
-        )}
+      {/* ⑧ 节点样式 */}
+      <Popover title="节点样式：形状 / 颜色 / 填充 / 外框线型" align="left" width={236} trigger={() => ico("node-style", 17)}>
+        {() => <NodeStylePanel style={style} onStyle={onStyle} />}
       </Popover>
 
-      {/* ===== 基础样式 ===== */}
-      <Popover
-        title="基础样式"
-        align="left"
-        width={236}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="base-style" size={17} />
-            <span>基础样式</span>
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>默认字体</PopLabel>
-            <select className="mm-pop-select" value={base.fontFamily ?? ""} onChange={(e) => onBase({ fontFamily: e.target.value || undefined })}>
-              <option value="">（跟随系统）</option>
-              {FONT_FAMILIES.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
-            </select>
-            <PopLabel>默认字号</PopLabel>
-            <select className="mm-pop-select" value={base.fontSize ?? ""} onChange={(e) => onBase({ fontSize: e.target.value ? Number(e.target.value) : undefined })}>
-              <option value="">（默认）</option>
-              {FONT_SIZES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <PopLabel>连线颜色</PopLabel>
-            <div className="mm-swatches">
-              {BORDER_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${base.linkColor === c ? "is-on" : ""}`} style={{ background: c }} title={c} onClick={() => onBase({ linkColor: base.linkColor === c ? undefined : c })} />
-              ))}
-            </div>
-            <PopLabel>连线粗细 · {base.linkWidth ?? "默认"}</PopLabel>
-            <input className="mm-pop-range" type="range" min={1} max={5} step={1} value={base.linkWidth ?? 2} onChange={(e) => onBase({ linkWidth: Number(e.target.value) })} />
-            <PopLabel>圆角 · {base.radius ?? "默认"}</PopLabel>
-            <input className="mm-pop-range" type="range" min={0} max={20} step={1} value={base.radius ?? 10} onChange={(e) => onBase({ radius: Number(e.target.value) })} />
-            <PopLabel>默认填充</PopLabel>
-            <div className="mm-swatches">
-              {HIGHLIGHT_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${(base.nodeFill ?? "transparent") === c ? "is-on" : ""} ${c === "transparent" ? "is-none" : ""}`} style={{ background: c === "transparent" ? "#fff" : c }} title={c === "transparent" ? "无" : c} onClick={() => onBase({ nodeFill: c === "transparent" ? undefined : c })} />
-              ))}
-            </div>
-            <PopLabel>默认文字色</PopLabel>
-            <div className="mm-swatches">
-              {TEXT_COLORS.map((c) => (
-                <button key={c} type="button" className={`mm-swatch ${base.nodeText === c ? "is-on" : ""}`} style={{ background: c }} title={c} onClick={() => onBase({ nodeText: base.nodeText === c ? undefined : c })} />
-              ))}
-            </div>
-          </>
-        )}
+      {/* ⑨ 基础样式 */}
+      <Popover title="基础样式：连线 / 分支 / 圆角" align="left" width={236} trigger={() => ico("base-style", 17)}>
+        {() => <BaseStylePanel base={base} onBase={onBase} />}
       </Popover>
 
-      {/* ===== 主题 ===== */}
-      <Popover
-        title="主题"
-        align="left"
-        width={252}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="theme" size={17} />
-            <span>主题</span>
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            {themesByCat.map((g) => (
-              <div key={g.cat}>
-                <PopLabel>{g.label}</PopLabel>
-                <div className="mm-theme-grid">
-                  {g.items.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className={`mm-theme-card ${config.themeId === t.id ? "is-on" : ""}`}
-                      onClick={() => onConfig({ themeId: t.id })}
-                    >
-                      <ThemeSwatch id={t.id} />
-                      <span>{t.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
+      {/* ⑩ 主题 */}
+      <Popover title="主题" align="left" width={252} trigger={() => ico("theme", 17)}>
+        {() => <ThemePanel config={config} onConfig={onConfig} />}
       </Popover>
 
-      {/* ===== 结构 ===== */}
-      <Popover
-        title="结构"
-        align="left"
-        width={236}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="structure" size={17} />
-            <span>结构</span>
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>布局结构</PopLabel>
-            <div className="mm-structure-grid">
-              {STRUCTURES.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`mm-structure-card ${config.structure === s.id ? "is-on" : ""}`}
-                  onClick={() => onConfig({ structure: s.id as StructureType })}
-                >
-                  <StructureThumb kind={s.id} />
-                  <span>{s.label}</span>
-                </button>
-              ))}
-            </div>
-            <PopLabel>连线样式</PopLabel>
-            <div className="mm-seg">
-              {([["curve", "曲线"], ["elbow", "折线"]] as const).map(([k, label]) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`mm-seg-btn ${config.lineStyle === k ? "is-on" : ""}`}
-                  onClick={() => onConfig({ lineStyle: k })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+      {/* ⑪ 结构 */}
+      <Popover title="结构：布局 / 连线样式" align="left" width={236} trigger={() => ico("structure", 17)}>
+        {() => <StructurePanel config={config} onConfig={onConfig} />}
+      </Popover>
+
+      {/* ⑫ 优先级 */}
+      <Popover title="优先级" align="left" width={208} trigger={() => ico("priority", 17)}>
+        {() => <PriorityPanel priority={priority} onSetPriority={onSetPriority} />}
+      </Popover>
+
+      {/* ⑬ 进度 */}
+      <Popover title="进度" align="left" width={208} trigger={() => ico("progress", 17)}>
+        {() => <ProgressPanel progress={progress} onSetProgress={onSetProgress} />}
+      </Popover>
+
+      {/* ⑭ 图标 */}
+      <Popover title="图标前缀（可多选）" align="left" width={236} trigger={() => ico("icon", 17)}>
+        {() => <IconPanel icons={icons} onToggleIcon={onToggleIcon} />}
       </Popover>
 
       <i className="mm-tb-sep" />
 
-      {/* ===== 优先级 ===== */}
-      <Popover
-        title="优先级"
-        align="left"
-        width={208}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="priority" size={17} />
-            <span>优先级</span>
-            {priority != null && <b className="mm-badge" style={{ background: PRIORITY_COLORS[priority] }}>{priority}</b>}
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>设置优先级（1–9）</PopLabel>
-            <div className="mm-prio-grid">
-              {PRIORITY_LEVELS.map((lv) => (
-                <button
-                  key={lv}
-                  type="button"
-                  className={`mm-prio-chip ${priority === lv ? "is-on" : ""}`}
-                  style={{ background: priority === lv ? PRIORITY_COLORS[lv] : undefined, color: priority === lv ? "#fff" : PRIORITY_COLORS[lv] }}
-                  onClick={() => onSetPriority(priority === lv ? undefined : lv)}
-                >
-                  {lv}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="mm-pop-action" onClick={() => onSetPriority(undefined)}>
-              <Icon name="trash" size={14} /> 清除优先级
-            </button>
-          </>
-        )}
-      </Popover>
-
-      {/* ===== 进度 ===== */}
-      <Popover
-        title="进度"
-        align="left"
-        width={208}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="progress" size={17} />
-            <span>进度</span>
-            {progress != null && <b className="mm-badge" style={{ background: "#8bc34a" }}>{progress * 10}%</b>}
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>设置进度（0–100%，每档 10%）</PopLabel>
-            <div className="mm-prog-grid">
-              {PROGRESS_LEVELS.map((lv) => (
-                <button
-                  key={lv}
-                  type="button"
-                  className={`mm-prog-chip ${progress === lv ? "is-on" : ""}`}
-                  onClick={() => onSetProgress(progress === lv ? undefined : lv)}
-                >
-                  {lv * 10}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="mm-pop-action" onClick={() => onSetProgress(undefined)}>
-              <Icon name="trash" size={14} /> 清除进度
-            </button>
-          </>
-        )}
-      </Popover>
-
-      {/* ===== 图标 ===== */}
-      <Popover
-        title="图标"
-        align="left"
-        width={236}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="icon" size={17} />
-            <span>图标</span>
-            {icons.length > 0 && <b className="mm-dot" />}
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {() => (
-          <>
-            <PopLabel>添加图标前缀（可多选）</PopLabel>
-            <div className="mm-icon-grid">
-              {NODE_ICONS.map((ic) => (
-                <button
-                  key={ic.id}
-                  type="button"
-                  className={`mm-icon-chip ${icons.includes(ic.id) ? "is-on" : ""}`}
-                  title={ic.label}
-                  onClick={() => onToggleIcon(ic.id)}
-                >
-                  <span className="mm-icon-emoji">{ic.char}</span>
-                </button>
-              ))}
-            </div>
-            <button type="button" className="mm-pop-action" onClick={() => icons.forEach((id) => onToggleIcon(id))}>
-              <Icon name="trash" size={14} /> 清除全部图标
-            </button>
-          </>
-        )}
-      </Popover>
-
-      <i className="mm-tb-sep" />
-
-      {/* ===== 文件：打开 / 保存(.km) / 导出 ===== */}
-      <Popover
-        title="文件"
-        align="right"
-        width={244}
-        trigger={() => (
-          <span className="mm-tb-combo mm-tb-combo-text">
-            <Icon name="folder" size={17} />
-            <span>文件</span>
-            <Icon name="chevron" size={13} />
-          </span>
-        )}
-      >
-        {(close) => (
-          <>
-            <button type="button" className="mm-pop-action" onClick={() => fileRef.current?.click()}>
-              <Icon name="folder" size={15} /> 打开…
-            </button>
-            <button type="button" className="mm-pop-action" onClick={() => { onExport("km"); close(); }}>
-              <Icon name="save" size={15} /> 保存（.km）
-            </button>
-            <PopLabel>导出为</PopLabel>
-            {(Object.keys(EXPORT_LABELS) as ExportFormat[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                className="mm-pop-action"
-                onClick={() => { onExport(f); close(); }}
-              >
-                <Icon name="save" size={15} /> {EXPORT_LABELS[f]}
-              </button>
-            ))}
-            <div className="mm-pop-tip">默认打开 / 保存格式为 .km</div>
-            <PopLabel>其他</PopLabel>
-            <button type="button" className="mm-pop-action" onClick={() => { onNew(); close(); }}>
-              <Icon name="file-plus" size={15} /> 新建空白导图
-            </button>
-          </>
-        )}
-      </Popover>
-
-      {/* 快捷键说明 */}
-      <Popover
-        title="快捷键"
-        align="right"
-        width={252}
-        trigger={() => (
-          <span className="mm-tb-combo">
-            <Icon name="keyboard" size={17} />
-          </span>
-        )}
-      >
+      {/* ⑮ 快捷键 */}
+      <Popover title="快捷键" align="right" width={252} trigger={() => ico("keyboard", 17)}>
         {() => (
           <>
             <PopLabel>编辑快捷键</PopLabel>
@@ -737,11 +316,10 @@ export function Toolbar(props: ToolbarProps) {
         )}
       </Popover>
 
-      <i className="mm-tb-sep" />
-
+      {/* ⑯ 删除 */}
       <div className="mm-tb-group">
         <button type="button" className="mm-tb-btn" title="删除节点 (Delete)" disabled={!canDelete} onClick={onDelete}>
-          <Icon name="trash" />
+          {ico("trash")}
         </button>
       </div>
 

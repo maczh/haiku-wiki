@@ -53,6 +53,13 @@ export interface CanvasTheme {
   nodeBorder: boolean;
   /** 该主题默认连线样式 */
   lineStyle: LineStyle;
+  /**
+   * 是否为「手绘」风格（截图 5）：节点外框与连线都改为手绘抖动路径。
+   * 渲染层据此切换 path 生成器，见 MindMap.tsx 的 hand* 系列函数。
+   */
+  handDrawn?: boolean;
+  /** 手绘抖动幅度（px），越大越潦草；仅 handDrawn 主题生效 */
+  handJitter?: number;
 }
 
 /** 主题分类顺序与名称 */
@@ -60,6 +67,7 @@ export const THEME_CATEGORIES: { id: CanvasCategory; label: string }[] = [
   { id: "classic", label: "经典" },
   { id: "dark", label: "深色" },
   { id: "plain", label: "朴素" },
+  { id: "hand", label: "手绘" },
 ];
 
 const t = (
@@ -211,6 +219,57 @@ export const THEME_LIST: CanvasTheme[] = [
     useBranchColor: false,
     nodeBorder: false,
     lineStyle: "elbow",
+  }),
+  /* --------------------------- 手绘 --------------------------- */
+  /* 参考截图：中心节点为紫色双笔椭圆、四周彩色圆角矩形（每笔描两遍）、
+     连线是两根夹着走的灰线、箭头是空心的「V」。
+     handJitter 是「单笔起伏幅度」（px），取小值 —— 幅度一大就变成折线毛刺；
+     双笔的张开量（gap）由渲染层按形状分配：椭圆 3.6、矩形 2.2、连线 1.5。
+     因为每笔画两遍，描边都必须比常规主题细一点，否则两条线糊成一片。 */
+  t("hand-colorful", "手绘彩色", "hand", {
+    background: "#fdfcf7",
+    rootFill: "#b79aee",
+    rootText: "#ffffff",
+    nodeFill: "#ffffff",
+    nodeText: "#2f2a3d",
+    nodeStroke: "#6b6580",
+    radius: 12,
+    strokeWidth: 1.7,
+    linkColor: "#9a94ad",
+    linkWidth: 1.3,
+    useBranchColor: true,
+    handDrawn: true,
+    handJitter: 1.1,
+  }),
+  t("hand-blueprint", "手绘蓝图", "hand", {
+    background: "#f5f7fa",
+    rootFill: "#5b8def",
+    rootText: "#ffffff",
+    nodeFill: "#ffffff",
+    nodeText: "#243247",
+    nodeStroke: "#4a6a9c",
+    radius: 14,
+    strokeWidth: 1.7,
+    linkColor: "#8fa8c9",
+    linkWidth: 1.3,
+    useBranchColor: false,
+    handDrawn: true,
+    handJitter: 0.9,
+  }),
+  t("hand-forest", "手绘森野", "hand", {
+    background: "#faf7ef",
+    rootFill: "#5aa469",
+    rootText: "#ffffff",
+    nodeFill: "#fffdf6",
+    nodeText: "#2f3b30",
+    nodeStroke: "#5f7a63",
+    radius: 16,
+    strokeWidth: 1.7,
+    linkColor: "#93ab8f",
+    linkWidth: 1.3,
+    useBranchColor: true,
+    handDrawn: true,
+    handJitter: 1.3,
   }),
 ];
 

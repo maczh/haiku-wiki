@@ -1,4 +1,10 @@
-import type { MindNode, MindNodeStyle } from "../types";
+import type {
+  MindAssocLine,
+  MindFrameGroup,
+  MindNode,
+  MindNodeStyle,
+  MindSummaryGroup,
+} from "../types";
 import { uid } from "../tree";
 
 /** 有道 / KityMinder 扁平节点 */
@@ -89,6 +95,18 @@ function readStyle(...sources: (Record<string, unknown> | undefined)[]): MindNod
     if (bg) (style.background = bg), (has = true);
     const border = str(s.borderColor ?? s["border-color"] ?? s["line-color"]);
     if (border) (style.borderColor = border), (has = true);
+    // 节点外框线型：实线 / 虚线 / 点线 / 点划线
+    const bs = str(s.borderStyle ?? s["border-style"]);
+    if (bs === "solid" || bs === "dashed" || bs === "dotted" || bs === "dashdot") {
+      style.borderStyle = bs;
+      has = true;
+    }
+    // 节点形状
+    const sh = str(s.shape ?? s["border-radius-shape"]);
+    if (sh === "rect" || sh === "rounded" || sh === "capsule" || sh === "underline" || sh === "none") {
+      style.shape = sh;
+      has = true;
+    }
   }
   return has ? style : undefined;
 }
@@ -148,6 +166,11 @@ export function fromNested(raw: NestedRaw, isRoot = true): MindNode {
   const progress = num(raw.progress ?? d.progress);
   const icons = readIcons(raw.icons ?? d.icons);
 
+  // 根节点专属的聚合字段（关联线 / 概要 / 分组框），非根节点不读取
+  const assocLines = isRoot ? readAssocLines(raw.assocLines ?? d.assocLines) : undefined;
+  const summaryGroups = isRoot ? readSummaryGroups(raw.summaryGroups ?? d.summaryGroups) : undefined;
+  const frameGroups = isRoot ? readFrameGroups(raw.frameGroups ?? d.frameGroups) : undefined;
+
   return {
     id: str(raw.id) ?? str(d.uid) ?? uid(),
     title,
@@ -162,7 +185,79 @@ export function fromNested(raw: NestedRaw, isRoot = true): MindNode {
     progress: progress != null ? Math.min(10, Math.max(0, Math.round(progress))) : undefined,
     icons,
     isRoot: isRoot || undefined,
+    assocLines,
+    summaryGroups,
+    frameGroups,
   };
+}
+
+/** 读取关联线数组（宽容处理：缺字段 / 类型不符一律丢弃该条） */
+function readAssocLines(v: unknown): MindAssocLine[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v
+    .map((raw, i) => {
+      const o = (raw ?? {}) as Record<string, unknown>;
+      const fromId = str(o.fromId ?? o.from);
+      const toId = str(o.toId ?? o.to);
+      if (!fromId || !toId || fromId === toId) return null;
+      const arrowRaw = str(o.arrow);
+      const arrow =
+        arrowRaw === "in" || arrowRaw === "out" || arrowRaw === "none"
+          ? arrowRaw
+          : undefined;
+      return {
+        id: str(o.id) ?? `assoc-import-${i}`,
+        fromId,
+        toId,
+        label: str(o.label),
+        color: str(o.color),
+        arrow,
+      } as MindAssocLine;
+    })
+    .filter(Boolean) as MindAssocLine[];
+  return out.length ? out : undefined;
+}
+
+/** 读取多选概要数组（nodeIds 至少 2 个才有效） */
+function readSummaryGroups(v: unknown): MindSummaryGroup[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v
+    .map((raw, i) => {
+      const o = (raw ?? {}) as Record<string, unknown>;
+      const nodeIds = Array.isArray(o.nodeIds)
+        ? o.nodeIds.map((x) => str(x)).filter(Boolean) as string[]
+        : [];
+      if (nodeIds.length < 2) return null;
+      return {
+        id: str(o.id) ?? `sum-import-${i}`,
+        nodeIds,
+        text: str(o.text) ?? "概要",
+        color: str(o.color),
+      } as MindSummaryGroup;
+    })
+    .filter(Boolean) as MindSummaryGroup[];
+  return out.length ? out : undefined;
+}
+
+/** 读取多选分组框数组（nodeIds 至少 1 个才有效） */
+function readFrameGroups(v: unknown): MindFrameGroup[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v
+    .map((raw, i) => {
+      const o = (raw ?? {}) as Record<string, unknown>;
+      const nodeIds = Array.isArray(o.nodeIds)
+        ? o.nodeIds.map((x) => str(x)).filter(Boolean) as string[]
+        : [];
+      if (!nodeIds.length) return null;
+      return {
+        id: str(o.id) ?? `frm-import-${i}`,
+        nodeIds,
+        label: str(o.label),
+        color: str(o.color),
+      } as MindFrameGroup;
+    })
+    .filter(Boolean) as MindFrameGroup[];
+  return out.length ? out : undefined;
 }
 
 /** 读取节点图标前缀（emoji id 列表） */

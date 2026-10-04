@@ -28,8 +28,16 @@ export type IconName =
   | "check"
   | "brush"
   | "file-plus"
-  | "keyboard";
+  | "keyboard"
+  | "grid"
+  | "assoc"
+  | "summary"
+  | "group";
 
+/**
+ * 描边路径（`fill="none"` + currentColor 描边）。
+ * 坐标基于 24x24 视窗，线宽由组件统一控制。
+ */
 const PATHS: Record<IconName, string[]> = {
   undo: ["M9 14 4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 0 11H9"],
   redo: ["M15 14l5-5-5-5", "M20 9H9.5a5.5 5.5 0 0 0 0 11H15"],
@@ -67,11 +75,7 @@ const PATHS: Record<IconName, string[]> = {
     "M9 9.5h.01",
     "M13 9.5h.01",
   ],
-  "base-style": [
-    "M12 3.5 21 8 12 12.5 3 8z",
-    "M3 12l9 4.5L21 12",
-    "M3 16l9 4.5L21 16",
-  ],
+  "base-style": ["M12 3.5 21 8 12 12.5 3 8z", "M3 12l9 4.5L21 12", "M3 16l9 4.5L21 16"],
   theme: [
     "M12 3.2a8.8 8.8 0 1 0 0 17.6c1.2 0 1.9-1 1.5-2-.4-1.1.4-2.2 1.6-2.2h1.7a3 3 0 0 0 3-3c0-4.7-3.9-8.4-8.8-8.4z",
     "M7.6 9.4h.01",
@@ -100,7 +104,12 @@ const PATHS: Record<IconName, string[]> = {
     "M8.5 14.5c1.5 1.8 5.5 1.8 7 0",
   ],
   fit: ["M4 9.5V4h5.5", "M20 9.5V4h-5.5", "M4 14.5V20h5.5", "M20 14.5V20h-5.5"],
-  "zoom-in": ["M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z", "M20 20l-4.2-4.2", "M11 8.5v5", "M8.5 11h5"],
+  "zoom-in": [
+    "M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z",
+    "M20 20l-4.2-4.2",
+    "M11 8.5v5",
+    "M8.5 11h5",
+  ],
   "zoom-out": ["M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z", "M20 20l-4.2-4.2", "M8.5 11h5"],
   chevron: ["M6 9.5l6 6 6-6"],
   folder: ["M3.5 7.5a2 2 0 0 1 2-2h3.6l2 2h7.4a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"],
@@ -122,6 +131,80 @@ const PATHS: Record<IconName, string[]> = {
     "M17.5 10h.01",
     "M8 13.5h8",
   ],
+
+  /* ---------------------------------------------------------------- *
+   * 多选聚合三图标：与画布上的实际形态同源，所见即所得。
+   * 改动前先看 verify-shots-20261003/30-icons.png 这张对照图。
+   *
+   *   关联线 —— 上下两个节点 + 一条虚线弧连到目标节点，末端实心箭头。
+   *   概要   —— 左侧一条 C 形单弧（**尖端朝被汇总节点**、腰部朝摘要框鼓），
+   *            引线连到右侧汇总框；与 summaryGroupGeom 的 brace + link 同构。
+   *   分组   —— 虚线圆角框罩住两个节点。
+   * ---------------------------------------------------------------- */
+
+  /** 关联线：两个节点被一条虚线弧连起来，末端有箭头 */
+  assoc: [
+    /* 上节点 */
+    "M3.4 5.4h5.6v3.4H3.4z",
+    /* 下节点（目标） */
+    "M3.4 15.2h5.6v3.4H3.4z",
+    /* 虚线弧：自上节点右侧绕到下节点右侧 */
+    "M9.5 7.1C15.4 7.1 13.2 16.9 17.4 16.9",
+  ],
+
+  /** 概要：C 形单弧（尖端在左、朝向被汇总节点）+ 引线 + 右侧汇总框 */
+  summary: [
+    /* C 形单弧 */
+    "M5.6 5.2C9.6 5.2 9.6 12 9.6 12S9.6 18.8 5.6 18.8",
+    /* 引线：腰部 → 汇总框 */
+    "M9.6 12h2.6",
+    /* 汇总框 */
+    "M12.2 9.2h8.2v5.6h-8.2z",
+  ],
+
+  /** 分组：虚线圆角框罩住两个小节点 */
+  group: [
+    /* 外框（虚线） */
+    "M5.4 4.6h13.2a2 2 0 0 1 2 2v10.8a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z",
+    /* 框内两个节点 */
+    "M6.6 9.4h4.2v3.6H6.6z",
+    "M13.2 11.6h4.2v3.6h-4.2z",
+  ],
+
+  /**
+   * 主菜单：3×3 圆角方块（用户参考图）。
+   * 九宫格是「全部功能」的通用符号，比 hamburger / 齿轮 更贴近「主菜单」语义。
+   */
+  grid: [
+    "M4 4.6h3.4v3.4H4z",
+    "M10.3 4.6h3.4v3.4h-3.4z",
+    "M16.6 4.6H20v3.4h-3.4z",
+    "M4 10.9h3.4v3.4H4z",
+    "M10.3 10.9h3.4v3.4h-3.4z",
+    "M16.6 10.9H20v3.4h-3.4z",
+    "M4 17.2h3.4v3.4H4z",
+    "M10.3 17.2h3.4v3.4h-3.4z",
+    "M16.6 17.2H20v3.4h-3.4z",
+  ],
+};
+
+/**
+ * 需要虚线描边的路径下标（其余实线）。
+ * 只在「语义上就是虚线」的地方用：关联线、分组框。
+ */
+const DASHED: Partial<Record<IconName, number[]>> = {
+  assoc: [2],
+  group: [0],
+};
+
+/**
+ * 填充元素（`fill="currentColor"`，无描边）。
+ * 只在实心三角这类必须靠填充表现的场景使用，
+ * 避免用描边路径硬凑导致线宽不一致。
+ */
+const FILLS: Partial<Record<IconName, string[]>> = {
+  /* 关联线末端的箭头：尖端指向目标节点 */
+  assoc: ["M20.9 16.9 16.9 14.9 16.9 18.9z"],
 };
 
 export interface IconProps {
@@ -132,6 +215,9 @@ export interface IconProps {
 }
 
 export function Icon({ name, size = 18, strokeWidth = 1.7, className }: IconProps) {
+  const strokes = PATHS[name];
+  const fills = FILLS[name];
+  const dashed = DASHED[name];
   return (
     <svg
       className={className}
@@ -146,8 +232,11 @@ export function Icon({ name, size = 18, strokeWidth = 1.7, className }: IconProp
       aria-hidden="true"
       focusable="false"
     >
-      {PATHS[name].map((d, i) => (
-        <path key={i} d={d} />
+      {fills?.map((d, i) => (
+        <path key={`f${i}`} d={d} fill="currentColor" stroke="none" />
+      ))}
+      {strokes.map((d, i) => (
+        <path key={i} d={d} strokeDasharray={dashed?.includes(i) ? "2.4 2.2" : undefined} />
       ))}
     </svg>
   );
