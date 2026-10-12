@@ -3,6 +3,8 @@ import Vditor from 'vditor'
 import { sanitizePreservingMermaid, waitForMermaidBlocks } from '../../lib/mermaidRender'
 import { loadFoldState, toggleFoldState } from '../../lib/headingFold'
 import { jsonFoldFromText } from '../../lib/jsonFold'
+import { injectCodeCopyButtons } from '../../lib/codeCopy'
+import '../../lib/codeCopy.css'
 
 // Vditor 样式随本组件一起按需加载：只有渲染 Markdown 才需要，
 // 放在 main.tsx 会让 ~40KB CSS 阻塞首屏（本文件已是 React.lazy 组件）。
@@ -63,6 +65,7 @@ function injectJsonFold(container: HTMLElement): void {
     const wrap = document.createElement('div')
     wrap.className = 'hk-jsonfold-scroll'
     wrap.appendChild(node)
+    wrap.setAttribute('data-hk-code-text', code.textContent ?? '')
     pre.replaceWith(wrap)
   })
 }
@@ -151,6 +154,7 @@ export default function MarkdownView({ content, onRendered, docId }: Props) {
           sanitizePreservingMermaid(el)
           injectHeadingFold(el, docId)
           injectJsonFold(el)
+          injectCodeCopyButtons(el)
         })().catch(() => undefined)
       },
     })
