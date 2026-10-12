@@ -37,6 +37,8 @@ import {
 
 // Vditor 样式随本组件一起按需加载（与 MarkdownView 共享同一 CSS chunk）。
 import 'vditor/dist/index.css'
+import { attachCodeCopyOverlay, type CodeCopyOverlay } from '../../lib/codeCopy'
+import '../../lib/codeCopy.css'
 
 interface Props {
   docId: number
@@ -303,6 +305,9 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
   const [activePanel, setActivePanel] = useState<null | 'transform' | 'indent' | 'addbelow'>(null)
   /** 菜单浮层 DOM（解析下一个右键上下文时需临时隐藏，避免坐标命中浮层） */
   const overlayRef = useRef<HTMLDivElement>(null)
+  const codeCopyObserverRef = useRef<MutationObserver | null>(null)
+  /** IR 代码块复制按钮 overlay 句柄（不进 IR DOM，见 lib/codeCopy.ts） */
+  const codeCopyOverlayRef = useRef<CodeCopyOverlay | null>(null)
 
   // docId 变化时重建编辑器
   useEffect(() => {
@@ -313,6 +318,7 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
     setSavedAt(null)
 
     let disposed = false
+    let ccTimer: ReturnType<typeof setTimeout> | undefined
     const vd = new Vditor(elRef.current!, {
       mode: 'ir',
       // 自托管 Vditor 静态资源（见 web/scripts/copy-vditor-assets.mjs），避免依赖 unpkg.com
@@ -361,6 +367,23 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       after: () => {
         if (!disposed) {
           vdRef.current = vd
+        }
+        // 代码块复制按钮（overlay 方案）：层挂在 scroller 直下、不进 IR DOM，
+        // 避免被 processCodeRender 拷进预览、被 lute 序列化进自动保存的正文。
+        // MutationObserver debounce 300ms 补刷新；attributes 观察 style/class
+        // （源码/高亮侧可见性切换不触发 childList）。
+        const box = elRef.current
+        const ir = box?.querySelector<HTMLElement>('.vditor-ir')
+        if (box && ir) {
+          const ov = attachCodeCopyOverlay(box, ir)
+          codeCopyOverlayRef.current = ov
+          const mo = new MutationObserver(() => {
+            if (disposed) return
+            if (ccTimer) clearTimeout(ccTimer)
+            ccTimer = setTimeout(() => { if (!disposed) ov.refresh() }, 300)
+          })
+          mo.observe(ir, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] })
+          codeCopyObserverRef.current = mo
         }
       },
     })
@@ -470,6 +493,10 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
       elRef.current?.removeEventListener('paste', onPaste)
       elRef.current?.removeEventListener('contextmenu', onCtx)
       document.removeEventListener('mousedown', onDocDown)
+      codeCopyObserverRef.current?.disconnect()
+      codeCopyOverlayRef.current?.destroy()
+      codeCopyOverlayRef.current = null
+      if (ccTimer) clearTimeout(ccTimer)
       if (timerRef.current) clearTimeout(timerRef.current)
       // 切换文档前若有未保存内容，立即保存（fire-and-forget）
       if (dirtyRef.current && latestRef.current !== lastSavedRef.current) {
@@ -635,9 +662,9 @@ export default function VditorEditor({ docId, initialContent, title }: Props) {
         </Space>
       </div>
 
-      {/* 编辑区：滚动容器承载 Vditor 实例 */}
+      {/* 编辑区：滚动容器承载 Vditor 实例（position:relative 供复制按钮 overlay 定位） */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#fff' }}>
-        <div style={{ height: '100%', overflow: 'auto' }} ref={elRef} />
+        <div style={{ position: 'relative', height: '100%', overflow: 'auto' }} ref={elRef} />
       </div>
 
       <VersionDrawer
