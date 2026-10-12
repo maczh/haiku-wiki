@@ -1,25 +1,23 @@
 // Mermaid 渲染保真工具（P0-6 / 架构文档 §1.3 第 3 步、风险 R2）。
 //
-// 为什么需要这个模块？
+// 为什么需要这个模块？（当前渲染管线：typo-md-editor 的 `toHtml` → 本模块 sanitize →
+//   MarkdownView/FlowchartView 的 `renderMermaidBlocks` 用全站统一 mermaid 运行时渲染 SVG）
 // -----------------------------------------------------------------------------
-// 【事实 1｜mermaid 渲染是 fire-and-forget】Vditor 内部对每个 `.language-mermaid` 容器
-//   动态加载 `{cdn}/dist/js/mermaid/mermaid.min.js`，加载成功后调用
-//   `mermaid.render(id, code)` 并把返回的 `<svg>` 写进容器。整个过程**不被 `after` 回调等待**：
-//   `Vditor.preview` 先派发各渲染器、再同步调用 `after()` —— 即 `after` 执行时 SVG 往往还没注入。
-//   结论：任何「在 after 里对整体产物做一次清洗」的写法，时机都早于 mermaid 注入，
-//   只能洗到 Vditor 的原始产物，洗不到 mermaid 生成的 SVG。
+// 【事实 1｜mermaid 渲染需显式 await】`toHtml` 只把 ```mermaid 渲染成
+//   `<pre><code class="language-mermaid">` 围栏代码块（不画 SVG）。真正的 SVG 由
+//   `renderMermaidBlocks`（内部 `mermaid.render`）异步注入，调用方必须显式 await，
+//   不能假设「渲染后整体产物里已经含 SVG」。
 //
 // 【事实 2｜DOMPurify 会连内容一起删掉 <foreignObject>】实测（dompurify 3.4.15）：
 //   无论是否指定 `USE_PROFILES:{svg:true}`，`DOMPurify.sanitize()` 都会把
 //   `<foreignObject>` **连同其内部文字一并删除** —— 因为 `svgDisallowed` 与
 //   `DEFAULT_FORBID_CONTENTS` 都包含 `foreignobject`，且无法用 `ADD_TAGS` 恢复
 //   （实测 `ADD_TAGS:['foreignObject']` 只能保住标签壳，标签里的文字仍被清空）。
-//   而 Vditor 以 `securityLevel:'loose'` + `flowchart:{htmlLabels:true}` 初始化 mermaid，
-//   节点标签正是渲染在 `<foreignObject>` 里的 —— 若对含 mermaid 产物的 DOM 整体清洗，
-//   结果是「图还在、文字全丢、且无任何报错」。
+//   而 mermaid 以 `securityLevel:'strict'` 初始化、节点标签正是渲染在 `<foreignObject>` 里的
+//   —— 若对含 mermaid 产物的 DOM 整体清洗，结果是「图还在、文字全丢、且无任何报错」。
 //
 // 于是本模块给出两个能力：
-//   - `waitForMermaidBlocks`：等 mermaid 的 SVG 真正注入后再动作；
+//   - `waitForMermaidBlocks`：等 mermaid 的 SVG 真正注入后再动作（旧 Vditor 路径遗留，现仍可用）；
 //   - `sanitizePreservingMermaid`：**摘出 mermaid 节点 → 对其余内容跑 DOMPurify →
 //     把 mermaid 节点原位放回**，并对 mermaid 节点单独做「定向清洗」（去脚本、去事件属性、
 //     去 `javascript:` 协议 URL），从而既不让 DOMPurify 清空图形、又不让注入的 SVG 完全未经清洗。

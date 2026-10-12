@@ -458,18 +458,6 @@ mark.hk-hit {
   color: #2f54eb;
 }
 
-/* 隐藏 Vditor IR 标题左侧的 H1–H6 灰色徽标（::before 伪元素）。
-   该徽标以 margin-left:-29px 悬在左侧留白带里，与块手柄（⋮⋮）位置叠加，
-   导致手柄被遮挡、点不到；按产品决策直接隐藏（2026-09-21）。 */
-.vditor-ir .vditor-reset > h1::before,
-.vditor-ir .vditor-reset > h2::before,
-.vditor-ir .vditor-reset > h3::before,
-.vditor-ir .vditor-reset > h4::before,
-.vditor-ir .vditor-reset > h5::before,
-.vditor-ir .vditor-reset > h6::before {
-  display: none;
-}
-
 /* JSON 对象折叠（阅读态代码块 + 接口文档请求体/返回结果/范例） */
 .hk-jsonfold-scroll {
   line-height: 1.7;

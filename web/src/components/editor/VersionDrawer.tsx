@@ -6,8 +6,8 @@ import type { VersionMeta, DocType } from '../../types'
 import LazyBoundary from '../common/LazyBoundary'
 import dayjs from '../../lib/dayjs'
 
-// ⚠️ 必须懒加载：本组件被 4 个编辑器（Vditor/Sheet/Mindmap/Flowchart）静态引用，
-// 若此处静态 import MarkdownView，会把整个 Vditor（~304KB JS + ~40KB CSS）带进
+// ⚠️ 必须懒加载：本组件被 4 个编辑器（TypoMdEditor/Sheet/Mindmap/Flowchart）静态引用，
+// 若此处静态 import MarkdownView，会把整个 Markdown 阅读渲染管线（typo-md-editor 的 toHtml 等）带进
 // 每一个编辑页，即使 docType 不是 markdown、即使从不打开版本历史。
 const MarkdownView = lazy(() => import('../reader/MarkdownView'))
 

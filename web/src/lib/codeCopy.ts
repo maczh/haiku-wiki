@@ -1,6 +1,6 @@
 /**
  * 代码块「复制到剪贴板」：给容器内所有代码块注入右上角悬浮按钮。
- * 覆盖阅读态（MarkdownView）、分享态、H5 与编辑态（Vditor IR）。
+ * 覆盖阅读态（MarkdownView）、分享态、H5 与导出预览；编辑态由 typo-md-editor 原生提供。
  */
 const BTN_CLASS = 'hk-code-copy-btn'
 

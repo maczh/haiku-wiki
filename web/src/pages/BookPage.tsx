@@ -47,9 +47,9 @@ import TemplateGallery from '../components/template/TemplateGallery'
 import TemplatePreview from '../components/template/TemplatePreview'
 import { createTemplate, listTemplateCategories, type DocTemplate } from '../api/templates'
 
-// 编辑器按需加载：Vditor / 思维导图（mindmap-vite，含 katex）/ Luckysheet / mermaid 体积大，
+// 编辑器按需加载：Markdown（typo-md-editor，Vue3/Milkdown 内核）/ 思维导图（mindmap-vite，含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
-const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
+const TypoMdEditor = lazy(() => import('../components/editor/TypoMdEditor'))
 const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
@@ -106,7 +106,7 @@ function writeLS(key: string, value: string) {
  * 知识库页（三栏布局，高仿语雀）：
  *  顶栏（书名/可见性 + 编辑/阅读切换；第四轮 R7：分享/导出入口迁移至右键菜单，顶栏移除）
  *  ├ 左：可拖拽目录树（书头支持知识库右键菜单：新建/重命名/可见性/导出/删除）
- *  ├ 中：编辑（Vditor IR）/ 阅读（Markdown 渲染）
+ *  ├ 中：编辑（typo-md-editor）/ 阅读（Markdown 渲染）
  *  └ 右：大纲锚点
  * 选中文档与 tab 通过 URL 查询参数 ?docId=&tab= 持久化。
  */
@@ -1160,7 +1160,7 @@ export default function BookPage() {
                     ) : (
                       <LazyBoundary tip="正在加载编辑器…">
                         {docTypeNow === 'markdown' && (
-                          <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                          <TypoMdEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {doc.doc_type === 'sheet' && (
                           <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />

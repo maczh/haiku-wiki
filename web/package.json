@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
+    "predev": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-vditor-assets.mjs && node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
+    "prebuild": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "verify:mermaid-assets": "node scripts/verify-mermaid-assets.mjs",
@@ -52,7 +52,6 @@
     "spark-md5": "^3.0.2",
     "spectrum-colorpicker": "^1.8.1",
     "turndown": "^7.2.4",
-    "vditor": "^3.10.8",
     "xlsx": "^0.18.5",
     "zustand": "^4.5.5"
   },

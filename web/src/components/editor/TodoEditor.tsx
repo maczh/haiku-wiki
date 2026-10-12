@@ -13,7 +13,7 @@ interface Props {
   title: string
 }
 
-/** 自动保存防抖（与 SheetEditor / VditorEditor 保持一致的 3s） */
+/** 自动保存防抖（与 SheetEditor / TypoMdEditor 保持一致的 3s） */
 const SAVE_DEBOUNCE_MS = 3000
 
 /**

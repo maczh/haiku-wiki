@@ -2,7 +2,7 @@
  * 把 vendor/drawio 下的 draw.io 静态资源同步到 public/drawio，供 Vite 随构建产物一起发布
  * （最终被 Go 的 embed 打进二进制，实现完全自托管、不依赖任何外部 CDN）。
  *
- * 与 copy-vditor-assets.mjs 同构：逐文件比对体积，未变则跳过（幂等，便于反复构建）。
+ * 与 copy-excalidraw-assets.mjs 同构：逐文件比对体积，未变则跳过（幂等，便于反复构建）。
  *
  * vendor/drawio 不存在时：
  *   · 若未设置 DRAWIO_SKIP_FETCH，自动调用 fetch-drawio-assets.mjs 拉取；

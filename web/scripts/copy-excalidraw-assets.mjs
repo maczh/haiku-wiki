@@ -8,7 +8,7 @@
  *
  * 因此本项目改为自托管：WhiteboardEditor / whiteboardExport 统一设置
  * `window.EXCALIDRAW_ASSET_PATH = '/excalidraw/dist/prod/'`，由本脚本在
- * `predev` / `prebuild` 阶段把资源就位（与 copy-vditor-assets / copy-drawio-assets 同一套约定）。
+ * `predev` / `prebuild` 阶段把资源就位（与 copy-drawio-assets 同一套约定）。
  *
  * 注意：字体文件名带内容哈希（如 Excalifont-Regular-349fac….woff2），哈希清单烘焙在
  * JS 本体里 —— 升级 @excalidraw/excalidraw 后必须重跑本脚本，否则新清单找不到旧文件。

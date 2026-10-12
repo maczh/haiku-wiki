@@ -17,8 +17,8 @@ import 'spectrum-colorpicker/spectrum.css'
 import App from './App'
 import './index.css'
 
-// 注意：`vditor/dist/index.css` 不在此处引入 —— 只有 MarkdownView / VditorEditor 需要它，
-// 二者已按需加载，样式随之进入各自的懒加载 CSS chunk，不再阻塞首屏（见 MarkdownView.tsx）。
+// 注意：Markdown 阅读态样式（reader.css / markdown-body.css）与 KaTeX 样式均由 MarkdownView
+// 按需引入，不在此处加载，避免阻塞首屏；编辑态（typo-md-editor）自带 style.css 随组件懒加载。
 //
 
 // Luckysheet 2.x 的浏览器代码仍直接读取全局 jQuery；必须在表格懒加载前完成挂载。
