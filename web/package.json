@@ -16,6 +16,7 @@
     "verify:sheet": "node scripts/verify-sheet-export.mjs",
     "verify:dashboard": "node scripts/verify-dashboard.mjs",
     "verify:gantt-ids": "node scripts/verify-gantt-ids.mjs",
+    "verify:code-copy": "node scripts/verify-code-copy.mjs",
     "verify:workbench": "node scripts/verify-workbench.mjs"
   },
   "dependencies": {
