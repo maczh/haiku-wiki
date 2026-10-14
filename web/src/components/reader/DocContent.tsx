@@ -2,6 +2,7 @@ import { lazy } from 'react'
 import { FolderOutlined } from '@ant-design/icons'
 import LazyBoundary from '../common/LazyBoundary'
 import WidthControl from './WidthControl'
+import MdBodyWidth from './MdBodyWidth'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { type DocType } from '../../types'
 
@@ -78,6 +79,8 @@ export default function DocContent({
   /** 按 doc_type 分发的渲染体（宽度控制在最外层统一施加） */
   let body: JSX.Element
   if (docType === 'markdown') {
+    // markdown 正文宽度走百分比模型（默认窗体 80%、可拖拽调整），由外层模式（阅读页 / 分享页 /
+    // H5）统一包一层 MdBodyWidth 控制；此处不套 px 阅读宽度调节器。
     body = (
       <LazyBoundary tip={TIP.markdown}>
         <MarkdownView content={content} docId={docId} onRendered={onRendered} />
@@ -194,14 +197,16 @@ export default function DocContent({
   // 流程图（mermaid）借用 Markdown 阅读组件渲染，大图（时序/甘特/长流程）在窄阅读栏里会被压得过小，
   // 同样通栏铺满，图形按容器实际宽度自然铺开（不再套阅读宽度调节器）。
   const fullWidth = docType === 'gantt' || docType === 'web' || docType === 'gallery' || docType === 'prototype' || docType === 'api' || docType === 'flowchart'
-  // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度
-  const showWidthControl = widthEditable && !fullWidth && docType !== 'folder'
+  // 目录没有正文，宽度调节器无意义；接口文档双面板也不适用单栏阅读宽度；
+  // markdown 走百分比宽度模型（由外层 MdBodyWidth 控制），不再显示 px 阅读宽度调节器
+  const showWidthControl = widthEditable && !fullWidth && docType !== 'folder' && docType !== 'markdown'
   // 接口文档：让高度链传导到 ApiEditor（height:100%），使其在阅读/分享模式下双面板各自独立滚动
   const fillHeight = docType === 'api'
   return (
     <div
       style={{
-        maxWidth: fullWidth ? undefined : (maxWidth ?? undefined),
+        // markdown 的宽度由外层 MdBodyWidth 施加，这里不再限制；其余类型沿用 px 阅读宽度
+        maxWidth: fullWidth || docType === 'markdown' ? undefined : (maxWidth ?? undefined),
         margin: '0 auto',
         width: '100%',
         ...(fillHeight ? { height: '100%' } : null),

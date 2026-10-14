@@ -5,6 +5,7 @@ import { CaretDownOutlined, CaretRightOutlined, FileTextOutlined, FolderOutlined
 import { getShare, getShareDoc } from '../api/share'
 import LazyBoundary from '../components/common/LazyBoundary'
 import WidthControl from '../components/reader/WidthControl'
+import MdBodyWidth from '../components/reader/MdBodyWidth'
 import CommentPanel from '../components/reader/CommentPanel'
 import { useReaderWidth } from '../lib/readerWidth'
 import type { DocDetail, DocNode, ShareInfo } from '../types'
@@ -28,6 +29,8 @@ export default function SharePage() {
   const [invalid, setInvalid] = useState(false)
   const [docId, setDocId] = useState<number>(0)
   const [doc, setDoc] = useState<DocDetail | null>(null)
+  // markdown 走百分比宽度模型（默认窗体 80%、可拖拽调整），由 MdBodyWidth 控制
+  const isMarkdown = !doc || !doc.doc_type || doc.doc_type === 'markdown'
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [loadingDoc, setLoadingDoc] = useState(false)
 
@@ -171,13 +174,17 @@ export default function SharePage() {
           {loadingDoc && <Spin style={{ display: 'block', margin: '80px auto' }} />}
           {!loadingDoc && doc && (
             <>
-              {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
-              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
-                <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
-              </div>
-              <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
-                <WidthControl compact />
-              </div>
+              {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制（markdown 走百分比宽度，不在此处套 px） */}
+              {!isMarkdown && (
+                <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '28px 24px 0' }}>
+                  <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                </div>
+              )}
+              {!isMarkdown && (
+                <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
+                  <WidthControl compact />
+                </div>
+              )}
               {/* 附件型按原文件只读预览；绘图文档渲染已保存的 SVG 矢量图（不加载绘图组件）；
                   其余非 markdown 类型暂以占位提示 */}
               <LazyBoundary tip="正在加载预览器…">
@@ -196,9 +203,11 @@ export default function SharePage() {
                     该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
                   </div>
                 ) : (
-                  <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto' }}>
+                  // markdown：标题与正文一起包进 MdBodyWidth（默认窗体 80%、可拖拽右缘调整宽度）
+                  <MdBodyWidth style={{ padding: '28px 24px 60px' }}>
+                    <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
                     <MarkdownView content={doc.content} />
-                  </div>
+                  </MdBodyWidth>
                 )}
               </LazyBoundary>
             </>

@@ -1,38 +1,28 @@
-// 类型垫片：为 vendored 的 typo-md-editor ESM bundle 提供最小类型面。
+// 类型垫片：为 vendored 的 typo-md-editor（v1-react 分支，React 组件）提供最小类型面。
 //
-// 该 bundle 是 self-contained（内部打包了 Vue / Milkdown / Mermaid），haiku 是 React 项目、
-// 没有 `vue` 依赖，因此不引用 dist 自带的 index.d.ts（其 re-export 了 .vue 模块，无法解析）。
-// 这里只声明本项目实际用到的导出；其余以 any 兜底，避免引入 vue 类型依赖。
+// 该 bundle 是 self-contained（内部打包了 Milkdown / Crepe / Mermaid / KaTeX，React 作为对等依赖
+// externalize，由宿主提供；Vue 已随 Crepe 打包进 bundle，不再需要宿主安装 vue）。
+// 项目只用到其中导出的 React 组件 MdEditor 与纯函数 toHtml，其余以 any/最小类型兜底，
+// 避免引入 vue 类型依赖。
 //
-// 注意：库的公开 API 以「命名导出」暴露（见 typo-md-editor 源码 src/index.ts：
-//   `export { default as MdEditor } from './components/MdEditor.vue'`），**没有 default 导出**。
-// 因此宿主必须写 `import { MdEditor as TypoMd, createApp, ... } from '.../typo-md-editor.js'`。
-//
-// 导入路径形如：`import { MdEditor as TypoMd, createApp, ensurePinia, typoPlugin, toHtml } from
-//   '@/vendor/typo-md-editor/typo-md-editor.js'`（本文件与其同名 .js 相邻，TS 自动配对）。
+// 公开 API 以「命名导出」暴露（见 typo-md-editor 源码 src/index.ts）：
+//   `export { default as MdEditor, type EditorApi, type MdEditorProps } from './components/MdEditor'`
+//   `export { toHtml, toMarkdown, toPdf, exportDocument, downloadBlob } from './utils/exporter'`
+//   `export { fileToDataUrl, rewriteImageSrcs } from './utils/images'`
+// 因此宿主写：
+//   `import { MdEditor, type EditorApi, type ImageUploader } from '.../typo-md-editor.js'`
 
-export const MdEditor: any
-
-export const typoPlugin: { install(app: any): void }
-export function ensurePinia(): void
-export function createApp(rootComponent: any, rootProps?: Record<string, any>): any
-export function h(...args: any[]): any
-
-export function toHtml(markdown: string, title?: string): Promise<string>
-export function toMarkdown(markdown: string): string
-export function rewriteImageSrcs(html: string, resolver: (src: string) => string): string
-
-export type ImageUploader = (file: File) => Promise<string>
+import type { ForwardRefExoticComponent, ReactElement, RefAttributes } from 'react'
 
 /** MdEditor `ready` 事件暴露的稳定门面（来自 typo-md-editor 的 EditorApi）。 */
-export type EditorApi = {
+export interface EditorApi {
   getMarkdown: () => Promise<string>
   getHTML: () => string
   loadMarkdown: (md: string) => void
   insert: (md: string) => void
   focus: () => void
   destroy: () => void
-  getEditor: () => any
+  getEditor: () => unknown
   setReadonly: (v: boolean) => void
   exportMarkdown: (filename?: string) => void
   exportHtml: (filename?: string) => Promise<void>
@@ -40,3 +30,53 @@ export type EditorApi = {
   openSettings: () => void
   openFind: () => void
 }
+
+export interface MdEditorProps {
+  /** v-model：Markdown 双向绑定（编辑器真相源）。 */
+  modelValue?: string
+  /** 主题 id（github/gothic/newsprint/night/pixyll/whitey）。 */
+  theme?: string
+  language?: string
+  readonly?: boolean
+  showToolbar?: boolean
+  showTableToolbar?: boolean
+  showContextMenu?: boolean
+  hotkeys?: boolean
+  /** WYSIWYG 内容列宽度，占编辑器面板的百分比（默认 80）。 */
+  contentWidth?: number
+  fontSize?: number
+  lineHeight?: number
+  fontFamily?: string
+  customCss?: string
+  /** 图片上传回调（粘贴/拖拽/选择文件/image-block 统一走它）。 */
+  onUpload?: ImageUploader
+  /** 本地图片 src 显示解析（默认恒等）。 */
+  resolveImageSrc?: (src: string) => string
+  onUpdateModelValue?: (v: string) => void
+  onSave?: () => void
+  onReady?: (api: EditorApi) => void
+}
+
+export type ImageUploader = (file: File) => Promise<string>
+
+/** 包内唯一公共组件（React forwardRef）：md 文档编辑器门面。 */
+export const MdEditor: ForwardRefExoticComponent<MdEditorProps & RefAttributes<EditorApi>>
+
+/** 右侧大纲面板（无 props，内部读取共享 editor store 的 outline）。 */
+export const OutlinePanel: () => ReactElement
+
+/** 编辑器共享 store 的 React hook（OutlinePanel 与 MdEditor 同源单例）。 */
+export function useEditorStore(): {
+  doc: { name: string; content: string; dirty: boolean }
+  outline: Array<{ id: string; text: string; level: number; children?: unknown[] }>
+  cursor: { line: number; col: number }
+  wordCount: number
+}
+
+/** Markdown → 自包含 HTML 文档（remark→rehype→highlight→KaTeX 预渲染）。 */
+export function toHtml(markdown: string, title?: string): Promise<string>
+export function toMarkdown(markdown: string): string
+export function rewriteImageSrcs(html: string, resolver: (src: string) => string): string
+export function downloadBlob(blob: Blob, filename: string): void
+export function toPdf(html: string): Promise<void>
+export function exportDocument(markdown: string, format: string, baseName?: string): Promise<void>

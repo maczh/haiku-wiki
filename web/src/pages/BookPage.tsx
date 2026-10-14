@@ -28,6 +28,7 @@ import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPic
 import BookDashboard from '../components/dashboard/BookDashboard'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
+import MdBodyWidth from '../components/reader/MdBodyWidth'
 import TocAnchor from '../components/reader/TocAnchor'
 import CommentPanel from '../components/reader/CommentPanel'
 import DocShareDrawer from '../components/share/DocShareDrawer'
@@ -1225,6 +1226,25 @@ export default function BookPage() {
                         />
                       </div>
                     </div>
+                  ) : isMarkdownDoc ? (
+                    // markdown：标题与正文一起包进 MdBodyWidth（默认窗体 80%、可拖拽右缘调整宽度），
+                    // 不再套 px 阅读宽度分档
+                    <MdBodyWidth style={{ paddingTop: 28, paddingLeft: 24, paddingRight: 24 }}>
+                      <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                      <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
+                        更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                      </div>
+                      {/* 阅读分发：doc_type → 各类型只读渲染；仅 markdown 提供大纲提取 */}
+                      <DocContent
+                        docType={docTypeNow}
+                        content={doc.content}
+                        docId={doc.id}
+                        canWrite={canWrite}
+                        onRendered={handleMarkdownRendered}
+                        bookId={bookID}
+                        onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
+                      />
+                    </MdBodyWidth>
                   ) : (
                     <div>
                       {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}
@@ -1250,7 +1270,7 @@ export default function BookPage() {
                         content={doc.content}
                         docId={doc.id}
                         canWrite={canWrite}
-                        onRendered={isMarkdownDoc ? handleMarkdownRendered : undefined}
+                        onRendered={undefined}
                         bookId={bookID}
                         onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
                       />

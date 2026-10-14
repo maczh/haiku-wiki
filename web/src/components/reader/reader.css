@@ -248,7 +248,8 @@
   padding: 14px 16px;
   border: 1px solid var(--hk-line);
   border-radius: 8px;
-  background: #f8fafc;
+  /* 与 markdown-body.css 对齐的浅灰底（修复阅读态代码块背景） */
+  background: #f6f8fa;
   overflow: auto;
 }
 
