@@ -14,10 +14,13 @@
 
 ## 实测铁律
 - DOM 测试用无头 Chrome：`/opt/google/chrome/chrome --headless=new --no-proxy-server --no-sandbox`；curl 加 `--noproxy '*'`；截图高度=窗口高度。
-- 后台进程两次工具调用间被回收：起服务+验证+停服务放同一命令或 `setsid`。
+- 后台进程两次工具调用间被回收：起服务+验证+停服务放同一命令。**`setsid nohup` 也扛不住**（2026-10-13 实测，服务仍在调用间死亡）；另 `ps`/`ss` 在沙箱视图失真，判断服务死活一律 `curl --noproxy '*'` 探活。
 - 本机 shell 无 HOME：脚本 `export HOME=${HOME:-/home/macro}`，Node 用 `os.homedir()`；禁止写死 /Users/macro 路径。
 - `html/body` 必须保持 `overflow-x: clip`（不是 hidden，否则 H5 触摸划屏失灵，勿回退）。
 - Vditor IR：只有 `.vditor-ir .vditor-reset` 是正文；`data-block` 恒 "0"。
+- **IR 代码块是「源码 pre（contenteditable）+ 兄弟 `.vditor-ir__preview` 内高亮 pre」双结构**；非编辑态用户可见的是高亮侧。任何注入 IR DOM 的 UI（按钮等）会被 `processCodeRender` 拷进高亮预览、并被 `vd.getValue()`（`lute.VditorIRDOM2Md(ir.element.innerHTML)`）序列化进自动保存正文 → **IR 内注入一律用 overlay 方案**（挂滚动容器层、矩形定位、MutationObserver+scroll 刷新）。范例 `web/src/lib/codeCopy.ts` 的 `attachCodeCopyOverlay`。
+- **分支格局**：v1-mm（思维导图线）与 v2-oo（OnlyOffice 线）在 `a252671` 后分叉、互不为祖先；但 markdown 链路文件（MarkdownView/VditorEditor）两分支一致 → 双分支同步用 cherry-pick（零冲突）。当前功能分支= v2-oo。
+- 代码块复制按钮（2026-10-13）：`lib/codeCopy.ts`（阅读态 injectCodeCopyButtons + IR overlay attachCodeCopyOverlay）；MarkdownView 接入即覆盖阅读/分享/H5 三态；回归 `npm run verify:code-copy`（jsdom 18 项）。
 - Agent Edit 可能静默失败，改后必须 Read 复核。
 - 系统 /tmp 仅 10MB 且不保留 → 临时产物放 `~/hk-tmp`；跑 tools/verify/ 必须 `TMPDIR=/home/macro/.workbuddy/tmp`。
 

@@ -505,3 +505,25 @@ mark.hk-hit {
 
 /* ── 右键上下文菜单（自定义 Notion 风格浮层，非 antd Menu） ── */
 .vd-cm-item:hover { background: #f2f3f5 !important; }
+
+/* ── md 文档代码块背景统一为 #fafbfc ──
+ * 覆盖 Vditor 自带 .vditor-reset pre（GitHub 风 #f6f8fa）的默认背景。
+ * 选择器特异性 (0,3,1) 高于 Vditor 自带 (0,2,1)，与加载顺序无关必定生效。
+ * 覆盖三条入口：编辑态（IR）、阅读态、分享态 / H5（均走 MarkdownView → .doc-content）。
+ * 内部 code.hljs 透明化：GitHub 高亮主题会给 <code> 白色底，须去掉才能露出整块 #fafbfc。 */
+.vditor-ir .vditor-reset pre,
+.doc-content .vditor-reset pre {
+  background: #fafbfc;
+}
+.vditor-ir .vditor-reset pre code,
+.vditor-ir .vditor-reset pre code.hljs,
+.doc-content .vditor-reset pre code,
+.doc-content .vditor-reset pre code.hljs {
+  background: transparent; /* shorthand 一并清掉 Vditor 给 pre>code 的 background-image 纹理 */
+}
+
+/* JSON 折叠块：injectJsonFold 会把 pre>code.language-json 整个替换成 .hk-jsonfold-scroll，
+ * 不再是 pre，上面的 pre 规则覆盖不到，须单独上背景（阅读态 / 分享态 / H5 / 接口文档折叠体共用）。 */
+.hk-jsonfold-scroll {
+  background: #fafbfc;
+}
