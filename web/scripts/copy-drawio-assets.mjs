@@ -6,9 +6,7 @@
  *
  * vendor/drawio 不存在时：
  *   · 若未设置 DRAWIO_SKIP_FETCH，自动调用 fetch-drawio-assets.mjs 拉取；
- *   · 拉取失败或设置了 DRAWIO_SKIP_FETCH=1 时 **只告警不中断构建**——
- *     应用其余功能不受影响，绘图文档在界面上会提示「绘图组件未部署」并给出指引。
- *   这样保证「无网环境也能把项目构建起来」。
+ *   · 拉取失败或资源不完整时中止构建，避免发布后才发现绘图不可用。
  */
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
@@ -19,10 +17,13 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
 const src = path.join(root, 'vendor', 'drawio')
 const dest = path.join(root, 'public', 'drawio')
-const entry = path.join(src, 'index.html')
-
-async function exists(p) {
-  return (await stat(p).catch(() => null)) != null
+const critical = ['index.html', 'styles/grapheditor.css', 'js/bootstrap.js', 'js/PreConfig.js', 'js/PostConfig.js', 'js/main.js', 'js/app.min.js', 'js/stencils.min.js', 'js/extensions.min.js', 'js/shapes-14-6-5.min.js']
+async function complete(base) {
+  for (const file of critical) {
+    const info = await stat(path.join(base, file)).catch(() => null)
+    if (!info?.isFile() || !info.size) return false
+  }
+  return true
 }
 
 /** 运行同目录下的另一个脚本，实时转发 stdout/stderr；返回是否成功 */
@@ -58,27 +59,25 @@ async function syncDir(from, to, counters) {
 }
 
 async function main() {
-  if (!(await exists(entry))) {
+  if (!(await complete(src))) {
     if (process.env.DRAWIO_SKIP_FETCH === '1') {
-      console.warn('[drawio-assets] 跳过：未设置拉取且 vendor/drawio 不存在')
-      return
+      throw new Error('DRAWIO_SKIP_FETCH=1，但 vendor/drawio 缺少必需资源，无法发布完整绘图组件')
     }
     console.log('[drawio-assets] vendor/drawio 不存在，尝试自动拉取…')
     const ok = await runNode('fetch-drawio-assets.mjs')
-    if (!ok || !(await exists(entry))) {
-      console.warn(
-        '[drawio-assets] 拉取失败，跳过绘图组件部署。\n' +
-          '               应用其余功能不受影响；绘图文档会提示「绘图组件未部署」。\n' +
+    if (!ok || !(await complete(src))) {
+      throw new Error(
+        '[drawio-assets] 拉取失败或绘图组件资源不完整。\n' +
           '               可在有网环境执行 `npm run fetch:drawio` 后重新构建，\n' +
           '               或预先准备好 web/vendor/drawio 再构建。',
       )
-      return
     }
   }
 
   const counters = { copied: 0, skipped: 0 }
   const t0 = Date.now()
   await syncDir(src, dest, counters)
+  if (!(await complete(dest))) throw new Error('public/drawio 同步后校验失败')
   const secs = ((Date.now() - t0) / 1000).toFixed(1)
   console.log(
     `[drawio-assets] 就绪 → public/drawio（写入 ${counters.copied}，未变 ${counters.skipped}，${secs}s）`,
@@ -86,5 +85,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.warn(`[drawio-assets] 同步异常（不中断构建）：${e?.message || e}`)
+  console.error(`[drawio-assets] 同步失败：${e?.message || e}`)
+  process.exit(1)
 })

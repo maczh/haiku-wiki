@@ -22,6 +22,8 @@ web/public/excalidraw/
 #   由 onlyoffice-web-comp 仓库的 public/packages 拷贝而来，属构建输入，勿手动提交；
 #   Vite 在 build 时一并拷入 web/dist，再由 Go embed 打包进生产二进制）
 web/public/packages/
+web/vendor/onlyoffice-sdk/
+web/src/vendor/typo-md-editor/fonts/
 # 嵌入用的前端产物（由 web/dist 拷贝进来，见 Dockerfile；保留占位文件 .gitkeep）
 server/internal/static/dist/*
 !server/internal/static/dist/.gitkeep

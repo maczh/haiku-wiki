@@ -15,7 +15,7 @@ import path from 'node:path'
 const root = path.resolve(import.meta.dirname, '..')
 
 /** 必须与 src/lib/drawio.ts 的 DRAWIO_JS_ASSETS 保持一致 */
-const REQUIRED_JS = ['js/bootstrap.js', 'js/PreConfig.js', 'js/app.min.js', 'js/PostConfig.js', 'js/main.js']
+const REQUIRED_JS = ['js/bootstrap.js', 'js/PreConfig.js', 'js/app.min.js', 'js/PostConfig.js', 'js/main.js', 'js/stencils.min.js', 'js/extensions.min.js', 'js/shapes-14-6-5.min.js']
 
 /** 全部必需文件（HTML/CSS 走存在性与非空校验，JS 额外校验「不是 HTML」） */
 const REQUIRED = ['index.html', 'styles/grapheditor.css', ...REQUIRED_JS]
@@ -88,6 +88,7 @@ async function main() {
   }
   if (!any) {
     console.log('\n未找到任何 drawio 资源目录：执行 `npm run fetch:drawio` 拉取后再构建。')
+    process.exit(1)
   }
 
   if (failed > 0) {

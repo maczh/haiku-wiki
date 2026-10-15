@@ -77,14 +77,15 @@ export const OFFICE_XML_EVENT_CONFIG = {
 export const ASC_RESTRICTION_NONE = 0;
 export const ASC_RESTRICTION_VIEW = 128;
 
-/** OnlyOffice 编辑器左上角 logo（jsDelivr 固定版本，避免依赖站点本地资源） */
+/** Self-hosted Simple Icons 9.21.0 microsoftoffice.svg (CC0), avoiding a runtime CDN request. */
+const officeLogo = typeof location === "undefined" ? "/microsoftoffice.svg" : new URL("/microsoftoffice.svg", location.origin).href;
 export const OFFICE_EDITOR_LOGO = {
   /** 浅色主题：Office 品牌色图标 */
   image:
-    "https://cdn.jsdelivr.net/npm/simple-icons@9.21.0/icons/microsoftoffice.svg",
+    officeLogo,
   /** 深色主题：同图标（品牌色在深色背景上同样清晰） */
   imageDark:
-    "https://cdn.jsdelivr.net/npm/simple-icons@9.21.0/icons/microsoftoffice.svg",
+    officeLogo,
 } as const;
 
 // ── 静态资源（SDK / x2t）────────────────────────────────────────

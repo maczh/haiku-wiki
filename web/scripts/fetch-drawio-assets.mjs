@@ -109,6 +109,7 @@ async function listTree() {
   const resp = await fetchWithRetry(url)
   const json = await resp.json()
   if (!json.tree) throw new Error(`无法读取仓库文件树：${JSON.stringify(json).slice(0, 200)}`)
+  if (json.truncated) throw new Error('GitHub 返回的文件树被截断，不能据此生成完整资源清单')
   return json.tree
 }
 
@@ -134,6 +135,11 @@ async function main() {
     .filter((e) => e.type === 'blob' && e.path.startsWith(`${WEBAPP}/`))
     .map((e) => ({ rel: e.path.slice(WEBAPP.length + 1), size: e.size || 0 }))
     .filter((f) => wanted(f.rel))
+  // Always include the runtime chain, even if a remote tree response omitted a
+  // generated file. Never silently treat a partial file list as a complete SDK.
+  for (const rel of [...EXACT, ...SCRIPTS, ...LOCALES]) {
+    if (!files.some(file => file.rel === rel)) files.push({ rel, size: 0 })
+  }
 
   const totalBytes = files.reduce((a, f) => a + f.size, 0)
   console.log(
@@ -146,7 +152,7 @@ async function main() {
     const target = path.join(dest, f.rel)
     if (!FORCE) {
       const cur = await stat(target).catch(() => null)
-      if (cur?.isFile() && cur.size === f.size) continue
+      if (cur?.isFile() && cur.size > 0 && (!f.size || cur.size === f.size)) continue
     }
     todo.push(f)
   }

@@ -53,12 +53,15 @@ RUN apk add --no-cache build-base curl pkgconf libtool bash perl \
 
 # 阶段 1：构建前端（Vite 产物）
 FROM node:22-alpine AS web-builder
+RUN apk add --no-cache curl
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm install --no-audit --no-fund
 COPY web/ ./
-# prebuild 会同步 Vditor 与 draw.io 两套自托管静态资源：
+# prebuild 会检查/同步 OnlyOffice SDK、draw.io 和 Excalidraw 静态资源。
+# 优先复用 web/public/packages；缺失时从固定版本的原组件仓库自动下载 SDK。
+# 下载或校验失败时停止构建，避免镜像编译成功而 Word/Excel/PPT 运行失败。
 #   web/vendor/drawio 已随构建上下文带入时直接复用；缺失时自动联网拉取，
 #   拉取失败只告警不中断（绘图文档类型会提示"绘图组件未部署"）。
 RUN npm run build

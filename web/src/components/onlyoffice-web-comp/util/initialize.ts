@@ -38,6 +38,9 @@ function preloadEditorFrame() {
   iframe.src = STATIC_RESOURCE.onlyoffice.preloadUrl;
   iframe.dataset.onlyofficePreload = STATIC_RESOURCE.onlyoffice.preloadHtml;
   iframe.className = "w-0 h-0 hidden absolute -z-10";
+  iframe.hidden = true;
+  iframe.tabIndex = -1;
+  iframe.setAttribute("aria-hidden", "true");
   document.body.appendChild(iframe);
 }
 
@@ -68,21 +71,31 @@ export async function initializeOnlyOffice() {
       `script[src="${apiUrl}"]`,
     );
 
+    const needsAppend = !script;
     if (!script) {
       script = document.createElement("script");
       script.src = apiUrl;
-      document.head.appendChild(script);
     }
 
-    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("load", () => {
+      if (window.DocsAPI?.DocEditor) {
+        resolve();
+      } else {
+        script?.remove();
+        initializePromise = null;
+        reject(new Error(`OnlyOffice DocsAPI 未注册，请检查 SDK 文件及脚本响应类型：${apiUrl}`));
+      }
+    }, { once: true });
     script.addEventListener(
       "error",
       () => {
         initializePromise = null;
-        reject(new Error("Failed to load OnlyOffice DocsAPI script"));
+        script?.remove();
+        reject(new Error(`无法加载 OnlyOffice DocsAPI：${apiUrl}。请确认构建时已包含 public/packages/onlyoffice 静态 SDK。`));
       },
       { once: true },
     );
+    if (needsAppend) document.head.appendChild(script);
   });
 
   return initializePromise;

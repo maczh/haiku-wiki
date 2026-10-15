@@ -226,6 +226,9 @@ export const DRAWIO_JS_ASSETS = [
   'js/app.min.js',
   'js/PostConfig.js',
   'js/main.js',
+  'js/stencils.min.js',
+  'js/extensions.min.js',
+  'js/shapes-14-6-5.min.js',
 ]
 
 /** 判定「这看起来是 JS」的 Content-Type */
