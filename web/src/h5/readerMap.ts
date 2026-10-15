@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import type { DocType } from '../types'
 import MarkdownView from '../components/reader/MarkdownView'
+import MdBodyWidth from '../components/reader/MdBodyWidth'
+import { createElement } from 'react'
 import SheetTableView from '../components/reader/SheetTableView'
 import SheetOfficeView from '../components/reader/SheetOfficeView'
 import MindmapView from '../components/reader/MindmapView'
@@ -38,8 +40,11 @@ export interface H5ReaderProps {
  * 完全复用桌面版 web/src/components/reader/* 与 gallery/prototype 的阅读组件，
  * 不重写任何渲染逻辑；folder 不在此表（它是容器，由 MDoc 单独渲染子文档列表）。
  */
+const MarkdownReader = (props: H5ReaderProps) =>
+  createElement(MdBodyWidth, { children: createElement(MarkdownView, { content: props.content, docId: props.docId }) })
+
 export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> = {
-  markdown: MarkdownView,
+  markdown: MarkdownReader,
   // H5 阅读/分享态的**内联 SheetJSON** 用轻量级纯表格组件（原生 <table>，无 luckysheet 内核）；
   // 桌面端编辑/阅读仍走 SheetView。导入的 xlsx（office 引用）由 pickReader 分流到
   // SheetOfficeView（luckysheet 只读），其余 office 引用降级 FileView。

@@ -1,14 +1,22 @@
 /**
- * Mermaid 静态资源链路校验（P0-6 / 架构文档 R1）。
+ * Mermaid 运行时链路校验（P0-6 / 架构文档 R1）。
  *
- * 背景：Vditor 内部对 `.language-mermaid` 无条件请求
- * `{cdn}/dist/js/mermaid/mermaid.min.js`（cdn = `/vditor`）。若该文件缺失或版本不对，
- * 结果是「Markdown 里的 mermaid 代码块原样显示、控制台无任何报错」—— 静默失效，极难排查。
+ * 背景（v1-typo 之前）：Vditor 内部对 `.language-mermaid` 无条件请求
+ *   `{cdn}/dist/js/mermaid/mermaid.min.js`（cdn = `/vditor`）。若该文件缺失或版本不对，
+ *   结果是「Markdown 里的 mermaid 代码块原样显示、控制台无任何报错」—— 静默失效，极难排查。
+ *   彼时本脚本断言 `public/vditor/.../mermaid.min.js` 与 `node_modules/mermaid` 字节一致。
  *
- * 本脚本断言三件事（任一不满足即以非零码退出）：
- *   1. 文件存在且非空；
- *   2. 体积与 `node_modules/mermaid/dist/mermaid.min.js` **完全一致**（版本归一生效的实证）；
- *   3. 内容 sha256 与源文件一致，且尾部仍暴露 `globalThis["mermaid"]`（Vditor 依赖的全局）。
+ * 现状（v1-typo 起）：Markdown 阅读/导出统一走 typo-md-editor 的 `toHtml`（仅产出
+ *   `<pre><code class="language-mermaid">` 围栏块），真正的 SVG 由全站统一 mermaid 运行时
+ *   （`src/lib/flowchart.ts` 通过 `import mermaid from 'mermaid'` 引入，由 Vite 随构建打包）
+ *   在 MarkdownView / FlowchartView 的 `renderMermaidBlocks` 里 `await mermaid.render` 注入。
+ *   因此 mermaid **不再依赖任何 `/vditor` 静态资源**，而是作为 npm 依赖被打进 JS chunk。
+ *
+ * 本脚本改判三件事（任一不满足即以非零码退出）：
+ *   1. `node_modules/mermaid` 依赖存在且 mermaid.min.js 非空（版本归一生效的实证）；
+ *   2. 基准文件尾部仍暴露 `globalThis["mermaid"]`（UMD 形态，供任何裸调用兜底）；
+ *   3. `src/lib/flowchart.ts` 确实以 `import mermaid from 'mermaid'` 接入统一运行时
+ *      （即「mermaid 已被全站唯一入口接管」，回归时若有人又塞回 Vditor 式 CDN 会立刻暴露）。
  *
  * 运行：npm run verify:mermaid-assets
  */
@@ -18,20 +26,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
 const SOURCE = path.join(root, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js')
-
-/** 检查目标：开发态资源必检；构建产物存在时一并检查（dist 由 vite 从 public 复制而来） */
-const TARGETS = [
-  {
-    label: '开发态资源',
-    file: path.join(root, 'public', 'vditor', 'dist', 'js', 'mermaid', 'mermaid.min.js'),
-    required: true,
-  },
-  {
-    label: '构建产物',
-    file: path.join(root, 'dist', 'vditor', 'dist', 'js', 'mermaid', 'mermaid.min.js'),
-    required: false,
-  },
-]
+const FLOWCHART = path.join(root, 'src', 'lib', 'flowchart.ts')
 
 let failed = 0
 
@@ -49,7 +44,7 @@ function sha256(buf) {
 }
 
 async function main() {
-  // 1) 规范来源（项目依赖 mermaid）
+  // 1) 规范来源（项目依赖 mermaid，由 Vite 打包进 chunk）
   let srcBuf
   try {
     srcBuf = await readFile(SOURCE)
@@ -59,51 +54,41 @@ async function main() {
   }
   const srcHash = sha256(srcBuf)
   console.log(`[基准] node_modules/mermaid/dist/mermaid.min.js —— ${srcBuf.length} B · sha256 ${srcHash.slice(0, 16)}…`)
+  if (srcBuf.length === 0) bad('基准文件为空')
+  else ok('基准 mermaid 文件非空')
 
-  // 2) 期望暴露全局 mermaid（Vditor 以裸标识符 `mermaid.render/initialize` 调用它）
-  if (!srcBuf.toString('utf8', Math.max(0, srcBuf.length - 400)).includes('globalThis["mermaid"]')) {
-    console.error('基准文件尾部未发现 `globalThis["mermaid"]`，与 Vditor 期望的 UMD 形态不符。')
-    process.exit(1)
+  // 2) 期望暴露全局 mermaid（UMD 形态，defensive）
+  const tail = srcBuf.toString('utf8', Math.max(0, srcBuf.length - 400))
+  if (!tail.includes('globalThis["mermaid"]')) {
+    bad('基准文件尾部未发现 `globalThis["mermaid"]`，UMD 形态不符')
+  } else {
+    ok('基准 mermaid 已暴露全局（UMD 形态）')
   }
 
-  for (const t of TARGETS) {
-    const rel = path.relative(root, t.file)
-    console.log(`\n[${t.label}] ${rel}`)
-    let st
-    try {
-      st = await stat(t.file)
-    } catch {
-      if (t.required) bad('文件缺失（运行 npm run build 前会由 prebuild 自动生成；开发态可直接执行 node scripts/copy-vditor-assets.mjs）')
-      else console.log('  · 不存在（尚未构建，跳过）')
-      continue
-    }
-    if (!st.isFile() || st.size === 0) {
-      bad('不是有效文件或为空')
-      continue
-    }
-    if (st.size !== srcBuf.length) {
-      bad(`体积不一致：目标 ${st.size} B ≠ 基准 ${srcBuf.length} B（版本归一未生效）`)
-      continue
-    }
-    const buf = await readFile(t.file)
-    const hash = sha256(buf)
-    if (hash !== srcHash) {
-      bad(`sha256 不一致：${hash.slice(0, 16)}… ≠ ${srcHash.slice(0, 16)}…（体积相同但内容不同）`)
-      continue
-    }
-    const tail = buf.toString('utf8', Math.max(0, buf.length - 400))
-    if (!tail.includes('globalThis["mermaid"]')) {
-      bad('尾部未暴露 `globalThis["mermaid"]`（Vditor 会拿到 undefined）')
-      continue
-    }
-    ok(`存在、体积一致（${st.size} B）、sha256 一致、已暴露全局 mermaid`)
+  // 3) 全站统一入口：flowchart.ts 必须 import mermaid（而非再走 /vditor CDN）
+  let fc
+  try {
+    fc = await readFile(FLOWCHART, 'utf8')
+  } catch {
+    console.error(`未找到 ${FLOWCHART}（mermaid 统一运行时入口）。`)
+    process.exit(1)
+  }
+  if (/import\s+mermaid\s+from\s+['"]mermaid['"]/.test(fc)) {
+    ok('src/lib/flowchart.ts 已 import mermaid（统一运行时由 Vite 打包，不再依赖 /vditor 静态资源）')
+  } else {
+    bad('src/lib/flowchart.ts 未以 `import mermaid from "mermaid"` 接入统一运行时')
+  }
+  if (/vditor/i.test(fc)) {
+    bad('src/lib/flowchart.ts 仍残留 vditor 引用（mermaid 应已脱离 /vditor）')
+  } else {
+    ok('src/lib/flowchart.ts 无 vditor 残留')
   }
 
   if (failed > 0) {
-    console.error(`\nMermaid 资源校验失败：${failed} 项\n提示：先运行 node scripts/copy-vditor-assets.mjs 重新就位资源。`)
+    console.error(`\nMermaid 资源校验失败：${failed} 项`)
     process.exit(1)
   }
-  console.log('\nMermaid 资源校验通过（版本归一已生效）')
+  console.log('\nMermaid 运行时链路校验通过（统一由 Vite 打包 mermaid 依赖）')
 }
 
 main().catch((e) => {

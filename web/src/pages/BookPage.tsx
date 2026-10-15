@@ -28,6 +28,7 @@ import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPic
 import BookDashboard from '../components/dashboard/BookDashboard'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
+import MdBodyWidth from '../components/reader/MdBodyWidth'
 import TocAnchor from '../components/reader/TocAnchor'
 import CommentPanel from '../components/reader/CommentPanel'
 import DocShareDrawer from '../components/share/DocShareDrawer'
@@ -49,7 +50,7 @@ import { createTemplate, listTemplateCategories, type DocTemplate } from '../api
 
 // 编辑器按需加载：Vditor / simple-mind-map（含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
-const VditorEditor = lazy(() => import('../components/editor/VditorEditor'))
+const TypoMdEditor = lazy(() => import('../components/editor/TypoMdEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
@@ -1160,7 +1161,7 @@ export default function BookPage() {
                     ) : (
                       <LazyBoundary tip="正在加载编辑器…">
                         {docTypeNow === 'markdown' && (
-                          <VditorEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                          <TypoMdEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {(doc.doc_type === 'sheet') && (
                           <OnlyOfficeEditor
@@ -1262,6 +1263,22 @@ export default function BookPage() {
                         />
                       </div>
                     </div>
+                  ) : isMarkdownDoc ? (
+                    <MdBodyWidth style={{ paddingTop: 28, paddingLeft: 24, paddingRight: 24 }}>
+                      <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                      <div style={{ color: '#8a919f', fontSize: 12, marginBottom: 20 }}>
+                        更新于 {new Date(doc.updated_at).toLocaleString('zh-CN')}
+                      </div>
+                      <DocContent
+                        docType={docTypeNow}
+                        content={doc.content}
+                        docId={doc.id}
+                        canWrite={canWrite}
+                        onRendered={handleMarkdownRendered}
+                        bookId={bookID}
+                        onDocCreated={(id) => setParams({ docId: id, tab: 'edit' })}
+                      />
+                    </MdBodyWidth>
                   ) : (
                     <div>
                       {/* 绘图/附件类预览需要横向空间，正文类保持 780 的阅读宽度 */}

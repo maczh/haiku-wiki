@@ -5,6 +5,7 @@ import { CaretDownOutlined, CaretRightOutlined, FileTextOutlined, FolderOutlined
 import { getShare, getShareDoc } from '../api/share'
 import LazyBoundary from '../components/common/LazyBoundary'
 import WidthControl from '../components/reader/WidthControl'
+import MdBodyWidth from '../components/reader/MdBodyWidth'
 import CommentPanel from '../components/reader/CommentPanel'
 import { useReaderWidth } from '../lib/readerWidth'
 import type { DocDetail, DocNode, ShareInfo } from '../types'
@@ -195,6 +196,13 @@ export default function SharePage() {
                     </LazyBoundary>
                   </div>
                 </>
+              ) : !doc.doc_type || doc.doc_type === 'markdown' ? (
+                <MdBodyWidth style={{ padding: '28px 24px 60px' }}>
+                  <h1 style={{ fontSize: 26, marginBottom: 8 }}>{doc.title}</h1>
+                  <LazyBoundary tip="正在加载预览器…">
+                    <MarkdownView content={doc.content} />
+                  </LazyBoundary>
+                </MdBodyWidth>
               ) : (
                 <>
                   {/* 标题块与正文同宽，宽度由正文顶部的调节器统一控制 */}
@@ -208,7 +216,7 @@ export default function SharePage() {
                   <LazyBoundary tip="正在加载预览器…">
                     {doc.doc_type === 'file' ? (
                       <FileView content={doc.content} />
-                    ) : doc.doc_type && doc.doc_type !== 'markdown' ? (
+                    ) : doc.doc_type ? (
                       <div style={{ maxWidth: maxWidth ?? 780, margin: '40px auto', textAlign: 'center', color: '#8a919f' }}>
                         该类型（{doc.doc_type}）暂不支持书级公开预览，请在知识库内查看。
                       </div>

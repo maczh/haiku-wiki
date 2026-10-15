@@ -1,0 +1,312 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Markdown 阅读/导出基底样式（typo-md-editor `toHtml` 产物统一容器）
+   ─────────────────────────────────────────────────────────────────────────────
+   阅读态产出的 HTML 被包进 `<div class="vditor-reset hk-md-body">`：
+     · 阅读/分享/H5：外层 `.doc-content` 存在，reader.css（`.doc-content .vditor-reset`）
+       在其上叠加「强调色竖条 / 斑马纹 / 折叠箭头」等增强排版；本文件提供两者都需要的
+       基础排版（容器、标题层级、表格边框、任务清单、mermaid 容器等）。
+     · 导出/打印（PDF）：正文被 html2canvas/打印视图直接渲染，宿主不在 `.doc-content` 内，
+       reader.css 不会命中，此时本文件即唯一排版来源 —— 故本文件自包含、不依赖祖先。
+
+   注意：本文件刻意与 reader.css 的「基础数值」保持一致，确保两种渲染路径观感统一；
+   reader.css 额外的装饰（H2 竖条、表头底色、斑马纹、折叠箭头）仅阅读态生效。
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.hk-md-body {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+  color: #333b47;
+}
+
+.hk-md-body p {
+  margin: 0 0 14px;
+}
+
+.hk-md-body strong {
+  color: #1f2329;
+  font-weight: 600;
+}
+
+/* ── 标题 ── */
+.hk-md-body h1,
+.hk-md-body h2,
+.hk-md-body h3,
+.hk-md-body h4,
+.hk-md-body h5,
+.hk-md-body h6 {
+  font-family: inherit;
+  color: #1f2329;
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.hk-md-body h1 {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-bottom: 12px;
+  margin: 4px 0 20px;
+  border-bottom: 1px solid #e6eaf2;
+}
+
+.hk-md-body h2 {
+  font-size: 18px;
+  margin: 30px 0 14px;
+}
+
+.hk-md-body h3 {
+  font-size: 16px;
+  margin: 22px 0 10px;
+}
+
+.hk-md-body h4 {
+  font-size: 15px;
+  color: #2b3646;
+  margin: 18px 0 8px;
+}
+
+.hk-md-body h5,
+.hk-md-body h6 {
+  font-size: 14.5px;
+  color: #54606f;
+  margin: 16px 0 6px;
+}
+
+/* ── 引用块 ── */
+.hk-md-body blockquote {
+  margin: 14px 0;
+  padding: 11px 16px;
+  border-left: 3px solid #b9c8e6;
+  border-radius: 0 8px 8px 0;
+  background: #f7f9fd;
+  color: #4b5563;
+}
+
+.hk-md-body blockquote p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.hk-md-body blockquote p + p {
+  margin-top: 8px;
+}
+
+.hk-md-body blockquote strong {
+  color: #2f54eb;
+}
+
+/* ── 表格（导出态也需可见边框；阅读态由 reader.css 增强） ── */
+.hk-md-body table {
+  display: table;
+  width: 100%;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 14px 0 18px;
+  border: 1px solid #e6eaf2;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
+.hk-md-body th {
+  background: #f4f7fb;
+  color: #34404f;
+  font-weight: 600;
+  text-align: left;
+  padding: 9px 12px;
+  border-right: 1px solid #f0f3f8;
+  border-bottom: 1px solid #e6eaf2;
+}
+
+.hk-md-body td {
+  padding: 8px 12px;
+  color: #333b47;
+  vertical-align: top;
+  line-height: 1.7;
+  border-right: 1px solid #f0f3f8;
+  border-bottom: 1px solid #f0f3f8;
+}
+
+.hk-md-body th:last-child,
+.hk-md-body td:last-child {
+  border-right: 0;
+}
+
+.hk-md-body tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ── 分隔线 ── */
+.hk-md-body hr {
+  height: 1px;
+  margin: 26px 0;
+  padding: 0;
+  border: 0;
+  background: #e6eaf2;
+}
+
+/* ── 清单 ── */
+.hk-md-body ul,
+.hk-md-body ol {
+  padding-left: 26px;
+  margin: 0 0 14px;
+}
+
+.hk-md-body li {
+  margin: 6px 0;
+  line-height: 1.75;
+}
+
+.hk-md-body li::marker {
+  color: #2f54eb;
+  font-weight: 600;
+}
+
+.hk-md-body li > ul,
+.hk-md-body li > ol {
+  margin: 6px 0 2px;
+}
+
+/* GFM 任务清单（remark-gfm 产物：`ul.contains-task-list > li.task-list-item > input[type=checkbox]`） */
+.hk-md-body ul.contains-task-list {
+  list-style: none;
+  padding-left: 6px;
+}
+
+.hk-md-body li.task-list-item {
+  list-style: none;
+}
+
+.hk-md-body li.task-list-item > input[type='checkbox'] {
+  margin: 0 8px 0 0;
+  accent-color: #2f54eb;
+  transform: translateY(1px);
+  vertical-align: middle;
+}
+
+/* ── 行内代码 / 代码块 ── */
+.hk-md-body code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #f2f5fa;
+  color: #23405f;
+  font-family: mononoki, Consolas, Menlo, monospace;
+  font-size: 13px;
+}
+
+.hk-md-body pre {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid #e6eaf2;
+  border-radius: 8px;
+  /* 阅读态代码块：浅灰底（与 toHtml 产出一致）。修复「阅读模式代码块背景非浅灰」问题。 */
+  background: #f6f8fa !important;
+  overflow: auto;
+}
+
+.hk-md-body pre code {
+  background: transparent !important;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* JSON folding replaces the original pre, including auto-detected JSON in
+   unlabelled fences. Keep the replacement on the same code-block surface. */
+.hk-md-body .hk-jsonfold-scroll {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid #e6eaf2;
+  border-radius: 8px;
+  background: #f6f8fa;
+  overflow: auto;
+}
+
+/* ── 图片 / 链接 ── */
+.hk-md-body img {
+  max-width: 100%;
+  border: 1px solid #f0f3f8;
+  border-radius: 8px;
+}
+
+.hk-md-body a {
+  color: #2f54eb;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(47, 84, 235, 0.28);
+}
+
+.hk-md-body a:hover {
+  border-bottom-color: #2f54eb;
+}
+
+/* ── mermaid 容器（MarkdownView.renderMermaidBlocks 把 ```mermaid 替换为 .hk-mermaid） ── */
+.hk-md-body .hk-mermaid {
+  padding: 14px;
+  border: 1px dashed #dbe3f0;
+  border-radius: 8px;
+  background: #fbfcfe;
+  text-align: center;
+  overflow: auto;
+}
+
+.hk-md-body .hk-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── KaTeX 数学公式（toHtml 已预渲染为 .math-block / .math-inline 的 KaTeX HTML） ── */
+.hk-md-body .math-block {
+  text-align: center;
+  overflow: auto;
+  margin: 14px 0;
+}
+
+.hk-md-body .math-inline {
+  display: inline-block;
+}
+
+/* ── 其它 GFM 小元素 ── */
+.hk-md-body kbd {
+  padding: 2px 6px;
+  font-family: mononoki, Consolas, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: #34404f;
+  background: #f2f5fa;
+  border: 1px solid #dbe3f0;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+.hk-md-body mark {
+  padding: 0 2px;
+  background: #fff3bf;
+  color: inherit;
+}
+
+.hk-md-body del {
+  color: #8a919f;
+}
+
+.hk-md-body details {
+  margin: 14px 0;
+  padding: 10px 16px;
+  border: 1px solid #e6eaf2;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.hk-md-body summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #34404f;
+}

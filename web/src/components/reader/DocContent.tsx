@@ -77,15 +77,18 @@ export default function DocContent({
   // 正文宽度（标准/宽屏/全宽 + 拖动条），偏好存 localStorage，阅读页与分享页共用
   const { maxWidth } = useReaderWidth()
 
-  /** 按 doc_type 分发的渲染体（宽度控制在最外层统一施加） */
-  let body: JSX.Element
+  // Markdown width belongs to the mode-level MdBodyWidth wrapper, as in v1-typo.
   if (docType === 'markdown') {
-    body = (
+    return (
       <LazyBoundary tip={TIP.markdown}>
         <MarkdownView content={content} docId={docId} onRendered={onRendered} />
       </LazyBoundary>
     )
-  } else if (docType === 'sheet') {
+  }
+
+  /** 按 doc_type 分发的渲染体（宽度控制在最外层统一施加） */
+  let body: JSX.Element
+  if (docType === 'sheet') {
     // 表格（含旧 luckysheet 数据 / 导入的 xlsx）统一用 OnlyOffice Web Comp 编辑或预览：
     // 旧 luckysheet 正文会在 OnlyOfficeEditor 内转换为 xlsx 再载入，避免数据丢失。
     body = (

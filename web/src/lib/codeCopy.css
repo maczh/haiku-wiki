@@ -1,0 +1,31 @@
+/* 代码块复制按钮（阅读态/分享态/H5/IR 编辑态共用） */
+.hk-code-copy-host { position: relative; }
+.hk-code-copy-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  height: 24px; padding: 0 8px; font-size: 12px; line-height: 22px;
+  color: #5b6168; background: #f2f3f5; border: 1px solid rgba(0,0,0,0.08); border-radius: 4px;
+  opacity: 0; transition: opacity 0.15s; cursor: pointer; user-select: none;
+  font-family: inherit;
+}
+.hk-code-copy-host:hover .hk-code-copy-btn { opacity: 1; }
+.hk-code-copy-btn:hover { background: #e8eaed; }
+.hk-code-copy-btn--done { color: #52c41a; }
+@media (hover: none) {
+  .hk-code-copy-btn { opacity: 0.85; }
+}
+/* 阅读态：压过 vditor-reset 对 pre 内元素的继承样式 */
+.doc-content .hk-code-copy-btn { box-sizing: border-box; }
+/* IR 编辑态：源码 pre 是 contenteditable，按钮不得进入编辑流 */
+.vditor-ir pre.hk-code-copy-host > .hk-code-copy-btn { pointer-events: auto; }
+.hk-jsonfold-scroll { position: relative; }
+
+/* IR 编辑态 overlay 层：挂在滚动容器直下（.vditor-ir 之外），不进入编辑器 DOM，
+   避免被 Vditor processCodeRender 拷进预览、被 lute 序列化进正文。
+   height:0 + overflow:visible：层本身不占布局，按钮浮在代码块右上角。 */
+.hk-code-copy-layer {
+  position: absolute; top: 0; left: 0; width: 100%; height: 0;
+  pointer-events: none; z-index: 5;
+}
+/* overlay 按钮：没有 hover 宿主，改为常驻半显 + hover 全显（触摸设备同样可见） */
+.hk-code-copy-float { position: absolute; opacity: .35; pointer-events: auto; }
+.hk-code-copy-float:hover { opacity: 1; }
