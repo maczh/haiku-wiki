@@ -20,8 +20,7 @@ import OutlinePanel from '../OutlinePanel'
 // 「/」新行菜单裸列表（见 2026-10-14 修复记录）。
 import '../../vendor/typo-md-editor/crepe-theme.css'
 import '../../vendor/typo-md-editor/style.css'
-import MdWidthResizer from '../reader/MdWidthResizer'
-import { useMdWidth } from '../../lib/mdWidth'
+import './typo-md-editor-overrides.css'
 
 // typo-md-editor（v1-react 分支，基于 @milkdown/react + @milkdown/crepe 的 React 组件）。
 // 直接作为 React 组件渲染，React 由宿主提供（已 externalize），Vue 随 Crepe 打包进 bundle。
@@ -41,7 +40,7 @@ const SAVE_DEBOUNCE_MS = 3000 // 3s 防抖自动保存（架构文档 §五.1）
  *  - 图片/附件上传钩子 → POST /api/uploads
  *  - 3s 防抖自动保存（source=auto），内容无变化不请求
  *  - 手动保存（source=manual）/ 历史版本抽屉
- *  - 编辑区宽度默认占窗体 80%（自适应），可拖动右缘手柄调整（四态共用同一偏好）
+ *  - 编辑器外壳占满可用宽度；正文初始 80%，由组件原生手柄调整
  * 编辑交互（工具栏 / 右键菜单 / 图片块 / 代码块「复制」按钮）由 typo-md-editor 原生提供。
  */
 export default function TypoMdEditor({ docId, initialContent, title }: Props) {
@@ -54,7 +53,6 @@ export default function TypoMdEditor({ docId, initialContent, title }: Props) {
   const [status, setStatus] = useState<SaveStatus>('editing')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [versionOpen, setVersionOpen] = useState(false)
-  const { width: mdWidth, setWidth: setMdWidth } = useMdWidth()
   // 实时 Markdown（驱动大纲侧栏）；初始播种为 initialContent，每次 onUpdateModelValue 回灌。
   const [markdown, setMarkdown] = useState(initialContent)
   const editorWrapRef = useRef<HTMLDivElement>(null)
@@ -152,18 +150,17 @@ export default function TypoMdEditor({ docId, initialContent, title }: Props) {
         </Space>
       </div>
 
-      {/* 编辑区：左侧 typo-md-editor + 宽度调节器（默认 80% 窗体宽，可拖拽调整），
+      {/* 编辑器外壳固定 100%，正文宽度由 typo-md-editor 内部调节（初始 80%），
           右侧大纲边栏（OutlinePanel 读取编辑器共享 store 的 outline，点击滚动定位） */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', background: '#fff' }}>
-        <div ref={editorWrapRef} style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
-          <MdWidthResizer width={mdWidth} onWidth={setMdWidth} fill>
+        <div className="hk-typo-editor-host" ref={editorWrapRef} style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
             <TypoMd
               ref={apiRef}
               modelValue={initialContent}
               readonly={false}
               theme="github"
               language="zh-CN"
-              contentWidth={100}
+              contentWidth={80}
               onUpload={uploader}
               onUpdateModelValue={handleUpdate}
               onSave={() => {
@@ -174,7 +171,6 @@ export default function TypoMdEditor({ docId, initialContent, title }: Props) {
                 apiRef.current = api
               }}
             />
-          </MdWidthResizer>
         </div>
         <aside
           style={{

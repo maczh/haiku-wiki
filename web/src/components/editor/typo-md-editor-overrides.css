@@ -1,0 +1,29 @@
+/* Local fixes for the vendored editor; keep upstream bundle CSS untouched. */
+.hk-typo-editor-host > .md-editor {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.milkdown_root .milkdown-block-handle {
+  margin-left: -12px;
+}
+
+/* Crepe's placeholder is absolutely positioned at the start of an empty node.
+   When the markdown-marker plugin renders a heading prefix, move the placeholder
+   past that prefix so the two never paint on top of each other. */
+.milkdown .ProseMirror h1.crepe-placeholder:has(.typo-md-marker),
+.milkdown .ProseMirror h2.crepe-placeholder:has(.typo-md-marker),
+.milkdown .ProseMirror h3.crepe-placeholder:has(.typo-md-marker),
+.milkdown .ProseMirror h4.crepe-placeholder:has(.typo-md-marker),
+.milkdown .ProseMirror h5.crepe-placeholder:has(.typo-md-marker),
+.milkdown .ProseMirror h6.crepe-placeholder:has(.typo-md-marker) {
+  position: relative;
+}
+
+.milkdown .ProseMirror h1.crepe-placeholder:has(.typo-md-marker)::before { left: 1.25em; }
+.milkdown .ProseMirror h2.crepe-placeholder:has(.typo-md-marker)::before { left: 1.8em; }
+.milkdown .ProseMirror h3.crepe-placeholder:has(.typo-md-marker)::before { left: 2.35em; }
+.milkdown .ProseMirror h4.crepe-placeholder:has(.typo-md-marker)::before { left: 2.9em; }
+.milkdown .ProseMirror h5.crepe-placeholder:has(.typo-md-marker)::before { left: 3.45em; }
+.milkdown .ProseMirror h6.crepe-placeholder:has(.typo-md-marker)::before { left: 4em; }

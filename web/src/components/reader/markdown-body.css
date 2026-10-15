@@ -209,15 +209,26 @@
   border: 1px solid #e6eaf2;
   border-radius: 8px;
   /* 阅读态代码块：浅灰底（与 toHtml 产出一致）。修复「阅读模式代码块背景非浅灰」问题。 */
-  background: #f6f8fa;
+  background: #f6f8fa !important;
   overflow: auto;
 }
 
 .hk-md-body pre code {
-  background: transparent;
+  background: transparent !important;
   padding: 0;
   font-size: 13px;
   line-height: 1.65;
+}
+
+/* JSON folding replaces the original pre, including auto-detected JSON in
+   unlabelled fences. Keep the replacement on the same code-block surface. */
+.hk-md-body .hk-jsonfold-scroll {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid #e6eaf2;
+  border-radius: 8px;
+  background: #f6f8fa;
+  overflow: auto;
 }
 
 /* ── 图片 / 链接 ── */
