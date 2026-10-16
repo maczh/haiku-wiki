@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Button, Space, Tooltip, message } from 'antd'
-import { HistoryOutlined, SaveOutlined } from '@ant-design/icons'
+import { CopyOutlined, HistoryOutlined, SaveOutlined } from '@ant-design/icons'
 import SaveIndicator, { type SaveStatus } from './SaveIndicator'
 import VersionDrawer from './VersionDrawer'
 import TodoBoard from '../todo/TodoBoard'
+import { saveTodoOptions, type TodoOption } from '../../api/todo'
 import { patchDoc } from '../../api/docs'
 import { parseTodoJSON, stringifyTodo, type TodoJSON } from '../../lib/todo'
 
@@ -11,17 +12,32 @@ interface Props {
   docId: number
   initialContent: string
   title: string
+  onSaveAs: () => void
 }
 
-/** 自动保存防抖（与 SheetEditor / VditorEditor 保持一致的 3s） */
+export interface TodoEditorHandle {
+  getContent: () => string
+}
+
+/** 自动保存防抖（与 SheetEditor / TypoMdEditor 保持一致的 3s） */
 const SAVE_DEBOUNCE_MS = 3000
+
+async function persistTodo(docId: number, snapshot: TodoJSON, source: 'auto' | 'manual') {
+  await patchDoc(docId, { content: stringifyTodo(snapshot), source })
+  const options: TodoOption[] = snapshot.items.flatMap(it => [
+    ...it.assignees.map(name => ({ kind: 'assignee' as const, name: name.trim() })),
+    ...(it.project.trim() ? [{ kind: 'project' as const, name: it.project.trim() }] : []),
+  ])
+  await saveTodoOptions([...new Map(options.map(o => [`${o.kind}:${o.name}`, o])).values()])
+}
 
 /**
  * 待办清单编辑器：3s 防抖自动保存 + 手动保存（生成版本快照）+ 历史版本。
  * 变更后立即重置计时器，避免连续输入期间反复落库。
  */
-export default function TodoEditor({ docId, initialContent, title }: Props) {
+const TodoEditor = forwardRef<TodoEditorHandle, Props>(function TodoEditor({ docId, initialContent, title, onSaveAs }, ref) {
   const latestRef = useRef<TodoJSON>(parseTodoJSON(initialContent).data)
+  useImperativeHandle(ref, () => ({ getContent: () => stringifyTodo(latestRef.current) }), [])
   const dirtyRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [data, setData] = useState<TodoJSON>(latestRef.current)
@@ -44,7 +60,7 @@ export default function TodoEditor({ docId, initialContent, title }: Props) {
     () => () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       if (dirtyRef.current) {
-        void patchDoc(docId, { content: stringifyTodo(latestRef.current), source: 'auto' }).catch(() => undefined)
+        void persistTodo(docId, latestRef.current, 'auto').catch(() => undefined)
         dirtyRef.current = false
       }
     },
@@ -64,8 +80,10 @@ export default function TodoEditor({ docId, initialContent, title }: Props) {
     if (timerRef.current) clearTimeout(timerRef.current)
     setStatus('saving')
     try {
-      await patchDoc(docId, { content: stringifyTodo(latestRef.current), source })
-      dirtyRef.current = false
+      const snapshot = latestRef.current
+      await persistTodo(docId, snapshot, source)
+      dirtyRef.current = latestRef.current !== snapshot
+      if (dirtyRef.current) { setStatus('editing'); return }
       const now = new Date()
       setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
       setStatus('saved')
@@ -91,6 +109,9 @@ export default function TodoEditor({ docId, initialContent, title }: Props) {
         <SaveIndicator status={status} savedAt={savedAt} />
         <div style={{ flex: 1 }} />
         <Space size={8}>
+          <Button size="small" icon={<CopyOutlined aria-hidden="true" />} onClick={onSaveAs}>
+            另存为
+          </Button>
           <Tooltip title="立即保存（生成手动版本快照）">
             <Button size="small" icon={<SaveOutlined />} onClick={() => void doSave('manual')}>
               保存
@@ -116,4 +137,6 @@ export default function TodoEditor({ docId, initialContent, title }: Props) {
       />
     </div>
   )
-}
+})
+
+export default TodoEditor

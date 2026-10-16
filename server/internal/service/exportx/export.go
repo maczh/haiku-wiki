@@ -36,7 +36,7 @@ var formatsByDocType = map[string][]FormatSpec{
 		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
 	},
 	// todo：待办清单。正文为 {version:1, items:[{text,done,due,priority,note}]}，
-	// 导出到 xlsx 时映射成「序号/待办事项/状态/截止日期/优先级/备注」六列。
+	// Markdown 与 Excel 均按阅读模式的负责人分组导出，保留进度及全部任务字段。
 	"todo": {
 		{Value: "xlsx", Label: "Excel 工作簿（.xlsx）", Ext: "xlsx", MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
 		{Value: "md", Label: "Markdown 清单（.md）", Ext: "md", MIME: "text/markdown; charset=utf-8"},

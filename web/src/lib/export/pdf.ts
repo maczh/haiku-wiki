@@ -50,14 +50,19 @@ export async function htmlToPdf(html: string, title: string): Promise<Blob> {
       logging: false,
       windowWidth: RENDER_WIDTH,
     })
-    return await canvasToPdf(canvas, title)
+    // 待办按任务边界分页，避免普通位图切片把任务标题或进度条从中间截断。
+    const hostTop = host.getBoundingClientRect().top
+    const scale = canvas.width / host.getBoundingClientRect().width
+    const taskBreaks = Array.from(host.querySelectorAll('[data-todo-export-task]'))
+      .map(task => Math.round((task.getBoundingClientRect().bottom - hostTop) * scale))
+    return await canvasToPdf(canvas, title, taskBreaks)
   } finally {
     host.remove()
   }
 }
 
 /** canvas → A4 多页 PDF（按页高切片，避免单页图片过大导致内存/清晰度问题） */
-async function canvasToPdf(canvas: HTMLCanvasElement, title: string): Promise<Blob> {
+async function canvasToPdf(canvas: HTMLCanvasElement, title: string, taskBreaks: number[] = []): Promise<Blob> {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
   pdf.setProperties({ title: title || '文档', creator: '寄海文库' })
 
@@ -65,21 +70,28 @@ async function canvasToPdf(canvas: HTMLCanvasElement, title: string): Promise<Bl
   const contentH = A4_H - MARGIN * 2
   // canvas 上「一页内容」对应的像素高度
   const pagePx = Math.floor((canvas.width * contentH) / contentW)
-  const pages = Math.max(1, Math.ceil(canvas.height / pagePx))
-
-  for (let p = 0; p < pages; p++) {
+  let start = 0
+  let page = 0
+  while (start < canvas.height) {
+    let end = Math.min(start + pagePx, canvas.height)
+    if (end < canvas.height) {
+      const candidates = taskBreaks.filter(point => point > start + pagePx / 4 && point <= end)
+      if (candidates.length) end = candidates[candidates.length - 1]
+    }
     const slice = document.createElement('canvas')
     slice.width = canvas.width
-    slice.height = Math.min(pagePx, canvas.height - p * pagePx)
+    slice.height = end - start
     const ctx = slice.getContext('2d')
     if (!ctx) throw new Error('画布上下文创建失败')
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, slice.width, slice.height)
-    ctx.drawImage(canvas, 0, -p * pagePx)
+    ctx.drawImage(canvas, 0, -start)
     const data = slice.toDataURL('image/jpeg', 0.92)
-    if (p > 0) pdf.addPage()
+    if (page > 0) pdf.addPage()
     const h = (slice.height * contentW) / slice.width
     pdf.addImage(data, 'JPEG', MARGIN, MARGIN, contentW, Math.min(h, contentH))
+    start = end
+    page++
   }
   return pdf.output('blob')
 }

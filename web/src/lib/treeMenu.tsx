@@ -101,7 +101,7 @@ export function buildTreeMenuItems(ctx: TreeMenuContext): MenuProps['items'] {
     {
       key: 'duplicate',
       icon: <CopyOutlined />,
-      label: '复制…',
+      label: node.doc_type === 'todo' ? '复制' : '复制…',
       disabled: !canWrite,
       onClick: handlers.onDuplicate,
     },

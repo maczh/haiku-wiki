@@ -1,5 +1,5 @@
 // 待办清单内容契约 v1 —— 与后端 exportx.BuildTodoXLSX / BuildTodoMD 的读取字段一致：
-// {"version":1,"items":[{"id","text","done","due","priority","note"}]}
+// {"version":1,"items":[{"id","text","done","due","priority","note","assignees","project","progress"}]}
 //
 // 为什么用 JSON 而不是 Markdown 复选清单：待办项需要「截止时间 / 优先级 / 备注」这些
 // 结构化字段，还要能原样导出成 Excel 的列；Markdown 表达不了，也解析不回来。
@@ -14,6 +14,9 @@ export interface TodoItem {
   due: string
   priority: TodoPriority | ''
   note: string
+  assignees: string[]
+  progress: number
+  project: string
 }
 
 export interface TodoJSON {
@@ -38,7 +41,7 @@ export function newTodoId(): string {
 }
 
 export function emptyItem(text = ''): TodoItem {
-  return { id: newTodoId(), text, done: false, due: '', priority: '', note: '' }
+  return { id: newTodoId(), text, done: false, due: '', priority: '', note: '', assignees: [], progress: 0, project: '' }
 }
 
 /** 文档默认内容：一条空待办，打开即可输入 */
@@ -63,6 +66,9 @@ export function parseTodoJSON(content: string): { data: TodoJSON; reset: boolean
             priority: (['high', 'medium', 'low'] as string[]).includes(priority)
               ? (priority as TodoPriority)
               : '',
+            assignees: normalizeNames(Array.isArray(o.assignees) ? o.assignees : []),
+            progress: o.done === true ? 100 : normalizeProgress(o.progress),
+            project: typeof o.project === 'string' ? o.project.trim() : '',
             note: typeof o.note === 'string' ? o.note : '',
           }
         })
@@ -118,4 +124,83 @@ export function isOverdue(item: TodoItem, now = new Date()): boolean {
   if (item.done || !item.due) return false
   const t = overdueFrom(item.due)
   return t !== null && t.getTime() < now.getTime()
+}
+
+/** 名称去空白、去重；与手工输入和导入使用同一规则。 */
+export function normalizeNames(values: unknown[]): string[] {
+  return [...new Set(values.filter((v): v is string => typeof v === 'string').map(v => v.trim()).filter(Boolean))]
+}
+
+export function normalizeProgress(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0
+}
+
+export function patchTodoItem(item: TodoItem, patch: Partial<TodoItem>): TodoItem {
+  const next = { ...item, ...patch }
+  if (patch.done !== undefined) next.progress = patch.done ? 100 : (item.progress === 100 ? 0 : item.progress)
+  if (patch.progress !== undefined) {
+    next.progress = normalizeProgress(patch.progress)
+    next.done = next.progress === 100
+  }
+  return next
+}
+
+export function groupTodos(items: TodoItem[]): { name: string; items: TodoItem[] }[] {
+  const groups = new Map<string, TodoItem[]>()
+  for (const item of items) {
+    for (const name of item.assignees.length ? item.assignees : ['未分配负责人']) {
+      if (!groups.has(name)) groups.set(name, [])
+      groups.get(name)!.push(item)
+    }
+  }
+  return [...groups].map(([name, items]) => ({ name, items }))
+}
+
+/** 按负责人标题、编号拆分；没有编号的后续行保留为上一条的备注。 */
+export function importTodoText(text: string): TodoItem[] {
+  const items: TodoItem[] = []
+  let assignees: string[] = []
+  let current: TodoItem | undefined
+  function add(text: string) {
+    const item = emptyItem(text.replace(/[；;]\s*$/, '').trim())
+    item.assignees = [...assignees]
+    const status = /[（(]([^（）()]*)[）)]\s*$/.exec(item.text)
+    if (status) {
+      item.note = status[1]
+      item.text = item.text.slice(0, status.index).trim()
+      item.done = /^(?:已完成|完成)(?:$|[，,；;、\s])/.test(item.note)
+      const percent = /(\d{1,3})\s*%/.exec(item.note)
+      item.progress = item.done ? 100 : percent ? normalizeProgress(Number(percent[1])) : 0
+      if (item.progress === 100) item.done = true
+    }
+    if (!item.text) return
+    items.push(item)
+    current = item
+  }
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const numbered = /^\d+[、.．)）]\s*(.+)$/.exec(line)
+    if (numbered) { add(numbered[1]); continue }
+    const heading = /^([^：:（(]{1,40})[：:]\s*(.*)$/.exec(line)
+    if (heading) {
+      assignees = normalizeNames(heading[1].split(/[、,，/]/))
+      current = undefined
+      if (heading[2]) add(heading[2])
+      continue
+    }
+    if (current) current.note = [current.note, line].filter(Boolean).join('\n')
+    else add(line.replace(/^[-*]\s+/, ''))
+  }
+  return items
+}
+
+/** 新清单及其条目独立保存；不重用条目 ID，也不丢弃任何结构化字段。 */
+export function cloneTodoContent(content: string): string {
+  const { data, reset } = parseTodoJSON(content)
+  if (reset) throw new Error('待办清单内容格式异常')
+  return stringifyTodo({
+    version: 1,
+    items: data.items.map(item => ({ ...item, id: newTodoId(), assignees: [...item.assignees] })),
+  })
 }

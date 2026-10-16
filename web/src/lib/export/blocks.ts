@@ -4,6 +4,8 @@
 // 若各自解析 Markdown/表格/待办等内容，同一份文档在三种格式里会长得不一样。
 // 先归一成 Blocks，再由各格式各自排版，既保证一致性，也让「旧格式兼容」只做一次。
 
+import { todoProgressBar } from './todo'
+import { groupTodos, priorityMeta, todoProgress, parseTodoJSON } from '../todo'
 import type { DocType } from '../../types'
 import { flattenSheets, parseSheetJSON } from '../sheet'
 import { parseMindmapJSON } from '../mindmap'
@@ -15,6 +17,7 @@ export interface InlineRun {
   text: string
   bold?: boolean
   italic?: boolean
+  strike?: boolean
   code?: boolean
   link?: string
 }
@@ -27,6 +30,7 @@ export type Block =
   | { type: 'quote'; runs: InlineRun[] }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; url: string; alt: string }
+  | { type: 'progress'; percent: number }
   | { type: 'divider' }
 
 /** 纯文本包装成单段 runs */
@@ -236,9 +240,23 @@ function sheetBlocks(content: string): Block[] {
 /** 待办清单 → 列表块 */
 function todoBlocks(content: string): Block[] {
   try {
-    const o = JSON.parse(content) as { items?: { text?: string; done?: boolean; due?: string; priority?: string }[] }
-    const items = (o.items ?? []).map((it) => runs(`${it.done ? '☑' : '☐'} ${it.text ?? ''}${it.due ? `（截止 ${it.due}）` : ''}`))
-    return items.length > 0 ? [{ type: 'list', ordered: false, items }] : [{ type: 'paragraph', runs: runs('（空清单）') }]
+    const { data, reset } = parseTodoJSON(content)
+    if (reset) return [{ type: 'paragraph', runs: runs('（待办内容无法解析）') }]
+    const progress = todoProgress(data.items)
+    const blocks: Block[] = [{ type: 'paragraph', runs: runs(`已完成 ${progress.done} / ${progress.total} · ${todoProgressBar(progress.percent)}`) }]
+    for (const group of groupTodos(data.items)) {
+      blocks.push({ type: 'heading', level: 2, text: `${group.name} · ${group.items.length} 项 · 已完成 ${group.items.filter(item => item.done).length} 项` })
+      for (const item of group.items) {
+        const meta = priorityMeta(item.priority)
+        blocks.push({ type: 'paragraph', runs: [{ text: `${item.done ? '☑' : '☐'} ${item.text || '（空条目）'}`, strike: item.done }] })
+        const info = [item.project ? `项目 ${item.project}` : '', item.assignees.length ? `负责人 ${item.assignees.join('、')}` : '', item.due ? `截止 ${item.due}` : '', meta ? `优先级 ${meta.label}` : ''].filter(Boolean)
+        if (info.length) blocks.push({ type: 'paragraph', runs: runs(info.join(' · ')) })
+        if (item.note) blocks.push({ type: 'paragraph', runs: runs(item.note) })
+        blocks.push({ type: 'progress', percent: item.progress })
+      }
+    }
+    if (!data.items.length) blocks.push({ type: 'paragraph', runs: runs('这份待办清单还没有条目') })
+    return blocks
   } catch {
     return [{ type: 'paragraph', runs: runs('（待办内容无法解析）') }]
   }

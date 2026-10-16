@@ -42,14 +42,43 @@ haiku-wiki/
 
 ### 1.1 本地开发
 
-依赖 **Go 1.25+** 与 **Node 18+**（前端未声明硬性 engines 下限，建议 18+）。
+推荐使用一键启动脚本（Linux / macOS，Bash、Go 1.25+、Node 22+、npm、curl）：
 
 ```bash
-# 后端（默认 SQLite，数据落在 ./data/）
-cd server && go run ./cmd/server        # 监听 :8080
+./dev.sh
+```
 
-# 前端 dev server（/api、/uploads 自动代理到 8080）
-cd web && npm install && npm run dev    # 打开 http://localhost:5173
+脚本自动检查工具链和端口，按需安装依赖、准备静态资源，编译 Go 后端并启动 Vite。
+打开 **http://127.0.0.1:5173**，首次登录为 `admin / Jihai2026`。
+前端修改自动热更新；修改 Go 后按 **Ctrl+C**，再运行 `./dev.sh`。
+Ctrl+C 会同时停止前后端；再次运行保留测试数据。无需 Docker 或前端生产构建。
+
+本地运行数据与配置使用独立目录 `.local-dev/`，默认 SQLite 数据库为
+`.local-dev/data/haiku.db`，日志为 `.local-dev/logs/backend.log` 和 `frontend.log`。
+脚本不读取 Docker `.env`，不使用根目录 `conf/application.yml`，也不修改现有 `data/`。
+编译时使用 `localdev` 标记跳过生产静态资源嵌入，避免为快速测试打包大量 Office SDK 文件。
+首次安装依赖或下载缺失的静态资源需要网络，已有依赖和资源会复用。
+
+```bash
+./dev.sh --check                         # 只检查工具链和端口
+DEV_API_PORT=18080 DEV_WEB_PORT=15173 ./dev.sh
+DEV_HOST=0.0.0.0 ./dev.sh                 # 手机通过电脑的局域网 IP:5173 访问
+DEV_DATA_DIR=/path/to/test-data ./dev.sh  # 使用指定测试数据库和附件目录
+```
+
+`GO_BIN`、`NODE_BIN` 可指定工具路径；脚本也会尝试常见的 Go 和 nvm 安装目录。
+后端端口改变时，Vite 的 `/api` 和 `/uploads` 代理会自动同步。
+若端口被占用，脚本直接提示错误；若前后端任一服务异常退出，脚本会停止另一个服务。
+查看全部选项：`./dev.sh --help`。
+
+也可分别手工启动：
+
+```bash
+# 后端（localdev 跳过前端嵌入，数据路径相对当前目录）
+cd server && go run -tags localdev ./cmd/server
+
+# 另一终端：前端（默认代理到 8080）
+cd web && npm install && npm run dev
 ```
 
 `npm install` 后的首次 `npm run dev` / `npm run build` 会先执行两个资源同步脚本
