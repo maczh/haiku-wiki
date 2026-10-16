@@ -7,6 +7,7 @@
 // docx 附件：用 mammoth 把 .docx 转成 HTML（阅读页已有同样的能力）。
 
 import mammoth from 'mammoth'
+import { todoToHtml } from './todo'
 import DOMPurify from 'dompurify'
 import { sanitizePreservingMermaid } from '../mermaidRender'
 import { renderFlowchart } from '../flowchart'
@@ -82,6 +83,7 @@ async function markdownToHtml(markdown: string): Promise<string> {
 /** 任意文档类型 → HTML */
 export async function contentToHtml(docType: DocType, content: string, title: string): Promise<string> {
   const head = `<h1>${escapeHtml(title)}</h1>`
+  if (docType === 'todo') return sanitize(head + todoToHtml(content))
   if (docType === 'markdown') {
     try {
       // 离屏 preview 的产物已经过 sanitizePreservingMermaid 清洗，**不能**再整体跑一次
@@ -112,6 +114,9 @@ export function blocksToHtml(blocks: Block[]): string {
         out.push(`<${tag}>${b.items.map((it) => `<li>${escapeHtml(plainOf(it))}</li>`).join('')}</${tag}>`)
         break
       }
+      case 'progress':
+        out.push(`<p>进度 ${b.percent}%</p><div style="background:#f0f0f0;height:6px"><div style="background:#1677ff;width:${b.percent}%;height:6px"></div></div>`)
+        break
       case 'code':
         out.push(`<pre><code>${escapeHtml(b.text ?? '')}</code></pre>`)
         break

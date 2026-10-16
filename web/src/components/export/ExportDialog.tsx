@@ -151,7 +151,7 @@ export default function ExportDialog({
   async function contentOf(docId: number): Promise<string> {
     if (contentRef.current?.docId === docId) return contentRef.current.content
     const d = await getDoc(docId)
-    const content = (d as { content?: string }).content ?? ''
+    const content = d.doc.content ?? ''
     contentRef.current = { docId, content }
     return content
   }
@@ -253,6 +253,8 @@ export default function ExportDialog({
             ? '图纸原文件与后端转换出的矢量图/位图均可导出'
             : isAttachment
               ? '该文档为导入的原始文件；下面可选的格式里，「原文件」与上传时完全一致，其余由浏览器转换生成'
+              : docType === 'todo'
+                ? '按阅读模式导出全部负责人分组及进度，多人任务分别显示；JSON 保留原始清单数据。'
               : '选择导出格式：标注「服务端」的由服务端转换，标注「浏览器」的在浏览器内转换（排版与图片还原更好）'}
       </Typography.Paragraph>
 
