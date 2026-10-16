@@ -4,6 +4,7 @@
 // 若各自解析 Markdown/表格/待办等内容，同一份文档在三种格式里会长得不一样。
 // 先归一成 Blocks，再由各格式各自排版，既保证一致性，也让「旧格式兼容」只做一次。
 
+import { parseTodoJSON } from '../todo'
 import type { DocType } from '../../types'
 import { flattenSheets, parseSheetJSON } from '../sheet'
 import { parseMindmapJSON } from '../mindmap'
@@ -236,8 +237,12 @@ function sheetBlocks(content: string): Block[] {
 /** 待办清单 → 列表块 */
 function todoBlocks(content: string): Block[] {
   try {
-    const o = JSON.parse(content) as { items?: { text?: string; done?: boolean; due?: string; priority?: string }[] }
-    const items = (o.items ?? []).map((it) => runs(`${it.done ? '☑' : '☐'} ${it.text ?? ''}${it.due ? `（截止 ${it.due}）` : ''}`))
+    const { data } = parseTodoJSON(content)
+    const items = data.items.map(it => runs(`${it.done ? '☑' : '☐'} ${it.text}（${[
+      it.assignees.length ? `负责人 ${it.assignees.join('、')}` : '',
+      it.project ? `项目 ${it.project}` : '', `进度 ${it.progress}%`,
+      it.due ? `截止 ${it.due}` : '', it.note,
+    ].filter(Boolean).join('；')}）`))
     return items.length > 0 ? [{ type: 'list', ordered: false, items }] : [{ type: 'paragraph', runs: runs('（空清单）') }]
   } catch {
     return [{ type: 'paragraph', runs: runs('（待办内容无法解析）') }]

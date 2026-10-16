@@ -37,12 +37,25 @@ func priorityLabel(v string) string {
 type todoExportDoc struct {
 	Version int `json:"version"`
 	Items   []struct {
-		Text     string `json:"text"`
-		Done     bool   `json:"done"`
-		Due      string `json:"due"`
-		Priority string `json:"priority"`
-		Note     string `json:"note"`
+		Text      string   `json:"text"`
+		Done      bool     `json:"done"`
+		Due       string   `json:"due"`
+		Priority  string   `json:"priority"`
+		Note      string   `json:"note"`
+		Assignees []string `json:"assignees"`
+		Project   string   `json:"project"`
+		Progress  int      `json:"progress"`
 	} `json:"items"`
+}
+
+func todoExportProgress(done bool, progress int) int {
+	if done || progress > 100 {
+		return 100
+	}
+	if progress < 0 {
+		return 0
+	}
+	return progress
 }
 
 func parseTodoExportDoc(content string) todoExportDoc {
@@ -54,7 +67,7 @@ func parseTodoExportDoc(content string) todoExportDoc {
 // BuildTodoXLSX 把待办清单导出为 Excel（序号 / 待办事项 / 状态 / 截止时间 / 优先级 / 备注）。
 func BuildTodoXLSX(content, title string) ([]byte, error) {
 	doc := parseTodoExportDoc(content)
-	grid := [][]string{{"序号", "待办事项", "状态", "截止时间", "优先级", "备注"}}
+	grid := [][]string{{"序号", "待办事项", "状态", "截止时间", "优先级", "备注", "负责人", "项目名称", "进度"}}
 	for i, it := range doc.Items {
 		status := "未完成"
 		if it.Done {
@@ -67,6 +80,9 @@ func BuildTodoXLSX(content, title string) ([]byte, error) {
 			it.Due,
 			priorityLabel(it.Priority),
 			it.Note,
+			strings.Join(it.Assignees, "、"),
+			it.Project,
+			fmt.Sprintf("%d%%", todoExportProgress(it.Done, it.Progress)),
 		})
 	}
 	return buildXLSXFromGrid(grid, xlsxSheetName(title))
@@ -87,7 +103,13 @@ func BuildTodoMD(content, title string) ([]byte, error) {
 			done++
 		}
 		line := fmt.Sprintf("- [%s] %s", mark, it.Text)
-		var extra []string
+		extra := []string{fmt.Sprintf("进度 %d%%", todoExportProgress(it.Done, it.Progress))}
+		if len(it.Assignees) > 0 {
+			extra = append(extra, "负责人 "+strings.Join(it.Assignees, "、"))
+		}
+		if it.Project != "" {
+			extra = append(extra, "项目 "+it.Project)
+		}
 		if s := strings.TrimSpace(it.Due); s != "" {
 			extra = append(extra, "截止 "+s)
 		}

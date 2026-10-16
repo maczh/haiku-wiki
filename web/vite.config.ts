@@ -10,8 +10,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // 开发期代理到本地 Go 服务
-      '/api': { target: 'http://localhost:8080', changeOrigin: true },
-      '/uploads': { target: 'http://localhost:8080', changeOrigin: true },
+      '/api': { target: process.env.HAIKU_DEV_API_TARGET || 'http://localhost:8080', changeOrigin: true },
+      '/uploads': { target: process.env.HAIKU_DEV_API_TARGET || 'http://localhost:8080', changeOrigin: true },
     },
   },
   build: {

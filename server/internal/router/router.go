@@ -60,6 +60,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.GET("/recent-docs", handler.ListRecentDocs)
 		// 首页「工作台」：一次请求拿到待办 / 甘特图 / 工作日历三类文档（含正文，供前端算进度）
 		jwt.GET("/workbench", handler.Workbench)
+		jwt.GET("/todo-options", handler.ListTodoOptions)
+		jwt.POST("/todo-options", handler.SaveTodoOptions)
 
 		// 知识库
 		jwt.GET("/books", handler.ListBooks)

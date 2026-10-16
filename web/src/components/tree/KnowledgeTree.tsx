@@ -165,6 +165,7 @@ export default function KnowledgeTree(p: Props) {
   )
 
   const [treeData, setTreeData] = useState<KNode[]>([])
+  const [openDocMenuId, setOpenDocMenuId] = useState<number | null>(null)
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([])
   const [renaming, setRenaming] = useState<{ bookId: number; doc: DocNode } | null>(null)
@@ -422,15 +423,21 @@ export default function KnowledgeTree(p: Props) {
           )}
           {/* 语雀式 hover 操作区：⋮（更多操作）与 +（快速新建），默认隐藏，行 hover 出现 */}
           <span className="hk-tree-actions" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-            <Dropdown menu={{ items: buildTreeMenuItems(treeMenuCtx) }} trigger={['click']} placement="bottomRight">
-              <span
-                role="button"
+            <Dropdown
+              menu={{ items: buildTreeMenuItems(treeMenuCtx), onClick: () => setOpenDocMenuId(null) }}
+              open={openDocMenuId === doc.id}
+              onOpenChange={(open) => setOpenDocMenuId(open ? doc.id : null)}
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <button
+                type="button"
                 aria-label="更多操作"
                 className="hk-tree-action-btn"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreOutlined style={{ fontSize: 13 }} />
-              </span>
+              </button>
             </Dropdown>
             {canWrite && (
               <Dropdown menu={{ items: buildPlusMenuItems(doc, onPlusCreate, onPlusImport) }} trigger={['click']} placement="bottomRight">

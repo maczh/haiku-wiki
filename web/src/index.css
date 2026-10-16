@@ -441,6 +441,9 @@ mark.hk-hit {
 }
 
 .hk-tree-action-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -452,6 +455,9 @@ mark.hk-hit {
   user-select: none;
   transition: background 0.12s, color 0.12s;
 }
+
+.hk-tree-actions:focus-within { opacity: 1; }
+.hk-tree-action-btn:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; }
 
 .hk-tree-action-btn:hover {
   background: #eef1f6;

@@ -23,6 +23,8 @@ import {
   UnorderedListOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
+import TodoCopyDialog from '../components/todo/TodoCopyDialog'
+import type { TodoEditorHandle } from '../components/editor/TodoEditor'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
 import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
 import BookDashboard from '../components/dashboard/BookDashboard'
@@ -123,6 +125,8 @@ export default function BookPage() {
 
   const [book, setBook] = useState<Book | null>(null)
   const [doc, setDoc] = useState<DocDetail | null>(null)
+  const todoEditorRef = useRef<TodoEditorHandle>(null)
+  const [todoCopySource, setTodoCopySource] = useState<DocNode | null>(null)
   const [docLoading, setDocLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [tocContainer, setTocContainer] = useState<HTMLElement | null>(null)
@@ -741,6 +745,10 @@ export default function BookPage() {
 
   /** 打开「复制」弹窗：先选目标文库，再选该文库下的目录（多级） */
   async function openCopyDoc(_bookId: number, node: DocNode) {
+    if (node.doc_type === 'todo') {
+      setTodoCopySource(node)
+      return
+    }
     setCopyNode(node)
     setCopyTarget({ bookId: node.book_id, parentId: node.parent_id })
     setCopyBooks(null)
@@ -1179,7 +1187,7 @@ export default function BookPage() {
                           <WhiteboardEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {doc.doc_type === 'todo' && (
-                          <TodoEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                          <TodoEditor ref={todoEditorRef} key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} onSaveAs={() => setTodoCopySource(doc)} />
                         )}
                         {doc.doc_type === 'calendar' && (
                           <CalendarEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
@@ -1337,6 +1345,17 @@ export default function BookPage() {
         onClose={() => setWeChatOpen(false)}
         docId={docIdParam ?? 0}
         docTitle={doc?.title ?? ''}
+      />
+
+      <TodoCopyDialog
+        source={todoCopySource}
+        getCurrentContent={(id) => doc?.id === id && tab === 'edit' ? todoEditorRef.current?.getContent() : undefined}
+        onClose={() => setTodoCopySource(null)}
+        onCreated={(copy) => {
+          setTodoCopySource(null)
+          afterImport(copy.book_id)
+          navigate(`/books/${copy.book_id}?docId=${copy.id}&tab=edit`)
+        }}
       />
 
       {/* 导出对话框（R6：右键导出；md/md.zip 走导出 API，json 前端生成） */}

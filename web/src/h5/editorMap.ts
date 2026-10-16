@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { DocType } from '../types'
-import TodoEditor from '../components/editor/TodoEditor'
+import TodoEditorH5 from './components/TodoEditorH5'
 import CalendarEditor from '../components/editor/CalendarEditor'
 import WhiteboardEditor from '../components/editor/WhiteboardEditor'
 import GalleryEditorH5 from './components/GalleryEditorH5'
@@ -19,7 +19,7 @@ export interface H5EditorProps {
  * 不改动编辑器内部逻辑。
  */
 export const EDITOR_MAP: Partial<Record<DocType, ComponentType<H5EditorProps>>> = {
-  todo: TodoEditor,
+  todo: TodoEditorH5,
   calendar: CalendarEditor,
   whiteboard: WhiteboardEditor,
   gallery: GalleryEditorH5,
