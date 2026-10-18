@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Tree, Dropdown, Empty, Modal, Input, Tooltip, message } from 'antd'
+import { Tree, Dropdown, Empty, Input, Tooltip, App as AntdApp } from 'antd'
 import type { TreeProps, MenuProps } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
@@ -146,6 +146,9 @@ function buildDocNodes(bookId: number, childrenMap: Map<number, DocNode[]>, pare
 
 export default function KnowledgeTree(p: Props) {
   const { books, selectedBookId, selectedDocId, isAdmin, reloadBookId, reloadNonce } = p
+  // 上下文感知的 message / modal：静态调用消费不到 ConfigProvider 的主题，
+  // 每次调用都会刷「Static function can not consume context」告警。
+  const { message, modal } = AntdApp.useApp()
 
   const bookMap = useMemo(() => {
     const map = new Map<number, BookWithCount>()
@@ -486,7 +489,7 @@ export default function KnowledgeTree(p: Props) {
   }
 
   function confirmDeleteDoc(bookId: number, doc: DocNode) {
-    Modal.confirm({
+    modal.confirm({
       title: `删除「${doc.title}」？`,
       content: '文档及其子文档将移入回收站，可随时恢复。',
       okText: '删除',

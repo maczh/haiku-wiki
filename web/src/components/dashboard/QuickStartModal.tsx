@@ -146,7 +146,7 @@ export default function QuickStartModal({
       confirmLoading={saving}
       okText={mode === 'doc' ? '创建并编辑' : '下一步'}
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       width={460}
       data-testid="hk-quick-modal"
     >

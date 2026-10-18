@@ -243,6 +243,9 @@ export type DocType =
   | 'web'
   | 'gallery'
   | 'prototype'
+  | 'word'
+  | 'excel'
+  | 'powerpoint'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
  *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
@@ -260,6 +263,9 @@ export const DOC_TYPES: DocType[] = [
   'api',
   'gallery',
   'prototype',
+  'word',
+  'excel',
+  'powerpoint',
 ]
 
 export const DOC_TYPE_LABEL: Record<DocType, string> = {
@@ -278,6 +284,9 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   web: '网页',
   gallery: '图片库',
   prototype: '需求原型',
+  word: 'Word文档',
+  excel: 'Excel文档',
+  powerpoint: 'PPT文档',
 }
 
 /**

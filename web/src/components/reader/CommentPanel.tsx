@@ -370,7 +370,7 @@ export default function CommentPanel({ docId, slug, anon, password }: Props) {
       )}
 
       {/* 设置弹窗（管理者） */}
-      <Modal title="点评区设置" open={settingsOpen} onCancel={() => setSettingsOpen(false)} onOk={saveSettings} confirmLoading={savingSettings} destroyOnClose>
+      <Modal title="点评区设置" open={settingsOpen} onCancel={() => setSettingsOpen(false)} onOk={saveSettings} confirmLoading={savingSettings} destroyOnHidden>
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 6 }}>谁可以看帖</div>
           <Segmented

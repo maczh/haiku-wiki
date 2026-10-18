@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { ConfigProvider } from 'antd'
+import { App as AntdApp, ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import jquery from 'jquery'
 import installMousewheel from 'jquery-mousewheel'
@@ -39,9 +39,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         },
       }}
     >
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      {/* antd 的 App 包裹：让 message / Modal / notification 的静态调用能消费
+          ConfigProvider 的主题上下文。缺了它，每次调用都会刷
+          「Static function can not consume context like dynamic theme」告警。 */}
+      <AntdApp>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </AntdApp>
     </ConfigProvider>
   </React.StrictMode>,
 )

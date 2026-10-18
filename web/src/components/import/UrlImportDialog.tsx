@@ -88,7 +88,7 @@ export default function UrlImportDialog({ open, onClose, defaultBookId, parentId
       confirmLoading={saving}
       onOk={submit}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <Alert
         type="info"

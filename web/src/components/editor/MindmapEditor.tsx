@@ -714,7 +714,7 @@ export default function MindmapEditor({ docId, initialContent, title }: Props) {
         cancelText="取消"
         onOk={confirmPrompt}
         onCancel={() => setPrompt(null)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           autoFocus

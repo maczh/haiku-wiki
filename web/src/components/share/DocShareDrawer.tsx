@@ -81,7 +81,7 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
       width={440}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {loading && <Typography.Text type="secondary">加载中…</Typography.Text>}
 

@@ -443,7 +443,7 @@ export default function TeamDetailPage() {
         confirmLoading={saving}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>团队名称</div>
@@ -475,7 +475,7 @@ export default function TeamDetailPage() {
         confirmLoading={libSaving}
         okText="创建"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           value={libName}

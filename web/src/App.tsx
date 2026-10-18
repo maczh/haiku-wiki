@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, type ReactElement } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import BlankLayout from './layouts/BlankLayout'
@@ -44,7 +44,7 @@ export function RequireAuth({
   children,
   redirectTo = '/login',
 }: {
-  children: JSX.Element
+  children: ReactElement
   /** 未登录时的重定向目标 */
   redirectTo?: string
 }) {
@@ -54,7 +54,7 @@ export function RequireAuth({
 }
 
 /** 管理员守卫：已登录但非 admin 时回书架（界面入口同样按角色隐藏，这里是兜底） */
-function RequireAdmin({ children }: { children: JSX.Element }) {
+function RequireAdmin({ children }: { children: ReactElement }) {
   const user = useAuthStore((s) => s.user)
   if (user && user.role !== 'admin') return <Navigate to="/" replace />
   return children

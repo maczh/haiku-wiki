@@ -63,7 +63,7 @@ export default function TodoCopyDialog({ source, getCurrentContent, onClose, onC
       closable={!saving}
       maskClosable={!saving}
       keyboard={!saving}
-      destroyOnClose
+      destroyOnHidden
     >
       <p>在原目录复制全部待办及其负责人、项目、进度和备注，创建后打开新清单进行编辑。</p>
       <Form form={form} layout="vertical" onFinish={() => void submit()}>

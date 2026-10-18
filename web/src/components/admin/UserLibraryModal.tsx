@@ -189,7 +189,7 @@ export default function UserLibraryModal({ open, onClose, userId, username }: Pr
       onCancel={onClose}
       footer={null}
       width={720}
-      destroyOnClose
+      destroyOnHidden
     >
       <Spin spinning={loading}>
         <Tabs

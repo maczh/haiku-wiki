@@ -12,9 +12,10 @@ import { buildDocx } from './docx'
 import { buildPptx, pptxAttachmentToPdf } from './pptx'
 import { htmlToPdf, printHtml } from './pdf'
 import { contentToHtml, docxUrlToHtml } from './html'
+import type { ClientFormat } from './formats'
 
-/** 浏览器端可生成的格式 */
-export type ClientFormat = 'docx' | 'pptx' | 'ppts' | 'pdf' | 'png'
+export { CLIENT_FORMAT_EXT, clientFormatsFor, safeFilename } from './formats'
+export type { ClientFormat } from './formats'
 
 export interface ClientExportInput {
   docType: DocType
@@ -31,22 +32,6 @@ export interface ClientExportResult {
   ext: string
   /** 附加说明（如 .ppts 的兼容说明、降级说明），为空表示无 */
   note?: string
-}
-
-/** 格式 → 默认扩展名 */
-export const CLIENT_FORMAT_EXT: Record<ClientFormat, string> = {
-  docx: 'docx',
-  pptx: 'pptx',
-  ppts: 'ppts',
-  pdf: 'pdf',
-  png: 'png',
-}
-
-/** 文件名（去掉非法字符） */
-export function safeFilename(title: string, ext: string): string {
-  const cleaned = (title || '未命名文档').replace(/[\\/:*?"<>|\n\r\t]/g, '_').trim()
-  const base = (cleaned || '未命名文档').replace(new RegExp(`\\.${ext}$`, 'i'), '')
-  return `${base || '未命名文档'}.${ext}`
 }
 
 /**
@@ -161,41 +146,4 @@ async function whiteboardPdfBlob(content: string): Promise<Blob> {
   const s = await whiteboardSceneOf(content)
   const { exportWhiteboardPdfBlob } = await import('../whiteboardExport')
   return exportWhiteboardPdfBlob(s.elements, s.appState, s.files)
-}
-
-/** 该文档类型在浏览器端额外提供的格式（与服务端格式清单合并展示） */
-export function clientFormatsFor(docType: DocType, fileExt?: string): { value: ClientFormat; label: string }[] {
-  if (docType === 'file') {
-    const ext = (fileExt ?? '').toLowerCase()
-    if (ext === 'docx') {
-      return [
-        { value: 'docx', label: 'Word 文档（.docx）· 原文件' },
-        { value: 'pdf', label: 'PDF 文档（.pdf）· 浏览器生成' },
-      ]
-    }
-    if (ext === 'pptx') {
-      return [
-        { value: 'pptx', label: 'PowerPoint（.pptx）· 原文件' },
-        { value: 'ppts', label: 'WPS 演示（.ppts）· 兼容扩展名' },
-        { value: 'pdf', label: 'PDF 文档（.pdf）· 按幻灯片渲染' },
-      ]
-    }
-    return []
-  }
-  if (docType === 'drawing') return [] // 绘图由编辑器内 draw.io 导出
-  if (docType === 'api') return [] // 接口文档全部由服务端导出（swagger/postman/apifox/docx/md/json）
-  if (docType === 'whiteboard') {
-    // 白板：excalidraw/svg 由服务端转换（正文自带场景与 SVG 预览）；
-    // png/pdf 需要 Excalidraw 渲染器（仅存在于浏览器侧），在此提供
-    return [
-      { value: 'png', label: '图片（.png）· 浏览器生成' },
-      { value: 'pdf', label: 'PDF 文档（.pdf）· 浏览器生成' },
-    ]
-  }
-  return [
-    { value: 'docx', label: 'Word 文档（.docx）· 浏览器生成' },
-    { value: 'pptx', label: 'PowerPoint（.pptx）· 浏览器生成' },
-    { value: 'ppts', label: 'WPS 演示（.ppts）· 兼容扩展名' },
-    { value: 'pdf', label: 'PDF 文档（.pdf）· 浏览器生成' },
-  ]
 }

@@ -21,6 +21,7 @@ FROM node:22-alpine AS web-builder
 ARG NPM_MIRROR=""
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
+COPY web/scripts/patch-eflink-pptx.mjs ./scripts/patch-eflink-pptx.mjs
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 # NPM_MIRROR 非空时才指定 registry（例如 https://registry.npmmirror.com），留空走官方源
 RUN if [ -n "${NPM_MIRROR}" ]; then \

@@ -97,7 +97,7 @@ export default function MobileCreateDocSheet({
       height={step === 'pick' ? 320 : 300}
       title={step === 'pick' ? '新建' : `新建${docType === 'folder' ? '子目录' : labelOf(docType as DocType)}`}
       rootClassName="h5-create-drawer"
-      destroyOnClose
+      destroyOnHidden
     >
       {step === 'pick' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, padding: '12px 4px' }}>

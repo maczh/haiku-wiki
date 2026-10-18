@@ -468,8 +468,9 @@ func (s *DocService) UpdateDoc(uid uint64, docID uint64, title *string, content 
 		changed = true
 	}
 	if content != nil {
-		// 附件型文档（导入的 docx/pdf）正文不可编辑：仅允许创建时一次性写入 FileRef
-		if exportx.NormalizeDocType(doc.DocType) == "file" && doc.Content != "" && *content != doc.Content {
+		// Office 只允许更新快照并保留原附件标识；其他附件正文保持不可编辑。
+		if exportx.NormalizeDocType(doc.DocType) == "file" && doc.Content != "" && *content != doc.Content &&
+			!editableOfficeAttachment(doc.Content, *content) {
 			return nil, false, hkerr.Param("附件型文档不支持编辑正文")
 		}
 		if *content != doc.Content {

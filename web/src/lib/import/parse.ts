@@ -25,6 +25,7 @@ import {
   DEFAULT_ROW,
   SHEET_VERSION,
   emptySheet,
+  parseSheetJSON,
   stringifySheet,
   type LuckysheetCellData,
   type LuckysheetSheet,
@@ -258,6 +259,15 @@ const parseXlsx: Parser = async (file) => {
   }
 }
 
+/** 历史 XLSX 附件按需迁移到 Luckysheet 原生工作簿 JSON。 */
+export async function xlsxFileToLuckysheetContent(file: File): Promise<string> {
+  const parsed = await parseXlsx(file)
+  if (!parsed.ok) throw new Error(parsed.reason || 'XLSX 解析失败')
+  const contents = [parsed.content, ...(parsed.children ?? []).map((child) => child.content)].filter(Boolean)
+  const sheets = contents.flatMap((item) => parseSheetJSON(item).data.sheets)
+  return stringifySheet({ version: SHEET_VERSION, sheets })
+}
+
 // ---------- pdf（附件型，不再抽取文本层） ----------
 
 // ---------- html（P3：DOMParser → DOMPurify 清洗 → turndown） ----------
@@ -337,7 +347,7 @@ export const parserRegistry: Record<string, Parser> = {
   docx: parseAttachment,
   doc: parseAttachment,
   pdf: parseAttachment,
-  pptx: parseAttachment, // 保留源文件，前端 pptx-preview 预览/播放
+  pptx: parseAttachment, // 保留源文件，交给 PPTist 导入和编辑
   vsd: parseAttachment, // Visio：保留源文件，阅读页由 draw.io 转换预览
   vsdx: parseAttachment,
   drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存

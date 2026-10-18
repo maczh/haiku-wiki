@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Alert, Button, Input, Modal, Select, Upload, message } from 'antd'
 import { FileZipOutlined, FolderOpenOutlined, Html5Outlined, InboxOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
@@ -16,7 +16,7 @@ interface Props {
 type Mode = 'zip' | 'page' | 'dir'
 
 /** 三种来源说明（界面上直接告诉用户各自适合什么） */
-const MODES: { key: Mode; icon: JSX.Element; title: string; desc: string }[] = [
+const MODES: { key: Mode; icon: ReactElement; title: string; desc: string }[] = [
   { key: 'zip', icon: <FileZipOutlined />, title: 'zip 包', desc: '导出好的整站压缩包，服务端解压后原样保存' },
   { key: 'page', icon: <Html5Outlined />, title: '单个页面', desc: '一个 .html 文件（外链资源会失效，建议用 zip）' },
   { key: 'dir', icon: <FolderOpenOutlined />, title: '网页目录', desc: '选中整个文件夹，保留内部相对路径' },
@@ -112,7 +112,7 @@ export default function HtmlImportDialog({ open, onClose, defaultBookId, parentI
       confirmLoading={saving}
       onOk={submit}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <Alert
         type="info"

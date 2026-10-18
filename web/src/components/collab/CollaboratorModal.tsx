@@ -82,7 +82,7 @@ export default function CollaboratorModal({ open, docId, docTitle, onClose }: Pr
       onCancel={onClose}
       footer={null}
       width={520}
-      destroyOnClose
+      destroyOnHidden
     >
       <Alert
         type="info"

@@ -7,6 +7,7 @@ import (
 
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/exportx"
+	"haiku-wiki/server/internal/service/office"
 )
 
 // 内容摘要（P0-1）：给每篇文档一个可比较的 md5 指纹，用于「重复提示」与后续的
@@ -62,6 +63,9 @@ func originMD5ByURL(url string) string {
 
 // docContentMD5 按文档类型计算摘要：附件型取原件 md5，其余取规范化正文 md5。
 func docContentMD5(docType, content string) string {
+	if _, ok := office.Parse(content); ok {
+		return contentMD5(content)
+	}
 	if exportx.NormalizeDocType(docType) == "file" {
 		if ref := exportx.ParseFileRef(content); ref != nil {
 			return originMD5ByURL(ref.URL)

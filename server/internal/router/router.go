@@ -24,6 +24,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 	pub := api.Group("/public")
 	{
 		pub.GET("/share/:slug", handler.GetShare)
+		pub.GET("/office/capabilities", handler.OfficeCapabilities)
+		pub.POST("/office/import", handler.OfficeImport)
+		pub.POST("/office/export", handler.OfficeExport)
 		pub.GET("/share/:slug/docs/:docId", handler.GetShareDoc)
 		// 文档级分享（与书级并列，handler 分文件）
 		pub.GET("/doc-share/:slug", handler.GetDocShareMeta)

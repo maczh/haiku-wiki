@@ -103,7 +103,7 @@ export default function WeChatShareModal({ open, onClose, docId, docTitle }: Pro
         </Space>
       }
       width={420}
-      destroyOnClose
+      destroyOnHidden
     >
       {error ? (
         <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />

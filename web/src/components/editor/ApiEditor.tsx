@@ -1611,7 +1611,7 @@ useEffect(() => {
         okText="导入"
         cancelText="取消"
         confirmLoading={urlLoading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
           粘贴 Swagger2 / OpenAPI3 / Apifox / Postman 文档的 JSON 地址，系统将通过服务端代理拉取并解析（绕开跨域与内网限制）。
@@ -1630,7 +1630,7 @@ useEffect(() => {
         width={460}
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         {history.length === 0 ? (
           <Empty description="暂无调试记录，点击「调试」发送请求后会自动记录" style={{ marginTop: 60 }} />
@@ -1677,7 +1677,7 @@ useEffect(() => {
         onCancel={() => setRenameEp(null)}
         okText="确定"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           value={renameValue}
@@ -1699,7 +1699,7 @@ useEffect(() => {
         onCancel={() => setMoveEp(null)}
         okText="移动"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Select
           value={moveTarget || undefined}

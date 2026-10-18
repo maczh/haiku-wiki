@@ -137,7 +137,7 @@ export default function TeamsPage() {
         confirmLoading={saving}
         okText="创建"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

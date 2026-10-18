@@ -119,9 +119,12 @@ export async function runImport(files: File[], opts: RunImportOpts): Promise<voi
           ext: res.attachment.ext,
         }
         let note = ''
-        const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
-        if (note) item.message = note
-        onItem({ ...item, status: 'success', message: note ? '导入成功（无在线预览）' : '导入成功', docId: doc.id, dedup: up.dedup })
+        let content = JSON.stringify(ref)
+        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : 'file'
+        if (ref.ext === 'docx') note = '已保留 DOCX 原件，将使用 docx-editor 打开'
+        if (ref.ext === 'pptx') note = '已保留 PPTX 原件，可在线编辑与放映'
+        const doc = await createDoc(bookId, parentId, res.title, officeType, content)
+        onItem({ ...item, status: 'success', message: note ? '导入成功（请查看格式提示）' : '导入成功', docId: doc.id, dedup: up.dedup })
         if (up.dedup) dedup++
         ok++
         continue

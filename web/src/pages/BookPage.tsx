@@ -45,6 +45,7 @@ import { useAuthStore } from '../stores/authStore'
 import { VISIBILITY_LABEL, type Book, type Bookshelf, type DocDetail, type DocNode, type DocType, type Visibility } from '../types'
 import { COVER_COLORS, DOC_TYPES, DOC_TYPE_LABEL } from '../types'
 import { useReaderWidth } from '../lib/readerWidth'
+import { parseAttachment } from '../lib/attachment'
 import { ROOT_DIR_VALUE, buildDirOptions, withRootDir, type DirOption } from '../lib/dirOptions'
 import TemplateGallery from '../components/template/TemplateGallery'
 import TemplatePreview from '../components/template/TemplatePreview'
@@ -53,7 +54,9 @@ import { createTemplate, listTemplateCategories, type DocTemplate } from '../api
 // 编辑器按需加载：Markdown（typo-md-editor，Vue3/Milkdown 内核）/ 思维导图（mindmap-vite，含 katex）/ Luckysheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
 const TypoMdEditor = lazy(() => import('../components/editor/TypoMdEditor'))
-const SheetEditor = lazy(() => import('../components/editor/SheetEditor'))
+const DocxOfficeEditor = lazy(() => import('../components/office/DocxEditor'))
+const LuckySheetEditor = lazy(() => import('../components/office/LuckySheetEditor'))
+const PptistEditor = lazy(() => import('../components/office/PptistEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
 const DrawioEditor = lazy(() => import('../components/editor/DrawioEditor'))
@@ -802,9 +805,13 @@ export default function BookPage() {
   const bookCanWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
   // 文档级权限优先：公司文库里「库只读 + 文档所有人可编辑」是合法组合
   const canWrite = docCanWrite ?? bookCanWrite
-  // 附件型文档：按原文件保存，正文不可编辑，仅提供阅读与下载
+  // Office 附件允许编辑独立快照；其他附件仅提供阅读与原件下载。
+  //
+  // DOCX/XLSX/PPTX 附件保留导入原件，并由各自原生组件维护可编辑内容。
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
+  const attachmentRef = isAttachmentDoc ? parseAttachment(doc?.content ?? '') : null
+  const officeAttachment = !!attachmentRef && ['docx', 'xlsx', 'pptx'].includes(attachmentRef.ext)
   // 目录（doc_type=folder）：不承载正文，只能读占位提示，不能编辑/分享/协作
   const isFolderDoc = docTypeNow === 'folder'
   // 网页型文档（doc_type=web）：内容是外部站点或导入的整包静态资源，不提供编辑模式
@@ -1059,7 +1066,7 @@ export default function BookPage() {
               </Button>
               <Tooltip
                 title={
-                  isAttachmentDoc
+                  (isAttachmentDoc && !officeAttachment)
                     ? '附件型文档按原文件保存，不可编辑'
                     : isFolderDoc
                       ? '目录不承载正文，无需编辑'
@@ -1072,7 +1079,7 @@ export default function BookPage() {
                   size="small"
                   type={tab === 'edit' ? 'primary' : 'default'}
                   icon={<EditOutlined />}
-                  disabled={!canWrite || isAttachmentDoc || isFolderDoc || isWebDoc}
+                  disabled={!canWrite || (isAttachmentDoc && !officeAttachment) || isFolderDoc || isWebDoc}
                   onClick={() => setParams({ tab: 'edit' })}
                 >
                   编辑
@@ -1138,7 +1145,13 @@ export default function BookPage() {
                 {docIdParam && docLoading && <Spin style={{ display: 'block', margin: '80px auto' }} />}
                 {docIdParam && !docLoading && doc && tab === 'edit' && canWrite && (
                   <>
-                    {isAttachmentDoc ? (
+                    {officeAttachment ? (
+                      <LazyBoundary tip="正在加载 Office 编辑器…">
+                        {attachmentRef?.ext === 'docx' ? <DocxOfficeEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
+                        {attachmentRef?.ext === 'xlsx' ? <LuckySheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
+                        {attachmentRef?.ext === 'pptx' ? <PptistEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
+                      </LazyBoundary>
+                    ) : isAttachmentDoc ? (
                       <Empty
                         description="附件型文档按原文件保存、不可编辑，请切换到阅读模式查看"
                         style={{ marginTop: 80 }}
@@ -1171,8 +1184,14 @@ export default function BookPage() {
                         {docTypeNow === 'markdown' && (
                           <TypoMdEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
-                        {doc.doc_type === 'sheet' && (
-                          <SheetEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} docType="sheet" />
+                        {(doc.doc_type === 'sheet' || doc.doc_type === 'excel') && (
+                          <LuckySheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
+                        )}
+                        {doc.doc_type === 'word' && (
+                          <DocxOfficeEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
+                        )}
+                        {doc.doc_type === 'powerpoint' && (
+                          <PptistEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
                         )}
                         {doc.doc_type === 'mindmap' && (
                           <MindmapEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
@@ -1422,7 +1441,7 @@ export default function BookPage() {
         onCancel={() => setRenameModalOpen(false)}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           value={renameBookValue}
@@ -1459,7 +1478,7 @@ export default function BookPage() {
         okText={edit?.mode === 'create' ? '创建' : '保存'}
         cancelText="取消"
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item label="封面色" name="cover_color">
@@ -1525,7 +1544,7 @@ export default function BookPage() {
         onCancel={() => setNewDocGalleryOpen(false)}
         footer={null}
         width={860}
-        destroyOnClose
+        destroyOnHidden
         style={{ top: 48 }}
         bodyStyle={{ height: 460, padding: '4px 0' }}
       >
@@ -1557,7 +1576,7 @@ export default function BookPage() {
         cancelText="取消"
         okButtonProps={{ loading: saveAsSaving }}
         onOk={() => void submitSaveAsTemplate()}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>模板分类 *</div>
@@ -1606,7 +1625,7 @@ export default function BookPage() {
         cancelText="取消"
         okButtonProps={{ disabled: newDocBookId == null }}
         onOk={() => setNewDocStep(2)}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>知识库 *</div>
@@ -1650,7 +1669,7 @@ export default function BookPage() {
         okText={newDocKind === 'folder' ? '创建目录' : '创建'}
         cancelText="取消"
         onOk={() => void submitNewDoc()}
-        destroyOnClose
+        destroyOnHidden
       >
         {newDocKind === 'doc' && newDocLockedType == null && (
           <div style={{ marginBottom: 12 }}>
@@ -1690,7 +1709,7 @@ export default function BookPage() {
         cancelText="取消"
         okButtonProps={{ disabled: importBookId == null }}
         onOk={() => setImportStep(2)}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>知识库 *</div>
@@ -1734,7 +1753,7 @@ export default function BookPage() {
         okText="确定"
         cancelText="取消"
         onOk={confirmImport}
-        destroyOnClose
+        destroyOnHidden
       >
         <Radio.Group value={importMode} onChange={(e) => setImportMode(e.target.value)}>
           <Radio value="file">从文件导入（Word / Excel / Markdown / 图片型文档等）</Radio>
@@ -1768,7 +1787,7 @@ export default function BookPage() {
         okButtonProps={{ disabled: moveTarget.bookId == null }}
         confirmLoading={moveSaving}
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
         width={520}
       >
         {moveLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}
@@ -1800,7 +1819,7 @@ export default function BookPage() {
         okButtonProps={{ disabled: copyTarget.bookId == null }}
         confirmLoading={copySaving}
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
         width={520}
       >
         {copyLoading && <Spin style={{ display: 'block', margin: '16px auto' }} />}

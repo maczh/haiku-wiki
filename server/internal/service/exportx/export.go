@@ -339,6 +339,7 @@ func formatValues(docType string) []string {
 // 导入的 .docx/.pdf/.pptx/.dwg 按原文件保存，正文不参与编辑，仅记录原文件位置。
 type FileRef struct {
 	URL      string `json:"url"`      // /uploads/YYYY/MM/xxx.ext
+	EditedURL string `json:"edited_url,omitempty"` // 原生 Office 编辑器保存后的最新文件；URL 仍保留导入原件
 	Filename string `json:"filename"` // 原始文件名
 	Size     int64  `json:"size"`
 	Ext      string `json:"ext"`
@@ -363,6 +364,7 @@ func ParseFileRef(content string) *FileRef {
 		return nil
 	}
 	ref.URL = strings.TrimSpace(ref.URL)
+	ref.EditedURL = strings.TrimSpace(ref.EditedURL)
 	ref.Filename = strings.TrimSpace(ref.Filename)
 	ref.Ext = strings.ToLower(strings.TrimPrefix(ref.Ext, "."))
 	if ref.Ext == "" && strings.Contains(ref.Filename, ".") {

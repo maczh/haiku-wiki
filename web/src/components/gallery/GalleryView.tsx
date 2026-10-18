@@ -115,7 +115,7 @@ function GalleryLightbox({ image, docId, onUpdate, onClose }: LightboxProps) {
   }
 
   return (
-    <Modal open title={current.name} footer={null} onCancel={onClose} width="80%" destroyOnClose>
+    <Modal open title={current.name} footer={null} onCancel={onClose} width="80%" destroyOnHidden>
       {current.degraded ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: '#8a919f' }}>
           该图片未能生成预览图（{current.note || '缺少图片转换器'}），可下载原件查看。

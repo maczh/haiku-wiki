@@ -11,11 +11,15 @@ import (
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/router"
 	"haiku-wiki/server/internal/service"
+	"haiku-wiki/server/internal/service/office"
 	"haiku-wiki/server/internal/storage"
 )
 
 func main() {
 	cfg := config.Load()
+	if err := office.ConfigureFromEnv(); err != nil {
+		log.Fatalf("[haiku] Office 转换引擎初始化失败: %v", err)
+	}
 
 	// JWT 密钥注入
 	jwtutil.Init(cfg.JWTSecret)

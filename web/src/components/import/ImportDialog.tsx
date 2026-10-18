@@ -147,23 +147,27 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         return false
       }
 
-      // 附件型（docx/pdf/pptx/vsd）：先上传原文件，再按原样落库为 file 文档；
+      // 附件型（docx/pdf/pptx/vsd）：先上传原文件，再按原样落库；XLSX 会解析为 Luckysheet 工作簿。
       if (res.attachment) {
         // 走秒传链路：内容已存在时不重复传输字节（降级由 uploadFlow 内部保证）
         const up = await uploadWithDedup(file)
-        let ref: FileAttachment = {
+        const ref: FileAttachment = {
           url: up.url,
           filename: up.filename || res.attachment.filename,
           size: up.size || res.attachment.size,
           ext: res.attachment.ext,
         }
         let note = ''
-        const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
+        let content = JSON.stringify(ref)
+        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : 'file'
+        if (ref.ext === 'docx') note = '已保留 DOCX 原件，将使用 docx-editor 打开'
+        if (ref.ext === 'pptx') note = '已保留 PPTX 原件，可在线编辑与放映'
+        const doc = await createDoc(bookId, parentId, res.title, officeType, content)
         // 转换降级/失败只做成 toast，不把长原因塞进列表标签
         if (note) message.warning(note)
         updateItem(item.uid, {
           status: 'success',
-          message: note ? '导入成功（无在线预览）' : '导入成功',
+          message: note ? '导入成功（请查看转换能力提示）' : '导入成功',
           docId: doc.id,
           md5: up.md5,
           dedup: up.dedup,
@@ -254,7 +258,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
       width={480}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
       extra={
         items.length > 0 && !running ? (
           <Button type="primary" onClick={() => { setItems([]); onClose() }}>

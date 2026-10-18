@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, type ReactElement } from 'react'
 import { FolderOutlined } from '@ant-design/icons'
 import LazyBoundary from '../common/LazyBoundary'
 import WidthControl from './WidthControl'
@@ -9,7 +9,9 @@ import { type DocType } from '../../types'
 // 按文档类型按需加载渲染器：Markdown（MarkdownView，typo-md-editor 渲染）/ 思维导图（mindmap-vite）/ Luckysheet / pdf.js / mermaid
 // / draw.io / pptx-preview 都只在打开对应类型文档时才需要，静态 import 会把它们全部塞进首屏 chunk。
 const MarkdownView = lazy(() => import('./MarkdownView'))
-const SheetView = lazy(() => import('./SheetView'))
+const DocxOfficeEditor = lazy(() => import('../office/DocxEditor'))
+const LuckySheetEditor = lazy(() => import('../office/LuckySheetEditor'))
+const PptistEditor = lazy(() => import('../office/PptistEditor'))
 const MindmapView = lazy(() => import('./MindmapView'))
 const FlowchartView = lazy(() => import('./FlowchartView'))
 const FileView = lazy(() => import('./FileView'))
@@ -77,7 +79,7 @@ export default function DocContent({
   const { maxWidth } = useReaderWidth()
 
   /** 按 doc_type 分发的渲染体（宽度控制在最外层统一施加） */
-  let body: JSX.Element
+  let body: ReactElement
   if (docType === 'markdown') {
     // markdown 正文宽度走百分比模型（默认窗体 80%、可拖拽调整），由外层模式（阅读页 / 分享页 /
     // H5）统一包一层 MdBodyWidth 控制；此处不套 px 阅读宽度调节器。
@@ -89,9 +91,15 @@ export default function DocContent({
   } else if (docType === 'sheet') {
     body = (
       <LazyBoundary tip={TIP.sheet}>
-        <SheetView content={content} />
+        <LuckySheetEditor content={content} readOnly />
       </LazyBoundary>
     )
+  } else if (docType === 'excel') {
+    body = <LazyBoundary tip="正在加载 Excel 编辑器…"><LuckySheetEditor content={content} readOnly /></LazyBoundary>
+  } else if (docType === 'word') {
+    body = <LazyBoundary tip="正在加载 Word 编辑器…"><DocxOfficeEditor content={content} readOnly /></LazyBoundary>
+  } else if (docType === 'powerpoint') {
+    body = <LazyBoundary tip="正在加载 PPT 编辑器…"><PptistEditor content={content} docId={docId} readOnly /></LazyBoundary>
   } else if (docType === 'mindmap') {
     body = (
       <LazyBoundary tip={TIP.mindmap}>

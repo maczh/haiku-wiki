@@ -174,7 +174,7 @@ export default function BookshelfSection({ onLoaded, createSignal = 0 }: Props) 
         okText={edit?.mode === 'create' ? '创建' : '保存'}
         cancelText="取消"
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item label="封面色" name="cover_color">

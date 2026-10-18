@@ -450,7 +450,7 @@ export default function AdminTemplatesPage() {
         okButtonProps={{ loading: editSaving }}
         onOk={() => void submitEdit()}
         width={720}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>业务分类 *</div>

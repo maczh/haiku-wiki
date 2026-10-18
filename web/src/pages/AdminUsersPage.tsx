@@ -436,7 +436,7 @@ export default function AdminUsersPage() {
         confirmLoading={resetting}
         okText="确认重置"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 8, color: '#5f6672' }}>
           留空则由系统自动生成 12 位随机密码；重置后仅在此处显示一次。

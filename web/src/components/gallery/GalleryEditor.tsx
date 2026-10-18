@@ -224,7 +224,7 @@ export default function GalleryEditor({ docId, content, onChanged }: Props) {
         onCancel={() => setRenaming(null)}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           autoFocus

@@ -2,7 +2,9 @@ import type { ComponentType } from 'react'
 import type { DocType } from '../types'
 import MarkdownView from '../components/reader/MarkdownView'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
-import SheetView from '../components/reader/SheetView'
+import DocxOfficeEditor from '../components/office/DocxEditor'
+import LuckySheetEditor from '../components/office/LuckySheetEditor'
+import PptistEditor from '../components/office/PptistEditor'
 import MindmapView from '../components/reader/MindmapView'
 import FlowchartView from '../components/reader/FlowchartView'
 import DrawioView from '../components/reader/DrawioView'
@@ -47,7 +49,10 @@ const MarkdownReader = (props: H5ReaderProps) => (
 
 export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> = {
   markdown: MarkdownReader,
-  sheet: SheetView,
+  sheet: (props) => <LuckySheetEditor content={props.content} readOnly />,
+  excel: (props) => <LuckySheetEditor content={props.content} readOnly />,
+  word: (props) => <DocxOfficeEditor content={props.content} readOnly />,
+  powerpoint: (props) => <PptistEditor content={props.content} readOnly />,
   mindmap: MindmapView,
   flowchart: FlowchartView,
   drawing: DrawioView,

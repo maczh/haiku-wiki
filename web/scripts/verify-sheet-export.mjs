@@ -16,10 +16,10 @@
  */
 import { mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 
-const root = path.resolve(import.meta.dirname, '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 let failed = 0
 
@@ -50,8 +50,11 @@ async function loadModule(entry, name) {
     platform: 'neutral',
     target: 'es2020',
     logLevel: 'silent',
-    // dompurify 之类浏览器依赖在 node 下不可解析，这里只验证纯逻辑模块
+    // 浏览器依赖在 node 下不可执行；这里仅验证项目内的纯逻辑模块。
     external: [
+      '@excalidraw/excalidraw',
+      '@docx-editor.dev/*',
+      '@eflink-tech/pptx',
       'dompurify',
       'turndown',
       'docx',
@@ -62,6 +65,8 @@ async function loadModule(entry, name) {
       'pptx-preview',
       'vditor',
       'mammoth',
+      'katex',
+      'katex/*',
     ],
   })
   const mod = await import(pathToFileURL(outfile).href)
@@ -150,7 +155,7 @@ async function main() {
   }
 
   // ---------- ⑥ 导出文件名 / 扩展名映射（src/lib/export/index.ts） ----------
-  const exp = await loadModule('src/lib/export/index.ts', 'exportx')
+  const exp = await loadModule('src/lib/export/formats.ts', 'exportx')
   try {
     const { safeFilename, CLIENT_FORMAT_EXT, clientFormatsFor } = exp.mod
 

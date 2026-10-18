@@ -1,14 +1,15 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Spin, Tooltip, Typography, message } from 'antd'
 import { DownloadOutlined, FileImageOutlined, FileTextOutlined, SwapOutlined } from '@ant-design/icons'
-import DOMPurify from 'dompurify'
 import { attachmentKind, formatSize, loadPdfjs, parseAttachment } from '../../lib/attachment'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { createDoc } from '../../api/docs'
 
-// draw.io 组件与 echarts（经 pptx-preview 间接引入）都较重，按需加载
+// 编辑器按需加载，附件元数据不引入编辑器主包。
 const DrawioEditor = lazy(() => import('../editor/DrawioEditor'))
-const PptxView = lazy(() => import('./PptxView'))
+const DocxOfficeEditor = lazy(() => import('../office/DocxEditor'))
+const LuckySheetEditor = lazy(() => import('../office/LuckySheetEditor'))
+const PptistEditor = lazy(() => import('../office/PptistEditor'))
 
 /** 单个 PDF 最多渲染页数（超出部分提示下载查看，避免超长文档卡死） */
 const MAX_PDF_PAGES = 120
@@ -21,13 +22,13 @@ interface Props {
   /** 新建绘图文档后的回调（页面据此跳转到新文档） */
   onDocCreated?: (docId: number) => void
 }
-
 /**
  * 附件型文档只读阅读（doc_type=file）：
  *  导入的各类文件按原文件保存，此处直接就地渲染（不经过任何编辑管线）：
  *   - .pdf            → pdf.js 逐页渲染到 canvas（宽度自适应容器）
- *   - .docx           → mammoth 转 HTML（DOMPurify 清洗）后只读展示
- *   - .pptx           → pptx-preview 分页渲染，支持播放/全屏/翻页
+ *   - .docx           → docx-editor 直接读取 OOXML
+ *   - .xlsx           → SheetJS 导入后由 Luckysheet 阅读
+ *   - .pptx           → PPTist 导入并阅读/放映
  *   - .vsd / .vsdx    → 内嵌 draw.io 打开（Visio 格式由 draw.io 内部转换），可导出或另存为绘图文档
  *   - 图片            → 直接展示
  *   - 其它            → 提示下载后本地查看
@@ -47,6 +48,9 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
     )
   }
   const kind = attachmentKind(ref.ext)
+  // 有专门渲染器的格式；其余格式走「下载原文件」
+  const hasInlineViewer =
+    kind === 'pdf' || ['docx', 'xlsx', 'pptx'].includes(ref.ext) || kind === 'drawio' || kind === 'image'
   return (
     <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '0 24px 40px', width: '100%' }}>
       {/* 附件信息条 */}
@@ -76,7 +80,7 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
             {ref.filename}
           </div>
           <div style={{ color: '#8a919f', fontSize: 12 }}>
-            {ref.ext ? ref.ext.toUpperCase() : '文件'} · {formatSize(ref.size)} · 按原文件保存，不可编辑
+            {ref.ext ? ref.ext.toUpperCase() : '文件'} · {formatSize(ref.size)} · {['docx', 'xlsx', 'pptx'].includes(ref.ext) ? '在线 Office' : '按原文件保存'}
           </div>
         </div>
         <Button size="small" icon={<DownloadOutlined />} href={ref.url} download={ref.filename} target="_blank">
@@ -85,10 +89,19 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
       </div>
 
       {kind === 'pdf' && <PdfViewer url={ref.url} filename={ref.filename} />}
-      {kind === 'docx' && <DocxViewer url={ref.url} />}
-      {kind === 'pptx' && (
-        <Suspense fallback={<Loading tip="正在加载演示文稿预览器…" />}>
-          <PptxView url={ref.url} filename={ref.filename} pptxScanned={ref.pptx_scanned} />
+      {ref.ext === 'docx' && (
+        <Suspense fallback={<Loading tip="正在加载 Word 组件…" />}>
+          <DocxOfficeEditor content={content} title={ref.filename} readOnly />
+        </Suspense>
+      )}
+      {ref.ext === 'xlsx' && (
+        <Suspense fallback={<Loading tip="正在加载 Luckysheet…" />}>
+          <LuckySheetEditor content={content} title={ref.filename} readOnly />
+        </Suspense>
+      )}
+      {ref.ext === 'pptx' && (
+        <Suspense fallback={<Loading tip="正在加载 PPT 组件…" />}>
+          <PptistEditor content={content} title={ref.filename} readOnly />
         </Suspense>
       )}
       {kind === 'drawio' && (
@@ -97,12 +110,13 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
         </Suspense>
       )}
       {kind === 'image' && <ImageViewer url={ref.url} filename={ref.filename} />}
-      {kind === 'other' && (
+      {/* 其余格式原样保存，只给下载。 */}
+      {!hasInlineViewer && (
         <Alert
           type="info"
           showIcon
           message="该格式暂不支持在线预览"
-          description="请点击上方「下载原文件」按钮，下载后在本地打开查看。"
+          description="请点击上方「下载原文件」按钮，下载后用对应软件打开查看。"
         />
       )}
     </div>
@@ -358,53 +372,4 @@ function PdfViewer({ url, filename }: { url: string; filename: string }) {
       )}
     </div>
   )
-}
-
-// ---------- DOCX：mammoth 转 HTML 后只读渲染 ----------
-
-function DocxViewer({ url }: { url: string }) {
-  const [html, setHtml] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let alive = true
-    setLoading(true)
-    setError('')
-    ;(async () => {
-      const mammoth = (await import('mammoth')).default
-      const resp = await fetch(url)
-      if (!resp.ok) throw new Error(`无法读取文件（HTTP ${resp.status}）`)
-      const arrayBuffer = await resp.arrayBuffer()
-      const result = await mammoth.convertToHtml(
-        { arrayBuffer },
-        // 图片内联为 data URI，避免相对路径失效
-        {
-          convertImage: mammoth.images.imgElement(async (image) => ({
-            src: `data:${image.contentType};base64,${await image.read('base64')}`,
-          })),
-        },
-      )
-      if (!alive) return
-      setHtml(
-        DOMPurify.sanitize(result.value, {
-          FORBID_TAGS: ['style', 'script', 'noscript', 'iframe', 'object', 'embed', 'form', 'input'],
-        }),
-      )
-    })()
-      .catch((e) => {
-        if (alive) setError((e as Error)?.message || 'Word 文档解析失败')
-      })
-      .finally(() => {
-        if (alive) setLoading(false)
-      })
-    return () => {
-      alive = false
-    }
-  }, [url])
-
-  if (loading) return <Loading tip="正在解析 Word 文档…" />
-  if (error) return <Alert type="error" showIcon message="Word 文档预览失败" description={error} />
-  if (!html.trim()) return <Alert type="info" showIcon message="文档内容为空" />
-  return <div className="docx-preview" dangerouslySetInnerHTML={{ __html: html }} />
 }

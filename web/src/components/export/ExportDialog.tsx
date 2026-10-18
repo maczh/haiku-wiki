@@ -238,7 +238,7 @@ export default function ExportDialog({
         isAttachment && clientOpts.length === 0 ? '下载原文件' : clientFormat === 'pdf' ? '生成 PDF' : '导出'
       }
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       width={500}
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>

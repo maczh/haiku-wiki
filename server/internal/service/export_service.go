@@ -3,6 +3,7 @@ package service
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	hkerr "haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/service/exportx"
+	"haiku-wiki/server/internal/service/office"
 	"haiku-wiki/server/internal/storage"
 )
 
@@ -94,6 +96,23 @@ func (s *ExportService) DocExport(uid, docID uint64, format string) (*ExportOutp
 	if err != nil {
 		return nil, err
 	}
+	if ref := exportx.ParseFileRef(doc.Content); doc.DocType == "powerpoint" && ref != nil && ref.Ext == "pptx" {
+		if format != "" && format != "pptx" {
+			return nil, hkerr.Param("请在演示文稿编辑器内导出其他格式")
+		}
+		return attachmentOutput(doc)
+	}
+	if snapshot, ok := office.Parse(doc.Content); ok {
+		spec := officeFormat(snapshot.Kind)
+		if format != "" && format != spec.Value {
+			return nil, hkerr.Param("不支持的 Office 导出格式")
+		}
+		data, err := office.Default.Export(context.Background(), office.Format(spec.Value), snapshot.Snapshot)
+		if err != nil {
+			return nil, hkerr.Param(err.Error())
+		}
+		return &ExportOutput{Filename: sanitizeFilename(doc.Title) + "." + spec.Ext, MIME: spec.MIME, Data: data}, nil
+	}
 	// 附件型：默认原样回传上传的原文件；若该类型有派生格式（CAD 图纸），
 	// 且请求的是派生格式，则回传后端在导入时生成好的 DXF/SVG。
 	if exportx.NormalizeDocType(doc.DocType) == "file" {
@@ -137,6 +156,14 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 	if err != nil {
 		return nil, err
 	}
+	if ref := exportx.ParseFileRef(doc.Content); doc.DocType == "powerpoint" && ref != nil && ref.Ext == "pptx" {
+		return &ExportFormatOption{DocType: "powerpoint", Formats: []exportx.FormatSpec{{Value: "pptx", Label: "PowerPoint（.pptx）", Ext: "pptx", MIME: "application/vnd.openxmlformats-officedocument.presentationml.presentation"}}, Default: "pptx", Filename: ref.Filename}, nil
+	}
+	if snapshot, ok := office.Parse(doc.Content); ok {
+		spec := officeFormat(snapshot.Kind)
+		return &ExportFormatOption{DocType: doc.DocType, Formats: []exportx.FormatSpec{spec}, Default: spec.Value,
+			Note: "导出当前编辑快照；原始附件可在阅读页面单独下载。基础转换可能丢失复杂排版。"}, nil
+	}
 	docType := exportx.NormalizeDocType(doc.DocType)
 	if docType == "file" {
 		name := doc.Title
@@ -160,6 +187,15 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 		Formats: exportx.FormatsForDocType(docType),
 		Default: exportx.DefaultFormat(docType).Value,
 	}, nil
+}
+
+func officeFormat(kind string) exportx.FormatSpec {
+	if kind == "sheet" {
+		return exportx.FormatSpec{Value: "xlsx", Label: "Excel 工作簿（当前快照）", Ext: "xlsx",
+			MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+	}
+	return exportx.FormatSpec{Value: "docx", Label: "Word 文档（当前快照）", Ext: "docx",
+		MIME: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 }
 
 // attachmentExport 附件型文档导出：format 为空或等于原扩展名 → 原文件；
@@ -200,7 +236,11 @@ func attachmentOutput(doc *model.Doc) (*ExportOutput, error) {
 	if ref == nil {
 		return nil, hkerr.NotFound("附件不存在或已被移除")
 	}
-	data, err := readUploadedFile(ref.URL)
+	fileURL := ref.URL
+	if ref.EditedURL != "" {
+		fileURL = ref.EditedURL
+	}
+	data, err := readUploadedFile(fileURL)
 	if err != nil {
 		return nil, err
 	}
@@ -321,26 +361,43 @@ func (s *ExportService) BookZip(uid, bookID uint64) (string, []byte, error) {
 		// 白板文档：正文场景三件套装回官方壳，落成 .excalidraw 文件
 		ext := ".md"
 		data := []byte(full.Content)
-		switch exportx.NormalizeDocType(d.DocType) {
-		case "drawing":
-			ext = ".drawio"
-		case "whiteboard":
-			ext = ".excalidraw"
-			// 转换失败（空场景/脏数据）时退回原正文，至少不丢内容
-			if b, err := exportx.BuildExcalidrawFile(full.Content); err == nil {
-				data = b
-			}
-		case "file":
-			ref := exportx.ParseFileRef(full.Content)
-			if ref == nil {
-				continue
-			}
-			b, err := readUploadedFile(ref.URL)
+		if snapshot, ok := office.Parse(full.Content); ok {
+			spec := officeFormat(snapshot.Kind)
+			converted, err := office.Default.Export(context.Background(), office.Format(spec.Value), snapshot.Snapshot)
 			if err != nil {
-				continue
+				return "", nil, hkerr.Internal("Office 快照打包失败")
 			}
-			data = b
-			ext = attachmentExt(ref)
+			data, ext = converted, "."+spec.Ext
+		} else {
+			switch exportx.NormalizeDocType(d.DocType) {
+			case "powerpoint":
+				if ref := exportx.ParseFileRef(full.Content); ref != nil && ref.Ext == "pptx" {
+					output, err := attachmentOutput(full)
+					if err != nil {
+						return "", nil, hkerr.Internal("演示文稿打包失败")
+					}
+					data, ext = output.Data, ".pptx"
+				}
+			case "drawing":
+				ext = ".drawio"
+			case "whiteboard":
+				ext = ".excalidraw"
+				// 转换失败（空场景/脏数据）时退回原正文，至少不丢内容
+				if b, err := exportx.BuildExcalidrawFile(full.Content); err == nil {
+					data = b
+				}
+			case "file":
+				ref := exportx.ParseFileRef(full.Content)
+				if ref == nil {
+					continue
+				}
+				b, err := readUploadedFile(ref.URL)
+				if err != nil {
+					continue
+				}
+				data = b
+				ext = attachmentExt(ref)
+			}
 		}
 		base := pathOf(d) + ext
 		path := base

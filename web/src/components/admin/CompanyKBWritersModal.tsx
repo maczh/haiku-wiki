@@ -85,7 +85,7 @@ export default function CompanyKBWritersModal({ open, onClose, bookId, bookName 
       onCancel={onClose}
       footer={null}
       width={560}
-      destroyOnClose
+      destroyOnHidden
     >
       <p style={{ color: '#5f6672', fontSize: 13, marginTop: 0 }}>
         公司知识库「{bookName || '公司知识库'}」对所有成员<strong>只读</strong>；管理员恒可写，

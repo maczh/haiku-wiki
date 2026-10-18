@@ -188,7 +188,7 @@ export default function PrototypeView({ content, docId, onChanged }: Props) {
         title={preview?.title}
         width="80%"
         onCancel={() => setPreview(null)}
-        destroyOnClose
+        destroyOnHidden
       >
         {preview?.kind === 'html' && preview.entry ? (
           <iframe src={preview.entry} title={preview.title} className="hk-proto-frame" />

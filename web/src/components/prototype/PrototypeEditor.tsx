@@ -213,7 +213,7 @@ export default function PrototypeEditor({ docId, content, onChanged }: Props) {
         onCancel={() => setEditing(null)}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ marginBottom: 12 }}>
           <div style={{ marginBottom: 4, color: '#5f6672' }}>标题（必填）</div>

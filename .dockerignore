@@ -1,6 +1,9 @@
 node_modules
 web/dist
 web/node_modules
+web/vendor/pptist/node_modules
+web/vendor/pptist/.git
+web/public/pptist
 # 由 web/scripts/copy-vditor-assets.mjs 在构建阶段生成，无需进构建上下文
 web/public/vditor
 # 同理：draw.io 组件由 copy-drawio-assets.mjs 从 web/vendor/drawio 同步而来，
