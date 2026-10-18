@@ -33,7 +33,7 @@ interface Item {
 const ITEMS: Item[] = [
   { key: 'onCreateBook', label: '新建知识库', desc: '建立独立空间', icon: <BookOutlined />, bg: '#eef2ff', fg: '#2f54eb' },
   { key: 'onCreateDoc', label: '新建文档', desc: '九种文档类型', icon: <FileAddOutlined />, bg: '#e8f7f0', fg: '#13a86b' },
-  { key: 'onImportFile', label: '导入文件', desc: 'Word/Excel/PDF/CAD', icon: <UploadOutlined />, bg: '#fff4e6', fg: '#d97706' },
+  { key: 'onImportFile', label: '导入文件', desc: 'Word/Excel/PDF', icon: <UploadOutlined />, bg: '#fff4e6', fg: '#d97706' },
   { key: 'onImportUrl', label: '导入网页', desc: '按链接抓正文', icon: <GlobalOutlined />, bg: '#e6f7f7', fg: '#0d9488' },
   { key: 'onSearch', label: '全文搜索', desc: '标题 + 正文', icon: <SearchOutlined />, bg: '#f3ebff', fg: '#722ed1' },
   { key: 'onTeams', label: '团队', desc: '团队文库与成员', icon: <TeamOutlined />, bg: '#e8f2ff', fg: '#1677ff' },

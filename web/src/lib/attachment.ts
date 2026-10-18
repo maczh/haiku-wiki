@@ -5,7 +5,7 @@
 import type { FileAttachment } from '../types'
 
 /** 在线预览支持的附件类型 */
-export type AttachmentKind = 'pdf' | 'docx' | 'pptx' | 'cad' | 'drawio' | 'image' | 'other'
+export type AttachmentKind = 'pdf' | 'docx' | 'pptx' | 'drawio' | 'image' | 'other'
 
 /** 解析附件引用；非法内容返回 null（阅读界面据此给出友好提示） */
 export function parseAttachment(content: string): FileAttachment | null {
@@ -16,19 +16,11 @@ export function parseAttachment(content: string): FileAttachment | null {
     const filename = typeof o.filename === 'string' && o.filename ? o.filename : '附件'
     const ext = (typeof o.ext === 'string' && o.ext ? o.ext : extOf(filename)).toLowerCase()
     // 派生产物：仅保留非空的字符串项，避免脏数据传到界面上
-    let derived: Record<string, string> | undefined
-    if (o.derived && typeof o.derived === 'object') {
-      for (const [k, v] of Object.entries(o.derived)) {
-        if (typeof v === 'string' && v.trim()) (derived ??= {})[k] = v.trim()
-      }
-    }
     return {
       url: o.url.trim(),
       filename,
       size: typeof o.size === 'number' && o.size >= 0 ? o.size : 0,
       ext,
-      derived,
-      degraded: o.degraded === true,
       note: typeof o.note === 'string' ? o.note : undefined,
       pptx_scanned: o.pptx_scanned === true,
     }
@@ -43,9 +35,6 @@ export function extOf(name: string): string {
   return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
 }
 
-/** CAD 类扩展名（后端可自动派生 svg/png） */
-export const CAD_EXTS = ['dwg', 'dxf']
-
 /** draw.io 可打开的绘图扩展名（.vsd/.vsdx 为 Visio，由 draw.io 内部转换导入） */
 export const DRAWIO_EXTS = ['drawio', 'vsd', 'vsdx']
 
@@ -55,14 +44,13 @@ const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']
 /**
  * 预览方式：
  *  pdf → pdf.js 分页；docx → mammoth；pptx → pptx-preview（可播放）；
- *  cad（仅当已有派生 svg/png）→ 矢量预览（缩放/拖动）；image → <img>；其余仅提供下载。
+ *  image → <img>；其余仅提供下载。
  */
 export function attachmentKind(ext: string): AttachmentKind {
   const e = ext.replace(/^\./, '').toLowerCase()
   if (e === 'pdf') return 'pdf'
   if (e === 'docx') return 'docx'
   if (e === 'pptx') return 'pptx'
-  if (CAD_EXTS.includes(e)) return 'cad'
   if (DRAWIO_EXTS.includes(e)) return 'drawio'
   if (IMAGE_EXTS.includes(e)) return 'image'
   return 'other'

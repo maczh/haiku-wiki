@@ -585,7 +585,7 @@ draw.io 资源按**白名单**裁剪：官方发行版完整静态目录约 154 
 | `version_service` / `trash_service` | 版本快照（保留 20 版）与回收站 |
 | `collaborator_service` / `share_service` / `doc_share_service` | 协作者、书级分享、文档级分享（base62 slug / bcrypt / 有效期 / 限频） |
 | `team_service` | 团队、成员角色、团队文库 |
-| `attachment_service` | 附件预处理：CAD → svg/png、PPTX 外链图本地化 |
+| `attachment_service` | 附件预处理：CAD → dxf/svg（含在线编辑保存）、PPTX 外链图本地化 |
 | `upload_service` | 白名单 + 大小限制 + 年月分目录 + CAS 去重 |
 | `gallery_service` / `prototype_service` / `web_service` | 图片库、需求原型、网页型文档 |
 | `export_service` | 导出编排（单篇 / 整库 zip），文件名清洗与 `Content-Disposition` |

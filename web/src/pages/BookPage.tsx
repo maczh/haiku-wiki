@@ -802,7 +802,7 @@ export default function BookPage() {
   const bookCanWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
   // 文档级权限优先：公司文库里「库只读 + 文档所有人可编辑」是合法组合
   const canWrite = docCanWrite ?? bookCanWrite
-  // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
+  // 附件型文档：按原文件保存，正文不可编辑，仅提供阅读与下载
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
   // 目录（doc_type=folder）：不承载正文，只能读占位提示，不能编辑/分享/协作

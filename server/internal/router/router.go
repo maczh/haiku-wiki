@@ -134,11 +134,10 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		// 鉴权走 JWT 即可，**不放 admin 组**：任何登录用户都能上传，预检不写任何数据。
 		jwt.POST("/uploads/precheck", handler.PrecheckUpload)
 		jwt.POST("/uploads/instant", handler.InstantUpload)
-		// 附件预处理（CAD 图纸在后端完成 svg/png 转换）与转换器能力查询
+		// 附件预处理（例如 PPTX 外链资源本地化）
 		jwt.POST("/attachments/prepare", handler.PrepareAttachment)
 		// PPTX 外链图片本地化（历史文件补做；幂等）
 		jwt.POST("/attachments/pptx-localize", handler.LocalizePptx)
-		jwt.GET("/cad/converter", handler.CadConverterStatus)
 		// 图片库：本机图片转换能力（缺转换器时提示前端哪些格式会降级）
 		jwt.GET("/images/converter", handler.ImageConverterStatus)
 		// 思维导图导入：.smm/.km/.xmind/.mm → 内置 .smm 正文（.xmind 是 zip，放服务端解析）
@@ -270,6 +269,9 @@ func Register(r *gin.Engine, cfg *config.Config) {
 // 「静态资源不存在」而落进 SPA 兜底，返回应用自身的 index.html ——
 // 生产形态下内嵌的 draw.io 组件（请求 /drawio/ 目录）会因此整个失效，
 // 而 Vite dev server 由自己的静态中间件服务，不会暴露这个问题。
+//
+// 该逻辑对**所有**自托管子应用通用：目前有 /drawio/ 与 /excalidraw/，
+// 以后新增内嵌组件只要把产物放进 dist 下的同名目录即可，无需再动这里。
 func staticProbePath(urlPath string) string {
 	p := strings.TrimPrefix(urlPath, "/")
 	if p == "" || strings.HasSuffix(p, "/") {

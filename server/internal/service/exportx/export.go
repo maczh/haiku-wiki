@@ -90,34 +90,9 @@ var formatsByDocType = map[string][]FormatSpec{
 	},
 }
 
-// attachmentFormatsByExt 附件型文档（doc_type=file）按扩展名可额外导出的派生格式。
-// 首项固定为"原文件"本身；返回空切片表示仅能下载原文件。
-// 派生资源由后端在导入时生成（见 export_service.go 的 prepareAttachment）。
-var attachmentFormatsByExt = map[string][]FormatSpec{
-	"dwg": {
-		{Value: "dwg", Label: "AutoCAD 原文件（.dwg）", Ext: "dwg", MIME: "application/acad"},
-		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
-		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
-	},
-	"dxf": {
-		{Value: "dxf", Label: "AutoCAD 交换格式（.dxf）", Ext: "dxf", MIME: "application/dxf"},
-		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
-		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
-	},
-}
-
-// IsCadExt 判断扩展名是否属于 CAD 图纸（导入时需要在后端做转换）。
-func IsCadExt(ext string) bool {
-	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(ext), ".")) {
-	case "dwg", "dxf":
-		return true
-	}
-	return false
-}
-
 // AttachmentFormats 附件型文档按扩展名返回可导出格式；空表示仅原文件。
 func AttachmentFormats(ext string) []FormatSpec {
-	return attachmentFormatsByExt[strings.ToLower(strings.TrimPrefix(strings.TrimSpace(ext), "."))]
+	return nil
 }
 
 // NormalizeDocType 归一化文档类型（历史 datatable 视作 sheet；空值视作 markdown）。
@@ -366,13 +341,8 @@ type FileRef struct {
 	URL      string `json:"url"`      // /uploads/YYYY/MM/xxx.ext
 	Filename string `json:"filename"` // 原始文件名
 	Size     int64  `json:"size"`
-	Ext      string `json:"ext"` // docx | pdf | pptx | dwg | dxf | …
-	// Derived 后端在导入时生成的派生资源，key 为格式名（svg / png）。
-	Derived map[string]string `json:"derived,omitempty"`
-	// Degraded 为真表示派生预览是降级结果（例如 DWG 用的是文件内嵌位图）。
-	Degraded bool `json:"degraded,omitempty"`
-	// Note 派生过程的说明，用于前端提示与排障。
-	Note string `json:"note,omitempty"`
+	Ext      string `json:"ext"`
+	Note     string `json:"note,omitempty"`
 	// PptxScanned 表示这份 pptx 已经做过「外链图片本地化」扫描。
 	//
 	// 单独一个布尔量而不是复用 Derived/Note：扫描过但一张外链图片都没有也是正常结果，

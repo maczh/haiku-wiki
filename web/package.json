@@ -7,7 +7,7 @@
     "predev": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
     "dev": "vite",
     "prebuild": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
-    "build": "tsc --noEmit && vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit && NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "preview": "vite preview",
     "verify:mermaid-assets": "node scripts/verify-mermaid-assets.mjs",
     "fetch:drawio": "node scripts/fetch-drawio-assets.mjs",

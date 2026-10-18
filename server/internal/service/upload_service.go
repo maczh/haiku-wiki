@@ -49,8 +49,6 @@ var allowedExt = map[string]bool{
 	".svg": true, ".bmp": true,
 	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
 	".ppt": true, ".pptx": true, ".md": true, ".txt": true, ".zip": true,
-	// CAD 图纸：导入后由后端转换为 svg/png 预览
-	".dwg": true, ".dxf": true,
 	// draw.io 绘图：.drawio 直接作正文；.vsd/.vsdx 由内嵌编辑器导入
 	".drawio": true, ".vsd": true, ".vsdx": true,
 }

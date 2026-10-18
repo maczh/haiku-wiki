@@ -2,7 +2,6 @@
 // 避免两处各写一份导致行为漂移。进度通过 onItem 回调上报，便于不同 UI 渲染。
 import { createDoc } from '../../api/docs'
 import { uploadWithDedup } from '../uploadFlow'
-import { prepareAttachment } from '../../api/attachments'
 import { parseFile } from './parse'
 import { extOfName, isSupportedImportExt, unsupportedImportReason } from './formats'
 import type { FileAttachment } from '../../types'
@@ -120,23 +119,9 @@ export async function runImport(files: File[], opts: RunImportOpts): Promise<voi
           ext: res.attachment.ext,
         }
         let note = ''
-        if (res.needsPrepare) {
-          onItem({ ...item, status: 'parsing', message: '正在生成预览…' })
-          try {
-            const prep = await prepareAttachment({ url: ref.url, filename: ref.filename, size: ref.size })
-            Object.assign(ref, prep.ref)
-            note = prep.warning || (ref.degraded ? (ref as unknown as { note?: string }).note || '图纸预览为降级结果' : '')
-            if (!(ref as unknown as { derived?: { svg?: string; png?: string } }).derived?.svg &&
-              !(ref as unknown as { derived?: { svg?: string; png?: string } }).derived?.png) {
-              note = '暂不支持该格式在线预览，已按原文件保存（可下载后用专业软件打开）'
-            }
-          } catch {
-            note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
-          }
-        }
         const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
         if (note) item.message = note
-        onItem({ ...item, status: 'success', message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存）', docId: doc.id, dedup: up.dedup })
+        onItem({ ...item, status: 'success', message: note ? '导入成功（无在线预览）' : '导入成功', docId: doc.id, dedup: up.dedup })
         if (up.dedup) dedup++
         ok++
         continue

@@ -5,7 +5,6 @@ import DOMPurify from 'dompurify'
 import { attachmentKind, formatSize, loadPdfjs, parseAttachment } from '../../lib/attachment'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { createDoc } from '../../api/docs'
-import CadView from './CadView'
 
 // draw.io 组件与 echarts（经 pptx-preview 间接引入）都较重，按需加载
 const DrawioEditor = lazy(() => import('../editor/DrawioEditor'))
@@ -29,7 +28,6 @@ interface Props {
  *   - .pdf            → pdf.js 逐页渲染到 canvas（宽度自适应容器）
  *   - .docx           → mammoth 转 HTML（DOMPurify 清洗）后只读展示
  *   - .pptx           → pptx-preview 分页渲染，支持播放/全屏/翻页
- *   - .dwg / .dxf     → 后端派生出的 SVG/PNG，可缩放拖动（见 CadView）
  *   - .vsd / .vsdx    → 内嵌 draw.io 打开（Visio 格式由 draw.io 内部转换），可导出或另存为绘图文档
  *   - 图片            → 直接展示
  *   - 其它            → 提示下载后本地查看
@@ -49,9 +47,6 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
     )
   }
   const kind = attachmentKind(ref.ext)
-  // CAD 需要带缩放/拖动的专用视口，自行处理信息条与导出
-  if (kind === 'cad') return <CadView content={content} />
-
   return (
     <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '0 24px 40px', width: '100%' }}>
       {/* 附件信息条 */}

@@ -90,8 +90,6 @@ const EXT_ICONS: Record<string, IconSpec> = {
   tiff: { icon: <FileImageOutlined />, color: '#722ed1' },
   ico: { icon: <FileImageOutlined />, color: '#722ed1' },
   // 图纸 / 矢量
-  dwg: { icon: <BorderOuterOutlined />, color: '#13c2c2' },
-  dxf: { icon: <BorderOuterOutlined />, color: '#13c2c2' },
   vsd: { icon: <DeploymentUnitOutlined />, color: '#eb2f96' },
   vsdx: { icon: <DeploymentUnitOutlined />, color: '#eb2f96' },
   drawio: { icon: <DeploymentUnitOutlined />, color: '#eb2f96' },

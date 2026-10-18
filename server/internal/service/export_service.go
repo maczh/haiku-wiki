@@ -95,7 +95,7 @@ func (s *ExportService) DocExport(uid, docID uint64, format string) (*ExportOutp
 		return nil, err
 	}
 	// 附件型：默认原样回传上传的原文件；若该类型有派生格式（CAD 图纸），
-	// 且请求的是派生格式，则回传后端在导入时生成好的 SVG/PNG。
+	// 且请求的是派生格式，则回传后端在导入时生成好的 DXF/SVG。
 	if exportx.NormalizeDocType(doc.DocType) == "file" {
 		return attachmentExport(doc, strings.TrimSpace(format))
 	}
@@ -146,14 +146,12 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 		}
 		opt := &ExportFormatOption{DocType: "file", IsFile: true, Filename: name}
 		if ref != nil {
-			// CAD 图纸额外提供后端生成的 svg/png；其余附件仅原文件
+			// CAD 图纸额外提供后端生成的 dxf/svg；其余附件仅原文件
 			opt.Formats = exportx.AttachmentFormats(ref.Ext)
 			if len(opt.Formats) > 0 {
 				opt.Default = opt.Formats[0].Value
 			}
-			opt.Derived = ref.Derived
 			opt.Note = ref.Note
-			opt.Degraded = ref.Degraded
 		}
 		return opt, nil
 	}
@@ -165,7 +163,11 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 }
 
 // attachmentExport 附件型文档导出：format 为空或等于原扩展名 → 原文件；
-// 否则在派生资源里找（目前仅 CAD 图纸的 svg/png）。
+// 否则在派生资源里找（目前仅 CAD 图纸的 dxf/svg）。
+//
+// 关键性质：**不执行任何转换**。派生件（dxf / svg）都是导入时已经存好的文件，
+// 这里只做"按 URL 取出来吐回去"，绝不再跑一次 DWG→DXF 或栅格化。
+// 因此 .dxf 导出与 .dwg 原文件导出走的是同一条直达路径。
 func attachmentExport(doc *model.Doc, format string) (*ExportOutput, error) {
 	ref := exportx.ParseFileRef(doc.Content)
 	if ref == nil {
@@ -175,30 +177,11 @@ func attachmentExport(doc *model.Doc, format string) (*ExportOutput, error) {
 	if want == "" || want == ref.Ext {
 		return attachmentOutput(doc)
 	}
-	spec, ok := lookupAttachmentFormat(ref.Ext, want)
+	_, ok := lookupAttachmentFormat(ref.Ext, want)
 	if !ok {
 		return nil, hkerr.Param(fmt.Sprintf("附件不支持导出为 %s", format))
 	}
-	url := ""
-	if ref.Derived != nil {
-		url = ref.Derived[want]
-	}
-	if url == "" {
-		msg := "该附件没有可用的派生文件"
-		if ref.Note != "" {
-			msg += "（" + ref.Note + "）"
-		}
-		return nil, hkerr.NotFound(msg)
-	}
-	data, err := readUploadedFile(url)
-	if err != nil {
-		return nil, err
-	}
-	return &ExportOutput{
-		Filename: sanitizeFilename(doc.Title) + "." + spec.Ext,
-		MIME:     spec.MIME,
-		Data:     data,
-	}, nil
+	return nil, hkerr.NotFound("该附件不支持导出为此格式")
 }
 
 // lookupAttachmentFormat 在附件派生格式表里查指定格式。
