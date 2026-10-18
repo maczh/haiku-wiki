@@ -8,7 +8,6 @@ import (
 	"haiku-wiki/server/internal/middleware"
 	"haiku-wiki/server/internal/pkg"
 	"haiku-wiki/server/internal/service"
-	"haiku-wiki/server/internal/service/exportx"
 )
 
 var attachmentService = &service.AttachmentService{}
@@ -33,18 +32,6 @@ func PrepareAttachment(c *gin.Context) {
 		return
 	}
 	resp.OK(c, out)
-}
-
-// CadConverterStatus GET /api/cad/converter
-//
-// 返回 DWG 转换器的可用状态，供界面提示与运维排障。
-// 未安装转换器时导入 DWG 仍可工作（使用文件内嵌预览图降级），
-// 因此这里只作为"能力说明"而不是错误。
-func CadConverterStatus(c *gin.Context) {
-	resp.OK(c, gin.H{
-		"available": exportx.DWGConverterAvailable(),
-		"detail":    exportx.DWGConverterStatus(),
-	})
 }
 
 // LocalizePptx POST /api/attachments/pptx-localize

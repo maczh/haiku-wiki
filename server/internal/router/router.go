@@ -138,7 +138,6 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.POST("/attachments/prepare", handler.PrepareAttachment)
 		// PPTX 外链图片本地化（历史文件补做；幂等）
 		jwt.POST("/attachments/pptx-localize", handler.LocalizePptx)
-		jwt.GET("/cad/converter", handler.CadConverterStatus)
 		// 图片库：本机图片转换能力（缺转换器时提示前端哪些格式会降级）
 		jwt.GET("/images/converter", handler.ImageConverterStatus)
 		// 思维导图导入：.smm/.km/.xmind/.mm → 内置 .smm 正文（.xmind 是 zip，放服务端解析）

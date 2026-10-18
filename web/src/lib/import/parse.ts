@@ -122,9 +122,6 @@ const parseMindmapFile: Parser = async (file) => {
 
 // ---------- 附件型（原样保存，不解析正文） ----------
 
-/** 需要后端转换派生产物的附件（DWG/DXF → SVG/PNG） */
-export const CAD_IMPORT_EXTS = ['dwg', 'dxf']
-
 const parseAttachment: Parser = async (file) => {
   const ext = extOf(file.name)
   return {
@@ -133,7 +130,6 @@ const parseAttachment: Parser = async (file) => {
     docType: 'file',
     content: '', // 真实 content 由导入流程上传原文件后写入
     attachment: { filename: file.name, size: file.size, ext },
-    needsPrepare: CAD_IMPORT_EXTS.includes(ext),
   }
 }
 
@@ -283,8 +279,6 @@ export const parserRegistry: Record<string, Parser> = {
   ppt: parseOfficeFile('ppt'),
   vsd: parseAttachment, // Visio：保留源文件，阅读页由 draw.io 转换预览
   vsdx: parseAttachment,
-  dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
-  dxf: parseAttachment,
   drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存
   excalidraw: parseExcalidraw, // 白板文档：剥壳存场景 JSON，编辑态可继续绘制
   smm: parseMindmapFile, // 思维导图：四种外部格式统一转成内置 smm

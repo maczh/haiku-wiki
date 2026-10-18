@@ -22,11 +22,6 @@ export async function prepareAttachment(input: {
   return request.post('/attachments/prepare', input) as Promise<PrepareResult>
 }
 
-/** GET /api/cad/converter：当前后端是否具备 DWG 转换能力（用于界面上的能力提示） */
-export async function getCadConverterStatus(): Promise<{ available: boolean; detail: string }> {
-  return request.get('/cad/converter') as Promise<{ available: boolean; detail: string }>
-}
-
 /** POST /api/attachments/pptx-localize 的结果 */
 export interface PptxLocalizeResult {
   /** 压缩包里发现的外链图片数量 */

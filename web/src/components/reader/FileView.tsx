@@ -5,7 +5,6 @@ import DOMPurify from 'dompurify'
 import { attachmentKind, formatSize, loadPdfjs, parseAttachment } from '../../lib/attachment'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { createDoc } from '../../api/docs'
-import CadView from './CadView'
 
 // draw.io 组件与 echarts（经 pptx-preview 间接引入）都较重，按需加载
 const DrawioEditor = lazy(() => import('../editor/DrawioEditor'))
@@ -50,7 +49,6 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
   }
   const kind = attachmentKind(ref.ext)
   // CAD 需要带缩放/拖动的专用视口，自行处理信息条与导出
-  if (kind === 'cad') return <CadView content={content} />
 
   return (
     <div style={{ maxWidth: maxWidth ?? undefined, margin: '0 auto', padding: '0 24px 40px', width: '100%' }}>

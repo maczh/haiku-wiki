@@ -3,7 +3,6 @@ package main
 
 import (
 	"log"
-	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,7 +11,6 @@ import (
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/router"
 	"haiku-wiki/server/internal/service"
-	"haiku-wiki/server/internal/service/exportx"
 	"haiku-wiki/server/internal/storage"
 )
 
@@ -45,9 +43,6 @@ func main() {
 	// 放这里而非更早：S3 初始化会探测桶可达性并 panic，让配置错误在启动期暴露，
 	// 而不是等到第一次上传才报 500。
 	storage.Init(cfg)
-	// DWG 转换等需要落临时文件的导出流程：临时目录放在数据目录下，
-	// 不能用系统 /tmp（容器与部分环境下 /tmp 是容量很小的 tmpfs，放不下图纸）。
-	exportx.TempDir = filepath.Join(cfg.DataDir, "tmp")
 
 	if cfg.GINMode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -61,7 +56,6 @@ func main() {
 
 	log.Printf("[haiku] 寄海文库启动于 :%s（DB=%s, DATA_DIR=%s, STORAGE=%s）",
 		cfg.Port, cfg.DBDriver, cfg.DataDir, storage.Default().Kind())
-	log.Printf("[haiku] DWG 转换能力：%s", exportx.DWGConverterStatus())
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("[haiku] 服务启动失败: %v", err)
 	}

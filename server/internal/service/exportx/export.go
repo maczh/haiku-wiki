@@ -93,27 +93,7 @@ var formatsByDocType = map[string][]FormatSpec{
 // attachmentFormatsByExt 附件型文档（doc_type=file）按扩展名可额外导出的派生格式。
 // 首项固定为"原文件"本身；返回空切片表示仅能下载原文件。
 // 派生资源由后端在导入时生成（见 export_service.go 的 prepareAttachment）。
-var attachmentFormatsByExt = map[string][]FormatSpec{
-	"dwg": {
-		{Value: "dwg", Label: "AutoCAD 原文件（.dwg）", Ext: "dwg", MIME: "application/acad"},
-		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
-		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
-	},
-	"dxf": {
-		{Value: "dxf", Label: "AutoCAD 交换格式（.dxf）", Ext: "dxf", MIME: "application/dxf"},
-		{Value: "svg", Label: "矢量图（.svg）", Ext: "svg", MIME: "image/svg+xml; charset=utf-8"},
-		{Value: "png", Label: "图片（.png）", Ext: "png", MIME: "image/png"},
-	},
-}
-
-// IsCadExt 判断扩展名是否属于 CAD 图纸（导入时需要在后端做转换）。
-func IsCadExt(ext string) bool {
-	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(ext), ".")) {
-	case "dwg", "dxf":
-		return true
-	}
-	return false
-}
+var attachmentFormatsByExt = map[string][]FormatSpec{}
 
 // AttachmentFormats 附件型文档按扩展名返回可导出格式；空表示仅原文件。
 func AttachmentFormats(ext string) []FormatSpec {
