@@ -120,7 +120,7 @@ export async function runImport(files: File[], opts: RunImportOpts): Promise<voi
         }
         let note = ''
         let content = JSON.stringify(ref)
-        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : 'file'
+        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : ref.ext === 'xlsx' ? 'excel' : 'file'
         if (ref.ext === 'docx') note = '已保留 DOCX 原件，将使用 docx-editor 打开'
         if (ref.ext === 'pptx') note = '已保留 PPTX 原件，可在线编辑与放映'
         const doc = await createDoc(bookId, parentId, res.title, officeType, content)

@@ -33,7 +33,7 @@ export default function TemplatePreview({ tpl, onUse, onCancel }: Props) {
       onCancel={onCancel}
       width={900}
       style={{ top: 40 }}
-      bodyStyle={{ height: 560, overflow: 'auto', padding: '8px 16px', background: '#fff' }}
+      styles={{ body: { height: 560, overflow: 'auto', padding: '8px 16px', background: '#fff' } }}
       destroyOnHidden
       title={
         tpl ? (

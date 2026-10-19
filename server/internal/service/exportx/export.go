@@ -90,11 +90,6 @@ var formatsByDocType = map[string][]FormatSpec{
 	},
 }
 
-// AttachmentFormats 附件型文档按扩展名返回可导出格式；空表示仅原文件。
-func AttachmentFormats(ext string) []FormatSpec {
-	return nil
-}
-
 // NormalizeDocType 归一化文档类型（历史 datatable 视作 sheet；空值视作 markdown）。
 func NormalizeDocType(docType string) string {
 	switch strings.ToLower(strings.TrimSpace(docType)) {

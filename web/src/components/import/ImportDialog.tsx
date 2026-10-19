@@ -147,7 +147,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         return false
       }
 
-      // 附件型（docx/pdf/pptx/vsd）：先上传原文件，再按原样落库；XLSX 会解析为 Luckysheet 工作簿。
+      // 保留 Office 原文件；XLSX 在工作簿编辑器中完整加载，避免拆表和丢失格式。
       if (res.attachment) {
         // 走秒传链路：内容已存在时不重复传输字节（降级由 uploadFlow 内部保证）
         const up = await uploadWithDedup(file)
@@ -159,7 +159,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         }
         let note = ''
         let content = JSON.stringify(ref)
-        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : 'file'
+        const officeType = ref.ext === 'docx' ? 'word' : ref.ext === 'pptx' ? 'powerpoint' : ref.ext === 'xlsx' ? 'excel' : 'file'
         if (ref.ext === 'docx') note = '已保留 DOCX 原件，将使用 docx-editor 打开'
         if (ref.ext === 'pptx') note = '已保留 PPTX 原件，可在线编辑与放映'
         const doc = await createDoc(bookId, parentId, res.title, officeType, content)

@@ -102,6 +102,17 @@ func (s *ExportService) DocExport(uid, docID uint64, format string) (*ExportOutp
 		}
 		return attachmentOutput(doc)
 	}
+	if ref := exportx.ParseFileRef(doc.Content); ref != nil && ref.Ext == "xlsx" && ref.EditedURL != "" {
+		if format != "" && format != "xlsx" {
+			return nil, hkerr.Param("请在工作簿编辑器内导出 XLSX")
+		}
+		return attachmentOutput(doc)
+	}
+	if doc.DocType == "excel" {
+		if ref := exportx.ParseFileRef(doc.Content); ref != nil && ref.Ext == "xlsx" {
+			return attachmentExport(doc, strings.TrimSpace(format))
+		}
+	}
 	if snapshot, ok := office.Parse(doc.Content); ok {
 		spec := officeFormat(snapshot.Kind)
 		if format != "" && format != spec.Value {
@@ -144,10 +155,7 @@ type ExportFormatOption struct {
 	Formats  []exportx.FormatSpec `json:"formats"`
 	Default  string               `json:"default"`
 	Filename string               `json:"filename"` // 附件型：原文件名（含扩展名）
-	// 以下三项仅附件型（file）有值：后端在导入时生成的派生资源
-	Derived  map[string]string `json:"derived,omitempty"`
-	Note     string            `json:"note,omitempty"`
-	Degraded bool              `json:"degraded,omitempty"`
+	Note     string               `json:"note,omitempty"`
 }
 
 // DocExportFormats 返回文档可选的导出格式，供前端导出对话框渲染。
@@ -158,6 +166,15 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 	}
 	if ref := exportx.ParseFileRef(doc.Content); doc.DocType == "powerpoint" && ref != nil && ref.Ext == "pptx" {
 		return &ExportFormatOption{DocType: "powerpoint", Formats: []exportx.FormatSpec{{Value: "pptx", Label: "PowerPoint（.pptx）", Ext: "pptx", MIME: "application/vnd.openxmlformats-officedocument.presentationml.presentation"}}, Default: "pptx", Filename: ref.Filename}, nil
+	}
+	if ref := exportx.ParseFileRef(doc.Content); ref != nil && ref.Ext == "xlsx" {
+		return &ExportFormatOption{
+			DocType: "excel", Default: "xlsx", Filename: ref.Filename,
+			Formats: []exportx.FormatSpec{{
+				Value: "xlsx", Label: "Excel 工作簿（.xlsx）", Ext: "xlsx",
+				MIME: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			}},
+		}, nil
 	}
 	if snapshot, ok := office.Parse(doc.Content); ok {
 		spec := officeFormat(snapshot.Kind)
@@ -173,11 +190,8 @@ func (s *ExportService) DocExportFormats(uid, docID uint64) (*ExportFormatOption
 		}
 		opt := &ExportFormatOption{DocType: "file", IsFile: true, Filename: name}
 		if ref != nil {
-			// CAD 图纸额外提供后端生成的 dxf/svg；其余附件仅原文件
-			opt.Formats = exportx.AttachmentFormats(ref.Ext)
-			if len(opt.Formats) > 0 {
-				opt.Default = opt.Formats[0].Value
-			}
+			// 附件型没有服务端可转换的目标格式（CAD 派生格式已随该功能一并移除），
+			// 因此 Formats 留空、Default 不设 —— 前端据此走「原文件 / 浏览器端格式」。
 			opt.Note = ref.Note
 		}
 		return opt, nil
@@ -204,6 +218,11 @@ func officeFormat(kind string) exportx.FormatSpec {
 // 关键性质：**不执行任何转换**。派生件（dxf / svg）都是导入时已经存好的文件，
 // 这里只做"按 URL 取出来吐回去"，绝不再跑一次 DWG→DXF 或栅格化。
 // 因此 .dxf 导出与 .dwg 原文件导出走的是同一条直达路径。
+// attachmentExport 附件型文档导出：只能原样返回上传的原文件。
+//
+// 曾经这里还有一段「查附件派生格式表」的逻辑，服务端可把 .dwg 转成 .dxf/.svg 下发。
+// CAD 功能整体移除后，附件不再有任何服务端可转换的目标格式，那段查表恒不命中、
+// 其后的分支永远走不到，因此一并删掉，只保留「原文件 or 不支持」两种结局。
 func attachmentExport(doc *model.Doc, format string) (*ExportOutput, error) {
 	ref := exportx.ParseFileRef(doc.Content)
 	if ref == nil {
@@ -213,21 +232,7 @@ func attachmentExport(doc *model.Doc, format string) (*ExportOutput, error) {
 	if want == "" || want == ref.Ext {
 		return attachmentOutput(doc)
 	}
-	_, ok := lookupAttachmentFormat(ref.Ext, want)
-	if !ok {
-		return nil, hkerr.Param(fmt.Sprintf("附件不支持导出为 %s", format))
-	}
-	return nil, hkerr.NotFound("该附件不支持导出为此格式")
-}
-
-// lookupAttachmentFormat 在附件派生格式表里查指定格式。
-func lookupAttachmentFormat(ext, format string) (exportx.FormatSpec, bool) {
-	for _, f := range exportx.AttachmentFormats(ext) {
-		if f.Value == format {
-			return f, true
-		}
-	}
-	return exportx.FormatSpec{}, false
+	return nil, hkerr.Param(fmt.Sprintf("附件不支持导出为 %s", format))
 }
 
 // attachmentOutput 读取附件型文档关联的上传文件，原样返回。
@@ -369,7 +374,19 @@ func (s *ExportService) BookZip(uid, bookID uint64) (string, []byte, error) {
 			}
 			data, ext = converted, "."+spec.Ext
 		} else {
-			switch exportx.NormalizeDocType(d.DocType) {
+			docType := exportx.NormalizeDocType(d.DocType)
+			if d.DocType == "excel" || d.DocType == "powerpoint" {
+				docType = d.DocType
+			}
+			switch docType {
+			case "excel", "sheet":
+				if ref := exportx.ParseFileRef(full.Content); ref != nil && ref.Ext == "xlsx" {
+					output, err := attachmentOutput(full)
+					if err != nil {
+						return "", nil, hkerr.Internal("工作簿打包失败")
+					}
+					data, ext = output.Data, ".xlsx"
+				}
 			case "powerpoint":
 				if ref := exportx.ParseFileRef(full.Content); ref != nil && ref.Ext == "pptx" {
 					output, err := attachmentOutput(full)

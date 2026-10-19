@@ -51,11 +51,11 @@ import TemplateGallery from '../components/template/TemplateGallery'
 import TemplatePreview from '../components/template/TemplatePreview'
 import { createTemplate, listTemplateCategories, type DocTemplate } from '../api/templates'
 
-// 编辑器按需加载：Markdown（typo-md-editor，Vue3/Milkdown 内核）/ 思维导图（mindmap-vite，含 katex）/ Luckysheet / mermaid 体积大，
+// 编辑器按需加载：Markdown（typo-md-editor，Vue3/Milkdown 内核）/ 思维导图（mindmap-vite，含 katex）/ FortuneSheet / mermaid 体积大，
 // 且每次只会用到其中一种，静态 import 会让首屏 chunk 无谓膨胀（详见 components/common/LazyBoundary.tsx）
 const TypoMdEditor = lazy(() => import('../components/editor/TypoMdEditor'))
 const DocxOfficeEditor = lazy(() => import('../components/office/DocxEditor'))
-const LuckySheetEditor = lazy(() => import('../components/office/LuckySheetEditor'))
+const FortuneSheetEditor = lazy(() => import('../components/office/FortuneSheetEditor'))
 const PptistEditor = lazy(() => import('../components/office/PptistEditor'))
 const MindmapEditor = lazy(() => import('../components/editor/MindmapEditor'))
 const FlowchartEditor = lazy(() => import('../components/editor/FlowchartEditor'))
@@ -1148,7 +1148,7 @@ export default function BookPage() {
                     {officeAttachment ? (
                       <LazyBoundary tip="正在加载 Office 编辑器…">
                         {attachmentRef?.ext === 'docx' ? <DocxOfficeEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
-                        {attachmentRef?.ext === 'xlsx' ? <LuckySheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
+                        {attachmentRef?.ext === 'xlsx' ? <FortuneSheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
                         {attachmentRef?.ext === 'pptx' ? <PptistEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} /> : null}
                       </LazyBoundary>
                     ) : isAttachmentDoc ? (
@@ -1185,7 +1185,7 @@ export default function BookPage() {
                           <TypoMdEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {(doc.doc_type === 'sheet' || doc.doc_type === 'excel') && (
-                          <LuckySheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
+                          <FortuneSheetEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
                         )}
                         {doc.doc_type === 'word' && (
                           <DocxOfficeEditor key={doc.id} title={doc.title} content={doc.content} docId={doc.id} onSaved={refreshDoc} />
@@ -1546,7 +1546,7 @@ export default function BookPage() {
         width={860}
         destroyOnHidden
         style={{ top: 48 }}
-        bodyStyle={{ height: 460, padding: '4px 0' }}
+        styles={{ body: { height: 460, padding: '4px 0' } }}
       >
         <TemplateGallery
           initialDocType={newDocLockedType ?? undefined}

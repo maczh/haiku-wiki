@@ -6,11 +6,11 @@ import MdBodyWidth from './MdBodyWidth'
 import { useReaderWidth } from '../../lib/readerWidth'
 import { type DocType } from '../../types'
 
-// 按文档类型按需加载渲染器：Markdown（MarkdownView，typo-md-editor 渲染）/ 思维导图（mindmap-vite）/ Luckysheet / pdf.js / mermaid
+// 按文档类型按需加载渲染器：Markdown（MarkdownView，typo-md-editor 渲染）/ 思维导图（mindmap-vite）/ FortuneSheet / pdf.js / mermaid
 // / draw.io / pptx-preview 都只在打开对应类型文档时才需要，静态 import 会把它们全部塞进首屏 chunk。
 const MarkdownView = lazy(() => import('./MarkdownView'))
 const DocxOfficeEditor = lazy(() => import('../office/DocxEditor'))
-const LuckySheetEditor = lazy(() => import('../office/LuckySheetEditor'))
+const FortuneSheetEditor = lazy(() => import('../office/FortuneSheetEditor'))
 const PptistEditor = lazy(() => import('../office/PptistEditor'))
 const MindmapView = lazy(() => import('./MindmapView'))
 const FlowchartView = lazy(() => import('./FlowchartView'))
@@ -91,11 +91,11 @@ export default function DocContent({
   } else if (docType === 'sheet') {
     body = (
       <LazyBoundary tip={TIP.sheet}>
-        <LuckySheetEditor content={content} readOnly />
+        <FortuneSheetEditor content={content} readOnly />
       </LazyBoundary>
     )
   } else if (docType === 'excel') {
-    body = <LazyBoundary tip="正在加载 Excel 编辑器…"><LuckySheetEditor content={content} readOnly /></LazyBoundary>
+    body = <LazyBoundary tip="正在加载 Excel 编辑器…"><FortuneSheetEditor content={content} readOnly /></LazyBoundary>
   } else if (docType === 'word') {
     body = <LazyBoundary tip="正在加载 Word 编辑器…"><DocxOfficeEditor content={content} readOnly /></LazyBoundary>
   } else if (docType === 'powerpoint') {
@@ -178,7 +178,7 @@ export default function DocContent({
     )
   } else if (docType === 'folder') {
     // 目录（doc_type=folder）：不承载正文，占位提示如何在其下继续建内容。
-    // 这里刻意不懒加载任何渲染器 —— 目录没有正文，加载 Vditor/Luckysheet 是纯浪费。
+    // 这里刻意不懒加载任何渲染器 —— 目录没有正文，加载 Vditor/FortuneSheet 是纯浪费。
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '96px 24px', textAlign: 'center' }}>
         <FolderOutlined style={{ fontSize: 56, color: '#faad14' }} />

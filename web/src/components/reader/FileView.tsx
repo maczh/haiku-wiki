@@ -8,7 +8,7 @@ import { createDoc } from '../../api/docs'
 // 编辑器按需加载，附件元数据不引入编辑器主包。
 const DrawioEditor = lazy(() => import('../editor/DrawioEditor'))
 const DocxOfficeEditor = lazy(() => import('../office/DocxEditor'))
-const LuckySheetEditor = lazy(() => import('../office/LuckySheetEditor'))
+const FortuneSheetEditor = lazy(() => import('../office/FortuneSheetEditor'))
 const PptistEditor = lazy(() => import('../office/PptistEditor'))
 
 /** 单个 PDF 最多渲染页数（超出部分提示下载查看，避免超长文档卡死） */
@@ -27,7 +27,7 @@ interface Props {
  *  导入的各类文件按原文件保存，此处直接就地渲染（不经过任何编辑管线）：
  *   - .pdf            → pdf.js 逐页渲染到 canvas（宽度自适应容器）
  *   - .docx           → docx-editor 直接读取 OOXML
- *   - .xlsx           → SheetJS 导入后由 Luckysheet 阅读
+ *   - .xlsx           → ExcelJS 导入后由 FortuneSheet 阅读
  *   - .pptx           → PPTist 导入并阅读/放映
  *   - .vsd / .vsdx    → 内嵌 draw.io 打开（Visio 格式由 draw.io 内部转换），可导出或另存为绘图文档
  *   - 图片            → 直接展示
@@ -95,8 +95,8 @@ export default function FileView({ content, bookId, onDocCreated }: Props) {
         </Suspense>
       )}
       {ref.ext === 'xlsx' && (
-        <Suspense fallback={<Loading tip="正在加载 Luckysheet…" />}>
-          <LuckySheetEditor content={content} title={ref.filename} readOnly />
+        <Suspense fallback={<Loading tip="正在加载工作簿…" />}>
+          <FortuneSheetEditor content={content} title={ref.filename} readOnly />
         </Suspense>
       )}
       {ref.ext === 'pptx' && (

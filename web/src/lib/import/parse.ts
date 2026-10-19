@@ -136,7 +136,7 @@ const parseMindmapFile: Parser = async (file) => {
 // ---------- 附件型（原样保存，不解析正文） ----------
 
 /** 按原文件保存的附件型扩展名 */
-const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'vsd', 'vsdx']
+const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'xlsx', 'vsd', 'vsdx']
 
 
 const parseAttachment: Parser = async (file) => {
@@ -356,7 +356,7 @@ export const parserRegistry: Record<string, Parser> = {
   km: parseMindmapFile,
   xmind: parseMindmapFile,
   mm: parseMindmapFile,
-  xlsx: parseXlsx,
+  xlsx: parseAttachment, // 保留完整工作簿，由 FortuneSheet/ExcelJS 读取，避免拆表和丢失公式/样式
   xls: parseXlsx,
   csv: parseXlsx,
   html: parseHtml,

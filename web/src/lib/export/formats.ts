@@ -18,7 +18,7 @@ export function safeFilename(title: string, ext: string): string {
 
 export function clientFormatsFor(docType: DocType, fileExt?: string): { value: ClientFormat; label: string }[] {
   // PPTist stores its own slide model; generic text-based exporters cannot render it.
-  if (docType === 'powerpoint') return []
+  if (docType === 'powerpoint' || docType === 'excel') return []
   if (docType === 'file') {
     const ext = (fileExt ?? '').toLowerCase()
     if (ext === 'docx') return [

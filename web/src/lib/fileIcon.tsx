@@ -137,7 +137,7 @@ export function iconForAttachment(name: string): IconSpec {
 
 /**
  * 按文档类型取图标（目录树、新建下拉共用）。
- * file（附件）额外传入文件名以便按扩展名区分 pdf / xlsx / dwg …
+ * file（附件）额外传入文件名以便按扩展名区分 pdf / xlsx 等
  * folder（目录）固定用文件夹图标，与树里「有子节点的文档」显示一致。
  */
 export function iconForDocType(docType: DocType, name?: string): IconSpec {

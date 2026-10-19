@@ -3,7 +3,7 @@ import type { DocType } from '../types'
 import MarkdownView from '../components/reader/MarkdownView'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
 import DocxOfficeEditor from '../components/office/DocxEditor'
-import LuckySheetEditor from '../components/office/LuckySheetEditor'
+import FortuneSheetEditor from '../components/office/FortuneSheetEditor'
 import PptistEditor from '../components/office/PptistEditor'
 import MindmapView from '../components/reader/MindmapView'
 import FlowchartView from '../components/reader/FlowchartView'
@@ -49,8 +49,8 @@ const MarkdownReader = (props: H5ReaderProps) => (
 
 export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> = {
   markdown: MarkdownReader,
-  sheet: (props) => <LuckySheetEditor content={props.content} readOnly />,
-  excel: (props) => <LuckySheetEditor content={props.content} readOnly />,
+  sheet: (props) => <FortuneSheetEditor content={props.content} readOnly />,
+  excel: (props) => <FortuneSheetEditor content={props.content} readOnly />,
   word: (props) => <DocxOfficeEditor content={props.content} readOnly />,
   powerpoint: (props) => <PptistEditor content={props.content} readOnly />,
   mindmap: MindmapView,

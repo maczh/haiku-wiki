@@ -132,7 +132,7 @@ export function normalizeSheet(sheet: LuckysheetSheet, index: number): Luckyshee
       row.forEach((cell, c) => {
         if (cell == null) return
         const text = textOfValue(cell)
-        if (text === '') return
+        if (text === '' && (typeof cell !== 'object' || Object.keys(cell).length === 0)) return
         celldata.push({ r, c, v: cellValueOf(cell) })
       })
     })

@@ -1,0 +1,10 @@
+.haiku-excel { width: 100%; min-width: 0; border: 1px solid #d5ded8; border-radius: 6px; overflow: hidden; background: #fff; }
+.haiku-excel-header { min-height: 48px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 8px 14px; color: #fff; background: #217346; }
+.haiku-excel-title { min-width: 0; display: flex; align-items: center; gap: 10px; font: 500 14px/1.4 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+.haiku-excel-title > span:not(.haiku-excel-mark) { max-width: min(40vw, 480px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.haiku-excel-title small { font-size: 12px; color: #d7eadd; white-space: nowrap; }
+.haiku-excel-mark { font: 700 18px/1 'Segoe UI', sans-serif; border: 1px solid #b5d6c2; padding: 4px 6px; border-radius: 2px; }
+.haiku-excel-grid { height: clamp(480px, calc(100dvh - 220px), 900px); min-width: 0; position: relative; }
+.haiku-excel .fortune-toolbar { border-bottom-color: #dce5de; }
+.haiku-excel .fortune-container { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+@media (max-width: 640px) { .haiku-excel-header { padding: 8px; } .haiku-excel-grid { height: max(480px, calc(100dvh - 180px)); } .haiku-excel-title > span:not(.haiku-excel-mark) { max-width: 55vw; } }

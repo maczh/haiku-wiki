@@ -5,6 +5,7 @@ node_modules/
 #    也极易在 clean checkout 时被无声丢弃。凡是该忽略的都已单列显式规则，故该条删除。
 #    若个别工具目录确需忽略，请像下面这样写具体路径，不要整段目录一刀切。
 web/dist/
+web/dist-clean/
 web/public/pptist/
 web/vendor/pptist/.git/
 web/vendor/pptist/*.tsbuildinfo

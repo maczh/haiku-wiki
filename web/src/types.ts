@@ -248,7 +248,7 @@ export type DocType =
   | 'powerpoint'
 
 /** 全部可新建类型（顺序即新建弹窗展示顺序；数据表已下线，与表格同为 sheet）。
- *  file（导入的 docx/pdf/pptx/dwg 等附件）由导入流程产生，不提供手工新建入口。
+ *  file（导入的 docx/pdf/pptx 等附件）由导入流程产生，不提供手工新建入口。
  *  folder（目录）由「新建目录」入口产生，不参与「新建文档」的类型选择。 */
 export const DOC_TYPES: DocType[] = [
   'markdown',
@@ -404,11 +404,7 @@ export interface DocExportFormats {
   formats: ExportFormatSpec[] | null
   default: string
   filename: string
-  /** 附件已由后端派生出的格式 → URL（键为格式名，如 dxf/svg） */
-  derived?: Record<string, string>
-  /** 派生降级标记（见 FileAttachment.degraded） */
-  degraded?: boolean
-  /** 派生说明 */
+  /** 附件说明（后端导入时写入，如转换异常提示） */
   note?: string
 }
 
