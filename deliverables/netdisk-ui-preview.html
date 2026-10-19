@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>网盘文件管理界面 · 设计预览（第二版）</title>
+<style>
+  :root{
+    --bg:#fff; --panel:#fff; --border:#ebedf0; --line:#f0f0f0; --row-hover:#fafafa;
+    --text:#1f2328; --sub:#8a919f; --brand:#1677ff; --brand-bg:#e6f4ff; --brand-bd:#91caff;
+    --sel:#e6f4ff; --danger:#cf1322;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text);background:#f5f6f8;}
+  .app{display:flex;height:100vh;}
+  .side{width:264px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;}
+  .side-head{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px;
+    display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .side-cats{flex-shrink:0;padding:6px 8px 8px;border-top:1px solid var(--line);}
+  .side-cats-title{font-size:12px;color:var(--sub);padding:2px 8px 6px;}
+  .side-cat{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;font-size:13px;cursor:pointer;}
+  .side-cat:hover{background:#f5f6f8;}
+  .side-cat.active{background:var(--brand-bg);color:var(--brand);font-weight:600;}
+  .side-cat .ic{width:18px;text-align:center;}
+  .side-body{flex:1;overflow:auto;padding:6px 4px;font-size:13px;}
+  .tree-node{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;}
+  .tree-node:hover{background:var(--row-hover);}
+  .tree-node.active{background:var(--sel);}
+  .tree-sub{padding-left:18px;}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--panel);}
+  .crumb{padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--sub);}
+  .crumb a{color:var(--brand);cursor:pointer;}
+  .toolbar{padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .btn{border:1px solid var(--border);background:#fff;border-radius:6px;padding:4px 12px;font-size:13px;cursor:pointer;}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .btn.sm{padding:2px 10px;font-size:12px;}
+  .spacer{flex:1;}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .seg button{border:none;background:#fff;padding:4px 10px;cursor:pointer;font-size:13px;}
+  .seg button.on{background:var(--brand-bg);color:var(--brand);}
+  .panel{flex:1;min-height:0;overflow:auto;}
+  /* list */
+  .head-row{display:flex;align-items:center;padding:7px 16px;border-bottom:1px solid var(--line);
+    font-size:12px;color:var(--sub);gap:10px;background:#fafbfc;}
+  .list .row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #f5f5f5;font-size:13px;position:relative;}
+  .list .row:hover{background:var(--row-hover);}
+  .list .row.sel{background:var(--sel);}
+  .col-name{flex:1;min-width:0;display:flex;align-items:center;gap:10px;overflow:hidden;}
+  .col-meta{width:96px;flex-shrink:0;color:var(--sub);font-size:12px;text-align:right;}
+  .col-time{width:140px;flex-shrink:0;color:var(--sub);font-size:12px;text-align:right;}
+  .col-ops{width:210px;flex-shrink:0;text-align:right;opacity:0;transition:opacity .12s;}
+  .row:hover .col-ops,.row.sel .col-ops{opacity:1;}
+  .op{display:inline-flex;align-items:center;gap:3px;border:none;background:transparent;color:var(--text);
+    cursor:pointer;font-size:12px;padding:2px 6px;border-radius:5px;}
+  .op:hover{background:#eef0f3;}
+  .op.danger{color:var(--danger);}
+  .name-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .enter{font-size:12px;color:var(--brand);margin-left:6px;}
+  /* icon tile */
+  .tile{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:700;color:#fff;flex-shrink:0;}
+  .tile.folder{background:rgba(250,173,20,.14);color:#faad14;}
+  .tile.big{width:64px;height:64px;border-radius:12px;font-size:13px;}
+  /* grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:14px;padding:16px;align-content:start;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;position:relative;cursor:pointer;}
+  .card:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);border-color:var(--brand-bd);}
+  .card.sel{border-color:var(--brand-bd);background:var(--sel);}
+  .card .chk{position:absolute;top:8px;left:8px;opacity:0;transition:opacity .12s;}
+  .card:hover .chk,.card.sel .chk{opacity:1;}
+  .card .tile-wrap{height:88px;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;background:#f6f8fa;}
+  .card .thumb{width:100%;height:100%;object-fit:cover;display:block;}
+  .card .cname{margin-top:8px;font-size:13px;line-height:1.3;height:34px;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .card .cmeta{margin-top:4px;font-size:12px;color:var(--sub);}
+  .card .cops{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:4px;
+    padding:6px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);border-radius:0 0 10px 10px;
+    opacity:0;transition:opacity .12s;}
+  .card:hover .cops{opacity:1;}
+  .badge{font-size:10px;padding:1px 6px;border-radius:8px;background:#f0f2f5;color:var(--sub);}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 左侧栏：连接头 + 快捷分类 + 目录树 -->
+  <aside class="side">
+    <div class="side-head">☁ 我的网盘 · NAS(SMB)</div>
+    <div class="side-cats">
+      <div class="side-cats-title">快捷分类</div>
+      <div class="side-cat active"><span class="ic">▦</span> 全部文件</div>
+      <div class="side-cat"><span class="ic">🖼</span> 图片</div>
+      <div class="side-cat"><span class="ic">📄</span> 文档</div>
+      <div class="side-cat"><span class="ic">🎬</span> 视频</div>
+      <div class="side-cat"><span class="ic">🎵</span> 音乐</div>
+      <div class="side-cat"><span class="ic">📦</span> 其他</div>
+    </div>
+    <div class="side-body">
+      <div class="tree-node active">📁 根目录</div>
+      <div class="tree-sub">
+        <div class="tree-node">📁 文档资料</div>
+        <div class="tree-node">📁 设计稿</div>
+        <div class="tree-node">📁 照片备份</div>
+        <div class="tree-node">📁 视频归档</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 右侧主区 -->
+  <main class="main">
+    <div class="crumb">
+      <span style="color:var(--sub)">NAS(SMB)</span><span style="margin:0 6px;color:#c9cdd4">/</span>
+      <a>根目录</a><span style="margin:0 6px;color:#c9cdd4">/</span><span>文档资料</span>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn primary sm">+ 新建目录</button>
+      <button class="btn sm">上传</button>
+      <button class="btn sm">刷新</button>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub);margin-left:4px;">
+        <input type="checkbox" /> 全选
+      </label>
+      <div class="spacer"></div>
+      <div class="btn sm">排序 ▾</div>
+      <div class="seg">
+        <button id="btnList" class="on" onclick="setView('list')">☰ 列表</button>
+        <button id="btnGrid" onclick="setView('grid')">▦ 网格</button>
+      </div>
+    </div>
+
+    <!-- 列表视图 -->
+    <div id="listView" class="panel list">
+      <div class="head-row">
+        <div style="width:22px"></div>
+        <div class="col-name" style="color:var(--sub)">文件名</div>
+        <div class="col-meta">类型</div>
+        <div class="col-meta">大小</div>
+        <div class="col-time">修改时间</div>
+        <div class="col-ops" style="opacity:1;color:var(--sub)">操作</div>
+      </div>
+      <div class="row sel">
+        <input type="checkbox" checked />
+        <div class="col-name"><div class="tile folder">📁</div><span class="name-txt">设计方案</span><span class="enter">进入 →</span></div>
+        <div class="col-meta">目录</div><div class="col-meta">—</div><div class="col-time">2026-10-18 14:22</div>
+        <div class="col-ops">
+          <button class="op">👁 预览</button><button class="op">⬇ 下载</button>
+          <button class="op">✎ 改名</button><button class="op">⤴ 移动</button><button class="op danger">🗑</button><button class="op">⋯</button>
+        </div>
+      </div>
+      <div class="row">
+        <input type="checkbox" />
+        <div class="col-name"><div class="tile" style="background:rgba(245,34,45,.14);color:#f5222d">PDF</div><span class="name-txt">产品需求文档PRD.pdf</span></div>
+        <div class="col-meta">PDF</div><div class="col-meta">2.4 MB</div><div class="col-time">2026-10-17 09:11</div>
+        <div class="col-ops">
+          <button class="op">👁 预览</button><button class="op">⬇ 下载</button><button class="op">⬇ 导入</button>
+          <button class="op">✎ 改名</button><button class="op">⤴ 移动</button><button class="op danger">🗑</button><button class="op">⋯</button>
+        </div>
+      </div>
+      <div class="row">
+        <input type="checkbox" />
+        <div class="col-name"><div class="tile" style="background:rgba(47,84,235,.14);color:#2f54eb">DOC</div><span class="name-txt">会议纪要.docx</span></div>
+        <div class="col-meta">DOC</div><div class="col-meta">86 KB</div><div class="col-time">2026-10-16 18:40</div>
+        <div class="col-ops">
+          <button class="op">👁 预览</button><button class="op">⬇ 下载</button><button class="op">⬇ 导入</button>
+          <button class="op">✎ 改名</button><button class="op">⤴ 移动</button><button class="op danger">🗑</button><button class="op">⋯</button>
+        </div>
+      </div>
+      <div class="row">
+        <input type="checkbox" />
+        <div class="col-name"><div class="tile" style="background:rgba(82,196,26,.14);color:#52c41a">IMG</div><span class="name-txt">封面图.png</span></div>
+        <div class="col-meta">IMG</div><div class="col-meta">1.1 MB</div><div class="col-time">2026-10-14 20:15</div>
+        <div class="col-ops">
+          <button class="op">👁 预览</button><button class="op">⬇ 下载</button>
+          <button class="op">✎ 改名</button><button class="op">⤴ 移动</button><button class="op danger">🗑</button><button class="op">⋯</button>
+        </div>
+      </div>
+      <div class="row">
+        <input type="checkbox" />
+        <div class="col-name"><div class="tile" style="background:rgba(114,46,209,.14);color:#722ed1">MP4</div><span class="name-txt">产品演示.mp4</span></div>
+        <div class="col-meta">MP4</div><div class="col-meta">48.6 MB</div><div class="col-time">2026-10-12 16:30</div>
+        <div class="col-ops">
+          <button class="op">👁 预览</button><button class="op">⬇ 下载</button>
+          <button class="op">✎ 改名</button><button class="op">⤴ 移动</button><button class="op danger">🗑</button><button class="op">⋯</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 网格视图 -->
+    <div id="gridView" class="panel grid" style="display:none">
+      <div class="card sel"><div class="chk"><input type="checkbox" checked /></div>
+        <div class="tile-wrap"><div class="tile folder big">📁</div></div>
+        <div class="cname">设计方案</div><div class="cmeta">目录 · 2026-10-18</div>
+        <div class="cops"><button class="op">👁</button><button class="op">⬇</button><button class="op">⋯</button></div>
+      </div>
+      <div class="card"><div class="chk"><input type="checkbox" /></div>
+        <div class="tile-wrap"><div class="tile big" style="background:rgba(245,34,45,.14);color:#f5222d">PDF</div></div>
+        <div class="cname">产品需求文档PRD.pdf</div><div class="cmeta">2.4 MB</div>
+        <div class="cops"><button class="op">👁</button><button class="op">⬇</button><button class="op">⬇</button><button class="op">⋯</button></div>
+      </div>
+      <div class="card"><div class="chk"><input type="checkbox" /></div>
+        <div class="tile-wrap"><div class="tile big" style="background:rgba(47,84,235,.14);color:#2f54eb">DOC</div></div>
+        <div class="cname">会议纪要.docx</div><div class="cmeta">86 KB</div>
+        <div class="cops"><button class="op">👁</button><button class="op">⬇</button><button class="op">⬇</button><button class="op">⋯</button></div>
+      </div>
+      <!-- 真实图片缩略图示例 -->
+      <div class="card"><div class="chk"><input type="checkbox" /></div>
+        <div class="tile-wrap">
+          <img class="thumb" alt="封面图.png" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234e9bff'/><stop offset='1' stop-color='%23a76bff'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)'/><circle cx='150' cy='50' r='26' fill='%23ffd666'/><path d='M0 150 L70 90 L120 130 L170 80 L200 110 L200 200 L0 200 Z' fill='%2328c76f' opacity='0.85'/></svg>" />
+        </div>
+        <div class="cname">封面图.png</div><div class="cmeta">1.1 MB</div>
+        <div class="cops"><button class="op">👁</button><button class="op">⬇</button><button class="op">⋯</button></div>
+      </div>
+      <div class="card"><div class="chk"><input type="checkbox" /></div>
+        <div class="tile-wrap"><div class="tile big" style="background:rgba(114,46,209,.14);color:#722ed1">MP4</div></div>
+        <div class="cname">产品演示.mp4</div><div class="cmeta">48.6 MB</div>
+        <div class="cops"><button class="op">👁</button><button class="op">⬇</button><button class="op">⋯</button></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+  function setView(v){
+    document.getElementById('listView').style.display = v==='list'?'block':'none';
+    document.getElementById('gridView').style.display = v==='grid'?'grid':'none';
+    document.getElementById('btnList').classList.toggle('on', v==='list');
+    document.getElementById('btnGrid').classList.toggle('on', v==='grid');
+  }
+  document.querySelectorAll('.side-cat').forEach(function(el){
+    el.addEventListener('click', function(){
+      document.querySelectorAll('.side-cat').forEach(function(x){x.classList.remove('active')});
+      el.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

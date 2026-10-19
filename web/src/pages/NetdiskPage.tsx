@@ -32,11 +32,16 @@ import { baseName } from '../lib/netdisk/path'
 import { isNetdiskImportable } from '../lib/netdisk/format'
 import NetdiskTree from '../components/netdisk/NetdiskTree'
 import NetdiskFileList from '../components/netdisk/NetdiskFileList'
+import NetdiskCategoryRail from '../components/netdisk/NetdiskCategoryRail'
 import NetdiskMoveDialog from '../components/netdisk/NetdiskMoveDialog'
 import NetdiskPreviewModal from '../components/netdisk/NetdiskPreviewModal'
 import NetdiskImportDialog from '../components/netdisk/NetdiskImportDialog'
 import NetdiskTaskCenter from '../components/netdisk/NetdiskTaskCenter'
+// 网盘页样式必须由本路由自带：此前只在 DashboardPage 引入，
+// 直达 /netdisk/:id 时该分包不会加载，页面会退化成无样式的单列堆叠。
+import '../components/netdisk/netdisk.css'
 import type { NetdiskConnection, NetdiskEntry } from '../types'
+import type { NetdiskCategoryFilter } from '../lib/netdisk/format'
 
 /** 弹起的「输入名字」对话框状态（新建目录 / 改名共用） */
 type PromptState =
@@ -51,6 +56,7 @@ export default function NetdiskPage() {
   const [conns, setConns] = useState<NetdiskConnection[]>([])
   const [connDetail, setConnDetail] = useState<NetdiskConnection | null>(null)
   const [path, setPath] = useState<string>(NETDISK_ROOT)
+  const [category, setCategory] = useState<NetdiskCategoryFilter>('all')
   const [entries, setEntries] = useState<NetdiskEntry[]>([])
   const [listLoading, setListLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
@@ -280,6 +286,7 @@ export default function NetdiskPage() {
             title="刷新当前目录"
           />
         </div>
+        <NetdiskCategoryRail active={category} onChange={setCategory} />
         <NetdiskTree
           conns={conns}
           activeConnId={connId}
@@ -296,6 +303,7 @@ export default function NetdiskPage() {
         path={path}
         entries={entries}
         loading={listLoading}
+        category={category}
         onOpenDir={openDir}
         onGoPath={openDir}
         onRefresh={() => void loadDir(path, true)}
