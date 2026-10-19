@@ -162,6 +162,9 @@ func AutoMigrate(g *gorm.DB) error {
 		&model.DocTemplate{},
 		// 微信绑定关系（扫码登录：微信身份 ↔ 站内用户）
 		&model.WeChatBinding{},
+		// 我的网盘（SMB / FTP / WebDAV / 百度 / 阿里）：连接配置与异步任务
+		&model.NetdiskConnection{},
+		&model.NetdiskTask{},
 	)
 }
 

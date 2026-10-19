@@ -629,3 +629,124 @@ export interface WorkbenchView {
   items: WorkbenchDoc[]
   counts: Record<string, number>
 }
+
+// ---------- 增量：我的网盘（与后端 netdisk 包逐字对齐） ----------
+
+/** 网盘类型（quark 仅作 UI 占位，永不入库） */
+export type NetdiskKind = 'smb' | 'ftp' | 'webdav' | 'baidu' | 'aliyun' | 'quark'
+
+/** 连接状态（四态） */
+export type NetdiskStatus = 'unknown' | 'connected' | 'failed' | 'reauth_required'
+
+/** 任务类型：上传 / 导入 */
+export type NetdiskTaskType = 'upload' | 'import'
+
+/** 任务状态 */
+export type NetdiskTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
+
+/** FTP 连接模式 */
+export type FtpMode = 'passive' | 'active'
+
+/** FTP 文件名编码 */
+export type FtpEncoding = 'utf-8' | 'gbk'
+
+/**
+ * 网盘连接出参。
+ * ⚠️ **永不携带任何凭据字段**（只有 has_password / has_token 布尔位），
+ * 与后端 service.ConnectionDTO 一致。
+ */
+export interface NetdiskConnection {
+  id: number
+  name: string
+  kind: NetdiskKind
+  host: string
+  port: number
+  share?: string
+  root_path: string
+  mode?: FtpMode
+  encoding?: FtpEncoding
+  status: NetdiskStatus
+  last_error?: string
+  last_tested_at?: string
+  enabled: boolean
+  has_password: boolean
+  has_token: boolean
+  /** 公有网盘的账号展示名（OAuth 场景） */
+  account?: string
+  created_at: string
+  updated_at: string
+}
+
+/** 新建 / 编辑连接的入参。password 为空表示「不修改」（编辑态）。 */
+export interface NetdiskConnectionInput {
+  name: string
+  kind: NetdiskKind
+  host?: string
+  port?: number
+  share?: string
+  mode?: FtpMode
+  encoding?: FtpEncoding
+  username?: string
+  password?: string
+  domain?: string
+}
+
+/** 能力清单条目（新增网盘子菜单据此渲染，含夸克的置灰说明） */
+export interface NetdiskProvider {
+  kind: NetdiskKind
+  label: string
+  available: boolean
+  disabled_reason?: string
+  oauth: boolean
+  native: boolean
+}
+
+/** 测试连接结果 */
+export interface NetdiskTestResult {
+  ok: boolean
+  message: string
+  root_path?: string
+  count?: number
+}
+
+/** 目录项（与后端 netdisk.Entry 逐字对齐） */
+export interface NetdiskEntry {
+  name: string
+  path: string
+  is_dir: boolean
+  size: number
+  mod_time: string
+}
+
+/** 列目录结果 */
+export interface NetdiskDirList {
+  path: string
+  items: NetdiskEntry[]
+  cached: boolean
+}
+
+/** 任务出参（LocalPath 不透出） */
+export interface NetdiskTask {
+  id: number
+  conn_id: number
+  conn_name?: string
+  type: NetdiskTaskType
+  status: NetdiskTaskStatus
+  progress: number
+  total_bytes: number
+  done_bytes: number
+  file_name: string
+  src_path?: string
+  dst_path?: string
+  error?: string
+  retries: number
+  can_retry: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** 任务列表（带「仍在跑的数量」，前端据此决定是否继续轮询） */
+export interface NetdiskTaskList {
+  items: NetdiskTask[]
+  running: number
+}

@@ -4,6 +4,8 @@ import type { TreeProps, MenuProps } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import {
   BookOutlined,
+  CloudOutlined,
+  CloudServerOutlined,
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -13,6 +15,7 @@ import {
   FolderOutlined,
   FolderAddOutlined,
   FolderOpenOutlined,
+  HddOutlined,
   ImportOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -30,15 +33,36 @@ import { iconForDocType } from '../../lib/fileIcon'
 import { isDescendantOf } from '../../lib/docTree'
 import { internalLink } from '../../lib/internalLink'
 import { buildPlusMenuItems, buildTreeMenuItems, type TreeMenuHandlers } from '../../lib/treeMenu'
+import type { NetdiskConnection, NetdiskEntry } from '../../types'
 import type { ReactNode } from 'react'
 
 interface NodeRaw {
-  kind: 'cat' | 'book' | 'doc'
+  kind: 'cat' | 'book' | 'doc' | 'netdisk-cat' | 'netdisk-conn' | 'netdisk-dir'
   catKey?: 'private' | 'team' | 'company'
   bookId?: number
   docId?: number
   book?: BookWithCount
   doc?: DocNode
+  /** 网盘连接 id（netdisk-conn / netdisk-dir） */
+  connId?: number
+  /** 网盘目录绝对路径（netdisk-conn = 该连接的根） */
+  netdiskPath?: string
+}
+
+/**
+ * 「我的网盘」顶层分组（可选注入）。
+ *
+ * **向后兼容是硬要求**：不传该 prop 时，目录树的行为与今天完全一致
+ * （少一个顶层分组，其它逻辑零改动）。传了之后：
+ *   - 追加第四个顶层分组「我的网盘」，下挂各连接节点；
+ *   - 提供 loadDir 时连接可逐级展开网盘目录，否则点击连接直接跳网盘页。
+ */
+interface NetdiskGroup {
+  conns: NetdiskConnection[]
+  /** 点击连接节点（跳转到 /netdisk/:id） */
+  onOpenConn: (connId: number) => void
+  /** 懒加载网盘某级目录；不提供则连接不可展开 */
+  loadDir?: (connId: number, path: string) => Promise<NetdiskEntry[]>
 }
 
 interface KNode extends DataNode {
@@ -109,6 +133,11 @@ interface Props {
   onTogglePublicEdit?: (bookId: number, doc: DocNode) => void
   /** 菜单：把该文档另存为自定义模板（正文 + 类型一起存） */
   onSaveAsTemplate?: (bookId: number, doc: DocNode) => void
+  /**
+   * 「我的网盘」顶层分组。**不传则完全不影响既有行为**（零回归）。
+   * 传了就在「私人/团队/公司知识库」之外多一个同级分组。
+   */
+  netdisk?: NetdiskGroup
 }
 
 const CAT_LABEL: Record<'private' | 'team' | 'company', string> = {
@@ -123,8 +152,46 @@ const CAT_ICON: Record<'private' | 'team' | 'company', ReactNode> = {
   company: <BookOutlined style={{ color: '#722ed1' }} />,
 }
 
-/** 由平铺文档列表构建文档子树（递归） */
-function buildDocNodes(bookId: number, childrenMap: Map<number, DocNode[]>, parentId: number): KNode[] {
+/** 网盘类型图标（与网盘页 NetdiskTree 同款，避免两处长得不一样） */
+const KIND_ICON: Record<string, ReactNode> = {
+  smb: <HddOutlined style={{ color: '#2f54eb' }} />,
+  ftp: <HddOutlined style={{ color: '#13a8a8' }} />,
+  webdav: <CloudServerOutlined style={{ color: '#722ed1' }} />,
+  baidu: <CloudOutlined style={{ color: '#2932e1' }} />,
+  aliyun: <CloudOutlined style={{ color: '#ff7d00' }} />,
+  quark: <CloudOutlined style={{ color: '#8a919f' }} />,
+}
+
+/**
+ * 由「已加载的网盘子目录列表」构建目录子树（递归）。
+ * key 用 `nddir:<connId>:<path>`，与 onLoadData 的加载口径一致。
+ */
+function netdiskDirNodes(connId: number, items: NetdiskEntry[], ndDirs: Map<string, NetdiskEntry[]>): KNode[] {
+  return items
+    .filter((i) => i.is_dir)
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    .map((i) => {
+      const key = `nddir:${connId}:${i.path}`
+      const kids = ndDirs.get(key)
+      return {
+        key,
+        title: (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {i.name}
+            </span>
+          </span>
+        ),
+        icon: <FolderOutlined style={{ color: '#faad14' }} />,
+        isLeaf: false,
+        selectable: true,
+        children: kids ? netdiskDirNodes(connId, kids, ndDirs) : undefined,
+        raw: { kind: 'netdisk-dir', connId, netdiskPath: i.path },
+      } as KNode
+    })
+}
+
+/** 由平铺文档列表构建文档子树（递归） */function buildDocNodes(bookId: number, childrenMap: Map<number, DocNode[]>, parentId: number): KNode[] {
   const list = childrenMap.get(parentId) || []
   return list.map((d) => {
     const kids = childrenMap.get(d.id) || []
@@ -176,6 +243,10 @@ export default function KnowledgeTree(p: Props) {
 
   // 知识库 → 已加载文档平铺列表（缓存，局部刷新用）
   const bookDocsRef = useRef<Map<number, DocNode[]>>(new Map())
+  // 网盘连接/目录 → 已加载的子目录列表（懒加载缓存）
+  const [ndDirs, setNdDirs] = useState<Map<string, NetdiskEntry[]>>(new Map())
+  const ndDirsRef = useRef<Map<string, NetdiskEntry[]>>(new Map())
+  ndDirsRef.current = ndDirs
   // loadedKeys 的 ref 镜像，供 rebuildTop 读取最新值（避免闭包陈旧）
   const loadedRef = useRef<React.Key[]>([])
   loadedRef.current = loadedKeys
@@ -209,8 +280,49 @@ export default function KnowledgeTree(p: Props) {
       }),
       raw: { kind: 'cat', catKey: key },
     })
-    setTreeData([cat('private', books.mine || []), cat('team', books.teams || []), cat('company', books.visible || [])])
-  }, [books])
+    const top: KNode[] = [
+      cat('private', books.mine || []),
+      cat('team', books.teams || []),
+      cat('company', books.visible || []),
+    ]
+    // 「我的网盘」：与三个知识库分类同级的第四个顶层分组（仅在注入 netdisk 时出现）
+    const nd = p.netdisk
+    if (nd) {
+      top.push({
+        key: 'cat:netdisk',
+        title: (
+          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+            我的网盘
+            <span style={{ color: '#8a919f', fontWeight: 400, marginLeft: 6 }}>{nd.conns.length}</span>
+          </span>
+        ),
+        icon: <CloudOutlined style={{ color: '#2f54eb' }} />,
+        selectable: false,
+        children: nd.conns.map((c) => ({
+          key: `ndconn:${c.id}`,
+          title: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {c.name}
+              </span>
+              {c.status === 'failed' && (
+                <span title={c.last_error || '连接失败'} style={{ color: '#cf1322', fontSize: 12 }}>
+                  ⚠
+                </span>
+              )}
+            </span>
+          ),
+          icon: KIND_ICON[c.kind] ?? <CloudOutlined />,
+          isLeaf: !nd.loadDir,
+          selectable: true,
+          children: nd.loadDir ? netdiskDirNodes(c.id, ndDirs.get(`ndconn:${c.id}`) || [], ndDirs) : undefined,
+          raw: { kind: 'netdisk-conn', connId: c.id, netdiskPath: c.root_path || '/' },
+        })),
+        raw: { kind: 'netdisk-cat' },
+      })
+    }
+    setTreeData(top)
+  }, [books, ndDirs, p.netdisk])
 
   useEffect(() => {
     rebuildTop()
@@ -245,9 +357,22 @@ export default function KnowledgeTree(p: Props) {
       if (node.raw.kind === 'book' && node.raw.bookId != null) {
         return loadBookDocs(node.raw.bookId, false)
       }
+      // 网盘：连接节点加载根目录，目录节点加载下一级（仅在注入 loadDir 时发生）
+      const nd = p.netdisk
+      if (nd?.loadDir && node.raw.connId != null && node.raw.netdiskPath != null) {
+        const key = node.raw.kind === 'netdisk-conn' ? `ndconn:${node.raw.connId}` : node.key
+        if (ndDirsRef.current.has(key)) return Promise.resolve()
+        return nd.loadDir(node.raw.connId, node.raw.netdiskPath).then((items) => {
+          setNdDirs((prev) => {
+            const next = new Map(prev)
+            next.set(key, items)
+            return next
+          })
+        })
+      }
       return Promise.resolve()
     },
-    [loadBookDocs],
+    [loadBookDocs, p.netdisk],
   )
 
   function handleClick(node: KNode) {
@@ -255,6 +380,8 @@ export default function KnowledgeTree(p: Props) {
       p.onOpenBook(node.raw.bookId)
     } else if (node.raw.kind === 'doc' && node.raw.bookId != null && node.raw.docId != null) {
       p.onOpenDoc(node.raw.bookId, node.raw.docId)
+    } else if (node.raw.kind === 'netdisk-conn' && node.raw.connId != null) {
+      p.netdisk?.onOpenConn(node.raw.connId)
     }
   }
 
@@ -526,7 +653,9 @@ export default function KnowledgeTree(p: Props) {
    * 落上去只会让人以为能放进去。知识库与文档节点都允许。
    */
   const allowDrop: TreeProps['allowDrop'] = ({ dropNode }) => {
-    return (dropNode as unknown as KNode).raw.kind !== 'cat'
+    const kind = (dropNode as unknown as KNode).raw.kind
+    // 「分类」节点只是分组标题，不能作为容器；网盘分组同理。
+    return kind !== 'cat' && kind !== 'netdisk-cat'
   }
 
   /** 哪些节点可以被拖动：有写权限的文档/目录。知识库与分类不可拖。 */
@@ -557,6 +686,11 @@ export default function KnowledgeTree(p: Props) {
     }
     if (over.raw.kind === 'cat') {
       message.info('请拖到知识库或目录上')
+      return
+    }
+    // 网盘节点不是文库容器：文档不能拖进去（网盘侧的上传另有入口）
+    if (over.raw.kind === 'netdisk-cat' || over.raw.kind === 'netdisk-conn' || over.raw.kind === 'netdisk-dir') {
+      message.info('不能把文档拖到网盘里，请改用网盘页的「上传」')
       return
     }
     const srcBookId = drag.raw.bookId!
@@ -634,6 +768,11 @@ export default function KnowledgeTree(p: Props) {
   }
 
   function titleRender(node: KNode): ReactNode {
+    // 网盘分组 / 连接 / 目录：标题已在 treeData 里渲染好，这里直接透出，
+    // 绝不能落到下面的 docMenu（那会去读 raw.doc 而崩）。
+    if (node.raw.kind === 'netdisk-cat' || node.raw.kind === 'netdisk-conn' || node.raw.kind === 'netdisk-dir') {
+      return node.title as ReactNode
+    }
     if (node.raw.kind === 'cat') {
       return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, whiteSpace: 'nowrap' }}>

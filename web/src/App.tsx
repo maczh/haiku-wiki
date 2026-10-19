@@ -38,6 +38,8 @@ const StorageMigrationPage = lazy(() => import('./pages/StorageMigrationPage'))
 const AdminTemplatesPage = lazy(() => import('./pages/AdminTemplatesPage'))
 // 模板中心（仿语雀/WPS 的文档模板画廊）
 const TemplateGalleryPage = lazy(() => import('./pages/TemplateGalleryPage'))
+// 「我的网盘」：与「我的文库」同级别的独立功能域
+const NetdiskPage = lazy(() => import('./pages/NetdiskPage'))
 
 /** 路由守卫：未登录跳 redirectTo（桌面版默认 /login，手机版传 /m/login） */
 export function RequireAuth({
@@ -203,6 +205,14 @@ export function DesktopRoutes() {
           element={
             <LazyBoundary fill tip="正在加载模板中心…">
               <TemplateGalleryPage />
+            </LazyBoundary>
+          }
+        />
+        <Route
+          path="/netdisk/:id"
+          element={
+            <LazyBoundary fill tip="正在加载网盘…">
+              <NetdiskPage />
             </LazyBoundary>
           }
         />

@@ -54,3 +54,18 @@ s3:
 upload:
   # 单文件上限（MB）
   max_size_mb: 64
+netdisk:
+  secret_key: ""            # 凭据加密密钥，留空回落 jwt.secret
+  baidu_app_key: ""         # 百度网盘开放平台，三项齐全才启用
+  baidu_app_secret: ""
+  baidu_redirect_uri: ""
+  baidu_app_name: ""        # 留空 = haiku-wiki
+  aliyun_app_key: ""        # 阿里云盘开放平台，同上
+  aliyun_app_secret: ""
+  aliyun_redirect_uri: ""
+  max_connections: 10       # 每用户连接数上限
+  max_upload_mb: 2048       # 单文件上传上限
+  max_import_mb: 200        # 单文件导入文库上限
+  pool_idle_minutes: 10     # 会话池空闲断开时长
+  task_workers: 4           # 上传/导入任务 worker 数
+  temp_ttl_minutes: 60      # 任务临时文件保留时长

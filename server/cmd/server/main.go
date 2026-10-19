@@ -2,11 +2,13 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/gin-gonic/gin"
 
 	"haiku-wiki/server/internal/config"
+	"haiku-wiki/server/internal/netdisk"
 	"haiku-wiki/server/internal/pkg/jwtutil"
 	"haiku-wiki/server/internal/repository"
 	"haiku-wiki/server/internal/router"
@@ -56,6 +58,14 @@ func main() {
 
 	// 接口文档 URL 导入来源的每日 02:00 自动刷新调度（C5：单机进程内 ticker，非 cron）。
 	go service.StartApiRefreshScheduler()
+
+	// 网盘：任务中心 worker + 会话池空闲回收。
+	// 放在「路由装配之后、监听之前」——此时 DB / 配置 / 存储都已就绪，
+	// 任务不会在依赖没准备好的情况下开跑。ctx 随 main 退出而取消。
+	netdiskCtx, stopNetdisk := context.WithCancel(context.Background())
+	defer stopNetdisk()
+	service.NetdiskTaskSvc.StartNetdiskTaskWorkers(netdiskCtx)
+	go netdisk.DefaultPool().StartReaper(netdiskCtx)
 
 	log.Printf("[haiku] 寄海文库启动于 :%s（DB=%s, DATA_DIR=%s, STORAGE=%s）",
 		cfg.Port, cfg.DBDriver, cfg.DataDir, storage.Default().Kind())

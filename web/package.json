@@ -22,7 +22,8 @@
     "verify:code-copy": "node scripts/verify-code-copy.mjs",
     "verify:workbench": "node scripts/verify-workbench.mjs",
     "verify:todo": "node scripts/verify-todo.mjs",
-    "verify:todo-export": "node scripts/verify-todo-export.mjs"
+    "verify:todo-export": "node scripts/verify-todo-export.mjs",
+    "verify:netdisk": "node scripts/verify-netdisk-preview.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",

@@ -46,6 +46,7 @@ DEFAULT_SUITES=(
   h5-reader-check
   h5-scroll-back-check
   wechat-login-check
+  netdisk-isolation-check
   mm-editor-check
   mm-h5-pan-check
   mm-style-shot
@@ -87,6 +88,7 @@ declare -A PORT_OF=(
   [mm-style-shot]=8194
   [mm-xmode-check]=8195
   [wechat-login-check]=8185
+  [netdisk-isolation-check]=8196
   [template-check]=0
   [sim-docker-web]=0
 )

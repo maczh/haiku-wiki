@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -53,6 +54,30 @@ type Config struct {
 	WeChatRedirectURI string
 	WeChatEnabled     bool // 由上面三项是否齐全推导，免得散落判断
 
+	// Netdisk「我的网盘」（SMB / FTP / WebDAV / 百度网盘 / 阿里云盘）。
+	//
+	// ⚠️ 这一段刻意**不加入 EditableConfig**（系统配置界面）：网盘凭据属于敏感项，
+	// 本期只走文件 + 环境变量，避免进入管理员可编辑面（设计文档 §8.7）。
+	NetdiskSecretKey string // 凭据加密密钥；留空时回落到 JWTSecret
+	// 百度网盘开放平台。AppKey/AppSecret/RedirectURI 三项齐全 → 菜单可用，否则自动置灰。
+	BaiduAppKey      string
+	BaiduAppSecret   string
+	BaiduRedirectURI string
+	BaiduAppName     string // 应用目录名，默认 haiku-wiki（百度强制目录隔离 /apps/<name>）
+	BaiduEnabled     bool   // 由上面三项是否齐全推导
+	// 阿里云盘开放平台（同上，未配置即置灰）
+	AliyunAppKey      string
+	AliyunAppSecret   string
+	AliyunRedirectURI string
+	AliyunEnabled     bool // 由上面三项是否齐全推导
+	// 限值与运行参数（0 = 用默认值，见下方 Netdisk*() 访问器）
+	NetdiskMaxConnections  int // 每用户连接上限，默认 10
+	NetdiskMaxUploadMB     int // 单文件上传上限，默认 2048
+	NetdiskMaxImportMB     int // 单文件导入上限，默认 200
+	NetdiskPoolIdleMinutes int // 会话池空闲 TTL，默认 10
+	NetdiskTaskWorkers     int // 任务 worker 数，默认 4
+	NetdiskTempTTLMinutes  int // 任务临时文件保留时长，默认 60
+
 	// Path 生效的配置文件绝对路径；"" 表示没有配置文件（纯环境变量模式），
 	// 此时迁移功能无法自动改写配置，只能在响应里提示用户手工处理。
 	Path string
@@ -84,6 +109,25 @@ type fileConfig struct {
 	S3       S3Config        `yaml:"s3"`
 	Upload   uploadSection   `yaml:"upload"`
 	Wechat   wechatSection   `yaml:"wechat"`
+	Netdisk  netdiskSection  `yaml:"netdisk"`
+}
+
+// netdiskSection 「我的网盘」配置段（conf/application.yml 的 netdisk:）。
+type netdiskSection struct {
+	SecretKey         string `yaml:"secret_key"`
+	BaiduAppKey       string `yaml:"baidu_app_key"`
+	BaiduAppSecret    string `yaml:"baidu_app_secret"`
+	BaiduRedirectURI  string `yaml:"baidu_redirect_uri"`
+	BaiduAppName      string `yaml:"baidu_app_name"`
+	AliyunAppKey      string `yaml:"aliyun_app_key"`
+	AliyunAppSecret   string `yaml:"aliyun_app_secret"`
+	AliyunRedirectURI string `yaml:"aliyun_redirect_uri"`
+	MaxConnections    int    `yaml:"max_connections"`
+	MaxUploadMB       int    `yaml:"max_upload_mb"`
+	MaxImportMB       int    `yaml:"max_import_mb"`
+	PoolIdleMinutes   int    `yaml:"pool_idle_minutes"`
+	TaskWorkers       int    `yaml:"task_workers"`
+	TempTTLMinutes    int    `yaml:"temp_ttl_minutes"`
 }
 
 type wechatSection struct {
@@ -351,7 +395,64 @@ func applyFile(cfg *Config, fc *fileConfig) {
 		cfg.WeChatRedirectURI = fc.Wechat.RedirectURI
 	}
 	cfg.WeChatEnabled = cfg.WeChatAppID != "" && cfg.WeChatAppSecret != "" && cfg.WeChatRedirectURI != ""
+
+	if fc.Netdisk.SecretKey != "" {
+		cfg.NetdiskSecretKey = fc.Netdisk.SecretKey
+	}
+	if fc.Netdisk.BaiduAppKey != "" {
+		cfg.BaiduAppKey = fc.Netdisk.BaiduAppKey
+	}
+	if fc.Netdisk.BaiduAppSecret != "" {
+		cfg.BaiduAppSecret = fc.Netdisk.BaiduAppSecret
+	}
+	if fc.Netdisk.BaiduRedirectURI != "" {
+		cfg.BaiduRedirectURI = fc.Netdisk.BaiduRedirectURI
+	}
+	if fc.Netdisk.BaiduAppName != "" {
+		cfg.BaiduAppName = fc.Netdisk.BaiduAppName
+	}
+	if fc.Netdisk.AliyunAppKey != "" {
+		cfg.AliyunAppKey = fc.Netdisk.AliyunAppKey
+	}
+	if fc.Netdisk.AliyunAppSecret != "" {
+		cfg.AliyunAppSecret = fc.Netdisk.AliyunAppSecret
+	}
+	if fc.Netdisk.AliyunRedirectURI != "" {
+		cfg.AliyunRedirectURI = fc.Netdisk.AliyunRedirectURI
+	}
+	if fc.Netdisk.MaxConnections > 0 {
+		cfg.NetdiskMaxConnections = fc.Netdisk.MaxConnections
+	}
+	if fc.Netdisk.MaxUploadMB > 0 {
+		cfg.NetdiskMaxUploadMB = fc.Netdisk.MaxUploadMB
+	}
+	if fc.Netdisk.MaxImportMB > 0 {
+		cfg.NetdiskMaxImportMB = fc.Netdisk.MaxImportMB
+	}
+	if fc.Netdisk.PoolIdleMinutes > 0 {
+		cfg.NetdiskPoolIdleMinutes = fc.Netdisk.PoolIdleMinutes
+	}
+	if fc.Netdisk.TaskWorkers > 0 {
+		cfg.NetdiskTaskWorkers = fc.Netdisk.TaskWorkers
+	}
+	if fc.Netdisk.TempTTLMinutes > 0 {
+		cfg.NetdiskTempTTLMinutes = fc.Netdisk.TempTTLMinutes
+	}
+	refreshNetdiskEnabled(cfg)
 }
+
+// refreshNetdiskEnabled 由「三项是否齐全」推导百度 / 阿里云盘是否可用。
+// 单独抽出来：文件与环境变量两条通道都要跑一遍，避免散落判断而漂移。
+func refreshNetdiskEnabled(cfg *Config) {
+	cfg.BaiduEnabled = cfg.BaiduAppKey != "" && cfg.BaiduAppSecret != "" && cfg.BaiduRedirectURI != ""
+	cfg.AliyunEnabled = cfg.AliyunAppKey != "" && cfg.AliyunAppSecret != "" && cfg.AliyunRedirectURI != ""
+	if cfg.BaiduAppName == "" {
+		cfg.BaiduAppName = defaultBaiduAppName
+	}
+}
+
+// defaultBaiduAppName 百度网盘应用目录名的默认值（百度强制 /apps/<appname> 目录隔离）。
+const defaultBaiduAppName = "haiku-wiki"
 
 func applyEnv(cfg *Config) {
 	cfg.Port = getenv("PORT", cfg.Port)
@@ -382,6 +483,33 @@ func applyEnv(cfg *Config) {
 		cfg.WeChatRedirectURI = v
 	}
 	cfg.WeChatEnabled = cfg.WeChatAppID != "" && cfg.WeChatAppSecret != "" && cfg.WeChatRedirectURI != ""
+
+	// 网盘：环境变量覆盖（与微信同写法）
+	if v := os.Getenv("NETDISK_SECRET_KEY"); v != "" {
+		cfg.NetdiskSecretKey = v
+	}
+	if v := os.Getenv("BAIDU_APP_KEY"); v != "" {
+		cfg.BaiduAppKey = v
+	}
+	if v := os.Getenv("BAIDU_APP_SECRET"); v != "" {
+		cfg.BaiduAppSecret = v
+	}
+	if v := os.Getenv("BAIDU_REDIRECT_URI"); v != "" {
+		cfg.BaiduRedirectURI = v
+	}
+	if v := os.Getenv("BAIDU_APP_NAME"); v != "" {
+		cfg.BaiduAppName = v
+	}
+	if v := os.Getenv("ALIYUN_APP_KEY"); v != "" {
+		cfg.AliyunAppKey = v
+	}
+	if v := os.Getenv("ALIYUN_APP_SECRET"); v != "" {
+		cfg.AliyunAppSecret = v
+	}
+	if v := os.Getenv("ALIYUN_REDIRECT_URI"); v != "" {
+		cfg.AliyunRedirectURI = v
+	}
+	refreshNetdiskEnabled(cfg)
 
 	if cfg.Port == "" {
 		cfg.Port = "8080"
@@ -418,3 +546,57 @@ func (c *Config) UploadMaxBytes() int64 {
 
 // UseS3 当前是否走对象存储。
 func (c *Config) UseS3() bool { return c.StorageType == StorageS3 }
+
+// ---------- 网盘限值访问器（0 / 负数一律回落默认，保证零配置可跑） ----------
+
+// NetdiskMaxConnectionsOr 每用户网盘连接数上限（默认 10）。
+func (c *Config) NetdiskMaxConnectionsOr() int {
+	if c == nil || c.NetdiskMaxConnections <= 0 {
+		return 10
+	}
+	return c.NetdiskMaxConnections
+}
+
+// NetdiskMaxUploadBytes 单文件上传上限（字节，默认 2048MB = 2GB）。
+func (c *Config) NetdiskMaxUploadBytes() int64 {
+	mb := 2048
+	if c != nil && c.NetdiskMaxUploadMB > 0 {
+		mb = c.NetdiskMaxUploadMB
+	}
+	return int64(mb) << 20
+}
+
+// NetdiskMaxImportBytes 单文件导入上限（字节，默认 200MB）。
+func (c *Config) NetdiskMaxImportBytes() int64 {
+	mb := 200
+	if c != nil && c.NetdiskMaxImportMB > 0 {
+		mb = c.NetdiskMaxImportMB
+	}
+	return int64(mb) << 20
+}
+
+// NetdiskPoolIdle 会话池空闲 TTL（默认 10 分钟）。
+func (c *Config) NetdiskPoolIdle() time.Duration {
+	min := 10
+	if c != nil && c.NetdiskPoolIdleMinutes > 0 {
+		min = c.NetdiskPoolIdleMinutes
+	}
+	return time.Duration(min) * time.Minute
+}
+
+// NetdiskWorkersOr 任务 worker 数（默认 4）。
+func (c *Config) NetdiskWorkersOr() int {
+	if c == nil || c.NetdiskTaskWorkers <= 0 {
+		return 4
+	}
+	return c.NetdiskTaskWorkers
+}
+
+// NetdiskTempTTL 任务临时文件保留时长（默认 60 分钟）。
+func (c *Config) NetdiskTempTTL() time.Duration {
+	min := 60
+	if c != nil && c.NetdiskTempTTLMinutes > 0 {
+		min = c.NetdiskTempTTLMinutes
+	}
+	return time.Duration(min) * time.Minute
+}

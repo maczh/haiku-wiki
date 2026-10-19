@@ -231,7 +231,43 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.POST("/docs/:id/collaborators", handler.AddCollaborator)
 		jwt.GET("/docs/:id/collaborators", handler.ListCollaborators)
 		jwt.DELETE("/docs/:id/collaborators/:uid", handler.RemoveCollaborator)
+
+		// 「我的网盘」连接管理（SMB / FTP / WebDAV / 百度 / 阿里云盘）
+		jwt.GET("/netdisks/providers", handler.ListNetdiskProviders)
+		jwt.GET("/netdisks", handler.ListNetdisks)
+		jwt.POST("/netdisks", handler.CreateNetdisk)
+		// 保存前测试（UI 强制先测后存），必须排在 /netdisks/:id 之前
+		jwt.POST("/netdisks/test", handler.TestNetdiskUnsaved)
+		jwt.GET("/netdisks/:id", handler.GetNetdisk)
+		jwt.PUT("/netdisks/:id", handler.UpdateNetdisk)
+		jwt.DELETE("/netdisks/:id", handler.DeleteNetdisk)
+		jwt.POST("/netdisks/:id/test", handler.TestNetdiskSaved)
+		jwt.POST("/netdisks/:id/refresh", handler.RefreshNetdisk)
+		jwt.GET("/netdisks/:id/dirs", handler.ListNetdiskDirs)
+		jwt.POST("/netdisks/:id/dirs", handler.CreateNetdiskDir)
+		jwt.POST("/netdisks/:id/rename", handler.RenameNetdiskItem)
+		jwt.POST("/netdisks/:id/move", handler.MoveNetdiskItem)
+		jwt.DELETE("/netdisks/:id/items", handler.DeleteNetdiskItem)
+		jwt.POST("/netdisks/:id/upload", handler.UploadNetdiskFile)
+		jwt.POST("/netdisks/:id/import", handler.ImportNetdiskFile)
+		jwt.GET("/netdisks/:id/preview-token", handler.MakeNetdiskPreviewToken)
+		// OAuth 发起授权（回调见下方 api 组：浏览器顶层导航带不出 Bearer 头）
+		jwt.GET("/netdisks/oauth/:provider/authorize", handler.NetdiskOAuthAuthorize)
+
+		// 网盘任务中心（上传 / 导入的进度、取消、重试）
+		jwt.GET("/netdisk-tasks", handler.ListNetdiskTasks)
+		jwt.GET("/netdisk-tasks/:id", handler.GetNetdiskTask)
+		jwt.POST("/netdisk-tasks/:id/retry", handler.RetryNetdiskTask)
+		jwt.DELETE("/netdisk-tasks/:id", handler.CancelNetdiskTask)
+		jwt.GET("/netdisk-tasks/:id/blob", handler.GetNetdiskTaskBlob)
 	}
+
+	// 网盘下载 / 预览：登录态**可选**（`<video>` / `<img>` 的 src 发不出 Authorization 头），
+	// 无登录态时靠 URL 上的短期 token 鉴权（HMAC 绑定 uid + connID + path，2 小时有效）。
+	api.GET("/netdisks/:id/download", middleware.OptionalAuth(), handler.DownloadNetdiskFile)
+	api.GET("/netdisks/:id/preview", middleware.OptionalAuth(), handler.PreviewNetdiskFile)
+	// OAuth 回调：第三方跳转回来的顶层导航，没有 Bearer 头，安全性由一次性 state 保证
+	api.GET("/netdisks/oauth/:provider/callback", handler.NetdiskOAuthCallback)
 
 	// 上传文件访问入口：
 	//   - local 存储：直接静态托管（零拷贝、支持 Range）

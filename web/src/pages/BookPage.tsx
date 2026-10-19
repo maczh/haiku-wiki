@@ -28,6 +28,8 @@ import type { TodoEditorHandle } from '../components/editor/TodoEditor'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
 import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
 import BookDashboard from '../components/dashboard/BookDashboard'
+import { listConnections, listDir } from '../api/netdisk'
+import type { NetdiskConnection } from '../types'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
@@ -157,6 +159,8 @@ export default function BookPage() {
   // ---------- 多文库目录树状态 ----------
   const [books, setBooks] = useState<Bookshelf | null>(null)
   const [booksLoading, setBooksLoading] = useState(false)
+  /** 「我的网盘」顶层分组用的连接列表（与首页区块同源，独立请求） */
+  const [ndConns, setNdConns] = useState<NetdiskConnection[]>([])
   const [keyword, setKeyword] = useState('')
   const [edit, setEdit] = useState<BookEditState | null>(null)
   const [form] = Form.useForm()
@@ -379,6 +383,13 @@ export default function BookPage() {
 
   useEffect(() => {
     void refreshBooks()
+  }, [])
+
+  // 「我的网盘」分组：连接列表（失败不影响文库主体，静默降级为空分组）
+  useEffect(() => {
+    void listConnections()
+      .then(setNdConns)
+      .catch(() => setNdConns([]))
   }, [])
 
   // 当前书变化时刷新左侧树中该书的数据（保持选中状态与计数最新）
@@ -988,6 +999,13 @@ export default function BookPage() {
                   selectedDocId={docIdParam || undefined}
                   isAdmin={!!isAdmin}
                   currentUserId={user?.id}
+                  /* 「我的网盘」：与私人/团队/公司知识库同级的第四个顶层分组。
+                     连接可逐级展开（懒加载），点连接跳网盘页。 */
+                  netdisk={{
+                    conns: ndConns,
+                    onOpenConn: (id) => navigate(`/netdisk/${id}`),
+                    loadDir: (cid, path) => listDir(cid, path).then((res) => res.items),
+                  }}
                   onOpenBook={(id) => navigate(`/books/${id}`)}
                   onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
                   onNewDoc={(bid, pid, kind) => void openNewDoc(bid, pid, kind)}

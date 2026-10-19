@@ -1,0 +1,203 @@
+classDiagram
+    class NetdiskConnection {
+        +uint64 ID
+        +uint64 UserID
+        +string Name
+        +string Kind
+        +string Host
+        +int Port
+        +string Share
+        +string RootPath
+        +string Mode
+        +string Encoding
+        +string Status
+        +string LastError
+        +*time.Time LastTestedAt
+        +bool Enabled
+        +string CredEnc
+        +string Extra
+        +time.Time CreatedAt
+        +time.Time UpdatedAt
+        +gorm.DeletedAt DeletedAt
+        +TableName() string
+    }
+    class NetdiskTask {
+        +uint64 ID
+        +uint64 UserID
+        +uint64 ConnID
+        +string Type
+        +string Status
+        +int Progress
+        +int64 TotalBytes
+        +int64 DoneBytes
+        +string FileName
+        +string SrcPath
+        +string DstPath
+        +string LocalPath
+        +string ResultJSON
+        +string Error
+        +int Retries
+        +time.Time CreatedAt
+        +time.Time UpdatedAt
+        +TableName() string
+    }
+    class Credentials {
+        +string Username
+        +string Password
+        +string Domain
+        +string AccessToken
+        +string RefreshToken
+        +time.Time TokenExpire
+        +bool IsEmpty() bool
+    }
+    class Caps {
+        +bool RangeRead
+        +bool NativeMove
+        +bool RecursiveRemove
+        +bool NeedProxy
+        +string RootPath
+    }
+    class Entry {
+        +string Name
+        +string Path
+        +bool IsDir
+        +int64 Size
+        +time.Time ModTime
+    }
+    class Driver {
+        <<interface>>
+        +Kind() string
+        +Caps() Caps
+        +Test(ctx) error
+        +List(ctx, path) []Entry
+        +Stat(ctx, path) Entry
+        +Mkdir(ctx, path) error
+        +Rename(ctx, path, newName) error
+        +Move(ctx, path, targetDir) error
+        +Remove(ctx, path, recursive) error
+        +Open(ctx, path) io_ReadCloser
+        +OpenRange(ctx, path, offset, size) (io_ReadCloser, int64)
+        +Write(ctx, path, r, size) error
+        +Close() error
+    }
+    class SMBDriver {
+        -smb2_Session session
+        -smb2_Share share
+    }
+    class FTPDriver {
+        -ftp_ServerConn conn
+        -string encoding
+    }
+    class WebDAVDriver {
+        -gowebdav_Client client
+    }
+    class BaiduDriver {
+        -string accessToken
+        -string refreshToken
+        -string appName
+    }
+    class AliyunDriver {
+        -string accessToken
+        -string refreshToken
+        -string driveID
+    }
+    class SessionPool {
+        -map~uint64, entry~ conns
+        -time.Duration idleTTL
+        +Acquire(ctx, conn, creds) (Driver, func)
+        +Invalidate(connID)
+        +StartReaper(ctx)
+    }
+    class NetdiskRepo {
+        <<repository>>
+        +ListConnections(uid) []NetdiskConnection
+        +GetConnection(id, uid) NetdiskConnection
+        +CreateConnection(c) error
+        +UpdateConnection(c) error
+        +DeleteConnection(id, uid) error
+        +CountConnections(uid) int64
+        +CreateTask(t) error
+        +UpdateTaskProgress(id, done, total, progress) error
+        +FinishTask(id, status, errMsg, result) error
+        +ListTasks(uid, connID) []NetdiskTask
+        +GetTask(id, uid) NetdiskTask
+        +ClaimPending(limit) []NetdiskTask
+        +RequeueStale(olderThan) int64
+    }
+    class NetdiskService {
+        <<service>>
+        +ListProviders() []ProviderDTO
+        +List(uid) []ConnectionDTO
+        +Get(id, uid) ConnectionDTO
+        +Create(uid, req) ConnectionDTO
+        +Update(id, uid, req) ConnectionDTO
+        +Delete(id, uid) error
+        +TestUnsaved(uid, req) TestResult
+        +TestSaved(id, uid) TestResult
+        +Refresh(id, uid) ConnectionDTO
+        +ListDir(id, uid, path, force) []Entry
+    }
+    class NetdiskFileService {
+        <<service>>
+        +Mkdir(id, uid, path, name) error
+        +Rename(id, uid, path, name) error
+        +Move(id, uid, path, target) error
+        +Remove(id, uid, path, recursive) error
+        +SubmitUpload(id, uid, dir, file) NetdiskTask
+        +StreamDownload(id, uid, path, w, rangeHeader) error
+        +StreamPreview(id, uid, path, w, rangeHeader) error
+        +SubmitImport(id, uid, path, bookID, parentID) NetdiskTask
+        +MakePreviewToken(uid, connID, path) string
+        +ParsePreviewToken(tok) (uid, connID, path)
+    }
+    class NetdiskTaskService {
+        <<service>>
+        +Submit(t) uint64
+        +StartWorkers(ctx)
+        +RequeueStale()
+        +Retry(id, uid) error
+        +Cancel(id, uid) error
+        +List(uid, connID) []NetdiskTask
+        +ReapTempFiles()
+        -runUpload(ctx, t)
+        -runImport(ctx, t)
+    }
+    class NetdiskOAuthService {
+        <<service>>
+        +AuthorizeURL(provider, uid, name) (string, string)
+        +HandleCallback(provider, code, state) ConnectionDTO
+        +RefreshToken(conn) Credentials
+    }
+    class NetdiskHandler {
+        <<handler>>
+        +ListProviders
+        +List / Get / Create / Update / Delete
+        +TestUnsaved / Test / Refresh
+        +ListDir / Mkdir / Rename / Move / Remove
+        +Upload / Download / Preview / Import
+        +TaskList / TaskGet / TaskRetry / TaskCancel / TaskBlob
+        +OAuthAuthorize / OAuthCallback
+    }
+
+    NetdiskConnection "1" --> "1" Credentials : CredEnc 解密为
+    NetdiskTask "*" --> "1" NetdiskConnection : ConnID
+    Driver <|.. SMBDriver
+    Driver <|.. FTPDriver
+    Driver <|.. WebDAVDriver
+    Driver <|.. BaiduDriver
+    Driver <|.. AliyunDriver
+    Driver --> Caps : Caps()
+    Driver --> Entry : List()
+    SessionPool "1" o-- "*" Driver : 持有/复用
+    NetdiskService --> SessionPool : Acquire
+    NetdiskService --> NetdiskRepo
+    NetdiskService ..> Driver : 使用
+    NetdiskFileService --> SessionPool : Acquire
+    NetdiskFileService --> NetdiskTaskService : Submit
+    NetdiskTaskService --> NetdiskRepo
+    NetdiskTaskService ..> Driver : 使用
+    NetdiskOAuthService --> NetdiskRepo
+    NetdiskHandler --> NetdiskService
+    NetdiskHandler --> NetdiskFileService
+    NetdiskHandler --> NetdiskTaskService
+    NetdiskHandler --> NetdiskOAuthService

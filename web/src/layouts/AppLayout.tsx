@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Input, Avatar, Dropdown, Tooltip } from 'antd'
 import {
   AppstoreOutlined,
   BookOutlined,
+  CloudOutlined,
   DeleteOutlined,
   LogoutOutlined,
   MobileOutlined,
@@ -14,6 +15,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 import { me } from '../api/auth'
+import { listConnections } from '../api/netdisk'
 import { useViewMode } from '../h5/useViewMode'
 import JihaiLogo from '../components/brand/JihaiLogo'
 
@@ -28,6 +30,15 @@ export default function AppLayout() {
     setMode('h5')
     navigate('/m')
   }
+
+  /** 顶栏「我的网盘」入口：有连接时直达第一个，否则回首页看区块 */
+  const [firstNetdiskId, setFirstNetdiskId] = useState<number | null>(null)
+  useEffect(() => {
+    if (!token) return
+    void listConnections()
+      .then((list) => setFirstNetdiskId(list.length > 0 ? list[0].id : null))
+      .catch(() => setFirstNetdiskId(null))
+  }, [token])
 
   useEffect(() => {
     if (!token) {
@@ -83,6 +94,13 @@ export default function AppLayout() {
 
         <Tooltip title="我的知识库">
           <BookOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/')} />
+        </Tooltip>
+        <Tooltip title="我的网盘（NAS / WebDAV / 百度网盘 / 阿里云盘）">
+          <CloudOutlined
+            style={{ fontSize: 17, cursor: 'pointer' }}
+            data-testid="hk-topbar-netdisk"
+            onClick={() => navigate(firstNetdiskId != null ? `/netdisk/${firstNetdiskId}` : '/')}
+          />
         </Tooltip>
         <Tooltip title="团队（团队文库与成员管理）">
           <TeamOutlined style={{ fontSize: 17, cursor: 'pointer' }} onClick={() => navigate('/teams')} />

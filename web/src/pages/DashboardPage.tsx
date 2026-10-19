@@ -11,6 +11,9 @@ import { listRecentDocs } from '../api/recent'
 import { getWorkbench } from '../api/workbench'
 import { useAuthStore } from '../stores/authStore'
 import BookshelfSection from '../components/book/BookshelfSection'
+import NetdiskSection from '../components/netdisk/NetdiskSection'
+// 网盘区块样式随页面 chunk 一起加载（入口 CSS 保持极简）
+import '../components/netdisk/netdisk.css'
 // 样式随页面 chunk 一起加载：入口 CSS 保持极简（与 Vditor / 甘特图同样处理）
 import '../components/dashboard/dashboard.css'
 import QuickActions from '../components/dashboard/QuickActions'
@@ -383,6 +386,13 @@ export default function DashboardPage() {
         {/* ---------- 书架 ---------- */}
         <div className="hk-dash-section">
           <BookshelfSection onLoaded={setShelf} createSignal={createBookSignal} />
+        </div>
+
+        {/* ---------- 我的网盘 ----------
+            与「书架」同级别的平行区块：接入 NAS(SMB/FTP)/WebDAV/百度网盘/阿里云盘，
+            连上之后可浏览目录、预览、下载、导入到文库。 */}
+        <div className="hk-dash-section">
+          <NetdiskSection />
         </div>
 
         {/* ---------- 新手向导 / 视频介绍 ----------

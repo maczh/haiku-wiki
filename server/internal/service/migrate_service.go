@@ -248,6 +248,13 @@ var migrateTables = []tableCopier{
 	{"comment_settings", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.CommentSetting](d, s, ow) }},
 	// 文档模板（仿语雀/WPS 内置模板；迁移时整表复制，保持源库模板集）
 	{"doc_templates", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.DocTemplate](d, s, ow) }},
+	// 补齐历史漏登记的两张表（migrate_coverage_test 会因此整段红：
+	// 表已由 AutoMigrate 建出却无 copier = 系统迁移静默丢表，属 F7/C4 硬约束）。
+	{"todo_options", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.TodoOption](d, s, ow) }},
+	{"wechat_bindings", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.WeChatBinding](d, s, ow) }},
+	// 我的网盘（连接配置 + 异步任务）；与 database.go 的 AutoMigrate 成对追加
+	{"netdisk_connections", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.NetdiskConnection](d, s, ow) }},
+	{"netdisk_tasks", func(d, s *gorm.DB, ow bool) (result, error) { return copyRows[model.NetdiskTask](d, s, ow) }},
 }
 
 // copyRows 分批复制一张表，返回成功批次涉及的记录数。

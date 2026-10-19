@@ -1,0 +1,233 @@
+%% 网盘模块关键时序（6 段）。完整上下文见 docs/design-netdisk-20261019.md §4
+%% 段1：新建 SMB/FTP/WebDAV 连接 + 测试连接
+sequenceDiagram
+    actor U as 用户
+    participant D as NetdiskConnectionDialog
+    participant H as NetdiskHandler
+    participant S as NetdiskService
+    participant P as SessionPool
+    participant DR as Driver(SMB/FTP/WebDAV)
+    participant R as NetdiskRepo
+
+    U->>D: 点「+ 新增网盘」→ 选 SMB/FTP/WebDAV
+    D->>H: GET /api/netdisks/providers
+    H-->>D: [{kind,label,available,disabled_reason}]
+    U->>D: 填写字段 → 点「测试连接」
+    D->>H: POST /api/netdisks/test (CreateReq, 含明文 password)
+    H->>S: TestUnsaved(uid, req)
+    S->>S: CountConnections(uid) >= max → 42007
+    S->>P: Acquire(tempConn, creds)
+    P->>DR: netdisk.New(kind, cfg, creds)
+    DR->>DR: 拨号 + 认证（超时 15s）
+    alt 认证失败 / 主机不可达
+        DR-->>P: error
+        P->>P: Invalidate
+        S-->>H: TestResult{ok:false,message}
+        H-->>D: {ok:false,message:"主机不可达或端口未开放"}
+    else 成功
+        DR->>DR: List("/") 取根目录
+        DR-->>P: []Entry
+        P-->>S: Driver (release 后归还池，TTL 10min)
+        S-->>H: TestResult{ok:true,count:N,root_path}
+        H-->>D: {ok:true,message:"连接成功，可访问 N 个根目录条目"}
+    end
+    U->>D: 点「保存」
+    D->>H: POST /api/netdisks
+    H->>S: Create(uid, req)
+    S->>S: secret.EncryptCredentials(creds) → CredEnc
+    S->>R: CreateConnection(conn{status:"connected"})
+    S-->>H: ConnectionDTO（has_password=true，无明文）
+    H-->>D: 201 + DTO
+
+%% 段2：浏览目录（含缓存失效）
+sequenceDiagram
+    actor U as 用户
+    participant T as NetdiskTree
+    participant L as NetdiskFileList
+    participant C as dirCache(前端)
+    participant H as NetdiskHandler
+    participant S as NetdiskService
+    participant P as SessionPool
+    participant DR as Driver
+
+    U->>T: 展开连接节点 / 点开目录
+    T->>C: get(connId, path)
+    alt 命中且未过期（TTL 5min）
+        C-->>T: {items}
+        T-->>U: 直接渲染（不发请求）
+    else 未命中 / 已过期 / force
+        T->>H: GET /api/netdisks/:id/dirs?path=/a/b
+        H->>S: ListDir(id, uid, path, force)
+        S->>S: 校验 uid 拥有该连接；CleanPath(path) 拒绝 ".."
+        S->>P: Acquire(conn, creds=Decrypt(CredEnc))
+        P-->>S: Driver（池内已有则复用，省去握手）
+        S->>DR: List(ctx, "/a/b")
+        alt 网盘侧报错
+            DR-->>S: error
+            S->>P: Invalidate(connID)
+            S->>S: 更新连接 status=failed + last_error
+            S-->>H: AppError(42002/42003/42009)
+            T-->>U: 节点报错 + 状态徽标变红
+        else 成功
+            DR-->>S: []Entry（目录优先排序由服务端完成）
+            S-->>H: DirListResp
+            T->>C: set(connId, path, items)
+            T-->>U: 渲染子节点
+        end
+    end
+    U->>L: 点击某个目录
+    L->>T: 同步选中态 + 面包屑
+
+%% 段3：上传 / 导入任务化
+sequenceDiagram
+    actor U as 用户
+    participant L as NetdiskFileList
+    participant H as NetdiskHandler
+    participant FS as NetdiskFileService
+    participant TS as NetdiskTaskService
+    participant R as NetdiskRepo
+    participant W as worker goroutine
+    participant P as SessionPool
+    participant DR as Driver
+    participant IM as ImportDialog(现有)
+
+    Note over U,DR: ① 上传
+    U->>L: 拖入/选择本地文件 → 确认
+    L->>H: POST /api/netdisks/:id/upload?path=/a (multipart)
+    H->>FS: SubmitUpload(id, uid, dir, file)
+    FS->>FS: 校验 size <= max_upload_mb（默认 2048）否则 42007
+    FS->>FS: 落临时文件 storage.TempDir()/netdisk/<task>
+    FS->>TS: Submit(task{type:"upload",status:"pending"})
+    TS->>R: CreateTask
+    TS->>TS: push taskCh
+    FS-->>H: TaskDTO{status:"pending"}
+    H-->>L: 202 + task（立即返回，不阻塞）
+    W->>R: 取任务 → status=running
+    W->>P: Acquire(conn, creds)
+    W->>DR: Write(ctx, "/a/file", 带进度的 Reader, size)
+    W->>R: UpdateTaskProgress（每 1% 或 500ms 节流）
+    L->>H: GET /api/netdisk-tasks/:id（轮询）
+    H-->>L: {progress: 63, done_bytes, total_bytes}
+    alt 成功
+        W->>R: FinishTask(status:"success")
+        W->>TS: 删除临时文件
+        L-->>U: 「上传完成」+ 刷新当前目录
+    else 失败 / 取消
+        W->>R: FinishTask(status:"failed", error:"网络中断")
+        L-->>U: 失败原因 + 「重试」按钮
+        U->>L: 点重试
+        L->>H: POST /api/netdisk-tasks/:id/retry
+        H->>TS: Retry → status=pending 重新入队
+    end
+
+    Note over U,IM: ② 导入到文库
+    U->>L: 选中文件 → 「导入到文库」
+    L->>L: preview.ts 校验扩展名 ∈ IMPORT_EXTENSIONS（剔除 wps/dps）
+    L->>U: 弹窗选目标知识库 + 目录
+    L->>H: POST /api/netdisks/:id/import {path, book_id, parent_id}
+    H->>FS: SubmitImport(...) → 建 type:"import" 任务
+    W->>DR: Open(ctx, path)
+    W->>W: 流式写入临时文件（≤ max_import_mb 200MB）
+    W->>R: FinishTask(success, result:{temp_key})
+    L->>H: GET /api/netdisk-tasks/:id/blob
+    H->>FS: 校验任务归属 + 状态 → 流式返回字节
+    H-->>L: Blob
+    L->>L: new File([blob], name)
+    L->>IM: <ImportDialog open bookId parentId initialFiles={[file]} onImported/>
+    IM->>IM: 复用现有 parserRegistry 解析（parse.ts）
+    IM->>IM: 图片/附件走秒传 precheck → instant
+    IM->>IM: createDoc（doc_type ∈ validDocTypes）
+    IM-->>U: 导入完成 +「打开文档」
+
+%% 段4：预览（含 Range 与短期 token）
+sequenceDiagram
+    actor U as 用户
+    participant L as NetdiskFileList
+    participant PM as NetdiskPreviewModal
+    participant V as 子视图(lazy)
+    participant H as NetdiskHandler
+    participant FS as NetdiskFileService
+    participant P as SessionPool
+    participant DR as Driver
+
+    U->>L: 点某行的「预览」
+    L->>L: preview.ts → netdiskPreviewKind(name)
+    alt kind == none
+        L-->>U: 按钮已置灰 + Tooltip「暂不支持预览（.xxx）」
+    else kind ∈ {doc,image,video,audio,text}
+        L->>PM: open(connId, path, name, kind)
+        PM->>PM: lazy 加载对应子视图（Reader/Video/Text）
+        alt kind == doc（pdf/docx/xlsx/pptx/md/...）
+            V->>H: GET /api/netdisks/:id/preview?path=（Header 带 Bearer）
+            H->>FS: StreamPreview → DR.Open
+            H-->>V: 完整字节流
+            V->>V: new Blob → URL.createObjectURL → DocContent(widthEditable=false)
+        else kind ∈ {video, audio}
+            Note over V: <video src> 无法带 Authorization Header
+            V->>H: GET /api/netdisks/:id/preview?path=&token=<hmac>
+            H->>FS: ParsePreviewToken → 校验 uid/connID/path/exp
+            FS->>DR: Caps.RangeRead ? OpenRange : Open
+            alt 支持 Range
+                DR-->>FS: (stream[offset,offset+size), total)
+                FS-->>H: 206 Partial Content + Content-Range + Accept-Ranges
+                H-->>V: 206
+                V-->>U: 进度条可拖动 seek
+            else 不支持 Range
+                DR-->>FS: 全量流
+                FS-->>H: 200（seek 不可用）
+            end
+        else kind ∈ {image, text}
+            PM->>V: 直接 img src=tokenUrl / fetch + pre
+        end
+    end
+
+%% 段5：百度 / 阿里 OAuth 授权回调
+sequenceDiagram
+    actor U as 用户
+    participant M as NetdiskProviderMenu
+    participant O as lib/netdisk/oauth.ts
+    participant W as 浏览器新窗口
+    participant H as NetdiskOAuthHandler
+    participant OS as NetdiskOAuthService
+    participant BD as 百度/阿里开放平台
+    participant R as NetdiskRepo
+
+    U->>M: 点「百度网盘」
+    M->>H: GET /api/netdisks/providers
+    H-->>M: baidu.available = (AppKey+Secret+RedirectURI 均非空)
+    alt available == false
+        M-->>U: 置灰 + Tooltip「未配置百度网盘应用凭据（请联系管理员）」
+    else
+        M->>H: GET /api/netdisks/oauth/baidu/authorize?name=我的网盘
+        H->>OS: AuthorizeURL("baidu", uid, name)
+        OS->>OS: state = 32B hex；stateStore[state] = {uid,name,provider,exp}
+        OS-->>H: {authorize_url, state}
+        M->>O: openOAuthPopup(authorize_url)
+        O->>W: window.open(authorize_url)
+        W->>BD: 打开官方授权页（含二维码 display=tv&qrcode=1）
+        U->>BD: 扫码 / 在百度页面输入账号密码
+        BD-->>W: 302 → /api/netdisks/oauth/baidu/callback?code=&state=
+        W->>H: GET callback
+        H->>OS: HandleCallback("baidu", code, state)
+        OS->>OS: 校验 state 存在且未过期（10 分钟）
+        OS->>BD: POST /oauth/2.0/token (code, client_id, client_secret, redirect_uri)
+        BD-->>OS: {access_token, refresh_token, expires_in}
+        OS->>OS: secret.EncryptCredentials(Credentials{...})
+        OS->>R: CreateConnection{kind:"baidu", root_path:"/apps/haiku-wiki", status:"connected"}
+        H-->>W: HTML: postMessage({type:'hk-netdisk-oauth',ok:true,id,name}, origin) + window.close()
+        W-->>O: message 事件
+        O-->>M: resolve({id, name})
+        M->>M: 刷新连接列表；状态徽标「已连接」
+    end
+
+%% 段6：连接状态流转
+stateDiagram-v2
+    [*] --> unknown: 新建连接（未测试）
+    unknown --> connected: POST /test 或 /:id/test 成功
+    unknown --> failed: 测试失败
+    failed --> connected: 重试成功 / 编辑后重新测试
+    connected --> failed: 任何驱动操作返回网络类错误 → pool.Invalidate
+    connected --> reauth_required: OAuth token 刷新失败（42009）
+    reauth_required --> connected: 用户完成 OAuth 重新授权
+    failed --> [*]: DELETE 连接（软删除）
+    connected --> [*]: DELETE 连接（软删除）
