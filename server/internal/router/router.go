@@ -251,7 +251,6 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.POST("/netdisks/:id/move", handler.MoveNetdiskItem)
 		jwt.DELETE("/netdisks/:id/items", handler.DeleteNetdiskItem)
 		jwt.POST("/netdisks/:id/upload", handler.UploadNetdiskFile)
-		jwt.POST("/netdisks/:id/import", handler.ImportNetdiskFile)
 		jwt.GET("/netdisks/:id/preview-token", handler.MakeNetdiskPreviewToken)
 		// OAuth 发起授权（回调见下方 api 组：浏览器顶层导航带不出 Bearer 头）
 		jwt.GET("/netdisks/oauth/:provider/authorize", handler.NetdiskOAuthAuthorize)

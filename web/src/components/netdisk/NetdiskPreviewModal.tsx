@@ -7,16 +7,15 @@
  *   video / audio → 原生 <video> / <audio>（带 token URL）
  *   text   → <pre>
  *
- * 底部固定「下载」「导入到文库」（后者仅导入白名单内可用）。
+ * 底部固定下载操作。
  */
 
 import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties, type WheelEvent } from 'react'
 import { Alert, Button, Modal, Spin } from 'antd'
-import { DownloadOutlined, ImportOutlined } from '@ant-design/icons'
+import { DownloadOutlined } from '@ant-design/icons'
 import LazyBoundary from '../common/LazyBoundary'
 import ErrorBoundary from '../common/ErrorBoundary'
 import { isPreviewSupported, netdiskPreviewKind, previewUnsupportedReason } from '../../lib/netdisk/preview'
-import { isNetdiskImportable, netdiskImportReason } from '../../lib/netdisk/format'
 import { extOfName } from '../../lib/import/formats'
 import { makePreviewToken, previewUrl } from '../../api/netdisk'
 import type { NetdiskEntry } from '../../types'
@@ -33,15 +32,10 @@ interface Props {
   onClose: () => void
   onNavigate?: (entry: NetdiskEntry) => void
   onDownload: (entry: NetdiskEntry) => void
-  onImport: (entry: NetdiskEntry) => void
 }
 
-export default function NetdiskPreviewModal({ open, connId, entry, entries = [], onClose, onNavigate, onDownload, onImport }: Props) {
+export default function NetdiskPreviewModal({ open, connId, entry, entries = [], onClose, onNavigate, onDownload }: Props) {
   const kind = useMemo(() => (entry ? netdiskPreviewKind(entry.name) : 'unsupported'), [entry])
-  const importable = useMemo(
-    () => (entry ? isNetdiskImportable(entry.name) : false),
-    [entry],
-  )
   const [imgSrc, setImgSrc] = useState('')
   const [zoom, setZoom] = useState(1)
 
@@ -121,15 +115,6 @@ export default function NetdiskPreviewModal({ open, connId, entry, entries = [],
           <span style={{ display: 'flex', gap: 8 }}>
             <Button icon={<DownloadOutlined />} onClick={() => onDownload(entry)}>
               下载
-            </Button>
-            <Button
-              type="primary"
-              icon={<ImportOutlined />}
-              disabled={!importable}
-              title={importable ? undefined : netdiskImportReason(entry.name)}
-              onClick={() => onImport(entry)}
-            >
-              导入到文库
             </Button>
           </span>
         </div>

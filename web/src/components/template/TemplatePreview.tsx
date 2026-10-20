@@ -4,6 +4,7 @@ import DocContent from '../reader/DocContent'
 import type { DocTemplate } from '../../api/templates'
 import { DOC_TYPE_LABEL } from '../../types'
 import { iconForDocType } from '../../lib/fileIcon'
+import ErrorBoundary from '../common/ErrorBoundary'
 
 interface Props {
   /** 当前预览的模板；null 时不渲染（由调用方控制开关） */
@@ -63,7 +64,16 @@ export default function TemplatePreview({ tpl, onUse, onCancel }: Props) {
     >
       {/* 用 key 强制在切换模板时重建渲染器实例，避免上一个模板的画布状态残留 */}
       <div key={tpl?.id ?? 0} style={{ minHeight: 480 }}>
-        <DocContent docType={tpl?.doc_type ?? 'markdown'} content={tpl?.content ?? ''} widthEditable={false} />
+        <ErrorBoundary
+          fallback={(error, reset) => (
+            <div style={{ padding: 24 }}>
+              <Typography.Text type="danger">模板预览失败：{error.message || '内容渲染异常'}</Typography.Text>
+              <div style={{ marginTop: 12 }}><Button onClick={reset}>重试</Button></div>
+            </div>
+          )}
+        >
+          <DocContent docType={tpl?.doc_type ?? 'markdown'} content={tpl?.content ?? ''} widthEditable={false} />
+        </ErrorBoundary>
       </div>
     </Modal>
   )

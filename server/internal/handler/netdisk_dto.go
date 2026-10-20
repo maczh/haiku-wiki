@@ -57,13 +57,6 @@ type netdiskMoveReq struct {
 	TargetDir string `json:"target_dir"`
 }
 
-// netdiskImportReq 导入到知识库。
-type netdiskImportReq struct {
-	Path     string `json:"path" binding:"required"`
-	BookID   uint64 `json:"book_id"`
-	ParentID uint64 `json:"parent_id"`
-}
-
 // ---------- 路径参数 ----------
 
 // netdiskIDFromPath 解析 :id 为网盘连接 ID。

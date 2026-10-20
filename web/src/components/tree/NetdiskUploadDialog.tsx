@@ -16,9 +16,16 @@ interface DirNode extends DataNode { path: string; children?: DirNode[] }
 
 function toKmNode(node: SmmNode): Record<string, unknown> {
   return {
-    data: { text: node.data?.text ?? '', expandState: node.data?.expand === false ? 'collapse' : 'expand' },
+    data: { text: plainNodeText(node.data?.text), expandState: node.data?.expand === false ? 'collapse' : 'expand' },
     children: (node.children ?? []).map(toKmNode),
   }
+}
+
+/** 思维导图节点文本可能来自富文本编辑器，网盘导出必须只保留可见文字。 */
+function plainNodeText(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const doc = typeof DOMParser !== 'undefined' ? new DOMParser().parseFromString(value, 'text/html') : null
+  return (doc?.body.textContent ?? value.replace(/<[^>]*>/g, '')).trim()
 }
 
 export default function NetdiskUploadDialog({ open, doc, onClose }: Props) {

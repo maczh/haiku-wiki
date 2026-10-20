@@ -356,16 +356,19 @@ func (s *NetdiskFileService) OpenStream(id, uid uint64, path string, rng RangeSp
 	if err != nil {
 		return nil, netdisk.ConfigInvalid("已保存的凭据无法解密（可能服务端密钥已变更）")
 	}
-	ctx, cancel := ctxWithTimeout()
-	drv, release, err := netdisk.DefaultPool().Acquire(ctx, conn, creds)
+	// 建立/获取连接仍使用短超时；但文件流可能持续数小时，不能复用
+	// ctxWithTimeout，否则 SMB 大文件会在 15 秒后被取消，表现为下载卡在固定进度。
+	acquireCtx, acquireCancel := ctxWithTimeout()
+	drv, release, err := netdisk.DefaultPool().Acquire(acquireCtx, conn, creds)
+	acquireCancel()
 	if err != nil {
-		cancel()
 		NetdiskSvc.saveStatus(conn.ID, false, humanMessage(err))
 		return nil, err
 	}
+	streamCtx, cancel := context.WithCancel(context.Background())
 	out := &NetdiskStream{Name: netdisk.BaseName(clean), AcceptRange: drv.Caps().RangeRead}
 	if rng.Has && drv.Caps().RangeRead {
-		rc, total, rerr := drv.OpenRange(ctx, clean, rng.Offset, rng.Length)
+		rc, total, rerr := drv.OpenRange(streamCtx, clean, rng.Offset, rng.Length)
 		if rerr == nil {
 			// Range 请求也必须在响应关闭后归还连接池；此前这里直接返回裸流，
 			// 视频播放器反复请求分片后会耗尽连接池并表现为一直加载。
@@ -384,14 +387,14 @@ func (s *NetdiskFileService) OpenStream(id, uid uint64, path string, rng RangeSp
 		}
 		// 不支持 Range → 退化为全量
 	}
-	rc, err := drv.Open(ctx, clean)
+	rc, err := drv.Open(streamCtx, clean)
 	if err != nil {
 		release()
 		cancel()
 		NetdiskSvc.saveStatus(conn.ID, false, humanMessage(err))
 		return nil, err
 	}
-	if e, serr := drv.Stat(ctx, clean); serr == nil && e != nil {
+	if e, serr := drv.Stat(streamCtx, clean); serr == nil && e != nil {
 		out.Total = e.Size
 	}
 	// 释放会话的时机交给调用方（流还在用），这里用一次性包装兜住 release 与 cancel

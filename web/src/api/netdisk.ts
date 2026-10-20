@@ -134,15 +134,6 @@ export function uploadFile(id: number, path: string, file: File, onProgress?: (p
   })
 }
 
-/** 导入到文库（任务化：后端只把字节取回临时文件） */
-export function importFile(id: number, path: string, bookId: number, parentId: number) {
-  return request.post<unknown, NetdiskTask>(`/netdisks/${id}/import`, {
-    path,
-    book_id: bookId,
-    parent_id: parentId,
-  })
-}
-
 /** 签发预览 / 下载短期 token（2 小时）—— `<video>`/`<img>` 的 src 带不了 Authorization */
 export function makePreviewToken(id: number, path: string) {
   return request.get<unknown, { token: string; exp: number }>(`/netdisks/${id}/preview-token`, {

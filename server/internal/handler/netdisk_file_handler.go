@@ -15,7 +15,7 @@ import (
 	"haiku-wiki/server/internal/storage"
 )
 
-// 本文件：网盘文件操作（新建 / 改名 / 移动 / 删除 / 上传）、下载、预览、导入。
+// 本文件：网盘文件操作（新建 / 改名 / 移动 / 删除 / 上传）、下载、预览。
 //
 // 下载与预览是**同步流式**（不落任务）：浏览器本身就是下载端，代理流天然带进度条，
 // 落任务反而更慢（设计文档 §1.7）。两者都支持 Range —— 视频 seek 与 pdf.js 分片都靠它。
@@ -110,29 +110,6 @@ func UploadNetdiskFile(c *gin.Context) {
 		return
 	}
 	task, err := service.NetdiskFileSvc.SubmitUpload(id, middleware.UID(c), netdiskQueryPath(c), fh)
-	if err != nil {
-		resp.Error(c, err)
-		return
-	}
-	resp.OK(c, task)
-}
-
-// ImportNetdiskFile POST /api/netdisks/:id/import —— 导入到知识库（任务化）。
-//
-// 只建任务；worker 把网盘文件取回服务端临时目录，前端随后用
-// GET /api/netdisk-tasks/:id/blob 取字节，交给既有导入对话框解析。
-func ImportNetdiskFile(c *gin.Context) {
-	id, ok := netdiskIDFromPath(c)
-	if !ok {
-		resp.Error(c, paramMsg("网盘连接 ID 无效"))
-		return
-	}
-	var req netdiskImportReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		resp.Error(c, paramErr(err))
-		return
-	}
-	task, err := service.NetdiskFileSvc.SubmitImport(id, middleware.UID(c), req.Path, req.BookID, req.ParentID)
 	if err != nil {
 		resp.Error(c, err)
 		return

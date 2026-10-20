@@ -30,13 +30,11 @@ import {
 import { dirCacheGet, dirCacheInvalidate, dirCacheSet } from '../lib/netdisk/dirCache'
 import { NETDISK_ROOT } from '../lib/netdisk/constants'
 import { baseName } from '../lib/netdisk/path'
-import { isNetdiskImportable } from '../lib/netdisk/format'
 import NetdiskTree from '../components/netdisk/NetdiskTree'
 import NetdiskFileList from '../components/netdisk/NetdiskFileList'
 import NetdiskCategoryRail from '../components/netdisk/NetdiskCategoryRail'
 import NetdiskMoveDialog from '../components/netdisk/NetdiskMoveDialog'
 import NetdiskPreviewModal from '../components/netdisk/NetdiskPreviewModal'
-import NetdiskImportDialog from '../components/netdisk/NetdiskImportDialog'
 import NetdiskTaskCenter from '../components/netdisk/NetdiskTaskCenter'
 // 网盘页样式必须由本路由自带：此前只在 DashboardPage 引入，
 // 直达 /netdisk/:id 时该分包不会加载，页面会退化成无样式的单列堆叠。
@@ -67,7 +65,6 @@ export default function NetdiskPage() {
   const [promptValue, setPromptValue] = useState('')
   const [moveTarget, setMoveTarget] = useState<NetdiskEntry | NetdiskEntry[] | null>(null)
   const [preview, setPreview] = useState<NetdiskEntry | null>(null)
-  const [importEntry, setImportEntry] = useState<NetdiskEntry | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
   const [reloadNonce, setReloadNonce] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -354,7 +351,6 @@ export default function NetdiskPage() {
         onUploadFiles={handleUploadFiles}
         onPreview={(item) => setPreview(item)}
         onDownload={(item) => void handleDownload([item])}
-        onImport={(item) => setImportEntry(item)}
         onRename={(item, name) => void handleRename(item, name)}
         onMove={(item) => setMoveTarget(item)}
         onDelete={(item) => {
@@ -368,17 +364,6 @@ export default function NetdiskPage() {
           })
         }}
         onBatchDownload={(items) => void handleDownload(items)}
-        onBatchImport={(items) => {
-          const ok = items.filter((i) => !i.is_dir && isNetdiskImportable(i.name))
-          if (ok.length === 0) {
-            message.warning('所选文件都不在文库支持的格式内')
-            return
-          }
-          if (ok.length > 1) {
-            message.info(`已选择第一个文件「${ok[0].name}」，其余 ${ok.length - 1} 个请逐个导入`)
-          }
-          setImportEntry(ok[0])
-        }}
         onBatchDelete={(items) => {
           const dirCount = items.filter((i) => i.is_dir).length
           Modal.confirm({
@@ -454,16 +439,8 @@ export default function NetdiskPage() {
         onClose={() => setPreview(null)}
         onNavigate={setPreview}
         onDownload={(item) => void handleDownload([item])}
-        onImport={(item) => setImportEntry(item)}
       />
 
-      {/* 导入到文库 */}
-      <NetdiskImportDialog
-        open={importEntry !== null}
-        connId={connId}
-        entry={importEntry}
-        onClose={() => setImportEntry(null)}
-      />
 
       {/* 任务中心入口 */}
       <Button

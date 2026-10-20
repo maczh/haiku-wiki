@@ -8,7 +8,7 @@
  *   - 行内 hover 操作栏 + 「更多」菜单（复用原有 rowMenu）
  *   - 目录优先排序 + 名称 / 大小 / 修改时间 / 类型 排序
  *
- * 目录优先排序；非白名单文件的「预览」「导入到文库」按钮置灰 + Tooltip 说明原因。
+ * 目录优先排序；文件操作统一收纳在行内操作栏与更多菜单。
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -23,7 +23,6 @@ import {
   EyeOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
-  ImportOutlined,
   MoreOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
@@ -31,9 +30,7 @@ import {
   categoryOf,
   formatSize,
   formatTime,
-  isNetdiskImportable,
   matchesNetdiskCategory,
-  netdiskImportReason,
   type NetdiskCategory,
   type NetdiskCategoryFilter,
 } from '../../lib/netdisk/format'
@@ -60,12 +57,10 @@ interface Props {
   onUploadFiles: (files: FileList) => void
   onPreview: (item: NetdiskEntry) => void
   onDownload: (item: NetdiskEntry) => void
-  onImport: (item: NetdiskEntry) => void
   onRename: (item: NetdiskEntry, name: string) => void
   onMove: (item: NetdiskEntry) => void
   onDelete: (item: NetdiskEntry) => void
   onBatchDownload: (items: NetdiskEntry[]) => void
-  onBatchImport: (items: NetdiskEntry[]) => void
   onBatchDelete: (items: NetdiskEntry[]) => void
   onBatchMove: (items: NetdiskEntry[]) => void
   /** 左侧「快捷分类」导航选中的分类（由 NetdiskPage 持有状态） */
@@ -108,11 +103,6 @@ function sortEntries(items: NetdiskEntry[], sortBy: SortBy): NetdiskEntry[] {
   })
 }
 
-/** 是否可导入（严格按 IMPORT_EXTENSIONS，剔除 wps/dps） */
-function isImportable(name: string): boolean {
-  return isNetdiskImportable(name)
-}
-
 /** 该扩展名的人类可读类型 */
 function typeLabel(name: string, isDir: boolean): string {
   if (isDir) return '目录'
@@ -141,12 +131,10 @@ export default function NetdiskFileList({
   onUploadFiles,
   onPreview,
   onDownload,
-  onImport,
   onRename,
   onMove,
   onDelete,
   onBatchDownload,
-  onBatchImport,
   onBatchDelete,
   onBatchMove,
   category,
@@ -215,7 +203,7 @@ export default function NetdiskFileList({
 
   /**
    * 构建右键菜单项（目录与文件略有不同）。
-   * 目录：打开目录 + 改名 + 移动 + 删除；文件：预览 / 下载 / 导入到文库 + 改名 + 移动 + 删除。
+   * 目录：打开目录 + 改名 + 移动 + 删除；文件：预览 / 下载 + 改名 + 移动 + 删除。
    */
   function buildContextItems(item: NetdiskEntry): ContextMenuItem[] {
     const items: ContextMenuItem[] = []
@@ -239,13 +227,6 @@ export default function NetdiskFileList({
         label: '下载',
         icon: <DownloadOutlined />,
         onClick: () => onDownload(item),
-      })
-      items.push({
-        key: 'import',
-        label: '导入到文库',
-        icon: <ImportOutlined />,
-        disabled: !isImportable(item.name),
-        onClick: () => onImport(item),
       })
     }
     items.push({ key: 'div1', label: '', divider: true })
@@ -295,12 +276,6 @@ export default function NetdiskFileList({
         icon: <DownloadOutlined />,
         label: '下载',
       },
-      {
-        key: 'import',
-        icon: <ImportOutlined />,
-        label: '导入到文库',
-        disabled: item.is_dir || !isImportable(item.name),
-      },
       { type: 'divider' },
       { key: 'rename', icon: <EditOutlined />, label: '改名' },
       { key: 'move', icon: <FolderOpenOutlined />, label: '移动' },
@@ -310,7 +285,6 @@ export default function NetdiskFileList({
     onClick: ({ key }) => {
       if (key === 'preview') onPreview(item)
       else if (key === 'download') onDownload(item)
-      else if (key === 'import') onImport(item)
       else if (key === 'rename') setEditing({ path: item.path, value: item.name })
       else if (key === 'move') onMove(item)
       else if (key === 'delete') onDelete(item)
@@ -397,12 +371,6 @@ export default function NetdiskFileList({
             <Button size="small" onClick={() => onBatchDownload(checkedItems)}>
               批量下载（{checkedItems.length}）
             </Button>
-            <Button
-              size="small"
-              onClick={() => onBatchImport(checkedItems.filter((i) => !i.is_dir))}
-            >
-              批量导入（{checkedItems.filter((i) => !i.is_dir).length}）
-            </Button>
             <Button size="small" onClick={() => onBatchMove(checkedItems)}>
               批量移动
             </Button>
@@ -440,7 +408,6 @@ export default function NetdiskFileList({
             ) : (
               visible.map((item) => {
                 const previewOk = !item.is_dir && isPreviewSupported(item.name)
-                const importOk = !item.is_dir && isImportable(item.name)
                 const selected = checked.includes(item.path)
                 return (
                   <div
@@ -485,16 +452,6 @@ export default function NetdiskFileList({
                           icon={<DownloadOutlined />}
                           aria-label={`下载 ${item.name}`}
                           onClick={() => onDownload(item)}
-                        />
-                      </Tooltip>
-                      <Tooltip title={importOk ? '导入到文库' : netdiskImportReason(item.name)}>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<ImportOutlined />}
-                          aria-label={`导入 ${item.name} 到文库`}
-                          disabled={!importOk}
-                          onClick={() => onImport(item)}
                         />
                       </Tooltip>
                       <Tooltip title="改名">
@@ -548,7 +505,6 @@ export default function NetdiskFileList({
             ) : (
               visible.map((item) => {
                 const previewOk = !item.is_dir && isPreviewSupported(item.name)
-                const importOk = !item.is_dir && isImportable(item.name)
                 const selected = checked.includes(item.path)
                 return (
                   <div
@@ -597,16 +553,6 @@ export default function NetdiskFileList({
                           icon={<DownloadOutlined />}
                           aria-label={`下载 ${item.name}`}
                           onClick={() => onDownload(item)}
-                        />
-                      </Tooltip>
-                      <Tooltip title={importOk ? '导入到文库' : netdiskImportReason(item.name)}>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<ImportOutlined />}
-                          aria-label={`导入 ${item.name} 到文库`}
-                          disabled={!importOk}
-                          onClick={() => onImport(item)}
                         />
                       </Tooltip>
                       <Dropdown menu={rowMenu(item)} trigger={['click']}>
