@@ -18,6 +18,7 @@ import {
   deleteItem,
   downloadUrl,
   getConnection,
+  getTask,
   listDir,
   listConnections,
   makePreviewToken,
@@ -196,6 +197,35 @@ export default function NetdiskPage() {
     // 目标目录的祖先链也受影响
     dirCacheInvalidate(connId, targetDir)
     setReloadNonce((n) => n + 1)
+  }
+
+  async function handleMoveTo(items: NetdiskEntry[], targetConnId: number, targetDir: string) {
+    if (targetConnId === connId) {
+      await handleMove(items, targetDir)
+      return
+    }
+    try {
+      for (const item of items) {
+        if (item.is_dir) throw new Error('跨网盘暂不支持移动目录，请先逐个移动文件')
+        const { token } = await makePreviewToken(connId, item.path)
+        const response = await fetch(downloadUrl(connId, item.path, token))
+        if (!response.ok) throw new Error(`读取「${item.name}」失败`)
+        const file = new File([await response.blob()], item.name)
+        const task = await uploadFile(targetConnId, targetDir, file)
+        let status = task.status
+        while (status === 'pending' || status === 'running') {
+          await new Promise((resolve) => window.setTimeout(resolve, 800))
+          status = (await getTask(task.id)).status
+        }
+        if (status !== 'success') throw new Error(`复制「${item.name}」失败，源文件未删除`)
+        await deleteItem(connId, item.path)
+      }
+      message.success('已复制到目标网盘并删除源文件')
+      afterWrite(path)
+      setReloadNonce((n) => n + 1)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '跨网盘移动失败；源文件未删除')
+    }
   }
 
   /** 下载：浏览器直接打开（带 token），浏览器原生进度 */
@@ -405,11 +435,13 @@ export default function NetdiskPage() {
       <NetdiskMoveDialog
         open={moveTarget !== null}
         connId={connId}
+        connections={conns}
         srcPath={Array.isArray(moveTarget) ? moveTarget[0]?.path ?? '/' : moveTarget?.path ?? '/'}
         onClose={() => setMoveTarget(null)}
-        onConfirm={(target) => {
+        onConfirm={(targetConnId, target) => {
           const items = Array.isArray(moveTarget) ? moveTarget : moveTarget ? [moveTarget] : []
-          void handleMove(items, target)
+          setMoveTarget(null)
+          void handleMoveTo(items, targetConnId, target)
         }}
       />
 

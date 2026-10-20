@@ -9,15 +9,16 @@ import type { DataNode } from 'antd/es/tree'
 import { FolderOutlined } from '@ant-design/icons'
 import { listDir } from '../../api/netdisk'
 import { isValidMoveTarget } from '../../lib/netdisk/path'
-import type { NetdiskEntry } from '../../types'
+import type { NetdiskConnection, NetdiskEntry } from '../../types'
 
 interface Props {
   open: boolean
   connId: number
+  connections: NetdiskConnection[]
   /** 被移动的条目（批量时为多条，取第一条做祖先校验） */
   srcPath: string
   onClose: () => void
-  onConfirm: (targetDir: string) => void
+  onConfirm: (targetConnId: number, targetDir: string) => void
 }
 
 interface KNode extends DataNode {
@@ -26,25 +27,35 @@ interface KNode extends DataNode {
   children?: KNode[]
 }
 
-export default function NetdiskMoveDialog({ open, connId, srcPath, onClose, onConfirm }: Props) {
+export default function NetdiskMoveDialog({ open, connId, connections, srcPath, onClose, onConfirm }: Props) {
   const [childrenMap, setChildrenMap] = useState<Map<string, NetdiskEntry[]>>(new Map())
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
   const [target, setTarget] = useState<string>('/')
   const [loading, setLoading] = useState(false)
+  const [targetConnId, setTargetConnId] = useState(connId)
 
   useEffect(() => {
     if (!open) return
     setTarget('/')
+    setTargetConnId(connId)
     setExpandedKeys([])
     setChildrenMap(new Map())
     void load('/')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, connId])
 
+  useEffect(() => {
+    if (!open) return
+    setTarget('/')
+    setChildrenMap(new Map())
+    void load('/')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetConnId])
+
   async function load(path: string) {
     setLoading(true)
     try {
-      const res = await listDir(connId, path)
+      const res = await listDir(targetConnId, path)
       const dirs = res.items.filter((i) => i.is_dir).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
       setChildrenMap((prev) => {
         const next = new Map(prev)
@@ -75,7 +86,7 @@ export default function NetdiskMoveDialog({ open, connId, srcPath, onClose, onCo
     return roots ? build('/', roots) : []
   }, [childrenMap])
 
-  const ok = isValidMoveTarget(srcPath, target)
+  const ok = targetConnId !== connId || isValidMoveTarget(srcPath, target)
 
   return (
     <Modal
@@ -83,11 +94,18 @@ export default function NetdiskMoveDialog({ open, connId, srcPath, onClose, onCo
       title="移动到"
       width={460}
       onCancel={onClose}
-      onOk={() => ok && onConfirm(target)}
+      onOk={() => ok && onConfirm(targetConnId, target)}
       okButtonProps={{ disabled: !ok }}
       okText="移动到这里"
     >
       <Spin spinning={loading}>
+        <select
+          value={targetConnId}
+          onChange={(e) => setTargetConnId(Number(e.target.value))}
+          style={{ width: '100%', marginBottom: 12, padding: 6, border: '1px solid #d9d9d9', borderRadius: 6 }}
+        >
+          {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
         {childrenMap.get('/')?.length === 0 && (
           <Alert type="info" showIcon message="当前网盘没有子目录，只能移动到根目录" style={{ marginBottom: 8 }} />
         )}

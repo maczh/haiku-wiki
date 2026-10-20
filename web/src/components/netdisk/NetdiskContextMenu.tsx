@@ -94,9 +94,11 @@ export default function NetdiskContextMenu({ x, y, items, onClose }: Props) {
           <div
             onMouseDown={(e) => {
               if (it.disabled) return
-              // 文档级 mousedown 监听会在 click 前关闭菜单；在菜单项自身按下时
-              // 直接执行操作，避免菜单卸载后 click 丢失（导入菜单表现为无响应）。
+              // 这是 Portal 菜单，外层在 window 上监听 mousedown。必须停止冒泡，
+              // 否则外层监听可能先把菜单卸载，后续动作（尤其「导入到文库」）
+              // 会在状态切换竞态中丢失。
               e.preventDefault()
+              e.stopPropagation()
               it.onClick?.()
               onClose()
             }}
