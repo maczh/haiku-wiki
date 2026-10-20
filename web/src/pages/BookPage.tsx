@@ -28,7 +28,7 @@ import type { TodoEditorHandle } from '../components/editor/TodoEditor'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
 import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
 import BookDashboard from '../components/dashboard/BookDashboard'
-import { listConnections, listDir } from '../api/netdisk'
+import { deleteConnection, listConnections, listDir } from '../api/netdisk'
 import type { NetdiskConnection } from '../types'
 import EmbeddedNetdiskPanel from '../components/netdisk/EmbeddedNetdiskPanel'
 import NetdiskUploadDialog from '../components/tree/NetdiskUploadDialog'
@@ -1025,6 +1025,7 @@ export default function BookPage() {
                     conns: ndConns,
                     onOpenConn: (id) => setEmbeddedNetdisk({ connId: id, path: '/' }),
                     onOpenDir: (id, path) => setEmbeddedNetdisk({ connId: id, path }),
+                    onDisconnect: (id) => void deleteConnection(id).then(() => { setNdConns((items) => items.filter((item) => item.id !== id)); setEmbeddedNetdisk((current) => current?.connId === id ? null : current) }),
                     loadDir: (cid, path) => listDir(cid, path).then((res) => res.items),
                   }}
                   onOpenBook={(id) => navigate(`/books/${id}`)}

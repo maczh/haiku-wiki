@@ -63,6 +63,7 @@ interface NetdiskGroup {
   onOpenConn: (connId: number) => void
   /** 点击网盘目录，切换工作台右侧为网盘文件列表 */
   onOpenDir?: (connId: number, path: string) => void
+  onDisconnect?: (connId: number) => void
   /** 懒加载网盘某级目录；不提供则连接不可展开 */
   loadDir?: (connId: number, path: string) => Promise<NetdiskEntry[]>
 }
@@ -777,6 +778,11 @@ export default function KnowledgeTree(p: Props) {
     // 网盘分组 / 连接 / 目录：标题已在 treeData 里渲染好，这里直接透出，
     // 绝不能落到下面的 docMenu（那会去读 raw.doc 而崩）。
     if (node.raw.kind === 'netdisk-cat' || node.raw.kind === 'netdisk-conn' || node.raw.kind === 'netdisk-dir') {
+      if (node.raw.kind === 'netdisk-conn' && node.raw.connId != null && p.netdisk?.onDisconnect) {
+        return <Dropdown menu={{ items: [{ key: 'disconnect', icon: <DeleteOutlined />, danger: true, label: '断开连接', onClick: () => p.netdisk?.onDisconnect?.(node.raw.connId!) }] }} trigger={['contextMenu']}>
+          <span style={{ display: 'inline-block', width: '100%' }}>{node.title as ReactNode}</span>
+        </Dropdown>
+      }
       return node.title as ReactNode
     }
     if (node.raw.kind === 'cat') {

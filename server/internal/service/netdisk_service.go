@@ -175,6 +175,19 @@ func (s *NetdiskService) Create(uid uint64, req CreateReq) (*ConnectionDTO, erro
 		return nil, err
 	}
 	conn.Name = name
+	// 同一用户、协议、地址、共享和根路径视为同一个连接：新建时只更新凭据，
+	// 避免重复生成连接配置。
+	if old, findErr := repository.FindNetdiskByLocation(uid, kind, conn.Host, conn.Port, conn.Share, conn.RootPath); findErr == nil {
+		creds := credentialsOf(req)
+		enc, encErr := netdisk.EncryptCredentials(creds)
+		if encErr != nil { return nil, hkerr.Internal("凭据加密失败") }
+		old.CredEnc = enc
+		old.Status = model.NetdiskStatusUnknown
+		old.LastError = ""
+		if err := repository.UpdateNetdiskConnection(old); err != nil { return nil, err }
+		dto := ToConnectionDTO(old)
+		return &dto, nil
+	}
 
 	cfg := config.Current()
 	max := cfg.NetdiskMaxConnectionsOr()

@@ -21,9 +21,8 @@ export default function EmbeddedNetdiskPanel({ conn, path, onPathChange }: Props
     const { token } = await makePreviewToken(conn.id, item.path)
     const a = document.createElement('a'); a.href = downloadUrl(conn.id, item.path, token); a.download = item.name; a.click()
   }
-  const newDir = () => {
-    const name = window.prompt('请输入目录名称')
-    if (name?.trim()) void createDir(conn.id, path, name.trim()).then(() => { message.success('目录已创建'); refresh() })
+  const newDir = (name: string) => {
+    if (name.trim()) void createDir(conn.id, path, name.trim()).then(() => { message.success('目录已创建'); refresh() })
   }
 
   useEffect(() => {

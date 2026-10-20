@@ -76,6 +76,14 @@ func ExistsNetdiskName(userID uint64, name string, excludeID uint64) (bool, erro
 	return n > 0, nil
 }
 
+// FindNetdiskByLocation 查找同一用户下相同协议、地址、共享名和根路径的连接。
+func FindNetdiskByLocation(userID uint64, kind, host string, port int, share, rootPath string) (*model.NetdiskConnection, error) {
+	var c model.NetdiskConnection
+	err := db.Where("user_id = ? AND kind = ? AND host = ? AND port = ? AND share = ? AND root_path = ?", userID, kind, host, port, share, rootPath).First(&c).Error
+	if err != nil { return nil, err }
+	return &c, nil
+}
+
 // ---------- netdisk_tasks ----------
 
 // CreateNetdiskTask 新建任务（返回时已带自增 id）。
