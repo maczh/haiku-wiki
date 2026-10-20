@@ -539,3 +539,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.hk-nd-main { position: relative; }
+.hk-nd-main-dragging { outline: 2px dashed #1677ff; outline-offset: -8px; }
+.hk-nd-drop-overlay {
+  position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+  background: rgba(230, 242, 255, .88); color: #1677ff; font-size: 18px; font-weight: 600; pointer-events: none;
+}

@@ -92,8 +92,11 @@ export default function NetdiskContextMenu({ x, y, items, onClose }: Props) {
         <div key={it.key}>
           {it.divider && i > 0 && <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />}
           <div
-            onClick={() => {
+            onMouseDown={(e) => {
               if (it.disabled) return
+              // 文档级 mousedown 监听会在 click 前关闭菜单；在菜单项自身按下时
+              // 直接执行操作，避免菜单卸载后 click 丢失（导入菜单表现为无响应）。
+              e.preventDefault()
               it.onClick?.()
               onClose()
             }}

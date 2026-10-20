@@ -118,6 +118,15 @@ export async function readXlsx(bytes: ArrayBuffer): Promise<SheetJSON> {
   return luckysheetToSheetJSON(sheets)
 }
 
+/** 读取网盘中的新旧 Excel 文件；旧版 .xls 先由 SheetJS 转成 OOXML。 */
+export async function readSpreadsheet(bytes: ArrayBuffer, ext: string): Promise<SheetJSON> {
+  if (ext.toLowerCase() !== 'xls') return readXlsx(bytes)
+  const XLSX = await import('xlsx')
+  const legacy = XLSX.read(bytes, { type: 'array' })
+  const normalized = XLSX.write(legacy, { type: 'array', bookType: 'xlsx' })
+  return readXlsx(normalized)
+}
+
 export async function writeXlsx(data: SheetJSON): Promise<Blob> {
   const { default: Excel } = await import('exceljs')
   const workbook = new Excel.Workbook()

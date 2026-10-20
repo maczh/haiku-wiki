@@ -57,6 +57,7 @@ interface Props {
   onRefresh: () => void
   onNewDir: (name: string) => void
   onUpload: () => void
+  onUploadFiles: (files: FileList) => void
   onPreview: (item: NetdiskEntry) => void
   onDownload: (item: NetdiskEntry) => void
   onImport: (item: NetdiskEntry) => void
@@ -137,6 +138,7 @@ export default function NetdiskFileList({
   onRefresh,
   onNewDir,
   onUpload,
+  onUploadFiles,
   onPreview,
   onDownload,
   onImport,
@@ -158,6 +160,7 @@ export default function NetdiskFileList({
   /** 右键菜单（或点击不可预览文件名弹出的菜单）的状态 */
   const [ctx, setCtx] = useState<{ x: number; y: number; item: NetdiskEntry } | null>(null)
   const [editing, setEditing] = useState<{ path: string; value: string; isNew?: boolean } | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('hk-netdisk-view', view)
@@ -286,31 +289,48 @@ export default function NetdiskFileList({
         icon: <EyeOutlined />,
         label: '预览',
         disabled: item.is_dir || !isPreviewSupported(item.name),
-        onClick: () => onPreview(item),
       },
       {
         key: 'download',
         icon: <DownloadOutlined />,
         label: '下载',
-        onClick: () => onDownload(item),
       },
       {
         key: 'import',
         icon: <ImportOutlined />,
         label: '导入到文库',
         disabled: item.is_dir || !isImportable(item.name),
-        onClick: () => onImport(item),
       },
       { type: 'divider' },
-      { key: 'rename', icon: <EditOutlined />, label: '改名', onClick: () => setEditing({ path: item.path, value: item.name }) },
-      { key: 'move', icon: <FolderOpenOutlined />, label: '移动', onClick: () => onMove(item) },
+      { key: 'rename', icon: <EditOutlined />, label: '改名' },
+      { key: 'move', icon: <FolderOpenOutlined />, label: '移动' },
       { type: 'divider' },
-      { key: 'delete', label: '删除', danger: true, onClick: () => onDelete(item) },
+      { key: 'delete', label: '删除', danger: true },
     ],
+    onClick: ({ key }) => {
+      if (key === 'preview') onPreview(item)
+      else if (key === 'download') onDownload(item)
+      else if (key === 'import') onImport(item)
+      else if (key === 'rename') setEditing({ path: item.path, value: item.name })
+      else if (key === 'move') onMove(item)
+      else if (key === 'delete') onDelete(item)
+    },
   })
 
   return (
-    <div className="hk-nd-main" data-testid="hk-netdisk-filelist">
+    <div
+      className={`hk-nd-main${dragging ? ' hk-nd-main-dragging' : ''}`}
+      data-testid="hk-netdisk-filelist"
+      onDragEnter={(e) => { e.preventDefault(); setDragging(true) }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false) }}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragging(false)
+        if (e.dataTransfer.files.length) onUploadFiles(e.dataTransfer.files)
+      }}
+    >
+      {dragging && <div className="hk-nd-drop-overlay">松开鼠标，上传到当前目录</div>}
       <div className="hk-nd-breadcrumb">
         <span style={{ color: '#8a919f' }}>{conn.name}</span>
         <span style={{ margin: '0 6px', color: '#c9cdd4' }}>/</span>

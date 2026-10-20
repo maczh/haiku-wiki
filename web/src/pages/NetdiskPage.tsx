@@ -321,6 +321,7 @@ export default function NetdiskPage() {
         onRefresh={() => void loadDir(path, true)}
         onNewDir={(name) => void handleMkdir(name)}
         onUpload={() => fileInputRef.current?.click()}
+        onUploadFiles={handleUploadFiles}
         onPreview={(item) => setPreview(item)}
         onDownload={(item) => void handleDownload([item])}
         onImport={(item) => setImportEntry(item)}

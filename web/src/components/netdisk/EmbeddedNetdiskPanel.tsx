@@ -60,6 +60,9 @@ export default function EmbeddedNetdiskPanel({ conn, path, onPathChange }: Props
         onRefresh={refresh}
         onNewDir={newDir}
         onUpload={() => uploadInput.current?.click()}
+        onUploadFiles={(files) => {
+          void Promise.all(Array.from(files).map((file) => uploadFile(conn.id, path, file))).then(() => { message.success('已加入上传队列'); refresh() })
+        }}
         onPreview={setPreview}
         onDownload={(item) => { void download(item).catch(() => undefined) }}
         onImport={noopItem}

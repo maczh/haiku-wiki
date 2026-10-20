@@ -30,7 +30,7 @@ import {
   downloadUrl,
 } from '../../api/netdisk'
 import { parseMindmapFile } from '../../api/mindmap'
-import { readXlsx } from '../../lib/office/fortune'
+import { readSpreadsheet } from '../../lib/office/fortune'
 import { netdiskPreviewDocType } from '../../lib/netdisk/preview'
 import type { NetdiskEntry } from '../../types'
 import NetdiskMarkdownView from './NetdiskMarkdownView'
@@ -73,7 +73,7 @@ export default function NetdiskReaderView({ connId, entry }: Props) {
             // 旧版 Excel 是 BIFF 二进制格式，先用轻量 XLS/XLSX 读取层转换为
             // 文库统一的 Fortune Sheet JSON，再复用现有表格预览器。
             const blob = await fetchNetdiskBlob(connId, entry.path)
-            const workbook = await readXlsx(await blob.arrayBuffer())
+            const workbook = await readSpreadsheet(await blob.arrayBuffer(), ext)
             if (alive) setContent(JSON.stringify({ schema: 'haiku.sheet/1', workbook }))
           } else {
             const ref = await readerPreviewUrl(connId, entry)

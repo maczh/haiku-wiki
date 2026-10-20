@@ -6,6 +6,8 @@ import { listConnections, listDir, uploadFile } from '../../api/netdisk'
 import { parseAttachment } from '../../lib/attachment'
 import { getDoc } from '../../api/docs'
 import { exportDocBlob } from '../../api/docs'
+import { parseWhiteboardContent } from '../../lib/whiteboardDoc'
+import { buildExcalidrawFile } from '../../lib/whiteboardExport'
 import type { MindmapJSON, SmmNode } from '../../lib/mindmap.smm'
 import type { DocNode, NetdiskConnection, NetdiskEntry } from '../../types'
 
@@ -81,6 +83,10 @@ export default function NetdiskUploadDialog({ open, doc, onClose }: Props) {
       } else if (doc.doc_type === 'flowchart') {
         const markdown = `\`\`\`mermaid\n${detail.doc.content || ''}\n\`\`\`\n`
         file = new File([markdown], `${doc.title || '流程图'}.md`, { type: 'text/markdown;charset=utf-8' })
+      } else if (doc.doc_type === 'whiteboard') {
+        const whiteboard = parseWhiteboardContent(detail.doc.content ?? '')
+        const excalidraw = await buildExcalidrawFile(whiteboard.elements, whiteboard.appState, whiteboard.files)
+        file = new File([excalidraw], `${doc.title || '白板'}.excalidraw`, { type: 'application/json;charset=utf-8' })
       } else {
         const ext = doc.doc_type === 'markdown' ? 'md' : 'txt'
         file = new File([detail.doc.content ?? ''], `${doc.title || '文档'}.${ext}`, { type: ext === 'md' ? 'text/markdown' : 'text/plain' })
