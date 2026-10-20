@@ -367,12 +367,13 @@ func (s *NetdiskFileService) OpenStream(id, uid uint64, path string, rng RangeSp
 	if rng.Has && drv.Caps().RangeRead {
 		rc, total, rerr := drv.OpenRange(ctx, clean, rng.Offset, rng.Length)
 		if rerr == nil {
-			out.Body = rc
+			// Range 请求也必须在响应关闭后归还连接池；此前这里直接返回裸流，
+			// 视频播放器反复请求分片后会耗尽连接池并表现为一直加载。
+			out.Body = &streamGuard{rc: rc, release: release, cancel: cancel}
 			out.Total = total
 			out.Offset = rng.Offset
 			out.Length = rng.Length
 			out.Partial = true
-			cancel()
 			return out, nil
 		}
 		if !errors.Is(rerr, netdisk.ErrRangeUnsupported) {

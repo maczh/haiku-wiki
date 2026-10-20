@@ -10,15 +10,15 @@ import "time"
 //
 // 与 NetdiskConnection 同样：全部字段 `json:"-"`，出参一律经 handler 的 ToTaskDTO。
 type NetdiskTask struct {
-	ID     uint64 `gorm:"primaryKey" json:"-"`
-	UserID uint64 `gorm:"index:idx_netdisk_task_user;not null" json:"-"`
+	ID     uint64 `gorm:"primaryKey;index:idx_netdisk_task_user_status_id,priority:3;index:idx_netdisk_task_conn_status_id,priority:3;index:idx_netdisk_task_status_id,priority:2" json:"-"`
+	UserID uint64 `gorm:"index:idx_netdisk_task_user;index:idx_netdisk_task_user_status_id,priority:1;not null" json:"-"`
 	// ConnID 所属网盘连接
-	ConnID uint64 `gorm:"index:idx_netdisk_task_conn;not null" json:"-"`
+	ConnID uint64 `gorm:"index:idx_netdisk_task_conn;index:idx_netdisk_task_conn_status_id,priority:1;not null" json:"-"`
 
 	// Type 任务类型：upload | import
 	Type string `gorm:"size:16;not null" json:"-"`
 	// Status 任务状态：pending | running | success | failed | canceled
-	Status string `gorm:"size:16;index:idx_netdisk_task_status;not null" json:"-"`
+	Status string `gorm:"size:16;index:idx_netdisk_task_status;index:idx_netdisk_task_user_status_id,priority:2;index:idx_netdisk_task_conn_status_id,priority:2;index:idx_netdisk_task_status_id,priority:1;index:idx_netdisk_task_status_updated,priority:1;not null" json:"-"`
 
 	// Progress 0–100 整数
 	Progress int `gorm:"default:0" json:"-"`
@@ -43,7 +43,7 @@ type NetdiskTask struct {
 	Retries int `gorm:"default:0" json:"-"`
 
 	CreatedAt time.Time `json:"-"`
-	UpdatedAt time.Time `json:"-"`
+	UpdatedAt time.Time `gorm:"index:idx_netdisk_task_status_updated,priority:2" json:"-"`
 }
 
 // TableName 表名。

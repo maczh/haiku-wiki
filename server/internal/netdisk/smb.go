@@ -34,13 +34,25 @@ type smbDriver struct {
 	closed  bool
 }
 
-// NewSMB 建立 SMB 会话并挂载共享目录。
-func NewSMB(cfg Config, creds *Credentials) (Driver, error) {
+// SMBShareInfo 列举出的共享及其权限探测结果（用于「新增 SMB 网盘」两步流程）。
+type SMBShareInfo struct {
+	// Name 共享名（如 homes / public）
+	Name string `json:"name"`
+	// Readable 能否挂载并读取（能挂载即视为可读）
+	Readable bool `json:"readable"`
+	// Writable 是否可写（通过「建临时目录 + 删除」探针判定）
+	Writable bool `json:"writable"`
+	// Error 探测失败时的可读原因（如认证失败 / 无权限）
+	Error string `json:"error,omitempty"`
+}
+
+// dialSMB 仅建连 + 认证（**不挂载业务共享**），用于列举共享等「连接级」操作。
+//
+// 抽出这一步，是因为「列举共享」需要先拿到 *smb2.Session（ListSharenames 内部会自行
+// 挂 IPC$ 做 MS-RPC），而 NewSMB 走的是「认证 + 挂业务共享」两条路。
+func dialSMB(cfg Config, creds *Credentials) (*smb2.Session, net.Conn, error) {
 	if strings.TrimSpace(cfg.Host) == "" {
-		return nil, ConfigInvalid("SMB 主机地址不能为空")
-	}
-	if strings.TrimSpace(cfg.Share) == "" {
-		return nil, ConfigInvalid("SMB 共享名（share）不能为空")
+		return nil, nil, ConfigInvalid("SMB 主机地址不能为空")
 	}
 	if creds == nil {
 		creds = &Credentials{}
@@ -57,7 +69,7 @@ func NewSMB(cfg Config, creds *Credentials) (Driver, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, ConnectFailed("无法连接到 SMB 主机 " + addr + "：" + err.Error())
+		return nil, nil, ConnectFailed("无法连接到 SMB 主机 " + addr + "：" + err.Error())
 	}
 
 	user := creds.Username
@@ -75,7 +87,19 @@ func NewSMB(cfg Config, creds *Credentials) (Driver, error) {
 	session, err := dialer.DialContext(ctx, conn)
 	if err != nil {
 		_ = conn.Close()
-		return nil, mapSMBError(err)
+		return nil, nil, mapSMBError(err)
+	}
+	return session, conn, nil
+}
+
+// NewSMB 建立 SMB 会话并挂载共享目录。
+func NewSMB(cfg Config, creds *Credentials) (Driver, error) {
+	if strings.TrimSpace(cfg.Share) == "" {
+		return nil, ConfigInvalid("SMB 共享名（share）不能为空")
+	}
+	session, conn, err := dialSMB(cfg, creds)
+	if err != nil {
+		return nil, err
 	}
 	share, err := session.Mount(strings.TrimSpace(cfg.Share))
 	if err != nil {
@@ -94,6 +118,53 @@ func NewSMB(cfg Config, creds *Credentials) (Driver, error) {
 		session: session,
 		share:   share,
 	}, nil
+}
+
+// ListSMBShares 建立会话后枚举服务器上的全部共享，并逐个探测可读 / 可写权限。
+//
+// 不挂载业务共享、不落库，仅用于「新增 SMB 网盘」两步流程里把「服务器」与「共享」拆开：
+// 第 1 步填 IP / 账号；第 2 步在这里拿到共享清单供用户勾选。
+// 探测写权限的方式是在共享根建一个隐藏临时目录再删除（自清理，副作用极小）；
+// IPC$ 与 print$ 是非文件系统共享，直接跳过。
+func ListSMBShares(cfg Config, creds *Credentials) ([]SMBShareInfo, error) {
+	session, conn, err := dialSMB(cfg, creds)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = session.Logoff()
+		_ = conn.Close()
+	}()
+
+	names, err := session.ListSharenames()
+	if err != nil {
+		return nil, mapSMBError(err)
+	}
+	sort.Strings(names)
+
+	infos := make([]SMBShareInfo, 0, len(names))
+	for _, name := range names {
+		if strings.EqualFold(name, "IPC$") || strings.EqualFold(name, "print$") {
+			continue
+		}
+		info := SMBShareInfo{Name: name}
+		share, merr := session.Mount(name)
+		if merr != nil {
+			info.Error = mapSMBError(merr).Error()
+			infos = append(infos, info)
+			continue
+		}
+		// 能挂载即视为可读；再探测可写。
+		info.Readable = true
+		probe := ".hk_probe_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+		if cerr := share.Mkdir(probe, 0o755); cerr == nil {
+			info.Writable = true
+			_ = share.Remove(probe)
+		}
+		_ = share.Umount()
+		infos = append(infos, info)
+	}
+	return infos, nil
 }
 
 // mapSMBError SMB 原始错误 → 统一业务错误（挂载失败绝大多数是共享名不存在 / 无权限）。

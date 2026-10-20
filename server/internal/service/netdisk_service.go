@@ -80,6 +80,17 @@ type TestResult struct {
 	Count    int    `json:"count,omitempty"`
 }
 
+// SMBSharesReq 「列举 SMB 共享」入参（第 1 步填的 IP / 账号，不落库）。
+//
+// 与 CreateReq 分开：这一步只是为了拿到共享清单，还没有「共享名」，不能走完整校验 / 落库。
+type SMBSharesReq struct {
+	Host     string `json:"host" binding:"required"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Domain   string `json:"domain"`
+}
+
 // DirListResp 列目录结果。
 type DirListResp struct {
 	Path   string          `json:"path"`
@@ -332,6 +343,27 @@ func (s *NetdiskService) testWith(conn *model.NetdiskConnection, creds *netdisk.
 		RootPath: root,
 		Count:    len(items),
 	}, nil
+}
+
+// ListSMBShares 列举 SMB 服务器上的共享并探测权限（两步添加流程第 1→2 步）。
+//
+// 仅要求登录态（uid>0）：避免匿名用户拿本服务当内网探测跳板。
+// 不落库、不建连接记录，只是临时拨一次号枚举共享。
+func (s *NetdiskService) ListSMBShares(uid uint64, req SMBSharesReq) ([]netdisk.SMBShareInfo, error) {
+	if uid == 0 {
+		return nil, hkerr.Unauthorized()
+	}
+	cfg := netdisk.Config{
+		Kind: netdisk.KindSMB,
+		Host: strings.TrimSpace(req.Host),
+		Port: req.Port,
+	}
+	creds := &netdisk.Credentials{
+		Username: strings.TrimSpace(req.Username),
+		Password: req.Password,
+		Domain:   strings.TrimSpace(req.Domain),
+	}
+	return netdisk.ListSMBShares(cfg, creds)
 }
 
 // Refresh 重新探测已保存连接的状态（OAuth 重新授权后也用它刷新徽标）。

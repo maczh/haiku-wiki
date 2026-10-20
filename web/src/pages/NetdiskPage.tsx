@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Alert, Button, Empty, Modal, Spin, message } from 'antd'
 import {
   CloudDownloadOutlined,
@@ -51,6 +51,7 @@ type PromptState =
 
 export default function NetdiskPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const connId = Number(id || 0)
 
   const [conns, setConns] = useState<NetdiskConnection[]>([])
@@ -71,6 +72,11 @@ export default function NetdiskPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const conn = useMemo(() => conns.find((c) => c.id === connId) || null, [conns, connId])
+
+  useEffect(() => {
+    setPath(NETDISK_ROOT)
+    setCategory('all')
+  }, [connId])
 
   /** 加载连接列表（页面壳 + 目录树共用） */
   useEffect(() => {
@@ -292,8 +298,14 @@ export default function NetdiskPage() {
           activeConnId={connId}
           currentPath={path}
           loading={listLoading}
-          onSelect={(c, p) => openDir(p)}
-          onSelectConn={(c) => openDir(NETDISK_ROOT)}
+          onSelect={(c, p) => {
+            if (c !== connId) navigate(`/netdisk/${c}`)
+            else openDir(p)
+          }}
+          onSelectConn={(c) => {
+            if (c !== connId) navigate(`/netdisk/${c}`)
+            else openDir(NETDISK_ROOT)
+          }}
           reloadNonce={reloadNonce}
         />
       </div>
@@ -307,18 +319,12 @@ export default function NetdiskPage() {
         onOpenDir={openDir}
         onGoPath={openDir}
         onRefresh={() => void loadDir(path, true)}
-        onNewDir={() => {
-          setPromptValue('')
-          setPrompt({ mode: 'mkdir' })
-        }}
+        onNewDir={(name) => void handleMkdir(name)}
         onUpload={() => fileInputRef.current?.click()}
         onPreview={(item) => setPreview(item)}
         onDownload={(item) => void handleDownload([item])}
         onImport={(item) => setImportEntry(item)}
-        onRename={(item) => {
-          setPromptValue(item.name)
-          setPrompt({ mode: 'rename', entry: item })
-        }}
+        onRename={(item, name) => void handleRename(item, name)}
         onMove={(item) => setMoveTarget(item)}
         onDelete={(item) => {
           Modal.confirm({
@@ -411,7 +417,9 @@ export default function NetdiskPage() {
         open={preview !== null}
         connId={connId}
         entry={preview}
+        entries={entries}
         onClose={() => setPreview(null)}
+        onNavigate={setPreview}
         onDownload={(item) => void handleDownload([item])}
         onImport={(item) => setImportEntry(item)}
       />

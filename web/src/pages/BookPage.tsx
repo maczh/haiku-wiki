@@ -30,6 +30,8 @@ import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPic
 import BookDashboard from '../components/dashboard/BookDashboard'
 import { listConnections, listDir } from '../api/netdisk'
 import type { NetdiskConnection } from '../types'
+import EmbeddedNetdiskPanel from '../components/netdisk/EmbeddedNetdiskPanel'
+import NetdiskUploadDialog from '../components/tree/NetdiskUploadDialog'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
@@ -161,6 +163,24 @@ export default function BookPage() {
   const [booksLoading, setBooksLoading] = useState(false)
   /** 「我的网盘」顶层分组用的连接列表（与首页区块同源，独立请求） */
   const [ndConns, setNdConns] = useState<NetdiskConnection[]>([])
+  const [embeddedNetdisk, setEmbeddedNetdisk] = useState<{ connId: number; path: string } | null>(null)
+  const [uploadNetdiskDoc, setUploadNetdiskDoc] = useState<DocNode | null>(null)
+
+  useEffect(() => {
+    document.body.classList.toggle('hk-embedded-netdisk', embeddedNetdisk != null)
+    // docx-editor 的菜单/工具栏有些会通过 portal 挂到 body，React 卸载
+    // 文档工作区后旧版本可能仍留下孤立节点。只清理不属于当前网盘预览
+    // 弹窗的节点，避免影响正在弹窗中打开的 DOCX。
+    if (embeddedNetdisk != null) {
+      const cleanup = window.requestAnimationFrame(() => {
+        document.querySelectorAll<HTMLElement>('body > .docx-editor, body > [data-docx-dialog]').forEach((node) => {
+          if (!node.closest('.hk-nd-preview-modal')) node.remove()
+        })
+      })
+      return () => window.cancelAnimationFrame(cleanup)
+    }
+    return () => document.body.classList.remove('hk-embedded-netdisk')
+  }, [embeddedNetdisk])
   const [keyword, setKeyword] = useState('')
   const [edit, setEdit] = useState<BookEditState | null>(null)
   const [form] = Form.useForm()
@@ -1003,11 +1023,12 @@ export default function BookPage() {
                      连接可逐级展开（懒加载），点连接跳网盘页。 */
                   netdisk={{
                     conns: ndConns,
-                    onOpenConn: (id) => navigate(`/netdisk/${id}`),
+                    onOpenConn: (id) => setEmbeddedNetdisk({ connId: id, path: '/' }),
+                    onOpenDir: (id, path) => setEmbeddedNetdisk({ connId: id, path }),
                     loadDir: (cid, path) => listDir(cid, path).then((res) => res.items),
                   }}
                   onOpenBook={(id) => navigate(`/books/${id}`)}
-                  onOpenDoc={(bid, did) => navigate(`/books/${bid}?docId=${did}`)}
+                  onOpenDoc={(bid, did) => { setEmbeddedNetdisk(null); navigate(`/books/${bid}?docId=${did}`) }}
                   onNewDoc={(bid, pid, kind) => void openNewDoc(bid, pid, kind)}
                   onNewDocAt={openNewDocAt}
                   onNewDocWithType={openNewDocWithType}
@@ -1035,6 +1056,7 @@ export default function BookPage() {
                   onPinDoc={(_bid, d) => void handlePinDoc(_bid, d)}
                   onShareDoc={(_bid, d) => openShare(d)}
                   onExportDoc={(_bid, d) => openExportDoc(d)}
+                  onUploadDocToNetdisk={(_bid, d) => setUploadNetdiskDoc(d)}
                   onCollaborators={(_bid, d) => openCollaborators(d)}
                   onTogglePublicEdit={(_bid, d) => void handleTogglePublicEdit(_bid, d)}
                   onSaveAsTemplate={(_bid, d) => void openSaveAsTemplate(_bid, d)}
@@ -1073,7 +1095,7 @@ export default function BookPage() {
               />
             </Tooltip>
 
-            <Space.Compact>
+            {!embeddedNetdisk && <Space.Compact>
               <Button
                 size="small"
                 type={tab === 'read' ? 'primary' : 'default'}
@@ -1103,7 +1125,7 @@ export default function BookPage() {
                   编辑
                 </Button>
               </Tooltip>
-            </Space.Compact>
+            </Space.Compact>}
 
             <div style={{ flex: 1, textAlign: 'center', color: '#5f6672', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {doc?.title ?? ''}
@@ -1142,9 +1164,19 @@ export default function BookPage() {
 
           {/* 内容区：滚动容器 + 大纲浮动层（浮动层在滚动容器之外，故不随正文滚动） */}
           <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-            <div className="toc-scroll-root" style={{ height: '100%', overflow: 'auto' }}>
+            <div className="toc-scroll-root" style={{ height: '100%', overflow: 'auto', position: 'relative' }}>
+              {embeddedNetdisk && ndConns.find((item) => item.id === embeddedNetdisk.connId) && (
+                <div style={{ position: 'absolute', inset: 0, zIndex: 20, background: '#fff', minHeight: 0 }}>
+                  <EmbeddedNetdiskPanel
+                    conn={ndConns.find((item) => item.id === embeddedNetdisk.connId)!}
+                    path={embeddedNetdisk.path}
+                    onPathChange={(path) => setEmbeddedNetdisk((current) => current ? { ...current, path } : current)}
+                  />
+                </div>
+              )}
               {/* height:100% 不可省：编辑器（如思维导图画布）依赖它拿到确定高度，否则画布高度塌陷为 0 */}
-              <div style={{ height: '100%', paddingRight: showTocFloat ? 264 : 0 }}>
+              <div key={embeddedNetdisk ? 'embedded-netdisk' : 'document-workspace'} style={{ height: '100%', paddingRight: showTocFloat ? 264 : 0 }}>
+                {!embeddedNetdisk && <>
                 {!docIdParam && (
                   /* 未选中任何文档时：文库工作台（概览 + 工作台三卡 + 文库内搜索 + 最近更新），
                      替代原来只有一句提示的 Empty —— 这块空间是用户进库看到的第一屏 */
@@ -1153,7 +1185,7 @@ export default function BookPage() {
                     bookName={book?.name ?? ''}
                     docs={docs}
                     canWrite={canWrite}
-                    onOpenDoc={(id) => setParams({ docId: id })}
+                  onOpenDoc={(id) => { setEmbeddedNetdisk(null); setParams({ docId: id }) }}
                     onNewDoc={() => void openNewDoc(bookID, 0, 'doc')}
                     onNewFolder={() => void openNewDoc(bookID, 0, 'folder')}
                     onImport={() => void openImport(bookID)}
@@ -1322,6 +1354,7 @@ export default function BookPage() {
                     </div>
                   )
                 )}
+                </>}
               </div>
             </div>
 
@@ -1883,6 +1916,11 @@ export default function BookPage() {
           />
         </LazyBoundary>
       )}
+      <NetdiskUploadDialog
+        open={uploadNetdiskDoc != null}
+        doc={uploadNetdiskDoc}
+        onClose={() => setUploadNetdiskDoc(null)}
+      />
     </div>
   )
 }

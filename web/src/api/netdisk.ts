@@ -17,6 +17,7 @@ import type {
   NetdiskTask,
   NetdiskTaskList,
   NetdiskTestResult,
+  SMBShareInfo,
 } from '../types'
 
 // ---------- 能力清单与连接 CRUD ----------
@@ -62,6 +63,26 @@ export function deleteConnection(id: number) {
 /** 测试已保存的连接并回写状态 */
 export function testSaved(id: number) {
   return request.post<unknown, NetdiskTestResult>(`/netdisks/${id}/test`)
+}
+
+/** SMB 列举共享的入参（第 1 步填的 IP / 账号，不含共享名） */
+export interface SMBSharesInput {
+  host: string
+  port?: number
+  username?: string
+  password?: string
+  domain?: string
+}
+
+/** 列举出的 SMB 共享及其权限探测结果 */
+export type { SMBShareInfo }
+
+/**
+ * 列举 SMB 服务器上的全部共享并探测可读 / 可写（两步添加流程第 1→2 步）。
+ * 需要登录态（后端会拒绝匿名请求，避免被当内网探测跳板）。
+ */
+export function listSMBShares(input: SMBSharesInput) {
+  return request.post<unknown, { shares: SMBShareInfo[] }>('/netdisks/smb/shares', input)
 }
 
 /** 重新探测状态（OAuth 重新授权后也走它） */
@@ -210,14 +231,50 @@ export async function fetchTaskBlob(id: number): Promise<Blob> {
 }
 
 /**
+ * 网盘取回类请求的超时（ms）。后端预览 / 下载走流式代理，若连接挂起，
+ * 不中断就会让界面无限「菊花」。这里统一加超时，把挂起变成可重试的明确错误。
+ */
+const NETDISK_FETCH_TIMEOUT_MS = 30_000
+
+/** 生成一个带超时的 AbortSignal（兼容不支持 AbortSignal.timeout 的环境） */
+function timeoutSignal(): AbortSignal {
+  const Ctor = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout
+  if (typeof Ctor === 'function') {
+    try {
+      return Ctor(NETDISK_FETCH_TIMEOUT_MS)
+    } catch {
+      // 落到下面的手动实现
+    }
+  }
+  const ctrl = new AbortController()
+  setTimeout(() => ctrl.abort(), NETDISK_FETCH_TIMEOUT_MS)
+  return ctrl.signal
+}
+
+/**
  * 以文本方式取回网盘文件（markdown / html / drawio / 纯文本预览用）。
- * 走 Bearer 头，所以同样是 fetch 而不是 <a> 直链。
+ * 走 Bearer 头，所以同样是 fetch 而不是 <a> 直链。带 30s 超时。
  */
 export async function fetchNetdiskText(connId: number, path: string): Promise<string> {
   const token = localStorage.getItem('hk_token')
   const resp = await fetch(`/api/netdisks/${connId}/download?path=${encodeURIComponent(path)}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    signal: timeoutSignal(),
   })
   if (!resp.ok) throw new Error('读取文件失败')
   return resp.text()
+}
+
+/**
+ * 以字节方式取回网盘文件（思维导图 .km / .mm / .xmind 预览时，需要先拿到字节再交给
+ * 后端 /api/mindmap/parse 解析成内置 smm）。走 Bearer 头。带 30s 超时。
+ */
+export async function fetchNetdiskBlob(connId: number, path: string): Promise<Blob> {
+  const token = localStorage.getItem('hk_token')
+  const resp = await fetch(`/api/netdisks/${connId}/download?path=${encodeURIComponent(path)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    signal: timeoutSignal(),
+  })
+  if (!resp.ok) throw new Error('读取文件失败')
+  return resp.blob()
 }

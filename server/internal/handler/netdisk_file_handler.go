@@ -180,6 +180,10 @@ func writeNetdiskStream(c *gin.Context, disposition string) {
 	c.Header("Content-Type", storage.MimeByExt(st.Name))
 	c.Header("Content-Disposition", disposition+"; filename*=UTF-8''"+url.QueryEscape(st.Name))
 	c.Header("X-Content-Type-Options", "nosniff")
+	// 不让反向代理把视频代理请求攒成完整响应；浏览器据此可以立刻消费
+	// Range 响应并继续请求后续片段，避免等整个远端文件下载完成。
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Accel-Buffering", "no")
 	if st.AcceptRange {
 		c.Header("Accept-Ranges", "bytes")
 	} else {

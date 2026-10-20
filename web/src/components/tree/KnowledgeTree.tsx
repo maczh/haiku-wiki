@@ -61,6 +61,8 @@ interface NetdiskGroup {
   conns: NetdiskConnection[]
   /** 点击连接节点（跳转到 /netdisk/:id） */
   onOpenConn: (connId: number) => void
+  /** 点击网盘目录，切换工作台右侧为网盘文件列表 */
+  onOpenDir?: (connId: number, path: string) => void
   /** 懒加载网盘某级目录；不提供则连接不可展开 */
   loadDir?: (connId: number, path: string) => Promise<NetdiskEntry[]>
 }
@@ -133,6 +135,7 @@ interface Props {
   onTogglePublicEdit?: (bookId: number, doc: DocNode) => void
   /** 菜单：把该文档另存为自定义模板（正文 + 类型一起存） */
   onSaveAsTemplate?: (bookId: number, doc: DocNode) => void
+  onUploadDocToNetdisk?: (bookId: number, doc: DocNode) => void
   /**
    * 「我的网盘」顶层分组。**不传则完全不影响既有行为**（零回归）。
    * 传了就在「私人/团队/公司知识库」之外多一个同级分组。
@@ -382,6 +385,8 @@ export default function KnowledgeTree(p: Props) {
       p.onOpenDoc(node.raw.bookId, node.raw.docId)
     } else if (node.raw.kind === 'netdisk-conn' && node.raw.connId != null) {
       p.netdisk?.onOpenConn(node.raw.connId)
+    } else if (node.raw.kind === 'netdisk-dir' && node.raw.connId != null && node.raw.netdiskPath) {
+      p.netdisk?.onOpenDir?.(node.raw.connId, node.raw.netdiskPath)
     }
   }
 
@@ -464,6 +469,7 @@ export default function KnowledgeTree(p: Props) {
       onExport: () => p.onExportDoc?.(bookId, doc),
       onPin: () => p.onPinDoc?.(bookId, doc),
       onSaveAsTemplate: () => p.onSaveAsTemplate?.(bookId, doc),
+      onUploadToNetdisk: p.onUploadDocToNetdisk ? () => p.onUploadDocToNetdisk!(bookId, doc) : undefined,
       onDelete: () => confirmDeleteDoc(bookId, doc),
     }
     const treeMenuCtx = { node: doc, bookId, canWrite, handlers: treeMenuHandlers }

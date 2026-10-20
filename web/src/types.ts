@@ -709,6 +709,17 @@ export interface NetdiskTestResult {
   count?: number
 }
 
+/** 列举出的 SMB 共享及其权限探测结果（两步添加流程第 2 步） */
+export interface SMBShareInfo {
+  name: string
+  /** 能否挂载并读取 */
+  readable: boolean
+  /** 是否可写（建临时目录 + 删除探针判定） */
+  writable: boolean
+  /** 探测失败时的可读原因 */
+  error?: string
+}
+
 /** 目录项（与后端 netdisk.Entry 逐字对齐） */
 export interface NetdiskEntry {
   name: string

@@ -20,6 +20,12 @@ export default function NetdiskVideoView({ connId, entry, mode }: Props) {
   const [src, setSrc] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [retry, setRetry] = useState(0)
+
+  function handleMediaError() {
+    setLoading(false)
+    setError('视频无法播放：文件编码或网盘响应格式可能不受浏览器支持，请下载原文件播放')
+  }
 
   useEffect(() => {
     let alive = true
@@ -35,24 +41,42 @@ export default function NetdiskVideoView({ connId, entry, mode }: Props) {
         if (alive) setLoading(false)
       }
     })()
+    const timeout = window.setTimeout(() => {
+      if (alive && !src) {
+        setLoading(false)
+        setError('视频地址获取超时，请重试或下载原文件播放')
+      }
+    }, 60000)
     return () => {
       alive = false
+      window.clearTimeout(timeout)
     }
-  }, [connId, entry.path])
+  }, [connId, entry.path, retry])
 
-  if (error) return <Alert type="error" showIcon message={error} />
+  if (error) return <Alert type="error" showIcon message={error} action={<button type="button" onClick={() => { setError(''); setLoading(true); setSrc(''); setRetry((value) => value + 1) }}>重试</button>} />
 
   return (
     <Spin spinning={loading}>
-      {mode === 'video' ? (
-        <video className="hk-nd-preview-video" controls src={src} preload="metadata">
+      {mode === 'video' && src ? (
+        <video
+          key={src}
+          className="hk-nd-preview-video"
+          controls
+          playsInline
+          src={src}
+          // 交给浏览器按 Range 分段预取，避免等完整视频下载后才开始播放。
+          preload="auto"
+          onLoadedMetadata={() => setLoading(false)}
+          onCanPlay={() => setLoading(false)}
+          onError={handleMediaError}
+        >
           当前浏览器不支持视频播放
         </video>
-      ) : (
+      ) : mode === 'audio' && src ? (
         <audio controls src={src} preload="metadata" style={{ width: '100%' }}>
           当前浏览器不支持音频播放
         </audio>
-      )}
+      ) : <div style={{ minHeight: 360 }} />}
     </Spin>
   )
 }

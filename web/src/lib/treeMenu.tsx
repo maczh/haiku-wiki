@@ -41,6 +41,7 @@ export interface TreeMenuHandlers {
   /** 把该文档另存为模板（目录 / 附件无正文，调用方会置灰） */
   onSaveAsTemplate: () => void
   onDelete: () => void
+  onUploadToNetdisk?: () => void
 }
 
 /** ⋮ 菜单的上下文 */
@@ -145,6 +146,9 @@ export function buildTreeMenuItems(ctx: TreeMenuContext): MenuProps['items'] {
       onClick: handlers.onDelete,
     },
   ]
+  if (handlers.onUploadToNetdisk) {
+    items.splice(10, 0, { key: 'uploadNetdisk', icon: <ExportOutlined />, label: '上传到网盘', onClick: handlers.onUploadToNetdisk })
+  }
   return items
 }
 

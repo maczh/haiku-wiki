@@ -238,6 +238,8 @@ func Register(r *gin.Engine, cfg *config.Config) {
 		jwt.POST("/netdisks", handler.CreateNetdisk)
 		// 保存前测试（UI 强制先测后存），必须排在 /netdisks/:id 之前
 		jwt.POST("/netdisks/test", handler.TestNetdiskUnsaved)
+		// 列举 SMB 共享（两步添加第 1→2 步），静态路径，必须排在 /netdisks/:id 之前
+		jwt.POST("/netdisks/smb/shares", handler.ListSMBShares)
 		jwt.GET("/netdisks/:id", handler.GetNetdisk)
 		jwt.PUT("/netdisks/:id", handler.UpdateNetdisk)
 		jwt.DELETE("/netdisks/:id", handler.DeleteNetdisk)

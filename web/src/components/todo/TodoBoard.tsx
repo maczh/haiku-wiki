@@ -97,12 +97,20 @@ export default function TodoBoard({ value, readOnly = false, onChange }: Props) 
               <Slider ariaLabelForHandle="任务进度" min={0} max={100} value={it.progress} onChange={progress => patch(it.id, { progress })} style={{ flex: 1, minWidth: 60 }} />
               <InputNumber aria-label="进度百分比" min={0} max={100} precision={0} value={it.progress} onChange={progress => patch(it.id, { progress: progress ?? 0 })} addonAfter="%" />
             </div>
-            <Space size={6} wrap>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <DatePicker aria-label="截止时间" size="small" showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm" placeholder="截止时间" value={it.due ? dayjs(it.due) : null} onChange={d => patch(it.id, { due: d ? d.format('YYYY-MM-DD HH:mm') : '' })} style={{ width: 190 }} />
               <Select aria-label="优先级" size="small" placeholder="优先级" allowClear value={it.priority || undefined} onChange={v => patch(it.id, { priority: (v as TodoPriority) || '' })} options={PRIORITY_OPTIONS.map(o => ({ value: o.value, label: o.label }))} style={{ width: 90 }} />
-              <Input aria-label="备注" size="small" placeholder="备注…" value={it.note} onChange={e => patch(it.id, { note: e.target.value })} style={{ width: 170 }} />
               <Tooltip title="删除这一条"><Button aria-label="删除这一条" size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(it.id)} /></Tooltip>
-            </Space>
+            </div>
+            <Input.TextArea
+              aria-label="备注"
+              placeholder="备注…"
+              value={it.note}
+              rows={3}
+              autoSize={false}
+              onChange={e => patch(it.id, { note: e.target.value })}
+              style={{ width: '100%', height: 76, marginTop: 8, resize: 'vertical', overflowY: 'auto' }}
+            />
           </>}
         </div>
       </div>

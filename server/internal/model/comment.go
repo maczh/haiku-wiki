@@ -11,16 +11,16 @@ import (
 // ParentID = 0 为顶层帖，非 0 为某帖的跟帖（树形结构）。
 type Comment struct {
 	ID          uint64         `gorm:"primaryKey" json:"id"`
-	DocID       uint64         `gorm:"index:idx_comment_doc;not null" json:"doc_id"`
+	DocID       uint64         `gorm:"index:idx_comment_doc;index:idx_comment_doc_status_created,priority:1;not null" json:"doc_id"`
 	ParentID    uint64         `gorm:"index:idx_comment_parent;not null;default:0" json:"parent_id"`
 	AuthorUID   uint64         `gorm:"not null;default:0" json:"author_uid"` // 0 = 匿名访客
 	GuestName   string         `gorm:"size:64" json:"guest_name,omitempty"`  // 匿名访客昵称
 	AuthorName  string         `gorm:"size:64" json:"author_name,omitempty"` // 登录用户展示名（冗余，删号后仍可读）
 	Body        string         `gorm:"type:longtext" json:"body"`
-	Status      string         `gorm:"size:16;default:normal" json:"status"` // normal | deleted
+	Status      string         `gorm:"size:16;default:normal;index:idx_comment_doc_status_created,priority:2" json:"status"` // normal | deleted
 	EditorUID   uint64         `gorm:"not null;default:0" json:"-"`           // 删帖 / 禁言操作者（不暴露）
 	IP          string         `gorm:"size:64" json:"-"`                      // 匿名滥用溯源（不暴露）
-	CreatedAt   time.Time      `json:"created_at"`
+	CreatedAt   time.Time      `gorm:"index:idx_comment_doc_status_created,priority:3" json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }

@@ -10,11 +10,12 @@
  * 底部固定「下载」「导入到文库」（后者仅导入白名单内可用）。
  */
 
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties, type WheelEvent } from 'react'
 import { Alert, Button, Modal, Spin } from 'antd'
 import { DownloadOutlined, ImportOutlined } from '@ant-design/icons'
 import LazyBoundary from '../common/LazyBoundary'
-import { netdiskPreviewKind, previewUnsupportedReason } from '../../lib/netdisk/preview'
+import ErrorBoundary from '../common/ErrorBoundary'
+import { isPreviewSupported, netdiskPreviewKind, previewUnsupportedReason } from '../../lib/netdisk/preview'
 import { isNetdiskImportable, netdiskImportReason } from '../../lib/netdisk/format'
 import { extOfName } from '../../lib/import/formats'
 import { makePreviewToken, previewUrl } from '../../api/netdisk'
@@ -28,18 +29,31 @@ interface Props {
   open: boolean
   connId: number
   entry: NetdiskEntry | null
+  entries?: NetdiskEntry[]
   onClose: () => void
+  onNavigate?: (entry: NetdiskEntry) => void
   onDownload: (entry: NetdiskEntry) => void
   onImport: (entry: NetdiskEntry) => void
 }
 
-export default function NetdiskPreviewModal({ open, connId, entry, onClose, onDownload, onImport }: Props) {
+export default function NetdiskPreviewModal({ open, connId, entry, entries = [], onClose, onNavigate, onDownload, onImport }: Props) {
   const kind = useMemo(() => (entry ? netdiskPreviewKind(entry.name) : 'unsupported'), [entry])
   const importable = useMemo(
     () => (entry ? isNetdiskImportable(entry.name) : false),
     [entry],
   )
   const [imgSrc, setImgSrc] = useState('')
+  const [zoom, setZoom] = useState(1)
+
+  useEffect(() => {
+    if (open) setZoom(1)
+  }, [open, entry?.path])
+
+  function handlePreviewWheel(e: WheelEvent<HTMLDivElement>) {
+    if (!e.altKey) return
+    e.preventDefault()
+    setZoom((value) => Math.min(2.5, Math.max(0.5, value - e.deltaY * 0.002)))
+  }
 
   // 图片也要 token（<img> 同样发不出 Authorization）
   useEffect(() => {
@@ -53,15 +67,54 @@ export default function NetdiskPreviewModal({ open, connId, entry, onClose, onDo
     }
   }, [kind, entry, connId, open])
 
+  useEffect(() => {
+    if (!open) {
+      const cleanup = window.requestAnimationFrame(() => {
+        document.querySelectorAll<HTMLElement>('body > .docx-editor, body > [data-docx-dialog]').forEach((node) => {
+          if (!node.closest('.hk-nd-preview-modal')) node.remove()
+        })
+      })
+      return () => window.cancelAnimationFrame(cleanup)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !entry || entries.length < 2) return
+    const currentEntry = entry
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const target = e.target as HTMLElement | null
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return
+      const candidates = entries.filter((item) => !item.is_dir && isPreviewSupported(item.name))
+      const index = candidates.findIndex((item) => item.path === currentEntry.path)
+      if (index < 0 || candidates.length < 2) return
+      e.preventDefault()
+      const next = e.key === 'ArrowRight'
+        ? candidates[(index + 1) % candidates.length]
+        : candidates[(index - 1 + candidates.length) % candidates.length]
+      onNavigate?.(next)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, entry, entries, onNavigate])
+
   if (!entry) return null
 
   return (
     <Modal
       open={open}
-      title={entry.name}
+      title={
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
+          <span style={{ color: '#8c8c8c', fontSize: 12, fontWeight: 400, whiteSpace: 'nowrap' }}>
+            (ALT+滚轮缩放)
+          </span>
+        </span>
+      }
       onCancel={onClose}
       width="80vw"
       style={{ top: 24 }}
+      className="hk-nd-preview-modal"
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span />
@@ -81,9 +134,24 @@ export default function NetdiskPreviewModal({ open, connId, entry, onClose, onDo
           </span>
         </div>
       }
-      destroyOnClose
+      destroyOnHidden
     >
-      <div className="hk-nd-preview-body">
+      <ErrorBoundary
+        fallback={(error, reset) => (
+          <Alert
+            type="error"
+            showIcon
+            message="文件预览失败"
+            description={error.message || '渲染器发生异常'}
+            action={<Button size="small" onClick={reset}>重试</Button>}
+          />
+        )}
+      >
+        <div
+          className="hk-nd-preview-body"
+          onWheel={handlePreviewWheel}
+          style={{ '--hk-nd-preview-zoom': zoom } as CSSProperties}
+        >
         {kind === 'reader' && (
           <LazyBoundary tip="正在加载预览器…" fill>
             <Suspense fallback={<Spin />}>
@@ -96,20 +164,17 @@ export default function NetdiskPreviewModal({ open, connId, entry, onClose, onDo
         )}
         {(kind === 'video' || kind === 'audio') && (
           <LazyBoundary tip="正在加载播放器…" fill>
-            <Suspense fallback={<Spin />}>
-              <NetdiskVideoView connId={connId} entry={entry} mode={kind} />
-            </Suspense>
+            <NetdiskVideoView connId={connId} entry={entry} mode={kind} />
           </LazyBoundary>
         )}
         {kind === 'text' && (
           <LazyBoundary tip="正在读取文件…" fill>
-            <Suspense fallback={<Spin />}>
-              <NetdiskTextView connId={connId} entry={entry} />
-            </Suspense>
+            <NetdiskTextView connId={connId} entry={entry} />
           </LazyBoundary>
         )}
         {kind === 'unsupported' && <Alert type="warning" showIcon message={previewUnsupportedReason(entry.name)} />}
-      </div>
+        </div>
+      </ErrorBoundary>
     </Modal>
   )
 }

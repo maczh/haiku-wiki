@@ -454,23 +454,49 @@
 
 /* ---------- 预览弹窗 ---------- */
 
+.hk-nd-preview-modal .ant-modal {
+  min-width: 560px;
+  resize: both;
+  overflow: hidden;
+}
+
+.hk-nd-preview-modal .ant-modal-body {
+  min-height: 0;
+}
+
 .hk-nd-preview-body {
-  max-height: 68vh;
+  height: 68vh;
+  min-height: 360px;
+  max-height: 80vh;
   overflow: auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px;
+  resize: both;
+  overscroll-behavior: contain;
+  background: #fafafa;
+}
+
+.hk-nd-preview-body > * {
+  width: calc(100% / var(--hk-nd-preview-zoom, 1));
+  transform: scale(var(--hk-nd-preview-zoom, 1));
+  transform-origin: top left;
 }
 
 .hk-nd-preview-image {
   max-width: 100%;
   max-height: 66vh;
+  object-fit: contain;
 }
 
 .hk-nd-preview-video {
   width: 100%;
-  max-height: 66vh;
+  height: min(62vh, 720px);
+  min-height: 360px;
+  max-height: 75vh;
   background: #000;
+  object-fit: contain;
 }
 
 .hk-nd-preview-text {

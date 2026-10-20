@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { Button, Checkbox, Dropdown, Empty, Select, Spin, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import {
@@ -42,6 +43,7 @@ import { pathSegments } from '../../lib/netdisk/path'
 import type { NetdiskConnection, NetdiskEntry } from '../../types'
 import NetdiskFileIcon from './NetdiskFileIcon'
 import NetdiskThumb from './NetdiskThumb'
+import NetdiskContextMenu, { type ContextMenuItem } from './NetdiskContextMenu'
 
 interface Props {
   conn: NetdiskConnection
@@ -53,12 +55,12 @@ interface Props {
   /** 回到某级祖先目录（面包屑） */
   onGoPath: (path: string) => void
   onRefresh: () => void
-  onNewDir: () => void
+  onNewDir: (name: string) => void
   onUpload: () => void
   onPreview: (item: NetdiskEntry) => void
   onDownload: (item: NetdiskEntry) => void
   onImport: (item: NetdiskEntry) => void
-  onRename: (item: NetdiskEntry) => void
+  onRename: (item: NetdiskEntry, name: string) => void
   onMove: (item: NetdiskEntry) => void
   onDelete: (item: NetdiskEntry) => void
   onBatchDownload: (items: NetdiskEntry[]) => void
@@ -153,6 +155,9 @@ export default function NetdiskFileList({
   })
   const [sortBy, setSortBy] = useState<SortBy>('name')
   const [checked, setChecked] = useState<string[]>([])
+  /** 右键菜单（或点击不可预览文件名弹出的菜单）的状态 */
+  const [ctx, setCtx] = useState<{ x: number; y: number; item: NetdiskEntry } | null>(null)
+  const [editing, setEditing] = useState<{ path: string; value: string; isNew?: boolean } | null>(null)
 
   useEffect(() => {
     localStorage.setItem('hk-netdisk-view', view)
@@ -163,6 +168,9 @@ export default function NetdiskFileList({
     () => sorted.filter((i) => matchesNetdiskCategory(i.name, i.is_dir, category)),
     [sorted, category],
   )
+  const visible = editing?.isNew
+    ? [{ path: '__new-folder__', name: '新文件夹', is_dir: true, size: 0, mod_time: new Date().toISOString() } as NetdiskEntry, ...filtered]
+    : filtered
   const segs = useMemo(() => pathSegments(path), [path])
 
   const checkedItems = useMemo(() => filtered.filter((i) => checked.includes(i.path)), [filtered, checked])
@@ -182,6 +190,93 @@ export default function NetdiskFileList({
       else filtered.forEach((i) => set.delete(i.path))
       return [...set]
     })
+  }
+
+  function commitEdit() {
+    if (!editing) return
+    const name = editing.value.trim()
+    if (!name) { setEditing(null); return }
+    if (editing.isNew) onNewDir(name)
+    else {
+      const item = entries.find((entry) => entry.path === editing.path)
+      if (item && name !== item.name) onRename(item, name)
+    }
+    setEditing(null)
+  }
+
+  function renderName(item: NetdiskEntry) {
+    const active = editing?.path === item.path
+    if (active) return <input autoFocus value={editing.value} onChange={(e) => setEditing({ ...editing, value: e.target.value })} onFocus={(e) => e.currentTarget.select()} onBlur={commitEdit} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitEdit() } if (e.key === 'Escape') setEditing(null) }} style={{ minWidth: 0, flex: 1, border: '1px solid #1677ff', borderRadius: 4, padding: '3px 6px' }} />
+    return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+  }
+
+  /**
+   * 构建右键菜单项（目录与文件略有不同）。
+   * 目录：打开目录 + 改名 + 移动 + 删除；文件：预览 / 下载 / 导入到文库 + 改名 + 移动 + 删除。
+   */
+  function buildContextItems(item: NetdiskEntry): ContextMenuItem[] {
+    const items: ContextMenuItem[] = []
+    if (item.is_dir) {
+      items.push({
+        key: 'open',
+        label: '打开目录',
+        icon: <FolderOpenOutlined />,
+        onClick: () => onOpenDir(item.path),
+      })
+    } else {
+      items.push({
+        key: 'preview',
+        label: '预览',
+        icon: <EyeOutlined />,
+        disabled: !isPreviewSupported(item.name),
+        onClick: () => onPreview(item),
+      })
+      items.push({
+        key: 'download',
+        label: '下载',
+        icon: <DownloadOutlined />,
+        onClick: () => onDownload(item),
+      })
+      items.push({
+        key: 'import',
+        label: '导入到文库',
+        icon: <ImportOutlined />,
+        disabled: !isImportable(item.name),
+        onClick: () => onImport(item),
+      })
+    }
+    items.push({ key: 'div1', label: '', divider: true })
+    items.push({ key: 'rename', label: '改名', icon: <EditOutlined />, onClick: () => setEditing({ path: item.path, value: item.name }) })
+    items.push({ key: 'move', label: '移动', icon: <FolderOpenOutlined />, onClick: () => onMove(item) })
+    items.push({ key: 'div2', label: '', divider: true })
+    items.push({ key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => onDelete(item) })
+    return items
+  }
+
+  /** 在 (x, y) 处弹出右键菜单 */
+  function openMenu(e: ReactMouseEvent, item: NetdiskEntry) {
+    e.preventDefault()
+    setCtx({ x: e.clientX, y: e.clientY, item })
+  }
+
+  /**
+   * 点击文件名：默认预览操作。
+   *   - 目录 → 进入目录
+   *   - 可预览文件 → 预览
+   *   - 不可预览文件 → 弹出右键菜单（PRD 本次需求）
+   */
+  function handleNameActivate(item: NetdiskEntry, e: ReactMouseEvent) {
+    if (item.is_dir) {
+      e.preventDefault()
+      onOpenDir(item.path)
+      return
+    }
+    if (isPreviewSupported(item.name)) {
+      onPreview(item)
+      return
+    }
+    e.preventDefault()
+    setCtx({ x: e.clientX, y: e.clientY, item })
   }
 
   const rowMenu = (item: NetdiskEntry): MenuProps => ({
@@ -207,7 +302,7 @@ export default function NetdiskFileList({
         onClick: () => onImport(item),
       },
       { type: 'divider' },
-      { key: 'rename', icon: <EditOutlined />, label: '改名', onClick: () => onRename(item) },
+      { key: 'rename', icon: <EditOutlined />, label: '改名', onClick: () => setEditing({ path: item.path, value: item.name }) },
       { key: 'move', icon: <FolderOpenOutlined />, label: '移动', onClick: () => onMove(item) },
       { type: 'divider' },
       { key: 'delete', label: '删除', danger: true, onClick: () => onDelete(item) },
@@ -233,7 +328,7 @@ export default function NetdiskFileList({
       </div>
 
       <div className="hk-nd-toolbar">
-        <Button type="primary" size="small" icon={<FileAddOutlined />} onClick={onNewDir}>
+        <Button type="primary" size="small" icon={<FileAddOutlined />} onClick={() => { if (!editing) setEditing({ path: '__new-folder__', value: '新文件夹', isNew: true }) }}>
           新建目录
         </Button>
         <Button size="small" onClick={onUpload} data-testid="hk-netdisk-upload">
@@ -323,7 +418,7 @@ export default function NetdiskFileList({
                 style={{ padding: '48px 0' }}
               />
             ) : (
-              filtered.map((item) => {
+              visible.map((item) => {
                 const previewOk = !item.is_dir && isPreviewSupported(item.name)
                 const importOk = !item.is_dir && isImportable(item.name)
                 const selected = checked.includes(item.path)
@@ -332,6 +427,7 @@ export default function NetdiskFileList({
                     key={item.path}
                     className={`hk-nd-row${selected ? ' hk-nd-row-selected' : ''}`}
                     data-testid="hk-netdisk-row"
+                    onContextMenu={(e) => openMenu(e, item)}
                   >
                     <Checkbox
                       checked={selected}
@@ -339,16 +435,12 @@ export default function NetdiskFileList({
                     />
                     <div
                       className="hk-nd-row-name"
+                      onClick={(e) => handleNameActivate(item, e)}
                       onDoubleClick={() => item.is_dir && onOpenDir(item.path)}
                       title={item.is_dir ? '双击进入目录' : item.name}
                     >
                       <NetdiskFileIcon name={item.name} isDir={item.is_dir} size={20} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
-                      {item.is_dir && (
-                        <a style={{ fontSize: 12 }} onClick={() => onOpenDir(item.path)}>
-                          进入
-                        </a>
-                      )}
+                      {renderName(item)}
                     </div>
                     <div className="hk-nd-row-meta">{typeLabel(item.name, item.is_dir)}</div>
                     <div className="hk-nd-row-meta">{item.is_dir ? '—' : formatSize(item.size)}</div>
@@ -361,6 +453,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<EyeOutlined />}
+                          aria-label={`预览 ${item.name}`}
                           disabled={!previewOk}
                           onClick={() => onPreview(item)}
                         />
@@ -370,6 +463,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<DownloadOutlined />}
+                          aria-label={`下载 ${item.name}`}
                           onClick={() => onDownload(item)}
                         />
                       </Tooltip>
@@ -378,6 +472,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<ImportOutlined />}
+                          aria-label={`导入 ${item.name} 到文库`}
                           disabled={!importOk}
                           onClick={() => onImport(item)}
                         />
@@ -387,7 +482,8 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<EditOutlined />}
-                          onClick={() => onRename(item)}
+                          aria-label={`重命名 ${item.name}`}
+                          onClick={() => setEditing({ path: item.path, value: item.name })}
                         />
                       </Tooltip>
                       <Tooltip title="移动">
@@ -395,6 +491,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<FolderOpenOutlined />}
+                          aria-label={`移动 ${item.name}`}
                           onClick={() => onMove(item)}
                         />
                       </Tooltip>
@@ -404,11 +501,12 @@ export default function NetdiskFileList({
                           size="small"
                           danger
                           icon={<DeleteOutlined />}
+                          aria-label={`删除 ${item.name}`}
                           onClick={() => onDelete(item)}
                         />
                       </Tooltip>
                       <Dropdown menu={rowMenu(item)} trigger={['click']}>
-                        <Button type="text" size="small" icon={<MoreOutlined />} />
+                        <Button type="text" size="small" icon={<MoreOutlined />} aria-label={`更多操作：${item.name}`} />
                       </Dropdown>
                     </div>
                   </div>
@@ -428,7 +526,7 @@ export default function NetdiskFileList({
                 style={{ padding: '48px 0' }}
               />
             ) : (
-              filtered.map((item) => {
+              visible.map((item) => {
                 const previewOk = !item.is_dir && isPreviewSupported(item.name)
                 const importOk = !item.is_dir && isImportable(item.name)
                 const selected = checked.includes(item.path)
@@ -438,6 +536,7 @@ export default function NetdiskFileList({
                     className={`hk-nd-grid-card${selected ? ' hk-nd-grid-card-selected' : ''}`}
                     data-testid="hk-netdisk-row"
                     onDoubleClick={() => item.is_dir && onOpenDir(item.path)}
+                    onContextMenu={(e) => openMenu(e, item)}
                   >
                     <Checkbox
                       className="hk-nd-card-check"
@@ -453,9 +552,9 @@ export default function NetdiskFileList({
                     <div
                       className="hk-nd-card-name"
                       title={item.name}
-                      onClick={() => item.is_dir && onOpenDir(item.path)}
+                      onClick={(e) => handleNameActivate(item, e)}
                     >
-                      {item.name}
+                      {renderName(item)}
                     </div>
                     <div className="hk-nd-card-meta">
                       {item.is_dir ? '目录' : `${formatSize(item.size)} · ${formatTime(item.mod_time)}`}
@@ -466,6 +565,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<EyeOutlined />}
+                          aria-label={`预览 ${item.name}`}
                           disabled={!previewOk}
                           onClick={() => onPreview(item)}
                         />
@@ -475,6 +575,7 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<DownloadOutlined />}
+                          aria-label={`下载 ${item.name}`}
                           onClick={() => onDownload(item)}
                         />
                       </Tooltip>
@@ -483,12 +584,13 @@ export default function NetdiskFileList({
                           type="text"
                           size="small"
                           icon={<ImportOutlined />}
+                          aria-label={`导入 ${item.name} 到文库`}
                           disabled={!importOk}
                           onClick={() => onImport(item)}
                         />
                       </Tooltip>
                       <Dropdown menu={rowMenu(item)} trigger={['click']}>
-                        <Button type="text" size="small" icon={<MoreOutlined />} />
+                        <Button type="text" size="small" icon={<MoreOutlined />} aria-label={`更多操作：${item.name}`} />
                       </Dropdown>
                     </div>
                   </div>
@@ -497,6 +599,15 @@ export default function NetdiskFileList({
             )}
           </Spin>
         </div>
+      )}
+
+      {ctx && (
+        <NetdiskContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          items={buildContextItems(ctx.item)}
+          onClose={() => setCtx(null)}
+        />
       )}
     </div>
   )

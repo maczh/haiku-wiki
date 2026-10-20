@@ -63,6 +63,24 @@ func TestNetdiskUnsaved(c *gin.Context) {
 	resp.OK(c, res)
 }
 
+// ListSMBShares POST /api/netdisks/smb/shares —— 列举 SMB 服务器共享（两步添加第 1→2 步）。
+//
+// 不落库：只是临时拨号枚举共享并探测权限，供前端第 2 步让用户勾选。
+// 必须排在 /netdisks/:id 之前（静态路径优先匹配）。
+func ListSMBShares(c *gin.Context) {
+	var req service.SMBSharesReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, paramErr(err))
+		return
+	}
+	res, err := service.NetdiskSvc.ListSMBShares(middleware.UID(c), req)
+	if err != nil {
+		resp.Error(c, err)
+		return
+	}
+	resp.OK(c, gin.H{"shares": res})
+}
+
 // GetNetdisk GET /api/netdisks/:id —— 详情（脱敏）。
 func GetNetdisk(c *gin.Context) {
 	id, ok := netdiskIDFromPath(c)

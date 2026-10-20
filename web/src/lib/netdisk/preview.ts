@@ -23,7 +23,7 @@ const TEXT_EXTS = [
   'go', 'java', 'py', 'rb', 'php', 'c', 'h', 'cpp', 'cs', 'rs', 'sh', 'bat',
 ]
 /** 走文库渲染器（DocContent）的二进制/结构化文件 */
-const READER_BINARY_EXTS = ['pdf', 'docx', 'xlsx', 'pptx', 'vsd', 'vsdx']
+const READER_BINARY_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'vsd', 'vsdx']
 /** 走文库渲染器的文本型文件 */
 const READER_TEXT_EXTS: { ext: string; docType: 'markdown' | 'drawing' | 'whiteboard' }[] = [
   { ext: 'md', docType: 'markdown' },
@@ -34,6 +34,8 @@ const READER_TEXT_EXTS: { ext: string; docType: 'markdown' | 'drawing' | 'whiteb
   { ext: 'drawio', docType: 'drawing' },
   { ext: 'excalidraw', docType: 'whiteboard' },
 ]
+/** 思维导图文件（文库已有后端 /api/mindmap/parse 统一转成内置 smm） */
+const READER_MINDMAP_EXTS = ['km', 'mm', 'xmind']
 
 /** 是否可预览 */
 export function isPreviewSupported(name: string): boolean {
@@ -50,6 +52,9 @@ export function netdiskPreviewKind(name: string): NetdiskPreviewKind {
   if (TEXT_EXTS.includes(ext)) return 'text'
   if (READER_BINARY_EXTS.includes(ext)) return 'reader'
   if (READER_TEXT_EXTS.some((r) => r.ext === ext)) return 'reader'
+  // 思维导图（.km/.mm/.xmind）同样交给文库渲染器（DocContent docType='mindmap'），
+  // 由 NetdiskReaderView 取字节后经 /api/mindmap/parse 转成内置 smm。
+  if (READER_MINDMAP_EXTS.includes(ext)) return 'reader'
   return 'unsupported'
 }
 
@@ -59,9 +64,10 @@ export function netdiskPreviewKind(name: string): NetdiskPreviewKind {
  *   - 文本型 → markdown / drawing / whiteboard
  *   - 其余 → null（调用方走图片/视频/音频/纯文本分支）
  */
-export function netdiskPreviewDocType(name: string): 'file' | 'markdown' | 'drawing' | 'whiteboard' | null {
+export function netdiskPreviewDocType(name: string): 'file' | 'markdown' | 'drawing' | 'whiteboard' | 'mindmap' | null {
   const ext = extOf(name)
   if (READER_BINARY_EXTS.includes(ext)) return 'file'
+  if (READER_MINDMAP_EXTS.includes(ext)) return 'mindmap'
   const hit = READER_TEXT_EXTS.find((r) => r.ext === ext)
   return hit ? hit.docType : null
 }
