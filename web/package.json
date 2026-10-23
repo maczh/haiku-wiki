@@ -8,7 +8,7 @@
     "predev": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs && node scripts/copy-libredwg-assets.mjs && node scripts/build-pptist.mjs",
     "dev": "vite",
     "prebuild": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs && node scripts/copy-libredwg-assets.mjs && node scripts/build-pptist.mjs",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit && NODE_OPTIONS=--max-old-space-size=4096 vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 tsc --noEmit && NODE_OPTIONS=--max-old-space-size=6144 vite build",
     "preview": "vite preview",
     "verify:mermaid-assets": "node scripts/verify-mermaid-assets.mjs",
     "fetch:drawio": "node scripts/fetch-drawio-assets.mjs",

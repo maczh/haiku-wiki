@@ -5,6 +5,30 @@
   min-width: 0;
 }
 
+/* Make the insertion point unmistakable against the light editor canvas.
+   Crepe defaults to the low-contrast outline token; the virtual-cursor plugin
+   also needs its own token because it hides the native caret while navigating. */
+.hk-typo-editor-host .milkdown .ProseMirror {
+  caret-color: #1677ff;
+  --prosemirror-virtual-cursor-color: #1677ff;
+}
+
+.hk-typo-editor-host .milkdown .ProseMirror-focused {
+  caret-color: #0057d9;
+}
+
+.hk-typo-editor-host .milkdown .ProseMirror .prosemirror-virtual-cursor {
+  border-left-width: 3px;
+  border-left-color: #0057d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hk-typo-editor-host .milkdown .ProseMirror {
+    caret-color: #69b1ff;
+    --prosemirror-virtual-cursor-color: #69b1ff;
+  }
+}
+
 .milkdown_root .milkdown-block-handle {
   margin-left: -12px;
 }

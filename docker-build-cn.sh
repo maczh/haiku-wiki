@@ -131,7 +131,8 @@ try:
         cfg = json.loads(raw)
 except Exception:
     cfg = {}
-cfg.setdefault("proxies", {})
+if not isinstance(cfg.get("proxies"), dict):
+    cfg["proxies"] = {}
 cfg["proxies"].update({
     "http-proxy": proxy,
     "https-proxy": proxy,
