@@ -23,7 +23,11 @@ const TEXT_EXTS = [
   'go', 'java', 'py', 'rb', 'php', 'c', 'h', 'cpp', 'cs', 'rs', 'sh', 'bat',
 ]
 /** 走文库渲染器（DocContent）的二进制/结构化文件 */
-const READER_BINARY_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'vsd', 'vsdx']
+const READER_BINARY_EXTS = [
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'tsv', 'ppt', 'pptx', 'wps',
+  'vsd', 'vsdx', 'dwg', 'dxf', 'dwf', 'step', 'stp', 'iges', 'igs', 'ifc',
+  'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'psd', 'ai',
+]
 /** 走文库渲染器的文本型文件 */
 const READER_TEXT_EXTS: { ext: string; docType: 'markdown' | 'drawing' | 'whiteboard' }[] = [
   { ext: 'md', docType: 'markdown' },

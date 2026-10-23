@@ -2,9 +2,6 @@ import type { ComponentType } from 'react'
 import type { DocType } from '../types'
 import MarkdownView from '../components/reader/MarkdownView'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
-import DocxOfficeEditor from '../components/office/DocxEditor'
-import FortuneSheetEditor from '../components/office/FortuneSheetEditor'
-import PptistEditor from '../components/office/PptistEditor'
 import MindmapView from '../components/reader/MindmapView'
 import FlowchartView from '../components/reader/FlowchartView'
 import DrawioView from '../components/reader/DrawioView'
@@ -49,10 +46,10 @@ const MarkdownReader = (props: H5ReaderProps) => (
 
 export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> = {
   markdown: MarkdownReader,
-  sheet: (props) => <FortuneSheetEditor content={props.content} readOnly />,
-  excel: (props) => <FortuneSheetEditor content={props.content} readOnly />,
-  word: (props) => <DocxOfficeEditor content={props.content} readOnly />,
-  powerpoint: (props) => <PptistEditor content={props.content} readOnly />,
+  sheet: (props) => <FileView content={props.content} mode="h5" />,
+  excel: (props) => <FileView content={props.content} mode="h5" />,
+  word: (props) => <FileView content={props.content} mode="h5" />,
+  powerpoint: (props) => <FileView content={props.content} mode="h5" />,
   mindmap: MindmapView,
   flowchart: FlowchartView,
   drawing: DrawioView,
@@ -61,7 +58,7 @@ export const READER_MAP: Partial<Record<DocType, ComponentType<H5ReaderProps>>> 
   calendar: CalendarView,
   gantt: GanttView,
   api: ApiView,
-  file: FileView,
+  file: (props) => <FileView content={props.content} bookId={props.bookId} mode="h5" />,
   web: WebView,
   gallery: GalleryView,
   prototype: PrototypeView,

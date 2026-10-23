@@ -27,6 +27,7 @@ export default defineConfig({
   plugins: [react()],
   // docx-editor 的 HarfBuzz/WASM 加载器使用顶层 await，需要交给现代浏览器原样处理。
   optimizeDeps: {
+    exclude: ['emf-converter'],
     esbuildOptions: { target: 'esnext' },
   },
   // 旧的 simple-mind-map 依赖 @svgdotjs/svg.js（纯 ESM）需要显式预打包；
@@ -43,5 +44,6 @@ export default defineConfig({
     outDir: 'dist',
     target: 'esnext',
     chunkSizeWarningLimit: 2000,
+    rollupOptions: { external: ['@napi-rs/canvas'] },
   },
 })
