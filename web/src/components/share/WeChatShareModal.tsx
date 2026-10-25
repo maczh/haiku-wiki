@@ -32,6 +32,9 @@ export default function WeChatShareModal({ open, onClose, docId, docTitle }: Pro
       if (!view) {
         // 该文档尚未生成分享链接 → 创建一条永久有效、无密码的分享
         view = await updateDocShare(docId, { enabled: true, expires_at: null, password: '' })
+      } else if (view.has_password || view.expires_at) {
+        // 微信分享保持原有的免密、永久有效语义；若普通分享已有配置则刷新为微信专用链接。
+        view = await updateDocShare(docId, { enabled: true, expires_at: null, password: '' })
       }
       setSlug(view.slug)
       const dataUrl = await QRCode.toDataURL(`${window.location.origin}/doc-share/${view.slug}`, {

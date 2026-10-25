@@ -1155,11 +1155,25 @@ export default function BookPage() {
               </Tooltip>
             )}
             {docIdParam && doc && !docLoading && !isFolderDoc && (
-              <Tooltip title="分享到微信 / 生成免登录阅读链接">
-                <Button size="small" icon={<ShareAltOutlined />} onClick={() => setWeChatOpen(true)}>
-                  分享
-                </Button>
-              </Tooltip>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'normal', label: '普通分享' },
+                    { key: 'wechat', label: '微信分享' },
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === 'wechat') {
+                      setWeChatOpen(true)
+                    } else {
+                      setShareNodeId(Number(docIdParam))
+                      setShareDrawerOpen(true)
+                    }
+                  },
+                }}
+                trigger={['click']}
+              >
+                <Button size="small" icon={<ShareAltOutlined />}>分享</Button>
+              </Dropdown>
             )}
           </div>
 

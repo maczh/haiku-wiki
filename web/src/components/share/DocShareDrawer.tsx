@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, DatePicker, Drawer, Input, Modal, Popconfirm, Space, Switch, Typography, message } from 'antd'
+import { Alert, Button, Checkbox, DatePicker, Drawer, Input, Modal, Popconfirm, Space, Switch, Typography, message } from 'antd'
 import { CopyOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons'
 import { getDocShare, revokeDocShare, updateDocShare } from '../../api/docs'
 import type { DocShareView } from '../../types'
@@ -10,6 +10,64 @@ interface Props {
   onClose: () => void
   docId: number
   docTitle: string
+}
+
+const sharePasswordChars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
+function generateSharePassword() {
+  const values = new Uint32Array(4)
+  crypto.getRandomValues(values)
+  return Array.from(values, (value) => sharePasswordChars[value % sharePasswordChars.length]).join('')
+}
+
+function ShareSettings({
+  noPassword,
+  setNoPassword,
+  pwdInput,
+  setPwdInput,
+  expireAt,
+  setExpireAt,
+}: {
+  noPassword: boolean
+  setNoPassword: (value: boolean) => void
+  pwdInput: string
+  setPwdInput: (value: string) => void
+  expireAt: dayjs.Dayjs | null
+  setExpireAt: (value: dayjs.Dayjs | null) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 18 }}>
+      <div>
+        <Typography.Text strong>分享密码</Typography.Text>
+        <Space.Compact style={{ width: '100%', marginTop: 8 }}>
+          <Input
+            value={noPassword ? '' : pwdInput}
+            maxLength={4}
+            placeholder="4位字母或数字密码"
+            disabled={noPassword}
+            onChange={(e) => setPwdInput(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4))}
+          />
+          <Button disabled={noPassword} onClick={() => setPwdInput(generateSharePassword())}>
+            随机生成
+          </Button>
+        </Space.Compact>
+        <Checkbox checked={noPassword} onChange={(e) => setNoPassword(e.target.checked)} style={{ marginTop: 8 }}>
+          免密分享
+        </Checkbox>
+      </div>
+      <div>
+        <Typography.Text strong>有效期</Typography.Text>
+        <DatePicker
+          showTime
+          placeholder="永久有效（可选择过期时间）"
+          value={expireAt}
+          disabledDate={(d) => d.isBefore(dayjs(), 'day')}
+          onChange={setExpireAt}
+          style={{ width: '100%', marginTop: 8 }}
+        />
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -23,13 +81,18 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
   const [creating, setCreating] = useState(false)
   const [pwdInput, setPwdInput] = useState('')
   const [expireAt, setExpireAt] = useState<dayjs.Dayjs | null>(null)
+  const [noPassword, setNoPassword] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const v = await getDocShare(docId)
       setView(v)
-      setExpireAt(v?.expires_at ? dayjs(v.expires_at) : null)
+      // 普通分享默认开启密码保护，首次配置或原分享免密时生成新密码。
+      // 已有有效期则保持原配置，否则默认 3 天。
+      setExpireAt(v?.expires_at ? dayjs(v.expires_at) : dayjs().add(3, 'day'))
+      setNoPassword(false)
+      setPwdInput(!v || !v.has_password ? generateSharePassword() : '')
     } finally {
       setLoading(false)
     }
@@ -44,6 +107,9 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
   }, [open, docId, load])
 
   const shareLink = view ? `${window.location.origin}/doc-share/${view.slug}` : null
+  const shareText = shareLink
+    ? `${shareLink}${!noPassword && pwdInput ? `\n分享密码：${pwdInput}` : ''}`
+    : ''
 
   /** 保存设置（upsert：刷新 slug + 覆盖配置） */
   async function apply(payload: { password?: string; expires_at?: string | null; enabled?: boolean }) {
@@ -57,7 +123,6 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
         onOk: async () => {
           const v = await updateDocShare(docId, payload)
           setView(v)
-          setPwdInput('')
           message.success('已保存，链接已刷新')
         },
       })
@@ -70,7 +135,7 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
 
   function generate() {
     setCreating(true)
-    void apply({})
+    void apply({ password: noPassword ? '' : pwdInput, expires_at: expireAt ? expireAt.toDate().toISOString() : null })
       .catch(() => undefined)
       .finally(() => setCreating(false))
   }
@@ -88,11 +153,10 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
       {!loading && !view && (
         <div>
           <Typography.Paragraph type="secondary">
-            还没有为这篇文档生成分享链接。生成后可设置阅读密码与有效期，链接可发给任何人免登录阅读。
+            设置分享密码与有效期后，点击“分享”生成免登录链接。
           </Typography.Paragraph>
-          <Button type="primary" loading={creating} onClick={generate}>
-            生成分享链接
-          </Button>
+          <ShareSettings noPassword={noPassword} setNoPassword={setNoPassword} pwdInput={pwdInput} setPwdInput={setPwdInput} expireAt={expireAt} setExpireAt={setExpireAt} />
+          <Button type="primary" loading={creating} onClick={generate} disabled={!noPassword && pwdInput.length !== 4}>分享</Button>
         </div>
       )}
 
@@ -109,14 +173,14 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
           <div>
             <Typography.Text strong>分享链接</Typography.Text>
             <Space.Compact style={{ width: '100%', marginTop: 8 }}>
-              <Input value={shareLink ?? ''} readOnly />
+              <Input.TextArea value={shareText} readOnly autoSize={{ minRows: 2, maxRows: 3 }} />
               <Button
                 type="primary"
                 icon={<CopyOutlined />}
                 onClick={() => {
                   if (shareLink) {
-                    void navigator.clipboard.writeText(shareLink)
-                    message.success('链接已复制')
+                    void navigator.clipboard.writeText(shareText)
+                    message.success('链接和分享密码已复制')
                   }
                 }}
               />
@@ -146,73 +210,8 @@ export default function DocShareDrawer({ open, onClose, docId, docTitle }: Props
             />
           </div>
 
-          {/* 阅读密码 */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div>
-                <Typography.Text strong>阅读密码</Typography.Text>
-                <div style={{ color: '#8a919f', fontSize: 12 }}>
-                  {view.has_password ? '已设置密码，访问需输入' : '未设置，任何拿到链接的人可读'}
-                </div>
-              </div>
-              <Button
-                size="small"
-                danger={view.has_password}
-                onClick={() => void apply({ password: '' })}
-                disabled={!view.has_password}
-              >
-                清除密码
-              </Button>
-            </div>
-            <Space.Compact style={{ width: '100%' }}>
-              <Input.Password
-                placeholder={view.has_password ? '已设置（输入新密码覆盖）' : '设置阅读密码（至少 4 位）'}
-                value={pwdInput}
-                onChange={(e) => setPwdInput(e.target.value)}
-              />
-              <Button
-                type="default"
-                disabled={pwdInput.length < 4}
-                onClick={() => void apply({ password: pwdInput })}
-              >
-                保存密码
-              </Button>
-            </Space.Compact>
-          </div>
-
-          {/* 有效期 */}
-          <div>
-            <Typography.Text strong>有效期</Typography.Text>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-              <span style={{ color: view.expires_at ? '#8a919f' : '#52c41a', fontSize: 13 }}>
-                {view.expires_at ? `至 ${dayjs(view.expires_at).format('YYYY-MM-DD HH:mm')} UTC` : '永久有效'}
-              </span>
-              <DatePicker
-                showTime
-                placeholder="选择过期时间"
-                value={expireAt}
-                disabledDate={(d) => d.isBefore(dayjs(), 'day')}
-                onChange={(d) => setExpireAt(d)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                disabled={!expireAt}
-                onClick={() =>
-                  void apply({
-                    // 本地时间 → RFC3339 UTC（与全局时间约定一致）
-                    expires_at: expireAt ? expireAt.toDate().toISOString() : null,
-                  })
-                }
-              >
-                保存
-              </Button>
-            </div>
-            <div style={{ marginTop: 6 }}>
-              <Button size="small" type="link" style={{ paddingLeft: 0 }} onClick={() => void apply({ expires_at: null })}>
-                恢复为永久有效
-              </Button>
-            </div>
-          </div>
+          <ShareSettings noPassword={noPassword} setNoPassword={setNoPassword} pwdInput={pwdInput} setPwdInput={setPwdInput} expireAt={expireAt} setExpireAt={setExpireAt} />
+          <Button type="primary" loading={creating} onClick={generate} disabled={!noPassword && pwdInput.length !== 4}>分享</Button>
 
           {/* 撤销 */}
           <Popconfirm
