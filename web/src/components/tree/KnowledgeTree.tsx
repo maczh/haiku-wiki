@@ -20,6 +20,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   PushpinFilled,
+  ReloadOutlined,
   SafetyCertificateOutlined,
   ShareAltOutlined,
   TeamOutlined,
@@ -254,6 +255,9 @@ export default function KnowledgeTree(p: Props) {
   // loadedKeys 的 ref 镜像，供 rebuildTop 读取最新值（避免闭包陈旧）
   const loadedRef = useRef<React.Key[]>([])
   loadedRef.current = loadedKeys
+  // 同一知识库可能因首屏加载、当前文档同步、刷新菜单同时发起多次请求。
+  // 只允许该库最后一次请求提交结果，避免旧响应覆盖新目录。
+  const bookLoadSeqRef = useRef<Map<number, number>>(new Map())
 
   /** 重建顶层结构（分类 → 知识库 → 已加载的文档子树） */
   const rebuildTop = useCallback(() => {
@@ -284,14 +288,17 @@ export default function KnowledgeTree(p: Props) {
       }),
       raw: { kind: 'cat', catKey: key },
     })
-    const top: KNode[] = [
-      cat('private', books.mine || []),
-      cat('team', books.teams || []),
-      cat('company', books.visible || []),
-    ]
+    const top: KNode[] = []
+    for (const [key, list] of [
+      ['private', books.mine || []],
+      ['team', books.teams || []],
+      ['company', books.visible || []],
+    ] as const) {
+      if (list.length > 0) top.push(cat(key, list))
+    }
     // 「我的网盘」：与三个知识库分类同级的第四个顶层分组（仅在注入 netdisk 时出现）
     const nd = p.netdisk
-    if (nd) {
+    if (nd && nd.conns.length > 0) {
       top.push({
         key: 'cat:netdisk',
         title: (
@@ -334,18 +341,43 @@ export default function KnowledgeTree(p: Props) {
 
   /** 加载（或重载）某知识库的文档 */
   const loadBookDocs = useCallback(
-    async (bookId: number, expand: boolean) => {
+    async (bookId: number, expand: boolean, expandDocId?: number) => {
+      const nextSeq = (bookLoadSeqRef.current.get(bookId) ?? 0) + 1
+      bookLoadSeqRef.current.set(bookId, nextSeq)
       try {
         const docs = await getTree(bookId)
+        if (bookLoadSeqRef.current.get(bookId) !== nextSeq) return
         bookDocsRef.current.set(bookId, docs)
-        setLoadedKeys((s) => (s.includes(`book:${bookId}`) ? s : [...s, `book:${bookId}`]))
-        if (expand) setExpandedKeys((s) => (s.includes(`book:${bookId}`) ? s : [...s, `book:${bookId}`]))
+        const bookKey = `book:${bookId}`
+        if (!loadedRef.current.includes(bookKey)) {
+          loadedRef.current = [...loadedRef.current, bookKey]
+        }
+        setLoadedKeys(loadedRef.current)
+        if (expand) {
+          const keys: React.Key[] = [`book:${bookId}`]
+          if (expandDocId != null) keys.push(`doc:${bookId}:${expandDocId}`)
+          if (selectedBookId === bookId && selectedDocId != null) {
+            const byID = new Map(docs.map((d) => [d.id, d]))
+            let current = byID.get(selectedDocId)
+            // 当前打开的节点本身若是目录（或确实有子文档），也要展开它；
+            // 否则打开一个目录时只能看到选中态，看不到它的直属内容。
+            if (current && (current.doc_type === 'folder' || docs.some((d) => d.parent_id === current?.id))) {
+              keys.push(`doc:${bookId}:${current.id}`)
+            }
+            while (current && current.parent_id > 0) {
+              keys.push(`doc:${bookId}:${current.parent_id}`)
+              current = byID.get(current.parent_id)
+            }
+          }
+          setExpandedKeys((s) => Array.from(new Set([...s, ...keys])))
+        }
         rebuildTop()
       } catch {
+        if (bookLoadSeqRef.current.get(bookId) !== nextSeq) return
         message.error('文档目录加载失败')
       }
     },
-    [rebuildTop],
+    [rebuildTop, selectedBookId, selectedDocId],
   )
 
   // 外部触发刷新（导入/新建成功后）：重载并展开目标库
@@ -355,6 +387,14 @@ export default function KnowledgeTree(p: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadNonce])
+
+  // 从首页、搜索、最近文档等快捷入口切换文档时，必须重新确认当前库的完整树。
+  // 不能只依赖 ref 缓存：快捷入口可能发生在目录树尚未完成首轮加载、或缓存仍是旧
+  // 目录的时刻；否则 selectedKeys 虽然已经有值，但对应节点尚未出现在 Tree 中。
+  useEffect(() => {
+    if (selectedBookId == null || selectedDocId == null) return
+    void loadBookDocs(selectedBookId, true)
+  }, [loadBookDocs, selectedBookId, selectedDocId])
 
   const onLoadData = useCallback(
     (node: KNode) => {
@@ -417,6 +457,7 @@ export default function KnowledgeTree(p: Props) {
     const items: MenuProps['items'] = [
       { key: 'new', icon: <FileAddOutlined />, label: '新建', children: newSubItems },
       { key: 'import', icon: <ImportOutlined />, label: '导入', onClick: () => p.onImport(book.id, 0) },
+      { key: 'refresh', icon: <ReloadOutlined />, label: '刷新', onClick: () => void loadBookDocs(book.id, true) },
       { key: 'edit', icon: <EditOutlined />, label: '设置', onClick: () => p.onEditBook(book) },
     ]
     if (book.is_company_kb && isAdmin) {
@@ -457,6 +498,7 @@ export default function KnowledgeTree(p: Props) {
         message.success('链接已复制')
       },
       onOpenInNewTab: () => window.open(internalLink(bookId, doc.id), '_blank'),
+      onRefresh: () => void loadBookDocs(bookId, true, doc.id),
       onMoveOut: () => {
         void moveDoc(doc.id, { parent_id: 0 })
           .then(() => {
@@ -488,6 +530,7 @@ export default function KnowledgeTree(p: Props) {
 
     const items: any[] = [
       { key: 'open', icon: <FolderOpenOutlined />, label: '打开', onClick: () => p.onOpenDoc(bookId, doc.id) },
+      { key: 'refresh', icon: <ReloadOutlined />, label: '刷新', onClick: () => void loadBookDocs(bookId, true, doc.id) },
     ]
     if (p.onEditDoc) {
       items.push({
@@ -843,6 +886,7 @@ export default function KnowledgeTree(p: Props) {
         className="hk-knowledge-tree"
         treeData={treeData}
         expandedKeys={expandedKeys}
+        autoExpandParent
         selectedKeys={selectedKeys}
         loadedKeys={loadedKeys}
         loadData={(n) => onLoadData(n as KNode)}

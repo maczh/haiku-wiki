@@ -2,6 +2,8 @@ import { lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button, AutoComplete, Dropdown, Empty, Form, Input, Modal, Popconfirm, Radio, Select, Space, Spin, Tag, Tooltip, message } from 'antd'
 import {
+  BookOutlined,
+  CloudOutlined,
   CloseOutlined,
   CopyOutlined,
   DeleteOutlined,
@@ -28,12 +30,15 @@ import type { TodoEditorHandle } from '../components/editor/TodoEditor'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
 import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
 import BookDashboard from '../components/dashboard/BookDashboard'
-import { deleteConnection, listConnections, listDir } from '../api/netdisk'
-import type { NetdiskConnection } from '../types'
+import { deleteConnection, listConnections, listDir, listProviders } from '../api/netdisk'
+import type { NetdiskConnection, NetdiskKind, NetdiskProvider } from '../types'
 import EmbeddedNetdiskPanel from '../components/netdisk/EmbeddedNetdiskPanel'
+import NetdiskConnectionDialog from '../components/netdisk/NetdiskConnectionDialog'
 import NetdiskUploadDialog from '../components/tree/NetdiskUploadDialog'
+import { openNetdiskOAuth } from '../lib/netdisk/oauth'
 import LazyBoundary from '../components/common/LazyBoundary'
 import DocContent from '../components/reader/DocContent'
+import FolderPreview from '../components/reader/FolderPreview'
 import MdBodyWidth from '../components/reader/MdBodyWidth'
 import TocAnchor from '../components/reader/TocAnchor'
 import CommentPanel from '../components/reader/CommentPanel'
@@ -163,6 +168,8 @@ export default function BookPage() {
   const [booksLoading, setBooksLoading] = useState(false)
   /** 「我的网盘」顶层分组用的连接列表（与首页区块同源，独立请求） */
   const [ndConns, setNdConns] = useState<NetdiskConnection[]>([])
+  const [ndProviders, setNdProviders] = useState<NetdiskProvider[]>([])
+  const [newNdDialog, setNewNdDialog] = useState<{ kind: NetdiskKind } | null>(null)
   const [embeddedNetdisk, setEmbeddedNetdisk] = useState<{ connId: number; path: string } | null>(null)
   const [uploadNetdiskDoc, setUploadNetdiskDoc] = useState<DocNode | null>(null)
 
@@ -407,10 +414,38 @@ export default function BookPage() {
 
   // 「我的网盘」分组：连接列表（失败不影响文库主体，静默降级为空分组）
   useEffect(() => {
-    void listConnections()
-      .then(setNdConns)
-      .catch(() => setNdConns([]))
+    void Promise.all([listConnections(), listProviders()])
+      .then(([connections, providers]) => {
+        setNdConns(connections)
+        setNdProviders(providers)
+      })
+      .catch(() => {
+        // 连接/能力清单失败不影响文库主体，目录树静默降级为空分组。
+        setNdConns([])
+        setNdProviders([])
+      })
   }, [])
+
+  /** 顶栏「新建网盘连接」选择协议后的统一入口：OAuth 授权或打开原生配置弹窗。 */
+  async function openNewNetdisk(kind: NetdiskKind) {
+    const provider = ndProviders.find((item) => item.kind === kind)
+    if (!provider || !provider.available) return
+    if (provider.oauth) {
+      try {
+        const result = await openNetdiskOAuth(kind)
+        if (result.ok) {
+          message.success(`${result.name || provider.label}授权成功`)
+          setNdConns(await listConnections())
+        } else {
+          message.error(result.message || '授权未完成')
+        }
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '授权失败')
+      }
+      return
+    }
+    setNewNdDialog({ kind })
+  }
 
   // 当前书变化时刷新左侧树中该书的数据（保持选中状态与计数最新）
   useEffect(() => {
@@ -701,6 +736,7 @@ export default function BookPage() {
   function afterImport(bookId: number) {
     setReloadBookId(bookId)
     setReloadNonce((n) => n + 1)
+    void loadTree(bookId)
   }
 
   async function handlePinDoc(_bookId: number, node: DocNode) {
@@ -929,6 +965,30 @@ export default function BookPage() {
     },
   }
 
+  const topAddMenu = {
+    items: [
+      {
+        key: 'new-book',
+        icon: <BookOutlined />,
+        label: '新建知识库',
+        onClick: () => openCreateBook('private'),
+      },
+      {
+        key: 'new-netdisk',
+        icon: <CloudOutlined />,
+        label: '新建网盘连接',
+        children: ndProviders.length > 0
+          ? ndProviders.map((provider) => ({
+              key: `netdisk:${provider.kind}`,
+              label: provider.available ? provider.label : `${provider.label}（暂不可用）`,
+              disabled: !provider.available,
+              onClick: () => void openNewNetdisk(provider.kind),
+            }))
+          : [{ key: 'netdisk-loading', label: '暂无可用网盘类型', disabled: true }],
+      },
+    ],
+  }
+
   /** 文档右键"分享"：打开 DocShareDrawer（默认永久有效，R5） */
   function openShare(node: DocNode) {
     setShareNodeId(node.id)
@@ -978,17 +1038,15 @@ export default function BookPage() {
                   >
                     寄海文档
                   </div>
-                  <Tooltip title="新建知识库">
+                  <Dropdown menu={topAddMenu} trigger={['click']} placement="bottomRight">
                     <Button
                       type="text"
                       size="small"
                       icon={<PlusOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openCreateBook('private')
-                      }}
+                      aria-label="新建"
+                      onClick={(e) => e.stopPropagation()}
                     />
-                  </Tooltip>
+                  </Dropdown>
                   <Tooltip title="收起文档库">
                     <Button
                       type="text"
@@ -1296,7 +1354,13 @@ export default function BookPage() {
                   <Empty description="没有编辑权限，已切换为阅读模式" style={{ marginTop: 80 }} />
                 )}
                 {docIdParam && !docLoading && doc && tab === 'read' && (
-                  docTypeNow === 'api' ? (
+                  docTypeNow === 'folder' ? (
+                    <FolderPreview
+                      folder={doc}
+                      docs={docs}
+                      onOpenDoc={(id) => setParams({ docId: id, tab: 'read' })}
+                    />
+                  ) : docTypeNow === 'api' ? (
                     /* 接口文档：标题固定在顶部，下方「左接口树 + 右调试」双面板填满剩余高度、各自独立滚动（不随整页滚动） */
                     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                       <div style={{ flexShrink: 0, padding: '28px 24px 8px' }}>
@@ -1936,6 +2000,22 @@ export default function BookPage() {
         doc={uploadNetdiskDoc}
         onClose={() => setUploadNetdiskDoc(null)}
       />
+      {newNdDialog && (
+        <NetdiskConnectionDialog
+          open
+          kind={newNdDialog.kind}
+          editing={null}
+          onClose={() => setNewNdDialog(null)}
+          onSaved={async () => {
+            setNewNdDialog(null)
+            try {
+              setNdConns(await listConnections())
+            } catch {
+              /* request 拦截器已提示 */
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

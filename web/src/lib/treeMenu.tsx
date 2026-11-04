@@ -20,6 +20,7 @@ import {
   ImportOutlined,
   LinkOutlined,
   PushpinFilled,
+  ReloadOutlined,
   SaveOutlined,
   ShareAltOutlined,
 } from '@ant-design/icons'
@@ -42,6 +43,8 @@ export interface TreeMenuHandlers {
   onSaveAsTemplate: () => void
   onDelete: () => void
   onUploadToNetdisk?: () => void
+  /** 刷新当前节点的下级目录 */
+  onRefresh: () => void
 }
 
 /** ⋮ 菜单的上下文 */
@@ -90,6 +93,12 @@ export function buildTreeMenuItems(ctx: TreeMenuContext): MenuProps['items'] {
       icon: <ExportOutlined />,
       label: '在新标签页打开',
       onClick: handlers.onOpenInNewTab,
+    },
+    {
+      key: 'refresh',
+      icon: <ReloadOutlined />,
+      label: '刷新',
+      onClick: handlers.onRefresh,
     },
     {
       key: 'moveOut',
