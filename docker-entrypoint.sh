@@ -34,7 +34,11 @@ if [ "$(id -u)" = "0" ]; then
             fi
         fi
     done
-    exec su-exec "$RUN_USER":"$RUN_GROUP" /app/haiku-wiki "$@"
+    if command -v su-exec >/dev/null 2>&1; then
+        exec su-exec "$RUN_USER":"$RUN_GROUP" /app/haiku-wiki "$@"
+    fi
+    echo "[entrypoint] 警告：未安装 su-exec，服务将继续以 root 用户运行；请恢复 APK 网络后重建镜像以启用降权。" >&2
+    exec /app/haiku-wiki "$@"
 fi
 
 exec /app/haiku-wiki "$@"

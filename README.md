@@ -32,7 +32,7 @@ haiku-wiki/
 ├── conf/application.yml     主配置文件
 ├── docs/                    功能指南与用户手册（含手册截图）
 ├── tools/                   构建与回归脚本（tools/build、tools/verify）
-├── Dockerfile               四阶段构建 → Alpine 单容器
+├── Dockerfile               前端产物 + Go builder → Alpine 单容器
 ├── docker-compose.yml
 └── docker-build-cn.sh       国内网络 / 代理环境下的构建封装（含换源与 --classic 兜底）
 ```
@@ -113,16 +113,19 @@ DATA_DIR=./data ./haiku-wiki                 # 前端由 Go 托管，访问 http
 ```bash
 cp .env.example .env             # 至少修改 JWT_SECRET
 cp conf/application.yml ./conf/  # 已存在；按需修改数据库 / 存储配置
-docker compose up -d --build     # 访问 http://<服务器IP>:8080
+./docker-build-cn.sh --apk-mirror https://mirrors.tuna.tsinghua.edu.cn/alpine \
+  --npm-mirror https://registry.npmmirror.com --classic
+docker compose up -d              # 访问 http://<服务器IP>:8080
 ```
 
 - 数据卷 `haiku-data` 持久化 SQLite 文件与 `uploads/`（容器内 `/app/data`）；配置卷把 `./conf` 挂到 `/app/conf`。
-- 镜像为**四阶段构建**：
-  `dwg-builder`（编译 libredwg 的 `dwg2dxf` / `dwgread`）→ `web-builder`（Node 构建前端）
-  → `server-builder`（`CGO_ENABLED=0` 静态编译，embed 前端产物）→ `alpine` 运行。
+- 前端与后端均在宿主机完成编译：脚本执行 `npm ci` + `npm run build`，将前端嵌入
+  `CGO_ENABLED=0` 的 Go 二进制，Docker 只复制 `build/haiku-wiki` 并制作 Alpine 运行镜像。
 - 构建期若拉不到 `ftp.gnu.org`，可用 `--build-arg LIBREDWG_URL=<内网镜像>` 换源。
   **libredwg 构建失败不阻断镜像**，只是 `.dwg` 退化为内嵌预览位图。
 - 运行镜像内置 `font-wqy-zenhei`（PDF/PNG 导出用的中文字体）。
+- 如果 Docker 构建阶段完全无法访问 APK 源，镜像仍会生成；此时字体、图片转换、时区/证书增强能力可能不可用，
+  且入口脚本会在缺少 `su-exec` 时以 root 运行服务。恢复 APK 网络后重建即可恢复完整能力。
 - 健康检查：`GET /api/auth/me`（未登录返回 401 属正常）。
 - 国内网络 / 有代理的机器：见 **1.3.1**（`docker/dockerfile:1` 拉不动是构建前端问题，不是项目代码问题）。
 
@@ -172,7 +175,7 @@ macOS / Windows 的 Docker Desktop 也是写这个文件（`~/.docker/config.jso
 }
 ```
 
-构建期还能把容器内的 apk / npm 源也换掉（默认走官方，传参才启用）：
+构建期可以分别指定容器内 apk 源与宿主机 npm 源（默认走官方，传参才启用）：
 
 ```bash
 ./docker-build-cn.sh \
@@ -208,8 +211,19 @@ docker pull docker/dockerfile:1         # 在能联网 / 走代理的机器先�
 ./docker-build-cn.sh --dry-run          # 只打印将要执行的命令，不真跑
 ```
 
-> `docker-compose.yml` 的 `build.args` 也已支持从环境变量 / `.env` 注入 `APK_MIRROR`、`NPM_MIRROR`；
-> 留空即 no-op。`./docker-build-cn.sh --help` 有完整参数说明。
+如果前端和后端已经在本机编译成功、仅 Docker 镜像构建失败，可复用现有
+`build/haiku-wiki` 跳过编译：
+
+```bash
+./docker-build-cn.sh --skip-build --classic
+```
+
+> `APK_MIRROR` 通过 `docker-compose.yml` 的 `build.args` 注入容器；`NPM_MIRROR` 由
+> `docker-build-cn.sh` 传给宿主机的 `npm ci`。`./docker-build-cn.sh --help` 有完整参数说明。
+
+`docker-build-cn.sh` 会先在本机执行 `npm ci`、`npm run build` 和 Go 编译，确认 `web/dist/index.html`
+与 `build/haiku-wiki` 生成后再执行 Docker 构建。直接执行 `docker compose build` 时，也必须先在本机生成
+`build/haiku-wiki`。
 
 ### 1.4 默认管理员
 

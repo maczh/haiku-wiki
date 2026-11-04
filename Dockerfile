@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-# ===== 寄海文库（haiku-wiki）多阶段构建 =====
+# ===== 寄海文库（haiku-wiki）运行镜像 =====
 #
 # 可选换源（默认空 = 用官方源；国内网络建议构建时显式传）：
 #   --build-arg APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
-#   --build-arg NPM_MIRROR=https://registry.npmmirror.com
+#   --npm-mirror https://registry.npmmirror.com（由 docker-build-cn.sh 用于宿主机 npm ci）
 #
 # ⚠️ 常见构建失败：`failed to resolve source metadata for docker.io/docker/dockerfile:1`
 #    这是上面 syntax 行指定的「BuildKit Dockerfile 前端镜像」拉不下来（国内直连 Docker Hub
@@ -12,40 +12,14 @@
 #    或 `DOCKER_BUILDKIT=0` 退回 classic builder 绕开前端拉取。
 #    仓库里的 `./docker-build-cn.sh` 已把这些开关封装好。
 
-# 全局构建参数（第一个 FROM 之前声明，各阶段需重新 ARG 才能用）
+# APK_MIRROR 仅用于安装运行时依赖；前端与后端均由宿主机构建。
 ARG APK_MIRROR=""
-ARG NPM_MIRROR=""
+# 宿主机已完成前端构建与 Go 编译；Docker 只复制最终二进制并制作运行镜像。
+# build/haiku-wiki 由 docker-build-cn.sh 生成，不应直接执行本 Dockerfile 规避脚本。
+FROM alpine:3.20
+COPY build/haiku-wiki /app/haiku-wiki
 
-# 阶段 1：构建前端（Vite 产物）
-FROM node:22-alpine AS web-builder
-ARG NPM_MIRROR=""
-WORKDIR /app/web
-COPY web/package.json web/package-lock.json* ./
-COPY web/scripts/patch-eflink-pptx.mjs ./scripts/patch-eflink-pptx.mjs
-ENV NODE_OPTIONS="--max-old-space-size=4096"
-# NPM_MIRROR 非空时才指定 registry（例如 https://registry.npmmirror.com），留空走官方源
-RUN if [ -n "${NPM_MIRROR}" ]; then \
-      npm install --no-audit --no-fund --registry "${NPM_MIRROR}"; \
-    else \
-      npm install --no-audit --no-fund; \
-    fi
-COPY web/ ./
-# prebuild 会同步 Vditor 与 draw.io 两套自托管静态资源：
-#   web/vendor/drawio 已随构建上下文带入时直接复用；缺失时自动联网拉取，
-#   拉取失败只告警不中断（绘图文档类型会提示"绘图组件未部署"）。
-RUN npm run build
-
-# 阶段 2：构建后端（纯 Go，免 CGO，嵌入前端产物）
-FROM golang:1.25-alpine AS server-builder
-WORKDIR /app/server
-COPY server/go.mod server/go.sum* ./
-RUN GOPROXY=https://goproxy.cn go mod download
-COPY server/ ./
-# 用真实的前端产物覆盖占位目录（embed 进二进制）
-COPY --from=web-builder /app/web/dist ./internal/static/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-wiki ./cmd/server
-
-# 阶段 3：运行时（单容器：二进制 + 数据卷）
+# 运行时（单容器：二进制 + 数据卷）
 # 中文字体：PDF / PNG 导出需要真实 CJK 字体（缺字体时中文会渲染为空白）
 # EXPORT_FONT_PATH 必须指向 font-wqy-zenhei 实际安装的位置
 # （apk 包把 wqy-zenhei.ttc 放在 /usr/share/fonts/wqy-zenhei/）。
@@ -59,7 +33,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /bin/haiku-w
 #     现有管线（freetype truetype + TTC 抽首字体）解析不了，换了反而彻底无字体可用。
 #   · 即使 EXPORT_FONT_PATH 指向了渲染器不能用的字体，LoadFont 也会告警并回退自动探测，
 #     不会重演「LoadFont 成功、BuildPDF 全线失败」（BUG-R6-02）。
-FROM alpine:3.20
 ARG APK_MIRROR=""
 # 图片库需要把 HEIC/PSD/CDR/AI 转成预览图：ImageMagick 负责通用位图，
 # libheif-tools 的 heif-convert 是 HEIC 的官方解码器（Alpine 的 ImageMagick 常未编 heif delegate）。
@@ -69,16 +42,38 @@ ARG APK_MIRROR=""
 # 同 dwg-builder：APK_MIRROR 非空时把官方源域名换成镜像站。
 # 下面这个 --repository 是 community 仓的兜底（wpy-zenhei 与 imagemagick 都在这里），
 # 同理按 APK_MIRROR 拼，避免换了镜像站却只换了一半源、卡在 dl-cdn 上超时。
-RUN if [ -n "${APK_MIRROR}" ]; then \
-      sed -i -E "s#https?://dl-cdn\.alpinelinux\.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories; \
+RUN set -eux; \
+    mirror="${APK_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}"; \
+    mirror="${mirror%/}"; \
+    if [ -n "${APK_MIRROR}" ]; then \
+      sed -i -E "s#https?://dl-cdn\.alpinelinux\.org/alpine#${mirror}#g" /etc/apk/repositories; \
+    fi; \
+    community="${mirror}/v3.20/community"; \
+    official_main="https://dl-cdn.alpinelinux.org/alpine/v3.20/main"; \
+    official_community="https://dl-cdn.alpinelinux.org/alpine/v3.20/community"; \
+    # 运行时增强包尽力安装；Docker 无法访问任何 APK 源时仍允许生成基础镜像， \
+    # 入口脚本会在缺少 su-exec 时降级运行，字体/图片转换能力由服务报告不可用。 \
+    if ! apk add --no-cache --repository "${community}" \
+      ca-certificates tzdata fontconfig su-exec; then \
+      echo "警告：APK 镜像源安装运行时增强包失败，切换官方 Alpine main/community 源" >&2; \
+      if ! apk add --no-cache --repository "${official_main}" --repository "${official_community}" \
+        ca-certificates tzdata fontconfig su-exec; then \
+        echo "警告：官方 Alpine 源也不可访问，将构建无 APK 增强包的基础镜像" >&2; \
+      fi; \
+    fi; \
+    # 中文字体不是服务启动的硬依赖；没有该包时由运行时字体探测逻辑降级。 \
+    if ! apk add --no-cache --repository "${community}" font-wqy-zenhei; then \
+      apk add --no-cache --repository "${official_main}" --repository "${official_community}" \
+        font-wqy-zenhei || echo "警告：未安装 font-wqy-zenhei，中文导出将使用运行时可用字体" >&2; \
+    fi; \
+    # 图片转换能力是可选的：某些 Alpine 镜像/版本可能暂时没有 libheif-tools， \
+    # 不能因此阻断主服务镜像构建。优先安装完整能力，失败后至少保留 ImageMagick。 \
+    if ! apk add --no-cache --repository "${community}" imagemagick libheif-tools; then \
+      apk add --no-cache --repository "${official_main}" --repository "${official_community}" imagemagick libheif-tools || \
+        apk add --no-cache --repository "${official_main}" --repository "${official_community}" imagemagick || true; \
     fi
-RUN apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec \
-      --repository "${APK_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}/v3.20/community" \
-      imagemagick libheif-tools \
-    || apk add --no-cache ca-certificates tzdata fontconfig font-wqy-zenhei su-exec
 RUN adduser -D -u 10001 haiku
 WORKDIR /app
-COPY --from=server-builder /bin/haiku-wiki /app/haiku-wiki
 # 主配置模板：运行期挂载自己的目录覆盖（docker-compose 默认挂 ./conf:/app/conf）。
 # 没挂时也能直接用 ENV 启动——config.Load 找不到文件会回退环境变量，不会起不来。
 COPY conf/application.yml /app/conf/application.yml
