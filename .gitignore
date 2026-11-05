@@ -7,11 +7,13 @@ node_modules/
 web/dist/
 # Vditor 自托管静态资源（由 web/scripts/copy-vditor-assets.mjs 生成，勿手动提交）
 web/public/vditor/
-# draw.io 自托管绘图组件（约 44MB 第三方静态资源，勿提交）
-#   web/vendor/drawio    —— 由 web/scripts/fetch-drawio-assets.mjs 按白名单拉取的原始资源
-#   web/public/drawio    —— 由 web/scripts/copy-drawio-assets.mjs 同步的构建输入
-# 两者都可在 `npm run fetch:drawio`（或 npm run dev/build 的前置脚本）中自动重建。
-web/vendor/drawio/
+# 第三方原始资源暂存目录（整目录不入库，可由脚本重建）
+#   web/vendor/drawio            —— 由 web/scripts/fetch-drawio-assets.mjs 按白名单拉取的原始资源
+#   web/vendor/onlyoffice-sdk    —— OnlyOffice 集成时的 SDK 响应缓存
+#   注意：.dockerignore 里 web/vendor/drawio **要**留在构建上下文（镜像内直接复用，避免联网拉
+#   2384 个文件），这里忽略它只影响 git，不影响 docker build。
+web/vendor/
+# draw.io 构建输入（由 web/scripts/copy-drawio-assets.mjs 从 web/vendor/drawio 同步而来）
 web/public/drawio/
 # Excalidraw 自托管字体/语言包（由 web/scripts/copy-excalidraw-assets.mjs 同步，勿手动提交）
 web/public/excalidraw/
