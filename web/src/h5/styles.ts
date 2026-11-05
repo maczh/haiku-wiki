@@ -33,14 +33,14 @@ export function isH5Degraded(t: DocType): boolean {
 /**
  * 移动端「画布型预览」需要双指缩放 + 单指拖动的类型。
  * 这些类型在 H5DocContainer 外层套 H5ZoomStage（见 H5DocContainer 的 zoomable）。
- * 覆盖：附件（PDF/DOCX/PPTX/图片/draw.io/CAD）、绘图。
+ * 覆盖：附件（PDF/DOCX/PPTX/图片/draw.io）、绘图。
  *
  * ⚠️ mindmap **刻意不在**这里：它是「按 scale 重新排布矢量 SVG」的渲染器，
  * 用 CSS transform 放大只会把整层位图拉花（放大后文字虚化）。改由 MindmapView
  * 内部驱动 `mm.view.scale` 做原生无级缩放，放大后依然清晰（见该文件的注释）。
  */
 export const H5_ZOOMABLE_TYPES: ReadonlySet<DocType> = new Set<DocType>([
-  'file', // pdf/docx/pptx/image/drawio/cad 预览统一可缩放
+  'file', // pdf/docx/pptx/image/drawio 预览统一可缩放
   'drawing',
 ])
 

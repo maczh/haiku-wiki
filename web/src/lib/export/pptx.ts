@@ -11,6 +11,7 @@
 // 段落/列表作为要点，表格与代码各占一页；图片嵌入（抓取失败降级为文本页）。
 
 import pptxgen from 'pptxgenjs'
+import { todoProgressBar } from './todo'
 import { type Block, plainOf } from './blocks'
 import { fetchImage } from './docx'
 
@@ -97,6 +98,9 @@ export async function buildPptx(blocks: Block[], title: string): Promise<Blob> {
         break
       case 'quote':
         pushBullet(`“${plainOf(b.runs)}”`)
+        break
+      case 'progress':
+        pushBullet(`进度 ${todoProgressBar(b.percent)}`)
         break
       case 'code':
         buf = { title: `${buf.title || title}（代码）`, bullets: [] }

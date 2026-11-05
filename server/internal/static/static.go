@@ -1,3 +1,5 @@
+//go:build !localdev
+
 // Package static 以 embed 方式托管前端构建产物（生产模式单容器部署）。
 // 本地开发时 dist 目录仅有占位文件，HasIndex() 返回 false，前端走 Vite dev server。
 package static

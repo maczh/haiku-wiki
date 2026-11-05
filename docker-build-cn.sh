@@ -33,7 +33,6 @@ HOME="${HOME:-/root}"
 PROXY=""
 APK_MIRROR=""
 NPM_MIRROR=""
-LIBREDWG_URL=""
 CLASSIC=0
 WRITE_PROXY=0
 DRY=0
@@ -46,7 +45,6 @@ usage() {
 构建参数（会作为 --build-arg 传入）：
   --apk-mirror <URL>    Alpine 软件源镜像，如 https://mirrors.tuna.tsinghua.edu.cn/alpine
   --npm-mirror <URL>    npm registry，如 https://registry.npmmirror.com
-  --libredwg-url <URL>  libredwg 源码地址（默认依次试官方 / 清华 / 阿里 / 中科大）
 
 网络选项：
   --proxy <URL>         HTTP 代理，如 http://127.0.0.1:7890（buildkit 前端拉取走它）
@@ -68,7 +66,6 @@ while [[ $# -gt 0 ]]; do
     --proxy)           PROXY="${2:-}";           shift 2 ;;
     --apk-mirror)      APK_MIRROR="${2:-}";      shift 2 ;;
     --npm-mirror)      NPM_MIRROR="${2:-}";      shift 2 ;;
-    --libredwg-url)    LIBREDWG_URL="${2:-}";    shift 2 ;;
     --classic)         CLASSIC=1;      shift ;;
     --write-proxy-config) WRITE_PROXY=1; shift ;;
     --dry-run)         DRY=1;          shift ;;
@@ -164,7 +161,6 @@ EOF
 ARGS=()
 [[ -n "$APK_MIRROR" ]]   && ARGS+=(--build-arg "APK_MIRROR=$APK_MIRROR")
 [[ -n "$NPM_MIRROR" ]]   && ARGS+=(--build-arg "NPM_MIRROR=$NPM_MIRROR")
-[[ -n "$LIBREDWG_URL" ]] && ARGS+=(--build-arg "LIBREDWG_URL=$LIBREDWG_URL")
 
 if [[ "$DRY" == "1" ]]; then
   quote() { local out="" a; for a in "$@"; do out="$out $(printf '%q' "$a")"; done; printf '%s' "$out"; }

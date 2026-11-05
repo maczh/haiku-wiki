@@ -371,14 +371,7 @@ export interface FileAttachment {  url: string
   filename: string
   size: number
   ext: string
-  /**
-   * 后端自动派生的转换产物：键为格式（`svg` / `png`），值为可访问 URL。
-   * 目前仅 .dwg / .dxf 导入时回填（导入后由后端转换并落盘）。
-   */
-  derived?: Record<string, string>
-  /** 派生过程降级（例：DWG 无外部转换器时仅能取到文件内嵌预览位图） */
-  degraded?: boolean
-  /** 降级或失败的原因说明，用于界面提示 */
+  /** 非致命处理说明 */
   note?: string
   /**
    * .pptx 已做过「外链图片本地化」扫描。
@@ -402,7 +395,7 @@ export interface DocExportFormats {
   formats: ExportFormatSpec[] | null
   default: string
   filename: string
-  /** 附件已由后端派生出的格式 → URL（键为格式名，如 svg/png） */
+  /** 附件已由后端派生出的格式 → URL（键为格式名，如 dxf/svg） */
   derived?: Record<string, string>
   /** 派生降级标记（见 FileAttachment.degraded） */
   degraded?: boolean

@@ -62,6 +62,7 @@ function toTextRuns(list: InlineRun[], base: { font?: string; color?: string } =
         text: r.text,
         bold: r.bold,
         italics: r.italic,
+        strike: r.strike,
         font: r.code ? 'Consolas' : base.font,
         color: r.code ? 'C7254E' : base.color,
         ...(r.link ? { link: r.link } : {}),
@@ -111,6 +112,24 @@ export async function buildDocx(blocks: Block[], title: string): Promise<Blob> {
           )
         }
         break
+      case 'progress': {
+        const percent = b.percent
+        children.push(new Paragraph({ text: `进度 ${percent}%`, spacing: { after: 40 } }))
+        const cells = [
+          ...(percent > 0 ? [{ width: percent, fill: percent === 100 ? '52C41A' : '1677FF' }] : []),
+          ...(percent < 100 ? [{ width: 100 - percent, fill: 'F0F0F0' }] : []),
+        ]
+        children.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [new TableRow({ children: cells.map(cell => new TableCell({
+            width: { size: cell.width, type: WidthType.PERCENTAGE },
+            shading: { fill: cell.fill },
+            children: [new Paragraph({ text: '', spacing: { before: 0, after: 0, line: 80 } })],
+          })) })],
+        }))
+        children.push(new Paragraph({ text: '', spacing: { after: 100 } }))
+        break
+      }
       case 'code':
         for (const line of (b.text || '').split('\n')) {
           children.push(

@@ -135,6 +135,7 @@ func AutoMigrate(g *gorm.DB) error {
 	}
 	return g.AutoMigrate(
 		&model.User{},
+		&model.TodoOption{},
 		&model.Book{},
 		&model.Doc{},
 		&model.DocVersion{},

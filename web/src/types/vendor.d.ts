@@ -36,10 +36,7 @@ declare module 'jquery-mousewheel' {
  * 而本项目的 window.$ / window.jQuery 正是该实例，因此 Luckysheet 内部
  * `$(".luckysheet-color-selected").spectrum(...)` 可以正常调用（修复 Bug A）。
  */
-declare module 'spectrum-colorpicker' {
-  const spectrum: unknown
-  export default spectrum
-}
+declare module 'spectrum-colorpicker' {}
 
 /** spectrum 自带样式（取色面板必备，否则面板无样式/不可交互） */
 declare module 'spectrum-colorpicker/spectrum.css'

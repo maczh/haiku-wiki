@@ -1,0 +1,16 @@
+.todo-board { width: 100%; box-sizing: border-box; }
+.todo-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; content-visibility: auto; contain-intrinsic-size: auto 160px; }
+.todo-item > .ant-checkbox-wrapper { margin-top: 6px; }
+.todo-title { font-size: 15px; line-height: 24px; overflow-wrap: anywhere; }
+.todo-note { white-space: pre-wrap; overflow-wrap: anywhere; color: #666; font-size: 13px; margin-top: 4px; }
+.todo-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.todo-fields label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.todo-fields .ant-select, .todo-fields .ant-select-auto-complete { width: 100%; }
+.todo-progress { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.todo-progress .ant-input-number-group-wrapper { width: 110px; }
+.todo-import-item { padding: 8px 0; border-bottom: 1px solid #eee; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .todo-board { padding-left: 12px !important; padding-right: 12px !important; }
+  .todo-fields { grid-template-columns: minmax(0, 1fr); }
+  .todo-board .ant-collapse-content-box { padding: 8px !important; }
+}

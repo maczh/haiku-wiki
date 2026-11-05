@@ -7,7 +7,7 @@
     "predev": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
     "dev": "vite",
     "prebuild": "node scripts/copy-drawio-assets.mjs && node scripts/copy-excalidraw-assets.mjs",
-    "build": "tsc --noEmit && vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit && NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "preview": "vite preview",
     "verify:mermaid-assets": "node scripts/verify-mermaid-assets.mjs",
     "fetch:drawio": "node scripts/fetch-drawio-assets.mjs",
@@ -17,7 +17,9 @@
     "verify:dashboard": "node scripts/verify-dashboard.mjs",
     "verify:gantt-ids": "node scripts/verify-gantt-ids.mjs",
     "verify:code-copy": "node scripts/verify-code-copy.mjs",
-    "verify:workbench": "node scripts/verify-workbench.mjs"
+    "verify:workbench": "node scripts/verify-workbench.mjs",
+    "verify:todo": "node scripts/verify-todo.mjs",
+    "verify:todo-export": "node scripts/verify-todo-export.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.4.0",

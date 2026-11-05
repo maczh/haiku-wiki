@@ -12,7 +12,9 @@ package exportx
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,77 +35,209 @@ func priorityLabel(v string) string {
 
 // ---------- 待办清单 ----------
 
-// todoExportDoc 待办清单正文（仅导出所需字段）。
+type todoExportItem struct {
+	Text      string   `json:"text"`
+	Done      bool     `json:"done"`
+	Due       string   `json:"due"`
+	Priority  string   `json:"priority"`
+	Note      string   `json:"note"`
+	Assignees []string `json:"assignees"`
+	Project   string   `json:"project"`
+	Progress  float64  `json:"progress"`
+}
+
 type todoExportDoc struct {
-	Version int `json:"version"`
-	Items   []struct {
-		Text     string `json:"text"`
-		Done     bool   `json:"done"`
-		Due      string `json:"due"`
-		Priority string `json:"priority"`
-		Note     string `json:"note"`
-	} `json:"items"`
+	Version int              `json:"version"`
+	Items   []todoExportItem `json:"items"`
+}
+
+type todoExportGroup struct {
+	Name  string
+	Items []todoExportItem
+}
+
+func todoExportProgress(done bool, progress float64) int {
+	if done || progress > 100 {
+		return 100
+	}
+	if progress < 0 {
+		return 0
+	}
+	return int(math.Floor(progress + 0.5))
+}
+
+func todoExportBar(percent int) string {
+	filled := (percent + 5) / 10
+	return strings.Repeat("█", filled) + strings.Repeat("░", 10-filled) + " " + strconv.Itoa(percent) + "%"
 }
 
 func parseTodoExportDoc(content string) todoExportDoc {
-	var doc todoExportDoc
+	doc := todoExportDoc{Items: []todoExportItem{}}
 	_ = json.Unmarshal([]byte(content), &doc)
+	if strings.TrimSpace(content) == "" {
+		doc.Items = []todoExportItem{{}}
+	}
+	for i := range doc.Items {
+		item := &doc.Items[i]
+		if item.Text == "" {
+			item.Text = "（空条目）"
+		}
+		names := []string{}
+		seen := map[string]bool{}
+		for _, name := range item.Assignees {
+			name = strings.TrimSpace(name)
+			if name != "" && !seen[name] {
+				names = append(names, name)
+				seen[name] = true
+			}
+		}
+		item.Assignees = names
+		item.Project = strings.TrimSpace(item.Project)
+		item.Progress = float64(todoExportProgress(item.Done, item.Progress))
+	}
 	return doc
 }
 
-// BuildTodoXLSX 把待办清单导出为 Excel（序号 / 待办事项 / 状态 / 截止时间 / 优先级 / 备注）。
+// groupTodoExports 与阅读模式相同：按负责人首次出现的顺序分组，多人任务分别列入各组。
+func groupTodoExports(items []todoExportItem) []todoExportGroup {
+	groups := []todoExportGroup{}
+	index := map[string]int{}
+	for _, item := range items {
+		names := item.Assignees
+		if len(names) == 0 {
+			names = []string{"未分配负责人"}
+		}
+		for _, name := range names {
+			i, found := index[name]
+			if !found {
+				i = len(groups)
+				index[name] = i
+				groups = append(groups, todoExportGroup{Name: name, Items: []todoExportItem{}})
+			}
+			groups[i].Items = append(groups[i].Items, item)
+		}
+	}
+	return groups
+}
+
+func todoExportSummary(items []todoExportItem) string {
+	done := 0
+	for _, item := range items {
+		if item.Done {
+			done++
+		}
+	}
+	percent := 0
+	if len(items) > 0 {
+		percent = int(math.Floor(float64(done)/float64(len(items))*100 + 0.5))
+	}
+	return "已完成 " + strconv.Itoa(done) + " / " + strconv.Itoa(len(items)) + " · " + todoExportBar(percent)
+}
+
+func todoGroupTitle(group todoExportGroup) string {
+	done := 0
+	for _, item := range group.Items {
+		if item.Done {
+			done++
+		}
+	}
+	return group.Name + " · " + strconv.Itoa(len(group.Items)) + " 项 · 已完成 " + strconv.Itoa(done) + " 项"
+}
+
+// BuildTodoXLSX 按阅读分组导出；汇总按原始任务计数，避免多人任务被重复统计。
 func BuildTodoXLSX(content, title string) ([]byte, error) {
 	doc := parseTodoExportDoc(content)
-	grid := [][]string{{"序号", "待办事项", "状态", "截止时间", "优先级", "备注"}}
-	for i, it := range doc.Items {
-		status := "未完成"
-		if it.Done {
-			status = "已完成"
-		}
+	grid := [][]string{{strings.TrimSpace(title)}, {todoExportSummary(doc.Items)}}
+	for _, group := range groupTodoExports(doc.Items) {
+		grid = append(grid, []string{todoGroupTitle(group)})
 		grid = append(grid, []string{
-			fmt.Sprintf("%d", i+1),
-			it.Text,
-			status,
-			it.Due,
-			priorityLabel(it.Priority),
-			it.Note,
+			"序号", "待办事项", "状态", "截止时间", "优先级",
+			"备注", "负责人", "项目名称", "进度",
 		})
+		for i, item := range group.Items {
+			status := "未完成"
+			if item.Done {
+				status = "已完成"
+			}
+			grid = append(grid, []string{
+				strconv.Itoa(i + 1), item.Text, status, item.Due, priorityLabel(item.Priority),
+				item.Note, strings.Join(item.Assignees, "、"), item.Project,
+				todoExportBar(todoExportProgress(item.Done, item.Progress)),
+			})
+		}
+	}
+	if len(doc.Items) == 0 {
+		grid = append(grid, []string{"这份待办清单还没有条目"})
 	}
 	return buildXLSXFromGrid(grid, xlsxSheetName(title))
 }
 
-// BuildTodoMD 把待办清单导出为 Markdown 复选清单（GitHub/多数 Markdown 软件可交互勾选）。
+// BuildTodoMD 导出全部负责人分组；展开所有任务，与阅读视图中的内容顺序一致。
 func BuildTodoMD(content, title string) ([]byte, error) {
 	doc := parseTodoExportDoc(content)
 	var sb strings.Builder
 	if strings.TrimSpace(title) != "" {
-		fmt.Fprintf(&sb, "# %s\n\n", strings.TrimSpace(title))
+		fmt.Fprintf(&sb, "# %s\n\n", todoMarkdownText(strings.TrimSpace(title)))
 	}
-	done, total := 0, len(doc.Items)
-	for _, it := range doc.Items {
-		mark := " "
-		if it.Done {
-			mark = "x"
-			done++
+	fmt.Fprintf(&sb, "> %s\n\n", todoExportSummary(doc.Items))
+	for _, group := range groupTodoExports(doc.Items) {
+		fmt.Fprintf(&sb, "## %s\n\n", todoMarkdownText(todoGroupTitle(group)))
+		for _, item := range group.Items {
+			mark := " "
+			if item.Done {
+				mark = "x"
+			}
+			fmt.Fprintf(
+				&sb,
+				"- [%s] %s\n",
+				mark,
+				todoMarkdownText(item.Text),
+			)
+			extra := []string{}
+			if item.Project != "" {
+				extra = append(extra, "项目 "+item.Project)
+			}
+			if len(item.Assignees) > 0 {
+				extra = append(extra, "负责人 "+strings.Join(item.Assignees, "、"))
+			}
+			if item.Due != "" {
+				extra = append(extra, "截止 "+item.Due)
+			}
+			if priority := priorityLabel(item.Priority); priority != "" {
+				extra = append(extra, "优先级 "+priority)
+			}
+			if len(extra) > 0 {
+				fmt.Fprintf(&sb, "  %s\n", todoMarkdownText(strings.Join(extra, " · ")))
+			}
+			if item.Note != "" {
+				for _, line := range strings.Split(item.Note, "\n") {
+					fmt.Fprintf(&sb, "  %s  \n", todoMarkdownText(line))
+				}
+			}
+			fmt.Fprintf(&sb, "  进度 %s\n\n", todoExportBar(todoExportProgress(item.Done, item.Progress)))
 		}
-		line := fmt.Sprintf("- [%s] %s", mark, it.Text)
-		var extra []string
-		if s := strings.TrimSpace(it.Due); s != "" {
-			extra = append(extra, "截止 "+s)
-		}
-		if s := priorityLabel(it.Priority); s != "" {
-			extra = append(extra, "优先级 "+s)
-		}
-		if s := strings.TrimSpace(it.Note); s != "" {
-			extra = append(extra, s)
-		}
-		if len(extra) > 0 {
-			line += "（" + strings.Join(extra, "；") + "）"
-		}
-		sb.WriteString(line + "\n")
 	}
-	fmt.Fprintf(&sb, "\n> 共 %d 项，已完成 %d 项。\n", total, done)
+	if len(doc.Items) == 0 {
+		sb.WriteString("这份待办清单还没有条目\n")
+	}
 	return []byte(sb.String()), nil
+}
+
+// 替换表按原文与目标成对书写，便于逐项检查 Markdown 转义规则。
+func todoMarkdownText(text string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		"\\", "\\\\",
+		"*", "\\*",
+		"_", "\\_",
+		"[", "\\[",
+		"]", "\\]",
+		"`", "\\`",
+		"\n", " ",
+	)
+	return replacer.Replace(text)
 }
 
 // ---------- 工作日历 ----------

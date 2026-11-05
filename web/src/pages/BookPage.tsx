@@ -23,6 +23,8 @@ import {
   UnorderedListOutlined,
   UserAddOutlined,
 } from '@ant-design/icons'
+import TodoCopyDialog from '../components/todo/TodoCopyDialog'
+import type { TodoEditorHandle } from '../components/editor/TodoEditor'
 import KnowledgeTree from '../components/tree/KnowledgeTree'
 import DocTargetPicker, { type DocTarget } from '../components/tree/DocTargetPicker'
 import BookDashboard from '../components/dashboard/BookDashboard'
@@ -123,6 +125,8 @@ export default function BookPage() {
 
   const [book, setBook] = useState<Book | null>(null)
   const [doc, setDoc] = useState<DocDetail | null>(null)
+  const todoEditorRef = useRef<TodoEditorHandle>(null)
+  const [todoCopySource, setTodoCopySource] = useState<DocNode | null>(null)
   const [docLoading, setDocLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [tocContainer, setTocContainer] = useState<HTMLElement | null>(null)
@@ -741,6 +745,10 @@ export default function BookPage() {
 
   /** 打开「复制」弹窗：先选目标文库，再选该文库下的目录（多级） */
   async function openCopyDoc(_bookId: number, node: DocNode) {
+    if (node.doc_type === 'todo') {
+      setTodoCopySource(node)
+      return
+    }
     setCopyNode(node)
     setCopyTarget({ bookId: node.book_id, parentId: node.parent_id })
     setCopyBooks(null)
@@ -794,7 +802,7 @@ export default function BookPage() {
   const bookCanWrite = !!user && (book?.can_write === true || isOwner || book?.visibility === 'members')
   // 文档级权限优先：公司文库里「库只读 + 文档所有人可编辑」是合法组合
   const canWrite = docCanWrite ?? bookCanWrite
-  // 附件型文档（导入的 docx/pdf/pptx/dwg 等）：按原文件保存，正文不可编辑，仅提供阅读与下载
+  // 附件型文档：按原文件保存，正文不可编辑，仅提供阅读与下载
   const docTypeNow = doc?.doc_type ?? 'markdown'
   const isAttachmentDoc = docTypeNow === 'file'
   // 目录（doc_type=folder）：不承载正文，只能读占位提示，不能编辑/分享/协作
@@ -1179,7 +1187,7 @@ export default function BookPage() {
                           <WhiteboardEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
                         )}
                         {doc.doc_type === 'todo' && (
-                          <TodoEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
+                          <TodoEditor ref={todoEditorRef} key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} onSaveAs={() => setTodoCopySource(doc)} />
                         )}
                         {doc.doc_type === 'calendar' && (
                           <CalendarEditor key={doc.id} docId={doc.id} initialContent={doc.content} title={doc.title} />
@@ -1337,6 +1345,17 @@ export default function BookPage() {
         onClose={() => setWeChatOpen(false)}
         docId={docIdParam ?? 0}
         docTitle={doc?.title ?? ''}
+      />
+
+      <TodoCopyDialog
+        source={todoCopySource}
+        getCurrentContent={(id) => doc?.id === id && tab === 'edit' ? todoEditorRef.current?.getContent() : undefined}
+        onClose={() => setTodoCopySource(null)}
+        onCreated={(copy) => {
+          setTodoCopySource(null)
+          afterImport(copy.book_id)
+          navigate(`/books/${copy.book_id}?docId=${copy.id}&tab=edit`)
+        }}
       />
 
       {/* 导出对话框（R6：右键导出；md/md.zip 走导出 API，json 前端生成） */}

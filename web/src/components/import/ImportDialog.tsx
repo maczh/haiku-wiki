@@ -4,7 +4,6 @@ import type { UploadFile } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, InboxOutlined } from '@ant-design/icons'
 import { createDoc } from '../../api/docs'
 import { uploadWithDedup } from '../../lib/uploadFlow'
-import { prepareAttachment } from '../../api/attachments'
 import { ACCEPT_EXTENSIONS, parseFile } from '../../lib/import/parse'
 import { extOfName, isSupportedImportExt, unsupportedImportReason } from '../../lib/import/formats'
 import type { FileAttachment } from '../../types'
@@ -148,8 +147,7 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         return false
       }
 
-      // 附件型（docx/pdf/pptx/vsd/dwg…）：先上传原文件，再按原样落库为 file 文档；
-      // CAD 还要多一步：由后端把 .dwg/.dxf 转成 .svg/.png，回填 derived 供前端预览。
+      // 附件型（docx/pdf/pptx/vsd）：先上传原文件，再按原样落库为 file 文档；
       if (res.attachment) {
         // 走秒传链路：内容已存在时不重复传输字节（降级由 uploadFlow 内部保证）
         const up = await uploadWithDedup(file)
@@ -160,27 +158,12 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
           ext: res.attachment.ext,
         }
         let note = ''
-        if (res.needsPrepare) {
-          updateItem(item.uid, { status: 'parsing', message: '正在生成预览…' })
-          try {
-            const prep = await prepareAttachment({ url: ref.url, filename: ref.filename, size: ref.size })
-            ref = prep.ref
-            note = prep.warning || (ref.degraded ? ref.note || '图纸预览为降级结果' : '')
-            // 转换不出任何预览产物（例如未安装 DWG 转换器且文件内无预览图）：
-            // 仍保留原文件，只提示不可在线预览，绝不落一个「预览地址指向空文件」的损坏文档。
-            if (!ref.derived?.svg && !ref.derived?.png) {
-              note = '暂不支持该格式在线预览，已按原文件保存（可下载后用专业软件打开）'
-            }
-          } catch {
-            note = '预览转换失败，已按原文件保存（可下载后用专业软件打开）'
-          }
-        }
         const doc = await createDoc(bookId, parentId, res.title, 'file', JSON.stringify(ref))
         // 转换降级/失败只做成 toast，不把长原因塞进列表标签
         if (note) message.warning(note)
         updateItem(item.uid, {
           status: 'success',
-          message: note ? '导入成功（无在线预览）' : '导入成功（按原文件保存，不可编辑）',
+          message: note ? '导入成功（无在线预览）' : '导入成功',
           docId: doc.id,
           md5: up.md5,
           dedup: up.dedup,
@@ -298,14 +281,13 @@ export default function ImportDialog({ open, onClose, bookId, parentId = 0, onIm
         <p className="ant-upload-text">点击或拖拽文件到此处</p>
         <p className="ant-upload-hint">
           支持 .md / .txt / .md.zip（md+图片压缩包）/ .docx / .html / .xlsx / .xls / .csv / .pdf / .pptx / .drawio /
-          .vsd / .vsdx / .dwg / .dxf / .et / .excalidraw，可多选批量导入
+          .vsd / .vsdx / .et / .excalidraw，可多选批量导入
         </p>
       </Upload.Dragger>
 
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12 }}>
         · <b>.md.zip</b>：Markdown 包（md + 图片），图片自动转存并把正文里的图片地址改为文库地址
         <br />· <b>.docx / .pdf / .pptx</b>：按原文件保存，阅读界面内直接预览（.pptx 支持翻页与自动播放）
-        <br />· <b>.dwg / .dxf</b>：保留原图，后端自动转换为 .svg + .png，前端可缩放拖动并导出
         <br />· <b>.drawio</b>：建为「绘图」文档，内嵌 draw.io 组件直接编辑
         <br />· <b>.excalidraw</b>：建为「白板」文档，内嵌 Excalidraw 组件直接编辑
         <br />· <b>.vsd / .vsdx</b>：保留源文件，阅读页由绘图组件转换预览，可另存为可编辑的绘图文档

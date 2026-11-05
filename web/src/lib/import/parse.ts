@@ -2,11 +2,10 @@
 // 解析产物统一为 {ok, title, docType, content, children?, attachment?}，失败不产生损坏文档。
 //
 // 导入约定（本轮）：
-//   - .docx / .doc / .pdf / .pptx / .vsd / .vsdx / .dwg / .dxf → 按原文件保存（docType=file，
+//   - .docx / .doc / .pdf / .pptx / .vsd / .vsdx → 按原文件保存（docType=file，
 //     content 为上传后回填的附件引用 JSON），不可编辑，阅读时由 FileView 分派渲染：
 //       .docx → mammoth，.pdf → pdf.js，.pptx → pptx-preview（可播放），
-//       .dwg/.dxf → 后端派生的 SVG/PNG（可缩放拖动），.vsd/.vsdx → 内嵌 draw.io 转换预览；
-//     其中 .dwg/.dxf 上传后还需调 /api/attachments/prepare 触发后端转换并回填 derived；
+//       .vsd/.vsdx → 内嵌 draw.io 转换预览；
 //   - .drawio → 「绘图」文档，正文即 .drawio 的 XML 原文，由内嵌 draw.io 组件直接编辑保存；
 //   - .xlsx / .xls / .csv / .et → 转为「表格」：每个有内容的工作表落为一个「表格」文档，
 //     多表时以文件名建父「表格」，各工作表作为其子文档；单表时直接落为单文档；
@@ -54,8 +53,6 @@ export interface ParseResult {
   children?: ImportChild[]
   /** 附件型导入：调用方需先上传原文件，再把返回的 url 回填进 content */
   attachment?: Omit<FileAttachment, 'url'>
-  /** 附件型导入后是否还需调 /api/attachments/prepare 触发后端转换（CAD 类） */
-  needsPrepare?: boolean
   /**
    * Markdown 包（.md.zip）：zip 里的图片需先走上传链路拿新 URL，
    * 再用 mdPackage.apply 重写正文里的图片地址，最后才 createDoc。
@@ -138,10 +135,8 @@ const parseMindmapFile: Parser = async (file) => {
 // ---------- 附件型（原样保存，不解析正文） ----------
 
 /** 按原文件保存的附件型扩展名 */
-const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'vsd', 'vsdx', 'dwg', 'dxf']
+const ATTACHMENT_EXTS = ['docx', 'doc', 'pdf', 'pptx', 'vsd', 'vsdx']
 
-/** 需要后端转换派生产物的附件（DWG/DXF → SVG/PNG） */
-export const CAD_IMPORT_EXTS = ['dwg', 'dxf']
 
 const parseAttachment: Parser = async (file) => {
   const ext = extOf(file.name)
@@ -151,7 +146,6 @@ const parseAttachment: Parser = async (file) => {
     docType: 'file',
     content: '', // 真实 content 由导入流程上传原文件后写入
     attachment: { filename: file.name, size: file.size, ext },
-    needsPrepare: CAD_IMPORT_EXTS.includes(ext),
   }
 }
 
@@ -346,8 +340,6 @@ export const parserRegistry: Record<string, Parser> = {
   pptx: parseAttachment, // 保留源文件，前端 pptx-preview 预览/播放
   vsd: parseAttachment, // Visio：保留源文件，阅读页由 draw.io 转换预览
   vsdx: parseAttachment,
-  dwg: parseAttachment, // AutoCAD：保留源文件，后端派生 SVG/PNG
-  dxf: parseAttachment,
   drawio: parseDrawio, // 绘图文档：正文即 XML，可直接编辑保存
   excalidraw: parseExcalidraw, // 白板文档：剥壳存场景 JSON，编辑态可继续绘制
   smm: parseMindmapFile, // 思维导图：四种外部格式统一转成内置 smm

@@ -185,7 +185,8 @@ export default function SharePage() {
                   <WidthControl compact />
                 </div>
               )}
-              {/* 附件型按原文件只读预览；绘图文档渲染已保存的 SVG 矢量图（不加载绘图组件）；
+              {/* 附件型按原文件只读预览；
+                  绘图文档渲染已保存的 SVG 矢量图（不加载绘图组件）；
                   其余非 markdown 类型暂以占位提示 */}
               <LazyBoundary tip="正在加载预览器…">
                 {doc.doc_type === 'file' ? (

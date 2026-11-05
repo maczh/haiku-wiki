@@ -68,12 +68,7 @@ export default function ExportDialog({
 
   const isBook = target?.kind === 'book'
   const isAttachment = !isBook && !!meta?.is_file
-  /**
-   * 附件里只有 CAD（.dwg/.dxf）有服务端派生出的可选格式（svg/png），
-   * 其余附件（docx/pdf/pptx…）只有"原文件"一种，无需让用户选。
-   */
   const allFormats = meta?.formats ?? []
-  const isCadAttachment = isAttachment && allFormats.length > 1
   /**
    * 绘图文档（doc_type=drawing）的 .svg/.png/.vsdx 需要浏览器侧 mxGraph 渲染，
    * 服务端无法生成，因此这里只暴露 .drawio，并引导用户去编辑器里导出其余格式。
@@ -112,7 +107,7 @@ export default function ExportDialog({
   const spec = options.find((o) => o.value === format)
   const ext = isBook
     ? 'md.zip'
-    : isAttachment && !isCadAttachment && clientOpts.length === 0
+    : isAttachment && clientOpts.length === 0
       ? fileExt || 'bin'
       : spec?.ext || 'md'
 
@@ -151,7 +146,7 @@ export default function ExportDialog({
   async function contentOf(docId: number): Promise<string> {
     if (contentRef.current?.docId === docId) return contentRef.current.content
     const d = await getDoc(docId)
-    const content = (d as { content?: string }).content ?? ''
+    const content = d.doc.content ?? ''
     contentRef.current = { docId, content }
     return content
   }
@@ -240,7 +235,7 @@ export default function ExportDialog({
       confirmLoading={saving}
       okButtonProps={{ disabled: okDisabled }}
       okText={
-        isAttachment && !isCadAttachment && clientOpts.length === 0 ? '下载原文件' : clientFormat === 'pdf' ? '生成 PDF' : '导出'
+        isAttachment && clientOpts.length === 0 ? '下载原文件' : clientFormat === 'pdf' ? '生成 PDF' : '导出'
       }
       cancelText="取消"
       destroyOnClose
@@ -249,10 +244,10 @@ export default function ExportDialog({
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {isBook
           ? '知识库将按目录结构导出为 Markdown 压缩包（附件型文档按原文件打包）'
-          : isCadAttachment
-            ? '图纸原文件与后端转换出的矢量图/位图均可导出'
-            : isAttachment
+          : isAttachment
               ? '该文档为导入的原始文件；下面可选的格式里，「原文件」与上传时完全一致，其余由浏览器转换生成'
+              : docType === 'todo'
+                ? '按阅读模式导出全部负责人分组及进度，多人任务分别显示；JSON 保留原始清单数据。'
               : '选择导出格式：标注「服务端」的由服务端转换，标注「浏览器」的在浏览器内转换（排版与图片还原更好）'}
       </Typography.Paragraph>
 
@@ -264,7 +259,7 @@ export default function ExportDialog({
 
       {loadError && <Alert type="error" showIcon message={loadError} style={{ marginBottom: 12 }} />}
 
-      {!isBook && !loading && !loadError && isAttachment && !isCadAttachment && clientOpts.length === 0 && (
+      {!isBook && !loading && !loadError && isAttachment && clientOpts.length === 0 && (
         <Alert
           type="info"
           showIcon
